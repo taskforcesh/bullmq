@@ -16,17 +16,17 @@ Redis is used quite often as a cache, meaning that it will remove keys according
 
 In a production setting, one of the things that are crucial for system robustness is to be able to recover automatically after connection issues. It is impossible to guarantee that a connection between BullMQ and Redis will always stay online. However, the important thing is that it recovers as fast as possible when the connection can be re-established without any human intervention.
 
-In order to understand how to properly handle disconnections it is important to understand some options provided by [IORedis](https://www.npmjs.com/package/ioredis#Auto-reconnect). The ones interesting for us are:
+In order to understand how to properly handle disconnections it is important to understand the retry and reconnect options provided by your Redis client. By default BullMQ uses [IORedis](https://www.npmjs.com/package/ioredis#Auto-reconnect), where the most relevant options are:
 
-* `retryStrategy`
-* `maxRetriesPerRequest`
-* `enableOfflineQueue`
+- `retryStrategy`
+- `maxRetriesPerRequest`
+- `enableOfflineQueue`
 
 It is also important to understand the difference in behavior that is often desired for `Queue` and `Worker` classes. Normally the operations performed using the `Queue` class should [fail quickly](../patterns/failing-fast-when-redis-is-down.md) if there is a temporal disconnection, whereas for `Worker`s we want to wait indefinitely without raising any exception.
 
 #### `retryStrategy`
 
-This option is used to determine the function used to perform retries. The retries will continue forever until the reconnection has been accomplished. For IORedis connections created inside BullMQ we use the following strategy:
+This option is used to determine the function used to perform retries. The retries will continue forever until the reconnection has been accomplished. For ioredis connections created inside BullMQ we use the following strategy:
 
 ```ts
  retryStrategy: function (times: number) {
@@ -34,60 +34,75 @@ This option is used to determine the function used to perform retries. The retri
  }
 ```
 
-In other words, it will retry using exponential backoff, with a minimum 1-second retry time and max of 20 seconds. This `retryStrategy` can easily be overridden by passing a custom one defining custom IORedis options.
+In other words, it will retry using exponential backoff, with a minimum 1-second retry time and max of 20 seconds. This `retryStrategy` can easily be overridden by passing custom ioredis options. If you are using another Redis client through an adapter, configure the equivalent reconnect behavior in that client.
 
 #### `maxRetriesPerRequest`
 
-This option sets a limit on the number of times a retry on a failed request will be performed. For `Worker`s, it is important to set this option to **`null`**. Otherwise, the exceptions raised by Redis when calling certain commands could break the worker functionality. When instantiating a `Worker` this option will always be set to `null` by default, but it could be overridden, either if passing an existing IORedis instance or by passing a different value for this option when instantiating the `Worker`. In both cases BullMQ will output a warning; please make sure to address this warning as it can have several unintended consequences.
+This option sets a limit on the number of times a retry on a failed request will be performed. For `Worker`s using ioredis, it is important to set this option to **`null`**. Otherwise, the exceptions raised by Redis when calling certain commands could break the worker functionality. When instantiating a `Worker` this option will always be set to `null` by default, but it could be overridden, either if passing an existing ioredis instance or by passing a different value for this option when instantiating the `Worker`. In both cases BullMQ will output a warning; please make sure to address this warning as it can have several unintended consequences.
 
 #### `enableOfflineQueue`
 
 IORedis provides a small offline queue that is used to queue commands while the connection is offline. You will probably want to disable this queue for the `Queue` instance, but leave it as is for `Worker` instances. That will make the `Queue` calls [fail quickly](../patterns/failing-fast-when-redis-is-down.md) while leaving the `Worker`s to wait as needed until the connection has been re-established.
+
+#### Using node-redis or Bun adapters in production
+
+If you are using `createNodeRedisClient` or `createBunRedisClient`, the same production principle still applies:
+
+- `Queue`-style producers should fail quickly when Redis is unavailable.
+- `Worker`-style consumers should keep retrying and recover automatically.
+
+For `node-redis`, configure reconnect and request behavior on the raw client you create in your application (for example `socket.reconnectStrategy`, connect timeout, and command timeout related options) so that producers and workers can have the behavior you need.
+
+For Bun's Redis client, BullMQ's Bun adapter includes automatic reconnect handling with exponential backoff for unexpected disconnects. You should still run with proper error logging and graceful shutdown so worker processes can close cleanly during deploys and restarts.
+
+In all adapter cases, test these scenarios before going to production:
+
+- Redis unavailable at service startup.
+- Transient network disconnect while workers are processing jobs.
+- Graceful process shutdown while workers have active jobs.
 
 ### Log errors
 
 It is really useful to attach a handler for the error event which will be triggered when there are connection issues. This will be helpful when debugging your queues and prevent "unhandled errors".
 
 ```typescript
-worker.on("error", (err) => {
+worker.on('error', err => {
   // Log your error.
-})
+});
 ```
 
 ```typescript
-queue.on("error", (err) => {
+queue.on('error', err => {
   // Log your error.
-})
+});
 ```
 
 ### Gracefully shut-down workers
 
 Since your workers will run on servers, it is unavoidable that these servers will need to be restarted from time to time. As your workers may be
 processing jobs when the server is about to restart, it is important to properly close the workers to minimize the risk of stalled jobs. If a worker
-is killed without waiting for their jobs to complete, these jobs will be marked as stalled and processed automatically when new workers come online 
-(with a waiting time of about 30 seconds by default). However it is better to avoid having stalled jobs, and as mentioned this can be done by closing 
+is killed without waiting for their jobs to complete, these jobs will be marked as stalled and processed automatically when new workers come online
+(with a waiting time of about 30 seconds by default). However it is better to avoid having stalled jobs, and as mentioned this can be done by closing
 the workers when the server is going to be restarted.&#x20;
 
 In a Node.js server, it is considered good practice to listen for both `SIGINT` and `SIGTERM` signals to close gracefully. Here's why:
 
-* `SIGINT` is typically sent when a user types Ctrl+C in the terminal to interrupt a process. Your server should listen to this signal during development or when it's running in the foreground, so you can shut it down properly when this key combination is pressed.
-* `SIGTERM` is the signal that is usually sent to a process to request its termination. Unlike `SIGKILL`, this signal can be caught by the process (which can then clean up resources and exit gracefully). This is the signal that system daemons, orchestration tools like Kubernetes, or process managers like PM2 typically use to stop a service.
+- `SIGINT` is typically sent when a user types Ctrl+C in the terminal to interrupt a process. Your server should listen to this signal during development or when it's running in the foreground, so you can shut it down properly when this key combination is pressed.
+- `SIGTERM` is the signal that is usually sent to a process to request its termination. Unlike `SIGKILL`, this signal can be caught by the process (which can then clean up resources and exit gracefully). This is the signal that system daemons, orchestration tools like Kubernetes, or process managers like PM2 typically use to stop a service.
 
 Here is an example on how you accomplish this:
 
 ```typescript
-
-const gracefulShutdown = async (signal) => {
+const gracefulShutdown = async signal => {
   console.log(`Received ${signal}, closing server...`);
   await worker.close();
   // Other asynchronous closings
   process.exit(0);
-}
+};
 
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-
 ```
 
 Keep in mind that the code above does not guarantee that the jobs will never end up being stalled, as the job may take longer time than the grace period for the server to restart.
@@ -109,13 +124,13 @@ Another important point to think about when deploying for production is the fact
 Another common issue, especially in production environments, is the fact that NodeJS by default will break if there are unhandled exceptions. This is not unique for BullMQ-based applications, but a general rule for all NodeJS applications. We recommend that somewhere in your service you make sure that you handle the unhandled exceptions gracefully, and so you can fix them when they arise without any risk of the application breaking when they happen:
 
 ```typescript
-process.on("uncaughtException", function (err) {
+process.on('uncaughtException', function (err) {
   // Handle the error safely
-  logger.error(err, "Uncaught exception");
+  logger.error(err, 'Uncaught exception');
 });
 
-process.on("unhandledRejection", (reason, promise) => {
+process.on('unhandledRejection', (reason, promise) => {
   // Handle the error safely
-  logger.error({ promise, reason }, "Unhandled Rejection at: Promise");
+  logger.error({ promise, reason }, 'Unhandled Rejection at: Promise');
 });
 ```

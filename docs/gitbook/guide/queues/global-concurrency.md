@@ -28,6 +28,6 @@ await queue.removeGlobalConcurrency();
 
 ## Read more:
 
-- 💡 [Set Global Concurrency API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#setglobalconcurrency)
-- 💡 [Get Global Concurrency API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getglobalconcurrency)
-- 💡 [Remove Global Concurrency API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeglobalconcurrency)
+- 💡 [Set Global Concurrency API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#setglobalconcurrency)
+- 💡 [Get Global Concurrency API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#getglobalconcurrency)
+- 💡 [Remove Global Concurrency API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#removeglobalconcurrency)

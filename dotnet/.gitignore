@@ -1,0 +1,16 @@
+bin/
+obj/
+
+# Generated: shared Lua command scripts copied from ../rawScripts by
+# `copy:lua:dotnet`. Single source of truth lives in the repo root.
+src/BullMQ/Commands/
+
+# Generated: shared PostgreSQL scripts copied from ../src/postgres by
+# `copy:sql:dotnet` (used by the PostgreSQL backend).
+src/BullMQ/Postgres/commands/
+src/BullMQ/Postgres/migrations/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/

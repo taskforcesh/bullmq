@@ -50,6 +50,15 @@ class WorkerOptions(TypedDict, total=False):
     @default 30000
     """
 
+    lockRenewTime: int
+    """
+    Renewal window for the lock manager, in milliseconds. The renewal
+    loop wakes every `lockRenewTime / 2` ms and renews any job whose
+    lock is older than half this window.
+
+    @default lockDuration / 2
+    """
+
     prefix: str
     """
     Prefix for all queue keys.

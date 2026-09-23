@@ -1,7 +1,7 @@
 defmodule BullMQ.MixProject do
   use Mix.Project
 
-  @version "1.3.2"
+  @version "2.2.3"
   @source_url "https://github.com/taskforcesh/bullmq"
   @description "A powerful, fast, and robust job queue for Elixir backed by Redis"
 
@@ -65,39 +65,42 @@ defmodule BullMQ.MixProject do
   defp deps do
     [
       # Redis client
-      {:redix, "~> 1.3"},
+      {:redix, "== 1.9.1"},
+
+      # PostgreSQL client (optional backend)
+      {:postgrex, "== 0.22.4", optional: true},
 
       # Connection pooling
-      {:nimble_pool, "~> 1.0"},
+      {:nimble_pool, "== 1.1.0"},
 
       # Configuration validation
-      {:nimble_options, "~> 1.0"},
+      {:nimble_options, "== 1.1.1"},
 
       # JSON encoding/decoding
-      {:jason, "~> 1.4"},
+      {:jason, "== 1.4.5"},
 
       # Cron expression parsing
-      {:crontab, "~> 1.1"},
+      {:crontab, "== 1.2.0"},
 
       # MessagePack encoding for Lua scripts
-      {:msgpax, "~> 2.4"},
+      {:msgpax, "== 2.4.0"},
 
       # UUID generation
-      {:elixir_uuid, "~> 1.2"},
+      {:elixir_uuid, "== 1.2.1"},
 
       # Telemetry for instrumentation
-      {:telemetry, "~> 1.2"},
+      {:telemetry, "== 1.4.2"},
 
       # OpenTelemetry for distributed tracing (optional)
-      {:opentelemetry_api, "~> 1.0", optional: true},
+      {:opentelemetry_api, "== 1.5.0", optional: true},
 
       # Development and test dependencies
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:excoveralls, "~> 0.18", only: :test},
-      {:mox, "~> 1.1", only: :test},
-      {:stream_data, "~> 1.0", only: [:dev, :test]}
+      {:dialyxir, "== 1.4.8", only: [:dev, :test], runtime: false},
+      {:ex_doc, "== 0.40.4", only: :dev, runtime: false},
+      {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
+      {:excoveralls, "== 0.18.5", only: :test},
+      {:mox, "== 1.3.2", only: :test},
+      {:stream_data, "== 1.4.0", only: [:dev, :test]}
     ]
   end
 

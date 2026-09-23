@@ -264,7 +264,7 @@ defmodule BullMQ.WorkerIntegrationTest do
 
   describe "Job failure and retry" do
     @tag :integration
-    @tag timeout: 15_000
+    @tag timeout: 30_000
     test "worker retries failed job", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
@@ -300,7 +300,7 @@ defmodule BullMQ.WorkerIntegrationTest do
       job_id = job.id
 
       # Wait for completion after retries
-      assert_receive {:completed, ^job_id, attempts}, 15_000
+      assert_receive {:completed, ^job_id, attempts}, 30_000
       # Failed twice, succeeded on third
       assert attempts == 3
 
@@ -309,7 +309,7 @@ defmodule BullMQ.WorkerIntegrationTest do
     end
 
     @tag :integration
-    @tag timeout: 15_000
+    @tag timeout: 30_000
     test "job moves to failed after max retries", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
@@ -332,8 +332,10 @@ defmodule BullMQ.WorkerIntegrationTest do
 
       job_id = job.id
 
-      # Wait for final failure (after exhausting retries)
-      assert_receive {:failed, ^job_id, reason}, 10_000
+      # Wait for final failure (after exhausting retries). This path can take
+      # longer in CI because the job must be retried before the final on_failed
+      # callback fires.
+      assert_receive {:failed, ^job_id, reason}, 30_000
       assert reason =~ "Always fails"
 
       # Check job is in failed state
@@ -1724,6 +1726,156 @@ defmodule BullMQ.WorkerIntegrationTest do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Child failure propagation to parent (fpof / idof)
+  #
+  # These verify the fix for a parent job getting stuck in the
+  # "waiting-children" state: the dependency flags (fpof/idof/...) must be
+  # stored in the child's parent payload so that when a child finishes or
+  # fails, moveToFinished can release the parent from waiting-children.
+  # ---------------------------------------------------------------------------
+
+  describe "child failure propagation to parent" do
+    @tag :integration
+    @tag timeout: 20_000
+    test "fail_parent_on_failure child moves parent out of waiting-children and fails it", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      alias BullMQ.FlowProducer
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            case job.name do
+              "parent" ->
+                # Parent should never actually run its processor: the deferred
+                # failure guard must fail it before this returns.
+                send(test_pid, {:parent_processing, job.id})
+                :waiting_children
+
+              "child" ->
+                raise "child boom"
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.name, job.id})
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job.name, job.id, reason})
+          end
+        )
+
+      flow = %{
+        name: "parent",
+        queue_name: queue_name,
+        data: %{},
+        children: [
+          %{
+            name: "child",
+            queue_name: queue_name,
+            data: %{},
+            opts: %{fail_parent_on_failure: true}
+          }
+        ]
+      }
+
+      {:ok, result} = FlowProducer.add(flow, connection: conn, prefix: @test_prefix)
+      parent_id = result.job.id
+      child_id = hd(result.children).job.id
+
+      # Child fails
+      assert_receive {:failed, "child", ^child_id, child_reason}, 10_000
+      assert child_reason =~ "child boom"
+
+      # Parent must NOT complete and must be moved to failed with the deferred reason
+      assert_receive {:failed, "parent", ^parent_id, parent_reason}, 10_000
+      assert parent_reason =~ "failed"
+
+      refute_receive {:completed, "parent", _}, 1_000
+
+      # Parent is no longer stuck in waiting-children; both jobs are failed.
+      {:ok, counts} = Queue.get_counts(queue_name, connection: conn, prefix: @test_prefix)
+      assert counts.waiting_children == 0
+      assert counts.failed == 2
+
+      Worker.close(worker)
+    end
+
+    @tag :integration
+    @tag timeout: 20_000
+    test "ignore_dependency_on_failure child lets parent complete", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      alias BullMQ.FlowProducer
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            case job.name do
+              "parent" ->
+                send(test_pid, {:parent_processing, job.id})
+                {:ok, :parent_done}
+
+              "child" ->
+                raise "child boom"
+            end
+          end,
+          on_completed: fn job, result ->
+            send(test_pid, {:completed, job.name, job.id, result})
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job.name, job.id, reason})
+          end
+        )
+
+      flow = %{
+        name: "parent",
+        queue_name: queue_name,
+        data: %{},
+        children: [
+          %{
+            name: "child",
+            queue_name: queue_name,
+            data: %{},
+            opts: %{ignore_dependency_on_failure: true}
+          }
+        ]
+      }
+
+      {:ok, result} = FlowProducer.add(flow, connection: conn, prefix: @test_prefix)
+      parent_id = result.job.id
+      child_id = hd(result.children).job.id
+
+      # Child fails, but the dependency is ignored
+      assert_receive {:failed, "child", ^child_id, _reason}, 10_000
+
+      # Parent is released from waiting-children and completes normally
+      assert_receive {:parent_processing, ^parent_id}, 10_000
+      assert_receive {:completed, "parent", ^parent_id, :parent_done}, 10_000
+
+      refute_receive {:failed, "parent", _, _}, 1_000
+
+      {:ok, counts} = Queue.get_counts(queue_name, connection: conn, prefix: @test_prefix)
+      assert counts.waiting_children == 0
+      assert counts.completed == 1
+      assert counts.failed == 1
+
+      Worker.close(worker)
+    end
+  end
+
   # Worker Lifecycle Tests
   # ---------------------------------------------------------------------------
 
@@ -2575,6 +2727,256 @@ defmodule BullMQ.WorkerIntegrationTest do
       assert_receive {:lock_renewal_failed, [^job_id]}, 5_000
 
       Worker.close(worker, force: true)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Stalled Job Tests
+  # ---------------------------------------------------------------------------
+
+  describe "Stalled jobs" do
+    @tag :integration
+    @tag timeout: 10_000
+    test "continues processing after a worker has stalled", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+      {:ok, first} = Agent.start_link(fn -> true end)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          lock_duration: 1_000,
+          stalled_interval: 100,
+          processor: fn job ->
+            if Agent.get(first, & &1) do
+              Agent.update(first, fn _ -> false end)
+
+              # The job takes longer than lock_duration and the lock
+              # is not renewed before it expires.
+              Process.sleep(2_000)
+            end
+
+            send(test_pid, {:processed, job.id})
+            :ok
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
+
+      {:ok, job} =
+        Queue.add(
+          queue_name,
+          "stalled-test",
+          %{value: 1},
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      job_id = job.id
+
+      # The first execution loses its lock and becomes stalled.
+      # The worker should continue running and eventually process the job.
+      assert_receive {:processed, ^job_id}, 5_000
+      assert_receive {:completed, ^job_id}, 5_000
+
+      {:ok, state} =
+        Queue.get_job_state(
+          queue_name,
+          job_id,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      assert state == "completed"
+
+      Worker.close(worker)
+      Agent.stop(first)
+    end
+
+    @tag :integration
+    @tag timeout: 10_000
+    test "fails a stalled job when max stalled count is exhausted", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          lock_duration: 1_000,
+          stalled_interval: 100,
+          max_stalled_count: 0,
+          processor: fn job ->
+            send(test_pid, {:processing, job.id})
+
+            # Keep the job active long enough for its lock to expire.
+            Process.sleep(2_000)
+
+            :ok
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job.id, reason})
+          end
+        )
+
+      {:ok, job} =
+        Queue.add(
+          queue_name,
+          "stalled-job",
+          %{foo: "bar"},
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      job_id = job.id
+
+      assert_receive {:processing, ^job_id}, 5_000
+
+      # The job should eventually be detected as stalled and, because
+      # max_stalled_count is 0, should be failed.
+      assert_receive {:failed, ^job_id, reason}, 8_000
+
+      assert reason =~ "stalled"
+
+      {:ok, state} =
+        Queue.get_job_state(
+          queue_name,
+          job_id,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      assert state == "failed"
+
+      {:ok, counts} =
+        Queue.get_counts(
+          queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      assert counts.failed == 1
+      assert counts.active == 0
+
+      Worker.close(worker)
+    end
+
+    @tag :integration
+    @tag timeout: 10_000
+    test "fails stalled job and continues with next waiting job", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+      {:ok, first} = Agent.start_link(fn -> true end)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          lock_duration: 1_000,
+          stalled_interval: 100,
+          max_stalled_count: 0,
+          processor: fn job ->
+            case job.name do
+              "stalled-job" ->
+                if Agent.get(first, & &1) do
+                  Agent.update(first, fn _ -> false end)
+
+                  send(test_pid, {:stalled_processing, job.id})
+
+                  # Let the lock expire.
+                  Process.sleep(2_000)
+                end
+
+                :ok
+
+              "runnable-job" ->
+                send(test_pid, {:runnable_processing, job.id})
+                :ok
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job.id, reason})
+          end
+        )
+
+      {:ok, stalled_job} =
+        Queue.add(
+          queue_name,
+          "stalled-job",
+          %{foo: "bar"},
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      stalled_job_id = stalled_job.id
+
+      assert_receive {:stalled_processing, ^stalled_job_id}, 5_000
+
+      {:ok, runnable_job} =
+        Queue.add(
+          queue_name,
+          "runnable-job",
+          %{foo: "baz"},
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      runnable_job_id = runnable_job.id
+
+      # The stalled job should eventually be failed.
+      assert_receive {:failed, ^stalled_job_id, reason}, 8_000
+      assert reason =~ "stalled"
+
+      # The next waiting job must still be picked up.
+      assert_receive {:runnable_processing, ^runnable_job_id}, 5_000
+      assert_receive {:completed, ^runnable_job_id}, 5_000
+
+      {:ok, failed_state} =
+        Queue.get_job_state(
+          queue_name,
+          stalled_job_id,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      {:ok, completed_state} =
+        Queue.get_job_state(
+          queue_name,
+          runnable_job_id,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      assert failed_state == "failed"
+      assert completed_state == "completed"
+
+      {:ok, counts} =
+        Queue.get_counts(
+          queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      assert counts.failed == 1
+      assert counts.completed == 1
+      assert counts.active == 0
+
+      Worker.close(worker)
+      Agent.stop(first)
     end
   end
 

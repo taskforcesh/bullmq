@@ -22,7 +22,7 @@ local rcall = redis.call
 --- @include "includes/addJobInTargetList"
 --- @include "includes/pushBackJobWithPriority"
 --- @include "includes/getOrSetMaxEvents"
---- @include "includes/getTargetQueueList"
+--- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/removeLock"
 
 local jobId = ARGV[1]
@@ -41,14 +41,14 @@ end
 local metaKey = KEYS[5]
 local removed = rcall("LREM", KEYS[1], 1, jobId)
 if removed > 0 then
-  local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[1], KEYS[2], KEYS[4])
+  local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[1])
 
   local priority = tonumber(rcall("HGET", ARGV[3], "priority")) or 0
 
   if priority > 0 then
     pushBackJobWithPriority(KEYS[7], priority, jobId)
   else
-    addJobInTargetList(target, KEYS[8], "RPUSH", isPausedOrMaxed, jobId)
+    addJobInTargetList(KEYS[2], KEYS[8], "RPUSH", isPausedOrMaxed, jobId)
   end
 
   local maxEvents = getOrSetMaxEvents(metaKey)

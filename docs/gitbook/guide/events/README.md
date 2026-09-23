@@ -32,7 +32,7 @@ myWorker.on('failed', (job: Job) => {
 });
 ```
 
-The events above are local for the workers that actually completed the jobs. However, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the [`QueueEvents`](https://api.docs.bullmq.io/classes/v5.QueueEvents.html) class:
+The events above are local for the workers that actually completed the jobs. However, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the [`QueueEvents`](https://docs.bullmq.io/api/classes/v6.QueueEvents.html) class:
 
 ```typescript
 import { QueueEvents } from 'bullmq';
@@ -55,6 +55,54 @@ The `QueueEvents` class is implemented using [Redis streams](https://redis.io/to
 
 {% hint style="danger" %}
 The event stream is auto-trimmed so that its size does not grow too much, by default it is \~10.000 events, but this can be configured with the `streams.events.maxLen` option.
+{% endhint %}
+
+## Real-time updates
+
+Local `Worker` / `Queue` listeners only see events in the current process.
+`QueueEvents` is the usual building block for **real-time updates** across
+workers: dashboards, websockets, SSE, or another service that must react while
+jobs run.
+
+```typescript
+import { QueueEvents } from 'bullmq';
+
+const queueEvents = new QueueEvents('Paint', { connection });
+
+queueEvents.on('completed', ({ jobId, returnvalue }) => {
+  sendToDashboard({ type: 'completed', jobId, returnvalue });
+});
+
+queueEvents.on('failed', ({ jobId, failedReason }) => {
+  sendToDashboard({ type: 'failed', jobId, failedReason });
+});
+
+queueEvents.on(
+  'progress',
+  ({ jobId, data }: { jobId: string; data: number | object }) => {
+    sendToDashboard({ type: 'progress', jobId, data });
+  },
+);
+```
+
+Publish progress from the worker with `job.updateProgress(...)` (number or
+object). That pairs well with [working with batches](../queues/batches.md)
+when one job represents many items, or when you want a live bar for a long job:
+
+```typescript
+await job.updateProgress({ completed: 3, total: 10 });
+```
+
+Close `QueueEvents` on shutdown so its Redis connection is released:
+
+```typescript
+await queueEvents.close();
+```
+
+{% hint style="info" %}
+For jobs processed with [BullMQ Pro batches](../../bullmq-pro/batches.md),
+worker-local `completed` / `failed` listeners see the wrapper batch job. Use
+`QueueEvents` / `QueueEventsPro` when you need per-job lifecycle events.
 {% endhint %}
 
 ### Manual trim events
@@ -85,11 +133,23 @@ await queue.trimEvents(10) # leaves 10 events
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+queue.trim_events(10).await?; // leaves 10 events
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Read more:
 
-- 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v5.QueueEvents.html)
-- 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.QueueEventsListener.html)
-- 💡 [Queue Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.QueueListener.html)
-- 💡 [Worker Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.WorkerListener.html)
+- 💡 [Queue Events API Reference](https://docs.bullmq.io/api/classes/v6.QueueEvents.html)
+- 💡 [Queue Events Listener API Reference](https://docs.bullmq.io/api/interfaces/v6.QueueEventsListener.html)
+- 💡 [Queue Listener API Reference](https://docs.bullmq.io/api/interfaces/v6.QueueListener.html)
+- 💡 [Worker Listener API Reference](https://docs.bullmq.io/api/interfaces/v6.WorkerListener.html)

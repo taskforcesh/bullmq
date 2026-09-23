@@ -502,6 +502,30 @@ defmodule BullMQ.QueueEventsIntegrationTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Close Race Conditions
+  # ---------------------------------------------------------------------------
+
+  describe "close race conditions" do
+    @tag :integration
+    @tag timeout: 10_000
+    test "ignores late consumer task replies after close", %{conn: conn, queue_name: queue_name} do
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      QueueEvents.close(events)
+
+      monitor_ref = Process.monitor(events)
+      send(events, {make_ref(), {:ok, nil}})
+
+      refute_receive {:DOWN, ^monitor_ref, :process, ^events, _reason}, 500
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Handler Module
   # ---------------------------------------------------------------------------
 

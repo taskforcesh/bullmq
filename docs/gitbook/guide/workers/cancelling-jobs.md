@@ -399,6 +399,6 @@ The cancellation feature is fully backward compatible. You only need to add sign
 
 ## Read more:
 
-- 💡 [Worker API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html)
+- 💡 [Worker API Reference](https://docs.bullmq.io/api/classes/v6.Worker.html)
 - 💡 [AbortController MDN](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)
 - 💡 [AbortSignal MDN](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal)

@@ -1,9 +1,7 @@
 import { EventEmitter } from 'events';
-import { default as IORedis } from 'ioredis';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
+import type { default as IORedis } from 'ioredis';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
+import { IRedisClient } from '../interfaces/redis-client';
 import {
   decreaseMaxListeners,
   increaseMaxListeners,
@@ -15,6 +13,13 @@ import {
 import { version as packageVersion } from '../version';
 import * as scripts from '../scripts';
 import { DatabaseType } from '../types';
+import { createIORedisClient, isIRedisClient } from './ioredis-client';
+import { createNodeRedisClient } from './node-redis-client';
+import { createBunRedisClient } from './bun-redis-client';
+import {
+  ConnectionClosedError,
+  CONNECTION_CLOSED_ERROR_MSG,
+} from './errors/connection-closed-error';
 
 const overrideMessage = [
   'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null',
@@ -30,6 +35,14 @@ const clusterOriginalBzpopmin = Symbol('bullmqClusterOriginalBzpopmin');
 const clusterWrappedBzpopmin = Symbol('bullmqClusterWrappedBzpopmin');
 const clusterPatchRefCount = Symbol('bullmqClusterPatchRefCount');
 const clusterClosingRefCount = Symbol('bullmqClusterClosingRefCount');
+
+// Hard cap on a single cluster reconnect attempt. Without this, a hung
+// `client.connect()` (e.g. ioredis Cluster cannot recover and slot refresh
+// keeps retrying internally) leaves `clusterReconnectPromise` pinned forever
+// and every subsequent bzpopmin call awaits the same dead promise, deadlocking
+// the worker. 30s is comfortably above the default ioredis slotsRefreshTimeout
+// while bounded enough that wedged workers recover within one or two ticks.
+const DEFAULT_CLUSTER_RECONNECT_TIMEOUT_MS = 30_000;
 
 interface RedisCapabilities {
   canDoubleTimeout: boolean;
@@ -56,9 +69,114 @@ export interface RawCommand {
   keys: number;
 }
 
+type IORedisModule = { default: typeof IORedis };
+
+/**
+ * Lazily loads the optional `ioredis` driver. Users on another Redis driver
+ * (node-redis, Bun built-in, …) or on the PostgreSQL backend never hit this
+ * path, so they never need `ioredis` installed.
+ *
+ * Only reached when no {@link RedisConnection.clientFactory} is set and the
+ * caller did not pass an already-constructed client instance. In native ESM
+ * environments where `require` is unavailable, callers should provide a client
+ * instance or a `clientFactory` instead.
+ */
+function loadIORedis(): typeof IORedis {
+  try {
+    if (typeof require === 'function') {
+      const mod = require('ioredis') as IORedisModule | typeof IORedis;
+      // ioredis exports the constructor both as the module itself (CJS) and
+      // under `default` (ESM interop); normalise to the constructor.
+      return (mod as IORedisModule).default ?? (mod as typeof IORedis);
+    }
+  } catch {
+    // Fall through to the friendly error below.
+  }
+  throw new Error(
+    "BullMQ could not load the optional 'ioredis' package. " +
+      'Install it with `npm install ioredis`, or provide a different Redis ' +
+      'client instance (e.g. node-redis) via the connection option. In a ' +
+      'native ESM environment, pass an already-constructed client instance ' +
+      'instead of connection options.',
+  );
+}
+
+/**
+ * Wraps a raw client instance passed through the `connection` option in the
+ * matching {@link IRedisClient} adapter, auto-detecting the underlying driver.
+ *
+ * This lets consumers pass a native node-redis or Bun client directly (without
+ * manually calling `createNodeRedisClient` / `createBunRedisClient` or setting a
+ * global {@link RedisConnection.clientFactory}), so those users never need
+ * `ioredis` installed. ioredis instances keep their existing code path, so the
+ * behaviour is fully backwards compatible.
+ *
+ * Detection is purely structural (no driver package is imported), keying off
+ * markers that are unique to each client:
+ *   - ioredis exposes `defineCommand` (used to register Lua scripts);
+ *     node-redis and Bun do not.
+ *   - node-redis (`@redis/client`) exposes `sendCommand` plus `isOpen`/`isReady`.
+ *   - Bun's built-in `RedisClient` exposes `send` plus a `connected` flag.
+ */
+function wrapRedisInstance(instance: any): IRedisClient {
+  // Already an adapted IRedisClient (ioredis proxy, node-redis, Bun, or a
+  // custom implementation) — use as-is.
+  if (isIRedisClient(instance)) {
+    return instance;
+  }
+
+  const hasDefineCommand = typeof instance.defineCommand === 'function';
+
+  // node-redis (@redis/client): `sendCommand` + `isOpen`/`isReady`, and no
+  // ioredis-style `defineCommand`.
+  if (
+    !hasDefineCommand &&
+    typeof instance.sendCommand === 'function' &&
+    ('isOpen' in instance || 'isReady' in instance)
+  ) {
+    return createNodeRedisClient(instance);
+  }
+
+  // Bun's built-in RedisClient: `send` + `connected`, and no `defineCommand`.
+  if (
+    !hasDefineCommand &&
+    typeof instance.send === 'function' &&
+    'connected' in instance
+  ) {
+    return createBunRedisClient(instance);
+  }
+
+  // Default: treat as an ioredis instance (backwards compatible).
+  return createIORedisClient(instance);
+}
+
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
   static recommendedMinimumVersion = '6.2.0';
+
+  /**
+   * Optional factory that creates an {@link IRedisClient} from raw options.
+   *
+   * When set, {@link RedisConnection} will call this factory instead of
+   * creating an ioredis client internally.  This allows swapping the Redis
+   * driver (e.g. node-redis, Bun built-in) without changing consumer code.
+   *
+   * The factory receives the merged {@link RedisOptions} and must return
+   * an **already-augmented** {@link IRedisClient} (e.g. via
+   * `createNodeRedisClient`).
+   *
+   * @example
+   * ```ts
+   * import { createClient } from 'redis';
+   * import { RedisConnection, createNodeRedisClient } from 'bullmq';
+   *
+   * RedisConnection.clientFactory = (opts) => {
+   *   const raw = createClient({ url: `redis://${opts.host ?? '127.0.0.1'}:${opts.port ?? 6379}` });
+   *   return createNodeRedisClient(raw);
+   * };
+   * ```
+   */
+  static clientFactory?: (opts: RedisOptions) => IRedisClient;
 
   closing: boolean;
   capabilities: RedisCapabilities = {
@@ -90,6 +208,7 @@ export class RedisConnection extends EventEmitter {
       blocking?: boolean;
       skipVersionCheck?: boolean;
       skipWaitingForReady?: boolean;
+      clusterReconnectTimeoutMs?: number;
     },
   ) {
     super();
@@ -100,6 +219,7 @@ export class RedisConnection extends EventEmitter {
       blocking: true,
       skipVersionCheck: false,
       skipWaitingForReady: false,
+      clusterReconnectTimeoutMs: DEFAULT_CLUSTER_RECONNECT_TIMEOUT_MS,
       ...extraOptions,
     };
 
@@ -119,7 +239,10 @@ export class RedisConnection extends EventEmitter {
         this.opts.maxRetriesPerRequest = null;
       }
     } else {
-      this._client = opts;
+      // Wrap raw client instances in the matching IRedisClient adapter,
+      // auto-detecting the driver (ioredis / node-redis / Bun) so callers can
+      // pass a native client directly without setting a clientFactory.
+      this._client = wrapRedisInstance(opts);
 
       // Test if the redis instance is using keyPrefix
       // and if so, throw an error.
@@ -129,7 +252,7 @@ export class RedisConnection extends EventEmitter {
         );
       }
 
-      if (isRedisCluster(this._client)) {
+      if (this._client.isCluster) {
         this.opts = this._client.options.redisOptions;
       } else {
         this.opts = this._client.options;
@@ -155,7 +278,17 @@ export class RedisConnection extends EventEmitter {
     };
 
     this.initializing = this.init();
-    this.initializing.catch(err => this.emit('error', err));
+    this.initializing.catch(err => {
+      // Only emit if there is an `error` listener attached. `EventEmitter.emit`
+      // throws when emitting `error` with no listeners, which would surface as
+      // an unhandled rejection — e.g. when the connection is force-closed during
+      // shutdown while its version-check `INFO` command is still in flight and
+      // rejects with "Connection is closed". The init error is still propagated
+      // to anything awaiting `initializing` (the `client` getter and `close`).
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', err);
+      }
+    });
   }
 
   private checkBlockingOptions(
@@ -194,7 +327,7 @@ export class RedisConnection extends EventEmitter {
     }
 
     if (client.status === 'end') {
-      throw new Error(CONNECTION_CLOSED_ERROR_MSG);
+      throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);
     }
 
     let handleReady: () => void;
@@ -214,7 +347,10 @@ export class RedisConnection extends EventEmitter {
 
         handleEnd = () => {
           if (client.status !== 'end') {
-            reject(lastError || new Error(CONNECTION_CLOSED_ERROR_MSG));
+            reject(
+              lastError ||
+                new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG),
+            );
           } else {
             if (lastError) {
               reject(lastError);
@@ -254,7 +390,7 @@ export class RedisConnection extends EventEmitter {
       // Only define the command if not already defined
       const commandName = `${finalScripts[property].name}:${packageVersion}`;
       if (!(<any>this._client)[commandName]) {
-        (<any>this._client).defineCommand(commandName, {
+        this._client.defineCommand(commandName, {
           numberOfKeys: finalScripts[property].keys,
           lua: finalScripts[property].content,
         });
@@ -264,19 +400,25 @@ export class RedisConnection extends EventEmitter {
 
   private async init() {
     if (!this._client) {
-      const { url, ...rest } = this.opts;
+      if (RedisConnection.clientFactory) {
+        this._client = RedisConnection.clientFactory(this.opts);
+      } else {
+        const { url, ...rest } = this.opts;
 
-      // Set clientInfoTag for Redis driver identification if not already provided
-      // This helps with debugging and monitoring Redis connections
-      // See: https://redis.io/docs/latest/commands/client-setinfo/
-      const clientOptions = {
-        ...rest,
-        clientInfoTag: rest.clientInfoTag ?? `bullmq_v${this.packageVersion}`,
-      };
+        // Set clientInfoTag for Redis driver identification if not already provided
+        // This helps with debugging and monitoring Redis connections
+        // See: https://redis.io/docs/latest/commands/client-setinfo/
+        const clientOptions = {
+          ...rest,
+          clientInfoTag: rest.clientInfoTag ?? `bullmq_v${this.packageVersion}`,
+        };
 
-      this._client = url
-        ? new IORedis(url, clientOptions)
-        : new IORedis(clientOptions);
+        const IORedisCtor = loadIORedis();
+        const ioredisClient = url
+          ? new IORedisCtor(url, clientOptions)
+          : new IORedisCtor(clientOptions);
+        this._client = createIORedisClient(ioredisClient);
+      }
     }
 
     increaseMaxListeners(this._client, 3);
@@ -358,6 +500,10 @@ export class RedisConnection extends EventEmitter {
       return;
     }
 
+    const reconnectTimeoutMs =
+      this.extraOptions.clusterReconnectTimeoutMs ??
+      DEFAULT_CLUSTER_RECONNECT_TIMEOUT_MS;
+
     blockingClient[clusterPatchRefCount] =
       (blockingClient[clusterPatchRefCount] || 0) + 1;
     this.patchedBlockingClusterClient = blockingClient;
@@ -368,7 +514,10 @@ export class RedisConnection extends EventEmitter {
 
     const bzpopmin = blockingClient.bzpopmin;
     const wrappedBzpopmin = async (...args: any[]) => {
-      await RedisConnection.reconnectClusterIfNeeded(blockingClient);
+      await RedisConnection.reconnectClusterIfNeeded(
+        blockingClient,
+        reconnectTimeoutMs,
+      );
 
       try {
         return await bzpopmin.apply(blockingClient, args);
@@ -381,7 +530,10 @@ export class RedisConnection extends EventEmitter {
           )
         ) {
           try {
-            await RedisConnection.reconnectCluster(blockingClient);
+            await RedisConnection.reconnectCluster(
+              blockingClient,
+              reconnectTimeoutMs,
+            );
           } catch {
             // Preserve the original command failure if best-effort recovery fails.
           }
@@ -466,12 +618,13 @@ export class RedisConnection extends EventEmitter {
 
   private static async reconnectClusterIfNeeded(
     client: BlockingClusterClient,
+    timeoutMs: number,
   ): Promise<void> {
     if (
       !RedisConnection.isReconnectingDisabled(client) &&
       RedisConnection.isClusterWithEmptyNodes(client)
     ) {
-      await RedisConnection.reconnectCluster(client);
+      await RedisConnection.reconnectCluster(client, timeoutMs);
     }
   }
 
@@ -497,21 +650,57 @@ export class RedisConnection extends EventEmitter {
 
   private static async reconnectCluster(
     client: BlockingClusterClient,
+    timeoutMs: number,
   ): Promise<void> {
     if (RedisConnection.isReconnectingDisabled(client)) {
       return;
     }
 
     if (!client[clusterReconnectPromise]) {
-      client[clusterReconnectPromise] = (async () => {
-        client.disconnect(false);
-        await client.connect();
-      })().finally(() => {
-        client[clusterReconnectPromise] = null;
-      });
+      client[clusterReconnectPromise] =
+        RedisConnection.connectClusterWithTimeout(client, timeoutMs).finally(
+          () => {
+            client[clusterReconnectPromise] = null;
+          },
+        );
     }
 
     await client[clusterReconnectPromise];
+  }
+
+  // Disconnects and reconnects a cluster client, racing connect() against a
+  // hard cap so a hung reconnect cannot pin `clusterReconnectPromise`
+  // indefinitely. On timeout, the underlying connect() is left running
+  // (ioredis Cluster handles its own retry/state); we simply stop awaiting it.
+  // The next bzpopmin call's `reconnectClusterIfNeeded` check will trigger a
+  // fresh reconnect if the pool is still empty.
+  private static async connectClusterWithTimeout(
+    client: BlockingClusterClient,
+    timeoutMs: number,
+  ): Promise<void> {
+    client.disconnect(false);
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        client.connect(),
+        new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(() => {
+            reject(
+              new ConnectionClosedError(
+                `BullMQ: cluster reconnect timed out after ${timeoutMs}ms`,
+              ),
+            );
+          }, timeoutMs);
+          // Don't keep the event loop alive solely for this timer.
+          timeoutHandle.unref?.();
+        }),
+      ]);
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+    }
   }
 
   async disconnect(wait = true): Promise<void> {
@@ -547,7 +736,30 @@ export class RedisConnection extends EventEmitter {
 
   async reconnect(): Promise<void> {
     const client = await this.client;
-    return client.connect();
+    for (;;) {
+      if (
+        client.status === 'ready' ||
+        (client.status === 'connect' && isRedisCluster(client))
+      ) {
+        return;
+      }
+
+      if (client.status === 'wait' || client.status === 'end') {
+        return client.connect();
+      }
+
+      try {
+        await RedisConnection.waitUntilReady(client);
+      } catch (error) {
+        if (
+          !['end', 'connecting', 'connect', 'reconnecting'].includes(
+            client.status,
+          )
+        ) {
+          throw error;
+        }
+      }
+    }
   }
 
   async close(force = false): Promise<void> {
@@ -566,6 +778,9 @@ export class RedisConnection extends EventEmitter {
           if (status == 'initializing' || force) {
             // If we have not still connected to Redis, we need to disconnect.
             this._client.disconnect();
+            // Suppress any rejection from the in-flight init() so it doesn't
+            // become an unhandled rejection after we close the connection.
+            this.initializing?.catch(() => {});
           } else {
             await this._client.quit();
           }

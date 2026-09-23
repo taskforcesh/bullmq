@@ -11,6 +11,6 @@ const { concurrency, max, duration, maxLenEvents, paused, version } =
 
 ## Read more:
 
-- 💡 [Get Meta API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getmeta)
+- 💡 [Get Meta API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#getmeta)
 - 💡 [Global Concurrency](./global-concurrency.md)
 - 💡 [Global Rate Limit](./global-rate-limit.md)

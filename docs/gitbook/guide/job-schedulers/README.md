@@ -24,6 +24,7 @@ Now there are also a few important considerations that need to be explained here
 - **Upsert vs. Add:** the 'upsert' is used instead of 'add' to simplify management of recurring jobs, especially in production deployments. It ensures the scheduler is updated or created without duplications.
 - **Job Production Rate:** The scheduler will only generate new jobs when the last job begins processing. Therefore, if your queue is very busy, or if you do not have enough workers or concurrency, it is possible that you will get the jobs less frequently than the specified repetition interval.
 - **Job Status:** As long as a Job Scheduler is producing jobs, there will be always one job associated to the scheduler in the "Delayed" status.
+- **UTC schedules:** use `tz: 'UTC'` in scheduler options when you need cron execution in UTC (instead of the removed legacy `utc` option).
 
 ### Using Job Templates
 
@@ -54,4 +55,4 @@ Since jobs produced by the Job Scheduler will get a special job ID in order to g
 
 ## Read more:
 
-- 💡 [Upsert Job Scheduler API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#upsertjobscheduler)
+- 💡 [Upsert Job Scheduler API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#upsertjobscheduler)

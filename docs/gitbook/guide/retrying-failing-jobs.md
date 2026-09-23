@@ -15,7 +15,7 @@ In general, as a best practice, it is better to always throw `Error` objects. Th
 
 When a processor throws an exception, the worker will catch it and move the job to the failed set. Depending on your [Queue settings](https://docs.bullmq.io/guide/queues/auto-removal-of-jobs), the job may stay in the failed set forever, or it could be automatically removed.
 
-Often it is desirable to automatically retry failed jobs so that we do not give up until a certain amount of retries have failed. In order to activate automatic job retries you should use the [`attempts`](https://api.docs.bullmq.io/interfaces/v5.BaseJobOptions.html#attempts) setting with a value larger than 1 (see the examples below).
+Often it is desirable to automatically retry failed jobs so that we do not give up until a certain amount of retries have failed. In order to activate automatic job retries you should use the [`attempts`](https://docs.bullmq.io/api/interfaces/v6.BaseJobOptions.html#attempts) setting with a value larger than 1 (see the examples below).
 
 BullMQ supports retries of failed jobs using back-off functions. It is possible to use the **built-in** backoff functions or provide **custom** ones. If you do not specify a back-off function, the jobs will be retried without delay as soon as they fail.
 
@@ -134,7 +134,7 @@ await queue.add('test-retry', { foo: 'bar' });
 ```
 
 {% hint style="info" %}
-Jitter percentage option value must be between 0 and 1. 0 percentage means no randomness is applied (default behavior), while 1 means that random delays will be generated beween 0 and max generated value by any of our built-in strategies.
+Jitter percentage option value must be between 0 and 1. 0 percentage means no randomness is applied (default behavior), while 1 means that random delays will be generated between 0 and max generated value by any of our built-in strategies.
 {% endhint %}
 
 ### Custom back-off strategies

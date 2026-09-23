@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -11,20 +10,20 @@ import {
 
 import * as sinon from 'sinon';
 
-import { Queue, QueueEvents, Repeat, Worker } from '../src/classes';
-import { randomUUID, removeAllQueueData } from '../src/utils';
+import { Queue, QueueEvents, Worker } from '../src/classes';
+import { randomUUID } from '../src/utils';
 import { MetricsTime } from '../src/enums';
+import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 
 const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
 const ONE_HOUR = 60 * ONE_MINUTE;
 
 describe('metrics', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   // TODO: Move timeout to test options: { timeout: 10000 }
-  let repeat: Repeat;
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
@@ -32,7 +31,7 @@ describe('metrics', () => {
 
   let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(() => {
@@ -45,7 +44,6 @@ describe('metrics', () => {
   beforeEach(async () => {
     queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
-    repeat = new Repeat(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
   });
@@ -53,9 +51,8 @@ describe('metrics', () => {
   afterEach(async () => {
     clock.restore();
     await queue.close();
-    await repeat.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {

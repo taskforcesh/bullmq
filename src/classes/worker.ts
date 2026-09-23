@@ -1,34 +1,32 @@
 import * as fs from 'fs';
 import { URL } from 'url';
-import type { Cluster, Redis } from 'ioredis';
 import * as path from 'path';
 import { AbortController } from './abort-controller';
 
 import {
+  BackendFactory,
   GetNextJobOptions,
   IoredisListener,
-  JobJsonRaw,
+  IQueueBackend,
+  JobJson,
   LockManagerWorkerContext,
   MinimalQueue,
-  RedisClient,
   Span,
   WorkerOptions,
 } from '../interfaces';
-import { version as packageVersion } from '../version';
-import { JobProgress } from '../types';
+import { JobProgress, JobSchedulerJobOptions } from '../types';
 import { Processor } from '../types/processor';
 import {
   delay,
   DELAY_TIME_1,
+  forwardConnectionError,
   isNotConnectionError,
-  isRedisInstance,
   randomUUID,
 } from '../utils';
 import { QueueBase } from './queue-base';
-import { Repeat } from './repeat';
+import { RedisQueueBackend } from './redis-queue-backend';
 import { ChildPool } from './child-pool';
 import { Job } from './job';
-import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { AsyncFifoQueue } from './async-fifo-queue';
 import {
@@ -40,11 +38,16 @@ import {
   UnrecoverableError,
 } from './errors';
 import { SpanKind, TelemetryAttributes } from '../enums';
-import { JobScheduler } from './job-scheduler';
+import {
+  getLegacyRepeatableJobError,
+  hasLegacyRepeatableKeyShape,
+  JobScheduler,
+} from './job-scheduler';
 import { LockManager } from './lock-manager';
 
-// 10 seconds is the maximum time a BZPOPMIN can block.
-const maximumBlockTimeout = 10;
+// 10 seconds is the maximum time a BZPOPMIN can block, so it is the default
+// ceiling used when a backend does not delegate its own `maximumBlockTimeout`.
+const defaultMaximumBlockTimeout = 10;
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -53,13 +56,17 @@ export interface WorkerListener<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
+  ProgressType extends JobProgress = JobProgress,
 > extends IoredisListener {
   /**
    * Listen to 'active' event.
    *
    * This event is triggered when a job enters the 'active' state.
    */
-  active: (job: Job<DataType, ResultType, NameType>, prev: string) => void;
+  active: (
+    job: Job<DataType, ResultType, NameType, ProgressType>,
+    prev: string,
+  ) => void;
 
   /**
    * Listen to 'closed' event.
@@ -81,7 +88,7 @@ export interface WorkerListener<
    * This event is triggered when a job has successfully completed.
    */
   completed: (
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     result: ResultType,
     prev: string,
   ) => void;
@@ -110,7 +117,7 @@ export interface WorkerListener<
    * reaches the stalled limit and it is deleted by the removeOnFail option.
    */
   failed: (
-    job: Job<DataType, ResultType, NameType> | undefined,
+    job: Job<DataType, ResultType, NameType, ProgressType> | undefined,
     error: Error,
     prev: string,
   ) => void;
@@ -131,8 +138,8 @@ export interface WorkerListener<
    * world.
    */
   progress: (
-    job: Job<DataType, ResultType, NameType>,
-    progress: JobProgress,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
+    progress: ProgressType,
   ) => void;
 
   /**
@@ -178,17 +185,26 @@ export interface WorkerListener<
  * As soon as the class is instantiated and a connection to Redis is established
  * it will start processing jobs.
  *
+ * @typeParam DataType - The type of the data that the job will process.
+ * @typeParam ResultType - The type of the result of the job.
+ * @typeParam NameType - The type of the name of the job.
+ * @typeParam B - The queue backend used by this worker.
+ * @typeParam ProgressType - The type of the job progress. Defaults to
+ * {@link JobProgress}. Must be JSON-serializable, as progress is persisted
+ * in the backend.
+ *
  */
 export class Worker<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
-> extends QueueBase {
-  readonly opts: WorkerOptions;
+  B extends IQueueBackend = RedisQueueBackend,
+  ProgressType extends JobProgress = JobProgress,
+> extends QueueBase<B> {
+  declare readonly opts: WorkerOptions;
   readonly id: string;
 
   private abortDelayController: AbortController | null = null;
-  private blockingConnection: RedisConnection;
   private blockUntil = 0;
   private _concurrency: number;
   private childPool: ChildPool;
@@ -200,12 +216,11 @@ export class Worker<
   private stalledCheckerRunning = false;
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
-  private _repeat: Repeat; // To be deprecated in v6 in favor of Job Scheduler
 
   protected _jobScheduler: JobScheduler;
 
   protected paused: boolean;
-  protected processFn: Processor<DataType, ResultType, NameType>;
+  protected processFn: Processor<DataType, ResultType, NameType, ProgressType>;
   protected running = false;
   protected mainLoopRunning: Promise<void> | null = null;
 
@@ -215,9 +230,13 @@ export class Worker<
 
   constructor(
     name: string,
-    processor?: string | URL | null | Processor<DataType, ResultType, NameType>,
+    processor?:
+      | string
+      | URL
+      | null
+      | Processor<DataType, ResultType, NameType, ProgressType>,
     opts?: WorkerOptions,
-    Connection?: typeof RedisConnection,
+    backendFactory?: BackendFactory<B>,
   ) {
     super(
       name,
@@ -233,7 +252,7 @@ export class Worker<
         ...opts,
         blockingConnection: true,
       },
-      Connection,
+      backendFactory,
     );
 
     if (!opts || !opts.connection) {
@@ -337,41 +356,27 @@ export class Worker<
       }
     }
 
-    const connectionName =
-      this.clientName() + (this.opts.name ? `:w:${this.opts.name}` : '');
+    // The Worker is only "ready" once its dedicated blocking connection (used
+    // by the blocking `waitForJob` primitive) is ready. The backend forwards a
+    // 'ready' event from *either* of its connections, so we cannot rely on that
+    // event to gate on blocking readiness. Instead emit a single 'ready' once
+    // `backend.waitUntilReady()` resolves, which only happens after both the
+    // main and the blocking connections are ready. Connection failures are
+    // surfaced via the 'error' event wired up in QueueBase.
+    this.backend
+      .waitUntilReady()
+      .then(() => setTimeout(() => this.emit('ready'), 0))
+      .catch(() => {});
+  }
 
-    // Set clientInfoTag for Redis driver identification if not already provided on the original client
-    const clientInfoTag = `bullmq_v${packageVersion}`;
-
-    this.blockingConnection = new RedisConnection(
-      isRedisInstance(opts.connection)
-        ? (<Redis>opts.connection).isCluster
-          ? (<Cluster>opts.connection).duplicate(undefined, {
-              redisOptions: {
-                ...((<Cluster>opts.connection).options?.redisOptions || {}),
-                connectionName,
-                clientInfoTag:
-                  (<Cluster>opts.connection).options?.redisOptions
-                    ?.clientInfoTag ?? clientInfoTag,
-              },
-            })
-          : (<Redis>opts.connection).duplicate({
-              connectionName,
-              clientInfoTag:
-                (<Redis>opts.connection).options?.clientInfoTag ??
-                clientInfoTag,
-            })
-        : { ...opts.connection, connectionName },
-      {
-        shared: false,
-        blocking: true,
-        skipVersionCheck: opts.skipVersionCheck,
-      },
-    );
-    this.blockingConnection.on('error', error => this.emit('error', error));
-    this.blockingConnection.on('ready', () =>
-      setTimeout(() => this.emit('ready'), 0),
-    );
+  /**
+   * Builds the worker's backend, which owns both the regular connection and a
+   * dedicated blocking connection used by the `waitForJob` primitive.
+   */
+  protected createBackend(): void {
+    this.backend = this.backendFactory(this.name, this.opts, {
+      withBlockingConnection: true,
+    });
   }
 
   /**
@@ -411,42 +416,72 @@ export class Worker<
     tokens: string[],
     duration: number,
   ): Promise<string[]> {
-    return this.scripts.extendLocks(jobIds, tokens, duration);
+    return this.backend.extendLocks(jobIds, tokens, duration);
   }
 
-  emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  emit<
+    U extends keyof WorkerListener<
+      DataType,
+      ResultType,
+      NameType,
+      ProgressType
+    >,
+  >(
     event: U,
-    ...args: Parameters<WorkerListener<DataType, ResultType, NameType>[U]>
+    ...args: Parameters<
+      WorkerListener<DataType, ResultType, NameType, ProgressType>[U]
+    >
   ): boolean {
     return super.emit(event, ...args);
   }
 
-  off<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  off<
+    U extends keyof WorkerListener<
+      DataType,
+      ResultType,
+      NameType,
+      ProgressType
+    >,
+  >(
     eventName: U,
-    listener: WorkerListener<DataType, ResultType, NameType>[U],
+    listener: WorkerListener<DataType, ResultType, NameType, ProgressType>[U],
   ): this {
     super.off(eventName, listener);
     return this;
   }
 
-  on<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  on<
+    U extends keyof WorkerListener<
+      DataType,
+      ResultType,
+      NameType,
+      ProgressType
+    >,
+  >(
     event: U,
-    listener: WorkerListener<DataType, ResultType, NameType>[U],
+    listener: WorkerListener<DataType, ResultType, NameType, ProgressType>[U],
   ): this {
     super.on(event, listener);
     return this;
   }
 
-  once<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  once<
+    U extends keyof WorkerListener<
+      DataType,
+      ResultType,
+      NameType,
+      ProgressType
+    >,
+  >(
     event: U,
-    listener: WorkerListener<DataType, ResultType, NameType>[U],
+    listener: WorkerListener<DataType, ResultType, NameType, ProgressType>[U],
   ): this {
     super.once(event, listener);
     return this;
   }
 
   protected callProcessJob(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
     signal?: AbortSignal,
   ): Promise<ResultType> {
@@ -454,13 +489,14 @@ export class Worker<
   }
 
   protected createJob(
-    data: JobJsonRaw,
+    data: JobJson,
     jobId: string,
-  ): Job<DataType, ResultType, NameType> {
+  ): Job<DataType, ResultType, NameType, ProgressType> {
     return this.Job.fromJSON(this as MinimalQueue, data, jobId) as Job<
       DataType,
       ResultType,
-      NameType
+      NameType,
+      ProgressType
     >;
   }
 
@@ -470,9 +506,8 @@ export class Worker<
    * In general only useful when writing tests.
    *
    */
-  async waitUntilReady(): Promise<RedisClient> {
+  async waitUntilReady(): Promise<void> {
     await super.waitUntilReady();
-    return this.blockingConnection.client;
   }
 
   /**
@@ -512,28 +547,15 @@ export class Worker<
     return this._concurrency;
   }
 
-  get repeat(): Promise<Repeat> {
-    return new Promise<Repeat>(async resolve => {
-      if (!this._repeat) {
-        const connection = await this.client;
-        this._repeat = new Repeat(this.name, {
-          ...this.opts,
-          connection,
-        });
-        this._repeat.on('error', this.emit.bind(this, 'error'));
-      }
-      resolve(this._repeat);
-    });
-  }
-
   get jobScheduler(): Promise<JobScheduler> {
     return new Promise<JobScheduler>(async resolve => {
       if (!this._jobScheduler) {
-        const connection = await this.client;
-        this._jobScheduler = new JobScheduler(this.name, {
-          ...this.opts,
-          connection,
-        });
+        // Share the worker's backend (same queue) with the scheduler.
+        this._jobScheduler = new JobScheduler(
+          this.name,
+          this.opts,
+          () => this.backend,
+        );
         this._jobScheduler.on('error', this.emit.bind(this, 'error'));
       }
       resolve(this._jobScheduler);
@@ -562,10 +584,7 @@ export class Worker<
         this.lockManager.start();
       }
 
-      const client = await this.client;
-      const bclient = await this.blockingConnection.client;
-
-      this.mainLoopRunning = this.mainLoop(client, bclient);
+      this.mainLoopRunning = this.mainLoop();
 
       // We must await here or finally will be called too early.
       await this.mainLoopRunning;
@@ -593,11 +612,12 @@ export class Worker<
    * as efficiently as possible, providing concurrency and minimal unnecessary calls
    * to Redis.
    */
-  private async mainLoop(client: RedisClient, bclient: RedisClient) {
+  private async mainLoop() {
     const asyncFifoQueue = new AsyncFifoQueue<void | Job<
       DataType,
       ResultType,
-      NameType
+      NameType,
+      ProgressType
     >>();
 
     let tokenPostfix = 0;
@@ -619,8 +639,9 @@ export class Worker<
         const fetchedJob = this.retryIfFailed<void | Job<
           DataType,
           ResultType,
-          NameType
-        >>(() => this._getNextJob(client, bclient, token, { block: true }), {
+          NameType,
+          ProgressType
+        >>(() => this._getNextJob(token, { block: true }), {
           delayInMs: this.opts.runRetryDelay,
           onlyEmitError: true,
         });
@@ -649,7 +670,7 @@ export class Worker<
 
       // Since there can be undefined jobs in the queue (when a job fails or queue is empty)
       // we iterate until we find a job.
-      let job: Job<DataType, ResultType, NameType> | void;
+      let job: Job<DataType, ResultType, NameType, ProgressType> | void;
       do {
         job = await asyncFifoQueue.fetch();
       } while (!job && asyncFifoQueue.numQueued() > 0);
@@ -658,7 +679,7 @@ export class Worker<
         const token = job.token;
         asyncFifoQueue.add(
           this.processJob(
-            <Job<DataType, ResultType, NameType>>job,
+            <Job<DataType, ResultType, NameType, ProgressType>>job,
             token,
             () => asyncFifoQueue.numTotal() <= this._concurrency,
           ),
@@ -675,14 +696,11 @@ export class Worker<
    * @returns a Job or undefined if no job was available in the queue.
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
-    const nextJob = await this._getNextJob(
-      await this.client,
-      await this.blockingConnection.client,
-      token,
-      { block },
-    );
+    const nextJob = await this._getNextJob(token, { block });
 
-    return this.trace<Job<DataType, ResultType, NameType> | undefined>(
+    return this.trace<
+      Job<DataType, ResultType, NameType, ProgressType> | undefined
+    >(
       SpanKind.INTERNAL,
       'getNextJob',
       this.name,
@@ -702,11 +720,9 @@ export class Worker<
   }
 
   private async _getNextJob(
-    client: RedisClient,
-    bclient: RedisClient,
     token: string,
     { block = true }: GetNextJobOptions = {},
-  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
+  ): Promise<Job<DataType, ResultType, NameType, ProgressType> | undefined> {
     if (this.paused) {
       return;
     }
@@ -715,26 +731,22 @@ export class Worker<
       return;
     }
 
-    let job: Job<DataType, ResultType, NameType> | undefined;
+    let job: Job<DataType, ResultType, NameType, ProgressType> | undefined;
     if (this.drained && block && !this.limitUntil && !this.waiting) {
-      this.waiting = this.waitForJob(bclient, this.blockUntil);
+      this.waiting = this.waitForJob(this.blockUntil);
       try {
         this.blockUntil = await this.waiting;
 
         if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
-          job = await this.moveToActive(client, token, this.opts.name);
+          job = await this.moveToActive(token, this.opts.name);
         }
       } finally {
         this.waiting = null;
       }
     } else {
       if (!this.isRateLimited()) {
-        job = await this.moveToActive(client, token, this.opts.name);
+        job = await this.moveToActive(token, this.opts.name);
       }
-    }
-
-    if (job) {
-      this.emit('active', job, 'waiting');
     }
 
     return job;
@@ -756,25 +768,17 @@ export class Worker<
           [TelemetryAttributes.WorkerRateLimit]: expireTimeMs,
         });
 
-        await this.client.then(client =>
-          client.set(
-            this.keys.limiter,
-            Number.MAX_SAFE_INTEGER,
-            'PX',
-            expireTimeMs,
-          ),
-        );
+        await this.backend.setRateLimit(expireTimeMs);
       },
     );
   }
 
   get minimumBlockTimeout(): number {
-    return this.blockingConnection.capabilities.canBlockFor1Ms
-      ? /* 1 millisecond is chosen because the granularity of our timestamps are milliseconds.
-Obviously we can still process much faster than 1 job per millisecond but delays and rate limits
-will never work with more accuracy than 1ms. */
-        0.001
-      : 0.002;
+    return this.backend.minimumBlockTimeout;
+  }
+
+  get maximumBlockTimeout(): number {
+    return this.backend.maximumBlockTimeout ?? defaultMaximumBlockTimeout;
   }
 
   private isRateLimited(): boolean {
@@ -782,62 +786,40 @@ will never work with more accuracy than 1ms. */
   }
 
   protected async moveToActive(
-    client: RedisClient,
     token: string,
     name?: string,
-  ): Promise<Job<DataType, ResultType, NameType>> {
+  ): Promise<Job<DataType, ResultType, NameType, ProgressType>> {
     const [jobData, id, rateLimitDelay, delayUntil] =
-      await this.scripts.moveToActive(client, token, name);
+      await this.backend.moveToActive(token, name);
     this.updateDelays(rateLimitDelay, delayUntil);
 
     return this.nextJobFromJobData(jobData, id, token);
   }
 
-  private async waitForJob(
-    bclient: RedisClient,
-    blockUntil: number,
-  ): Promise<number> {
+  private async waitForJob(blockUntil: number): Promise<number> {
     if (this.paused) {
       return Infinity;
     }
 
-    let timeout: NodeJS.Timeout;
     try {
       if (!this.closing && !this.isRateLimited()) {
-        let blockTimeout = this.getBlockTimeout(blockUntil);
+        const blockTimeout = this.getBlockTimeout(blockUntil);
 
         if (blockTimeout > 0) {
-          blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
-            ? blockTimeout
-            : Math.ceil(blockTimeout);
-
-          // We cannot trust that the blocking connection stays blocking forever
-          // due to issues in Redis and IORedis, so we will reconnect if we
-          // don't get a response in the expected time.
-          timeout = setTimeout(
-            async () => {
-              bclient.disconnect(!this.closing);
-            },
-            blockTimeout * 1000 + 1000,
-          );
-
           this.updateDelays(); // reset delays to avoid reusing same values in next iteration
 
-          // Markers should only be used for un-blocking, so we will handle them in this
-          // function only.
-          const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
+          // Markers should only be used for un-blocking, so we will handle them
+          // in this function only. Capability-based timeout rounding and the
+          // stuck-connection watchdog are owned by the backend's waitForJob.
+          const result = await this.backend.waitForJob(blockTimeout);
           if (result) {
-            const [_key, member, score] = result;
-
-            if (member) {
-              const newBlockUntil = parseInt(score);
-              // Use by pro version as rate limited groups could generate lower blockUntil values
-              // markers only return delays for delayed jobs
-              if (blockUntil && newBlockUntil > blockUntil) {
-                return blockUntil;
-              }
-              return newBlockUntil;
+            const newBlockUntil = result.score;
+            // Use by pro version as rate limited groups could generate lower blockUntil values
+            // markers only return delays for delayed jobs
+            if (blockUntil && newBlockUntil > blockUntil) {
+              return blockUntil;
             }
+            return newBlockUntil;
           }
         }
 
@@ -847,11 +829,21 @@ will never work with more accuracy than 1ms. */
       if (isNotConnectionError(<Error>error)) {
         this.emit('error', <Error>error);
       }
+      // The watchdog must abort every overdue blocking command, but doing so
+      // during socketless Sentinel resolution can leave the blocking transport
+      // disconnected. Ask the backend to recover it before retrying.
+      if (!this.closing) {
+        try {
+          await this.backend.reconnectBlocking();
+        } catch (reconnectError) {
+          if (isNotConnectionError(<Error>reconnectError)) {
+            this.emit('error', <Error>reconnectError);
+          }
+        }
+      }
       if (!this.closing) {
         await this.delay();
       }
-    } finally {
-      clearTimeout(timeout);
     }
     return Infinity;
   }
@@ -868,10 +860,13 @@ will never work with more accuracy than 1ms. */
       } else if (blockDelay < this.minimumBlockTimeout * 1000) {
         return this.minimumBlockTimeout;
       } else {
-        // We restrict the maximum block timeout to 10 second to avoid
-        // blocking the connection for too long in the case of reconnections
-        // reference: https://github.com/taskforcesh/bullmq/issues/1658
-        return Math.min(blockDelay / 1000, maximumBlockTimeout);
+        // We restrict the maximum block timeout to avoid blocking the
+        // connection for too long in the case of reconnections. The ceiling is
+        // backend-specific: Redis caps it at 10s (a `BZPOPMIN` blocked longer
+        // risks issues on reconnection, see #1658), whereas a backend that
+        // keeps the connection open and re-arms to the next due job can allow a
+        // much larger value so an idle worker stops re-polling.
+        return Math.min(blockDelay / 1000, this.maximumBlockTimeout);
       }
     } else {
       return Math.max(opts.drainDelay, this.minimumBlockTimeout);
@@ -906,10 +901,10 @@ will never work with more accuracy than 1ms. */
   }
 
   protected async nextJobFromJobData(
-    jobData?: JobJsonRaw,
+    jobData?: JobJson,
     jobId?: string,
     token?: string,
-  ): Promise<Job<DataType, ResultType, NameType>> {
+  ): Promise<Job<DataType, ResultType, NameType, ProgressType>> {
     if (!jobData) {
       if (!this.drained) {
         this.emit('drained');
@@ -921,20 +916,17 @@ will never work with more accuracy than 1ms. */
       job.token = token;
 
       try {
-        await this.retryIfFailed(
+        const shouldScheduleRepeat = await this.retryIfFailed(
           async () => {
             // We need to distinguish between new job schedulers and legacy
-            // repeatable jobs. Legacy repeatable keys always contain 5+
-            // colon segments, but a user-provided jobSchedulerId may also
-            // contain 5+ segments, so we cannot rely on the segment count
-            // alone (see issue #3828). When the key has 5+ segments we
+            // repeatable jobs. We first use a key-shape heuristic to detect
+            // legacy repeat keys (`name:id:endDate:tz:<cron|every>`), then
             // probe the per-id scheduler metadata hash (`repeat:<id>` with
-            // the `ic` field) via `JobScheduler.isJobScheduler()` to confirm
-            // it really is a scheduler before falling back to the legacy
-            // repeatable path.
+            // the `ic` field) via `JobScheduler.isJobScheduler()` for
+            // disambiguation when needed (see issue #3828).
             const hasRepeatJobKey = !!job.repeatJobKey;
             const hasLegacyKeyShape =
-              hasRepeatJobKey && job.repeatJobKey.split(':').length >= 5;
+              hasRepeatJobKey && hasLegacyRepeatableKeyShape(job.repeatJobKey);
             let isJobScheduler = hasRepeatJobKey && !hasLegacyKeyShape;
             if (hasLegacyKeyShape) {
               const jobScheduler = await this.jobScheduler;
@@ -949,21 +941,27 @@ will never work with more accuracy than 1ms. */
                 // Most of these arguments are not really needed
                 // anymore as we read them from the job scheduler itself
                 job.repeatJobKey,
-                job.opts.repeat,
+                (job.opts as JobSchedulerJobOptions).repeat,
                 job.name,
                 job.data,
                 job.opts,
                 { override: false, producerId: job.id },
               );
-            } else if (job.opts.repeat) {
-              const repeat = await this.repeat;
-              await repeat.updateRepeatableJob(job.name, job.data, job.opts, {
-                override: false,
-              });
             }
+
+            return !hasLegacyKeyShape || isJobScheduler;
           },
           { delayInMs: this.opts.runRetryDelay },
         );
+
+        if (job.repeatJobKey && !shouldScheduleRepeat) {
+          const schedulingError = new Error(
+            `Failed to add repeatable job for next iteration: ${
+              getLegacyRepeatableJobError(job.repeatJobKey).message
+            }`,
+          );
+          this.emit('error', schedulingError);
+        }
       } catch (err) {
         // Emit error but don't throw to avoid breaking current job completion
         // Note: This means the next repeatable job will not be scheduled
@@ -976,18 +974,21 @@ will never work with more accuracy than 1ms. */
         // Return undefined to indicate no next job is available
         return undefined;
       }
+
+      this.emit('active', job, 'waiting');
+
       return job;
     }
   }
 
   async processJob(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
     fetchNextCallback = () => true,
-  ): Promise<void | Job<DataType, ResultType, NameType>> {
+  ): Promise<void | Job<DataType, ResultType, NameType, ProgressType>> {
     const srcPropagationMetadata = job.opts?.telemetry?.metadata;
 
-    return this.trace<void | Job<DataType, ResultType, NameType>>(
+    return this.trace<void | Job<DataType, ResultType, NameType, ProgressType>>(
       SpanKind.CONSUMER,
       'process',
       this.name,
@@ -1013,7 +1014,8 @@ will never work with more accuracy than 1ms. */
             const failed = await this.retryIfFailed<void | Job<
               DataType,
               ResultType,
-              NameType
+              NameType,
+              ProgressType
             >>(
               () => {
                 this.lockManager.untrackJob(job.id);
@@ -1040,7 +1042,8 @@ will never work with more accuracy than 1ms. */
           return await this.retryIfFailed<void | Job<
             DataType,
             ResultType,
-            NameType
+            NameType,
+            ProgressType
           >>(
             () => {
               this.lockManager.untrackJob(job.id);
@@ -1058,7 +1061,8 @@ will never work with more accuracy than 1ms. */
           const failed = await this.retryIfFailed<void | Job<
             DataType,
             ResultType,
-            NameType
+            NameType,
+            ProgressType
           >>(
             () => {
               this.lockManager.untrackJob(job.id);
@@ -1078,7 +1082,6 @@ will never work with more accuracy than 1ms. */
           const now = Date.now();
 
           span?.setAttributes({
-            [TelemetryAttributes.JobFinishedTimestamp]: now,
             [TelemetryAttributes.JobAttemptFinishedTimestamp]:
               job.finishedOn || now,
             [TelemetryAttributes.JobProcessedTimestamp]: job.processedOn,
@@ -1090,7 +1093,7 @@ will never work with more accuracy than 1ms. */
   }
 
   private getUnrecoverableErrorMessage(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
   ) {
     if (job.deferredFailure) {
       return job.deferredFailure;
@@ -1105,12 +1108,12 @@ will never work with more accuracy than 1ms. */
 
   protected async handleCompleted(
     result: ResultType,
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
     fetchNextCallback = () => true,
     span?: Span,
   ) {
-    if (!this.connection.closing) {
+    if (!this.backend.closing) {
       const completed = await job.moveToCompleted(
         result,
         token,
@@ -1137,12 +1140,12 @@ will never work with more accuracy than 1ms. */
 
   protected async handleFailed(
     err: Error,
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
     fetchNextCallback = () => true,
     span?: Span,
   ) {
-    if (!this.connection.closing) {
+    if (!this.backend.closing) {
       // Check if the job was manually rate-limited
       if (err.message === RATE_LIMIT_ERROR) {
         const rateLimitTtl = await this.moveLimitedBackToWait(job, token);
@@ -1150,6 +1153,7 @@ will never work with more accuracy than 1ms. */
         return;
       }
 
+      const fetchNext = fetchNextCallback() && !(this.closing || this.paused);
       if (
         err instanceof DelayedError ||
         err.name == 'DelayedError' ||
@@ -1158,15 +1162,14 @@ will never work with more accuracy than 1ms. */
         err instanceof WaitingChildrenError ||
         err.name == 'WaitingChildrenError'
       ) {
-        const client = await this.client;
-        return this.moveToActive(client, token, this.opts.name);
+        if (!fetchNext) {
+          return;
+        }
+
+        return this.moveToActive(token, this.opts.name);
       }
 
-      const result = await job.moveToFailed(
-        err,
-        token,
-        fetchNextCallback() && !(this.closing || this.paused),
-      );
+      const result = await job.moveToFailed(err, token, fetchNext);
 
       this.emit('failed', job, err, 'active');
 
@@ -1218,32 +1221,36 @@ will never work with more accuracy than 1ms. */
    *
    * Resumes processing of this worker (if paused).
    */
-  resume(): void {
-    if (!this.running || this.paused) {
-      this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
-        span?.setAttributes({
-          [TelemetryAttributes.WorkerId]: this.id,
-          [TelemetryAttributes.WorkerName]: this.opts.name,
-        });
+  async resume(): Promise<void> {
+    try {
+      if (!this.running || this.paused) {
+        await this.trace<void>(
+          SpanKind.INTERNAL,
+          'resume',
+          this.name,
+          async span => {
+            span?.setAttributes({
+              [TelemetryAttributes.WorkerId]: this.id,
+              [TelemetryAttributes.WorkerName]: this.opts.name,
+            });
 
-        this.paused = false;
+            this.paused = false;
 
-        if (!this.running) {
-          if (this.processFn) {
-            this.run();
-          }
-        } else {
-          // TODO: await for startStalledCheckTimer in next breaking change, that will convert resume method to async
-          // Main loop is still running (pause was called with doNotWaitActive=true).
-          // Restart the stalled checker since pause() stopped it.
-          void this.startStalledCheckTimer().catch(err => {
-            this.emit('error', err);
-          });
-        }
-        this.emit('resumed');
-      }).catch(err => {
-        this.emit('error', err);
-      });
+            if (!this.running) {
+              if (this.processFn) {
+                this.run();
+              }
+            } else {
+              // Main loop is still running (pause was called with doNotWaitActive=true).
+              // Restart the stalled checker since pause() stopped it.
+              await this.startStalledCheckTimer();
+            }
+            this.emit('resumed');
+          },
+        );
+      }
+    } catch (error) {
+      this.emit('error', error as Error);
     }
   }
 
@@ -1305,8 +1312,7 @@ will never work with more accuracy than 1ms. */
             },
             () => this.lockManager.close(),
             () => this.childPool?.clean(),
-            () => this.blockingConnection.close(force),
-            () => this.connection.close(force),
+            () => this.backend.close(force),
           ];
 
           // Run cleanup functions sequentially and make sure all are run despite any errors
@@ -1388,21 +1394,18 @@ will never work with more accuracy than 1ms. */
    * @returns
    */
   private async whenCurrentJobsFinished(reconnect = true) {
-    //
-    // Force reconnection of blocking connection to abort blocking redis call immediately.
-    //
-    if (this.waiting) {
-      // If we are not going to reconnect, we will not wait for the disconnection.
-      await this.blockingConnection.disconnect(reconnect);
+    // The blocking connection is dedicated to bzpopmin, so it is safe to
+    // always disconnect it whenever the main loop is running. Waiting for the
+    // actual disconnect ('end' event) is required to avoid a race where the
+    // bzpopmin call is still in flight when the main loop awaits its result.
+    if (this.mainLoopRunning) {
+      await this.backend.disconnectBlocking(true);
+      await this.mainLoopRunning;
     } else {
       reconnect = false;
     }
 
-    if (this.mainLoopRunning) {
-      await this.mainLoopRunning;
-    }
-
-    reconnect && (await this.blockingConnection.reconnect());
+    reconnect && (await this.backend.reconnectBlocking());
   }
 
   private async retryIfFailed<T>(
@@ -1454,7 +1457,7 @@ will never work with more accuracy than 1ms. */
       'moveStalledJobsToWait',
       this.name,
       async span => {
-        const stalled = await this.scripts.moveStalledJobsToWait();
+        const stalled = await this.backend.moveStalledJobsToWait();
 
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -1473,7 +1476,7 @@ will never work with more accuracy than 1ms. */
   }
 
   private moveLimitedBackToWait(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
   ) {
     return job.moveToWait(token);

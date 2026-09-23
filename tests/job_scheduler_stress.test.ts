@@ -1,5 +1,4 @@
-import { after } from 'lodash';
-import { default as IORedis } from 'ioredis';
+import { after } from './utils/lodash';
 import {
   describe,
   beforeEach,
@@ -10,36 +9,31 @@ import {
   expect,
 } from 'vitest';
 
-import { Job, Queue, QueueEvents, Repeat, Worker } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { Job, Queue, QueueEvents, Worker } from '../src/classes';
+import { delay, randomUUID } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
+import { IRedisClient } from '../src/interfaces';
 
 const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
 const ONE_HOUR = 60 * ONE_MINUTE;
 
 describe('Job Scheduler Stress', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   // TODO: Move timeout to test options: { timeout: 10000 }
-  let repeat: Repeat;
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, {
-      maxRetriesPerRequest: null,
-      enableReadyCheck: false,
-      lazyConnect: true,
-      reconnectOnError: () => true,
-    });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
     queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
-    repeat = new Repeat(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
@@ -48,9 +42,8 @@ describe('Job Scheduler Stress', () => {
   afterEach(async () => {
     try {
       await queue.close();
-      await repeat.close();
       await queueEvents.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName);
+      await cleanupQueue(queueName);
     } catch (error) {
       // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
     }
@@ -127,7 +120,6 @@ describe('Job Scheduler Stress', () => {
       completed: 0,
       delayed: 1,
       failed: 0,
-      paused: 0,
       prioritized: 0,
       waiting: 0,
       'waiting-children': 0,
@@ -297,7 +289,7 @@ describe('Job Scheduler Stress', () => {
       await delay(3500); // Allow 3-4 jobs to process
 
       const jobsAfterFirst = processedJobs.length;
-      expect(jobsAfterFirst).to.be.gte(3);
+      expect(jobsAfterFirst).toBeGreaterThanOrEqual(3);
 
       // Verify all initial jobs have the correct data
       for (let i = 0; i < jobsAfterFirst; i++) {
@@ -321,7 +313,7 @@ describe('Job Scheduler Stress', () => {
       await delay(6500); // Allow 3 more jobs to process at new interval
 
       const jobsAfterSecond = processedJobs.length;
-      expect(jobsAfterSecond).to.be.gt(jobsAfterFirst);
+      expect(jobsAfterSecond).toBeGreaterThan(jobsAfterFirst);
 
       // Verify that jobs after the update have the new data
       // Note: There might be 1-2 jobs in transition that still have old data
@@ -441,10 +433,12 @@ describe('Job Scheduler Stress', () => {
         async job => {
           try {
             if (iterationCount === 0) {
-              expect(job.opts.delay).to.be.eq(0);
+              expect(job.opts.delay).toBe(0);
             } else {
-              expect(job.opts.delay).to.be.gte(MINIMUM_DELAY_THRESHOLD_MS);
-              expect(job.opts.delay).to.be.lte(DELAY);
+              expect(job.opts.delay).toBeGreaterThanOrEqual(
+                MINIMUM_DELAY_THRESHOLD_MS,
+              );
+              expect(job.opts.delay).toBeLessThanOrEqual(DELAY);
             }
             iterationCount++;
           } catch (err) {
@@ -462,10 +456,10 @@ describe('Job Scheduler Stress', () => {
         worker.on('completed', async job => {
           try {
             if (prev) {
-              expect(prev.timestamp).to.be.lte(job.timestamp);
-              expect(job.processedOn! - prev.processedOn!).to.be.gte(
-                MINIMUM_DELAY_THRESHOLD_MS,
-              );
+              expect(prev.timestamp).toBeLessThanOrEqual(job.timestamp);
+              expect(
+                job.processedOn! - prev.processedOn!,
+              ).toBeGreaterThanOrEqual(MINIMUM_DELAY_THRESHOLD_MS);
             }
             prev = job;
             counter++;
@@ -488,17 +482,17 @@ describe('Job Scheduler Stress', () => {
       );
 
       const waitingCountBefore = await queue.getWaitingCount();
-      expect(waitingCountBefore).to.be.eq(1);
+      expect(waitingCountBefore).toBe(1);
 
       worker.run();
 
       await completing;
 
       const waitingCount = await queue.getWaitingCount();
-      expect(waitingCount).to.be.eq(0);
+      expect(waitingCount).toBe(0);
 
       const delayedCountAfter = await queue.getDelayedCount();
-      expect(delayedCountAfter).to.be.eq(1);
+      expect(delayedCountAfter).toBe(1);
 
       try {
         await worker.close();
@@ -555,7 +549,7 @@ describe('Job Scheduler Stress', () => {
       );
 
       const waitingCountBefore = await queue.getWaitingCount();
-      expect(waitingCountBefore).to.be.eq(1);
+      expect(waitingCountBefore).toBe(1);
 
       worker.run();
       await delay(100);
@@ -571,10 +565,10 @@ describe('Job Scheduler Stress', () => {
       await completing;
 
       const waitingCount = await queue.getWaitingCount();
-      expect(waitingCount).to.be.eq(0);
+      expect(waitingCount).toBe(0);
 
       const delayedCountAfter = await queue.getDelayedCount();
-      expect(delayedCountAfter).to.be.eq(1);
+      expect(delayedCountAfter).toBe(1);
 
       await worker.close();
     });

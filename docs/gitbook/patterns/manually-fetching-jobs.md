@@ -51,13 +51,13 @@ A token represents ownership by given worker currently working on a given job. I
 
 ## Checking for stalled jobs
 
-When processing jobs manually you may also want to start the stalled jobs checker. This checker is needed to move stalled jobs (whose lock has expired) back to the _wait_ status (or _failed_ if they have exhausted the maximum number of [stalled attempts](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#maxstalledcount), which is 1 by default).
+When processing jobs manually you may also want to start the stalled jobs checker. This checker is needed to move stalled jobs (whose lock has expired) back to the _wait_ status (or _failed_ if they have exhausted the maximum number of [stalled attempts](https://docs.bullmq.io/api/interfaces/v6.WorkerOptions.html#maxstalledcount), which is 1 by default).
 
 ```typescript
 await worker.startStalledCheckTimer()
 ```
 
-The checker will run periodically (based on the [`stalledInterval`](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#stalledinterval) option) until the worker is closed.
+The checker will run periodically (based on the [`stalledInterval`](https://docs.bullmq.io/api/interfaces/v6.WorkerOptions.html#stalledinterval) option) until the worker is closed.
 
 ## Looping through jobs
 
@@ -113,7 +113,7 @@ await job.moveToWait(token);
 
 ## Read more:
 
-- 💡 [Get Next Job API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html#getnextjob)
-- 💡 [Move To Completed API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#movetocompleted)
-- 💡 [Move To Failed API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#movetofailed)
-- 💡 [Move To Wait API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#movetowait)
+- 💡 [Get Next Job API Reference](https://docs.bullmq.io/api/classes/v6.Worker.html#getnextjob)
+- 💡 [Move To Completed API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#movetocompleted)
+- 💡 [Move To Failed API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#movetofailed)
+- 💡 [Move To Wait API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#movetowait)

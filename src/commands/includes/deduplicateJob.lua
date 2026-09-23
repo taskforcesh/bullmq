@@ -3,6 +3,7 @@
 ]]
 -- Includes
 --- @include "deduplicateJobWithoutReplace"
+--- @include "recoverStaleDeduplicationKey"
 --- @include "removeJobKeys"
 --- @include "setDeduplicationKey"
 --- @include "storeDeduplicatedNextJob"
@@ -14,9 +15,6 @@ local function removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEven
         rcall("XADD", eventsKey, "*", "event", "removed", "jobId", currentDeduplicatedJobId,
             "prev", "delayed")
 
-        -- TODO remove debounced event in next breaking change
-        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "debounced", "jobId",
-            jobId, "debounceId", deduplicationId)
         rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "deduplicated", "jobId",
             jobId, "deduplicationId", deduplicationId, "deduplicatedJobId", currentDeduplicatedJobId)
 
@@ -31,11 +29,16 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
     local deduplicationId = deduplicationOpts and deduplicationOpts['id']
     if deduplicationId then
         if deduplicationOpts['replace'] then
-            local currentDebounceJobId = rcall('GET', deduplicationKey)
-            if currentDebounceJobId then
+            local currentDeduplicatedJobId = rcall('GET', deduplicationKey)
+            if currentDeduplicatedJobId then
                 local isRemoved = removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents,
-                    currentDebounceJobId, jobId, deduplicationId, prefix)
+                    currentDeduplicatedJobId, jobId, deduplicationId, prefix)
                 if isRemoved then
+                    -- Discard any pending next-job payload stored while the replaced
+                    -- job was active, otherwise it would be resurrected when the
+                    -- incoming job finalizes.
+                    rcall('DEL', prefix .. "dn:" .. deduplicationId)
+
                     if deduplicationOpts['keepLastIfActive'] then
                         rcall('SET', deduplicationKey, jobId)
                     else
@@ -48,10 +51,15 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
                     end
                     return
                 else
-                    storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
+                    if recoverStaleDeduplicationKey(deduplicationKey, prefix, currentDeduplicatedJobId,
+                        jobId, deduplicationId, deduplicationOpts) then
+                        return
+                    end
+
+                    storeDeduplicatedNextJob(deduplicationOpts, currentDeduplicatedJobId, prefix,
                         deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
                         parentKey, parentData, parentDependenciesKey, repeatJobKey)
-                    return currentDebounceJobId
+                    return currentDeduplicatedJobId
                 end
             else
                 if deduplicationOpts['keepLastIfActive'] then

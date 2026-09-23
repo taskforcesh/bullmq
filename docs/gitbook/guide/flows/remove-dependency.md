@@ -45,4 +45,4 @@ As soon as a **child** with this option fails, the parent job will be moved to a
 
 ## Read more:
 
-- 💡 [Add Flow API Reference](https://api.docs.bullmq.io/classes/v5.FlowProducer.html#add)
+- 💡 [Add Flow API Reference](https://docs.bullmq.io/api/classes/v6.FlowProducer.html#add)

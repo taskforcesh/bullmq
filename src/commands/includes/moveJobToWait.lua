@@ -4,12 +4,12 @@
 
 -- Includes
 --- @include "addJobInTargetList"
---- @include "getTargetQueueList"
+--- @include "isQueuePausedOrMaxed"
 
 local function moveJobToWait(metaKey, activeKey, waitKey, pausedKey, markerKey, eventStreamKey,
   jobId, pushCmd)
-  local target, isPausedOrMaxed = getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
-  addJobInTargetList(target, markerKey, pushCmd, isPausedOrMaxed, jobId)
+  local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, activeKey)
+  addJobInTargetList(waitKey, markerKey, pushCmd, isPausedOrMaxed, jobId)
 
   rcall("XADD", eventStreamKey, "*", "event", "waiting", "jobId", jobId, 'prev', 'active')
 end

@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -10,19 +9,22 @@ import {
 } from 'vitest';
 
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
+import { streamEntriesToEvents } from './utils/stream-events';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Pause', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueName: string;
   let queueEvents: QueueEvents;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -35,7 +37,7 @@ describe('Pause', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -65,9 +67,20 @@ describe('Pause', () => {
     if (processed) {
       throw new Error('should not process delayed jobs in paused queue.');
     }
-    const counts2 = await queue.getJobCounts('waiting', 'paused', 'delayed');
-    expect(counts2).toHaveProperty('waiting', 0);
-    expect(counts2).toHaveProperty('paused', 1);
+    const start = Date.now();
+    let counts2 = await queue.getJobCounts('waiting', 'delayed');
+    while (
+      (counts2.waiting !== 1 || counts2.delayed !== 0) &&
+      Date.now() - start < 2000
+    ) {
+      if (processed) {
+        throw new Error('should not process delayed jobs in paused queue.');
+      }
+      await delay(50);
+      counts2 = await queue.getJobCounts('waiting', 'delayed');
+    }
+
+    expect(counts2).toHaveProperty('waiting', 1);
     expect(counts2).toHaveProperty('delayed', 0);
 
     await worker.close();
@@ -88,8 +101,13 @@ describe('Pause', () => {
       };
     });
 
-    const worker = new Worker(queueName, process, { connection, prefix });
+    const worker = new Worker(queueName, process, {
+      autorun: false,
+      connection,
+      prefix,
+    });
     await worker.waitUntilReady();
+    worker.run();
 
     await queue.pause();
     isPaused = true;
@@ -130,7 +148,12 @@ describe('Pause', () => {
       };
     });
 
-    const worker = new Worker(queueName, process, { connection, prefix });
+    const worker = new Worker(queueName, process, {
+      autorun: false,
+      connection,
+      prefix,
+    });
+    await worker.waitUntilReady();
 
     queueEvents.on('paused', async (args, eventId) => {
       isPaused = false;
@@ -147,6 +170,7 @@ describe('Pause', () => {
 
     await queue.add('test', { foo: 'paused' });
     await queue.add('test', { foo: 'paused' });
+    worker.run();
 
     await processPromise;
 
@@ -341,6 +365,62 @@ describe('Pause', () => {
     expect(isResumedQueuePaused).toBe(false);
   });
 
+  it('should rename the legacy paused list into wait on resume', async () => {
+    const client = connection as any;
+    const pausedKey = queue.toKey('paused');
+    const waitKey = queue.toKey('wait');
+    const legacyJobs = ['legacy-1', 'legacy-2', 'legacy-3'];
+
+    // Use lpush so the setup works across adapters; slice() avoids mutating the
+    // source array before reversing to preserve the same final list order that
+    // the legacy rpush (right-push) setup produced.
+    await client.lpush(pausedKey, ...legacyJobs.slice().reverse());
+
+    await queue.resume();
+
+    expect(await client.exists(pausedKey)).toBe(0);
+    expect(await client.lrange(waitKey, 0, -1)).toEqual(legacyJobs);
+  });
+
+  it('should fully migrate the legacy paused list in batches on resume', async () => {
+    const client = connection as any;
+    const pausedKey = queue.toKey('paused');
+    const waitKey = queue.toKey('wait');
+    const eventsKey = queue.toKey('events');
+    const legacyMigrationBatchSize = 7000;
+    const initialLegacySeedSize = legacyMigrationBatchSize / 2;
+    // Exceed the per-call batch size so resume must drain the legacy list twice.
+    const legacyJobs = Array.from(
+      { length: legacyMigrationBatchSize + 5 },
+      (_, index) => `legacy-${index}`,
+    );
+
+    await client.lpush(waitKey, 'waiting-1');
+    // Seed the legacy paused list in two reversed chunks so resume has to
+    // migrate it in batches while preserving the original right-push order.
+    await client.lpush(
+      pausedKey,
+      ...legacyJobs.slice(initialLegacySeedSize).reverse(),
+    );
+    await client.lpush(
+      pausedKey,
+      ...legacyJobs.slice(0, initialLegacySeedSize).reverse(),
+    );
+
+    await queue.resume();
+
+    const events = await connection.xread([{ key: eventsKey, id: '0-0' }], {
+      COUNT: 100,
+    });
+    const resumedEvents = streamEntriesToEvents(events?.[0]?.[1] ?? []).filter(
+      event => event.event === 'resumed',
+    );
+
+    expect(await client.exists(pausedKey)).toBe(0);
+    expect(await client.llen(waitKey)).toBe(legacyJobs.length + 1);
+    expect(resumedEvents).toHaveLength(1);
+  });
+
   it('should pause and resume worker without error', async () => {
     const worker = new Worker(
       queueName,
@@ -354,7 +434,7 @@ describe('Pause', () => {
     await delay(10);
     await worker.pause();
     await delay(10);
-    worker.resume();
+    await worker.resume();
     await delay(10);
     await worker.pause();
     await delay(10);
@@ -390,7 +470,7 @@ describe('Pause', () => {
           try {
             if (prev) {
               expect(prev).toEqual('active');
-              const count = await queue.getJobCountByTypes('paused');
+              const count = await queue.getJobCountByTypes('wait');
               expect(count).toBe(1);
               await queue.resume();
               resolve();

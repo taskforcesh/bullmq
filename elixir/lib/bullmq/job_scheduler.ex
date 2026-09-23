@@ -92,7 +92,7 @@ defmodule BullMQ.JobScheduler do
     * `"0 0 * * 7"` - Every Sunday at midnight (Elixir only)
   """
 
-  alias BullMQ.{Keys, Scripts, Job}
+  alias BullMQ.{Backend, Keys, Job}
 
   require Logger
 
@@ -295,13 +295,9 @@ defmodule BullMQ.JobScheduler do
           {:ok, scheduler_json() | nil} | {:error, term()}
   def get(conn, queue_name, scheduler_id, opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "bull")
-    ctx = Keys.new(queue_name, prefix: prefix)
+    backend = Backend.create(queue_name, connection: conn, prefix: prefix)
 
-    {script, key_count} = Scripts.get(:get_job_scheduler)
-    keys = [Keys.repeat(ctx)]
-    args = [scheduler_id]
-
-    case Redix.command(conn, ["EVAL", script, key_count | keys ++ args]) do
+    case Backend.get_job_scheduler(backend, scheduler_id) do
       {:ok, [nil, nil]} ->
         {:ok, nil}
 
@@ -348,18 +344,10 @@ defmodule BullMQ.JobScheduler do
     end_idx = Keyword.get(opts, :end, -1)
     asc = Keyword.get(opts, :asc, false)
 
-    ctx = Keys.new(queue_name, prefix: prefix)
-    repeat_key = Keys.repeat(ctx)
+    backend = Backend.create(queue_name, connection: conn, prefix: prefix)
 
     # Get scheduler IDs with scores
-    command =
-      if asc do
-        ["ZRANGE", repeat_key, start_idx, end_idx, "WITHSCORES"]
-      else
-        ["ZREVRANGE", repeat_key, start_idx, end_idx, "WITHSCORES"]
-      end
-
-    case Redix.command(conn, command) do
+    case Backend.get_job_schedulers_range(backend, start_idx, end_idx, asc) do
       {:ok, result} when is_list(result) ->
         schedulers =
           result
@@ -393,9 +381,9 @@ defmodule BullMQ.JobScheduler do
   @spec count(pid() | atom(), String.t(), keyword()) :: {:ok, non_neg_integer()} | {:error, term()}
   def count(conn, queue_name, opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "bull")
-    ctx = Keys.new(queue_name, prefix: prefix)
+    backend = Backend.create(queue_name, connection: conn, prefix: prefix)
 
-    Redix.command(conn, ["ZCARD", Keys.repeat(ctx)])
+    Backend.get_job_schedulers_count(backend)
   end
 
   @doc """
@@ -422,22 +410,9 @@ defmodule BullMQ.JobScheduler do
           {:ok, boolean()} | {:error, term()}
   def remove(conn, queue_name, scheduler_id, opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "bull")
-    ctx = Keys.new(queue_name, prefix: prefix)
+    backend = Backend.create(queue_name, connection: conn, prefix: prefix)
 
-    {script, key_count} = Scripts.get(:remove_job_scheduler)
-
-    keys = [
-      Keys.repeat(ctx),
-      Keys.delayed(ctx),
-      Keys.events(ctx)
-    ]
-
-    args = [
-      scheduler_id,
-      Keys.base(ctx) <> ":"
-    ]
-
-    case Redix.command(conn, ["EVAL", script, key_count | keys ++ args]) do
+    case Backend.remove_job_scheduler(backend, scheduler_id) do
       {:ok, 0} -> {:ok, true}
       {:ok, 1} -> {:ok, false}
       {:error, _} = error -> error
@@ -608,22 +583,6 @@ defmodule BullMQ.JobScheduler do
       next_millis = max(next_millis, now)
 
       # Prepare script arguments
-      {script, key_count} = Scripts.get(:add_job_scheduler)
-
-      keys = [
-        Keys.repeat(ctx),
-        Keys.delayed(ctx),
-        Keys.wait(ctx),
-        Keys.paused(ctx),
-        Keys.meta(ctx),
-        Keys.prioritized(ctx),
-        Keys.marker(ctx),
-        Keys.id(ctx),
-        Keys.events(ctx),
-        Keys.pc(ctx),
-        Keys.active(ctx)
-      ]
-
       # Build scheduler opts for msgpack
       scheduler_opts = build_scheduler_opts(repeat_opts, job_name)
 
@@ -657,20 +616,19 @@ defmodule BullMQ.JobScheduler do
       # Encode data
       template_data = Jason.encode!(job_data)
 
-      args = [
-        next_millis,
-        Msgpax.pack!(scheduler_opts, iodata: false),
-        scheduler_id,
-        template_data,
-        Msgpax.pack!(template_opts, iodata: false),
-        Msgpax.pack!(delayed_opts, iodata: false),
-        now,
-        Keys.base(ctx) <> ":",
-        # producer key (empty for now)
-        ""
-      ]
+      backend = Backend.create(ctx.name, connection: conn, prefix: ctx.prefix)
 
-      case Redix.command(conn, ["EVAL", script, key_count | keys ++ args]) do
+      case Backend.add_job_scheduler(
+             backend,
+             scheduler_id,
+             next_millis,
+             scheduler_opts,
+             template_data,
+             template_opts,
+             delayed_opts,
+             now,
+             nil
+           ) do
         {:ok, [job_id, delay]} when is_binary(job_id) ->
           delay = if is_binary(delay), do: String.to_integer(delay), else: delay
 

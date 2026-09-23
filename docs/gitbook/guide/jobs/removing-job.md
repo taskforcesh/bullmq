@@ -4,6 +4,7 @@ Sometimes it is necessary to remove a job. For example, there could be a job tha
 
 {% tabs %}
 {% tab title="TypeScript" %}
+
 ```typescript
 import { Queue } from 'bullmq';
 
@@ -13,9 +14,11 @@ const job = await queue.add('wall', { color: 1 });
 
 await job.remove();
 ```
+
 {% endtab %}
 
 {% tab title="Python" %}
+
 ```python
 from bullmq import Queue
 
@@ -25,11 +28,29 @@ job = await queue.add('wall', {'color': 1})
 
 await job.remove()
 ```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+let job = queue.add("wall", serde_json::json!({"color": 1}), None).await?;
+
+// Returns `true` if the job was removed, or `false` if it (or one of its
+// dependencies) is locked and could not be removed.
+let removed = queue.remove(job.id()).await?;
+```
+
 {% endtab %}
 {% endtabs %}
 
 {% hint style="warning" %}
-Locked jobs (in active state) can not be removed. An error will be thrown.
+Locked jobs (in active state) cannot be removed. In TypeScript and Python, an
+error will be thrown, while in Rust `Queue::remove` returns `Ok(false)`.
 {% endhint %}
 
 ## Having a parent job
@@ -53,4 +74,4 @@ If any of the children are locked, the deletion process will be stopped.
 
 ### Read more:
 
-* 💡 [Remove API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#remove)
+- 💡 [Remove API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#remove)

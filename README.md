@@ -4,7 +4,7 @@
   <br/>
   <br/>
   <p>
-    The fastest, most reliable, Redis-based distributed queue for Node. <br/>
+    The fastest, most reliable, Redis-based distributed queue for Node.js, Python, Elixir, .NET, Rust, PHP, and more. <br/>
     Carefully written for rock solid stability and atomicity.
   </p>
   Read the <a href="https://docs.bullmq.io">documentation</a>
@@ -40,7 +40,16 @@ You can find tutorials and news in this blog: https://blog.taskforce.sh/
 
 ## 🌐 Language agnostic BullMQ
 
-Do you need to work with BullMQ on platforms other than Node.js? If so, check out the [BullMQ Proxy](https://github.com/taskforcesh/bullmq-proxy)
+BullMQ is available natively in multiple languages:
+
+- **Node.js / Bun** — This repository (`npm install bullmq`)
+- **Python** — [`python/`](./python) directory (`pip install bullmq`)
+- **Rust** — [`rust/`](./rust) directory (`cargo add bullmq-official --rename bullmq`)
+- **Elixir** — [`elixir/`](./elixir) directory (`{:bullmq, "~> x.x"}`)
+- **.Net** — [`dotnet/`](./dotnet) directory (`dotnet add package BullMQ`)
+- **PHP** — [`php/`](./php) directory
+
+For other platforms, check out the [BullMQ Proxy](https://github.com/taskforcesh/bullmq-proxy).
 
 # Official FrontEnd
 
@@ -175,6 +184,10 @@ Install:
 ```
 $ yarn add bullmq
 ```
+
+If you use the node-redis adapter (`createNodeRedisClient`), install `redis` v5 or newer (`redis >= 5.0.0`).
+
+If you use the Valkey Glide adapter (`createValkeyGlideClient`), install `@valkey/valkey-glide`.
 
 Add jobs to the queue:
 

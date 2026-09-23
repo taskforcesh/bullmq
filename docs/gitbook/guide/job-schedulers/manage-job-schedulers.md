@@ -39,6 +39,6 @@ console.log('Current job scheduler:', scheduler);
 
 ## Read more:
 
-- 💡 [Remove Job Scheduler API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removejobscheduler)
-- 💡 [Get Job Schedulers API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobschedulers)
-- 💡 [Get Job Scheduler API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobscheduler)
+- 💡 [Remove Job Scheduler API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#removejobscheduler)
+- 💡 [Get Job Schedulers API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#getjobschedulers)
+- 💡 [Get Job Scheduler API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#getjobscheduler)

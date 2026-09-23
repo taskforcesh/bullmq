@@ -85,7 +85,7 @@ defmodule BullMQ.Worker do
 
   use GenServer
 
-  alias BullMQ.{CancellationToken, Job, Keys, LockManager, RedisConnection, Scripts, Types}
+  alias BullMQ.{Backend, CancellationToken, Job, Keys, LockManager, Types}
 
   require Logger
 
@@ -138,7 +138,7 @@ defmodule BullMQ.Worker do
                    doc: "Interval in ms to check for stalled jobs."
                  ],
                  max_stalled_count: [
-                   type: :pos_integer,
+                   type: :non_neg_integer,
                    default: @default_max_stalled_count,
                    doc: "Max times a job can stall before being moved to failed."
                  ],
@@ -235,10 +235,9 @@ defmodule BullMQ.Worker do
           worker_pids: map(),
           in_flight_workers: MapSet.t(pid()),
           cancellation_tokens: map(),
+          lock_lost_jobs: MapSet.t(String.t()),
           keys: Keys.queue_context(),
           token: String.t(),
-          blocking_conn: pid() | nil,
-          client_name_telemetry_id: term() | nil,
           stalled_timer: reference() | nil,
           lock_manager: pid() | nil,
           opts: map(),
@@ -261,8 +260,7 @@ defmodule BullMQ.Worker do
     :connection,
     :processor,
     :keys,
-    :blocking_conn,
-    :client_name_telemetry_id,
+    :backend,
     :stalled_timer,
     :lock_manager,
     :on_completed,
@@ -288,9 +286,14 @@ defmodule BullMQ.Worker do
     worker_pids: %{},
     in_flight_workers: MapSet.new(),
     cancellation_tokens: %{},
+    # Jobs whose lock was lost while their processor is still running.
+    # The stalled checker owns recovery for these jobs.
+    lock_lost_jobs: MapSet.new(),
     processor_supports_cancellation: false,
     # Track if we're currently doing a blocking wait for jobs
     waiting_for_jobs: false,
+    # Whether the backend's dedicated blocking connection has been established
+    blocking_ready: false,
     token: "",
     opts: %{},
     drain_delay: @default_drain_delay,
@@ -586,10 +589,8 @@ defmodule BullMQ.Worker do
   """
   @spec update_progress(Job.t(), Types.job_progress()) :: :ok | {:error, term()}
   def update_progress(%Job{} = job, progress) do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
-
     # Update progress in Redis (also emits to Redis Streams for QueueEvents)
-    case Scripts.update_progress(job.connection, ctx, job.id, progress) do
+    case Backend.update_progress(job_backend(job), job.id, progress) do
       {:ok, _} ->
         # Notify the worker to trigger on_progress callback
         if job.worker && Process.alive?(job.worker) do
@@ -615,9 +616,8 @@ defmodule BullMQ.Worker do
   """
   @spec log(Job.t(), String.t()) :: :ok | {:error, term()}
   def log(%Job{} = job, message) do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
     keep_logs = get_in(job.opts, [:keep_logs])
-    Scripts.add_log(job.connection, ctx, job.id, message, keep_logs)
+    Backend.add_log(job_backend(job), job.id, message, keep_logs)
     :ok
   rescue
     e -> {:error, e}
@@ -630,11 +630,19 @@ defmodule BullMQ.Worker do
   """
   @spec update_data(Job.t(), term()) :: :ok | {:error, term()}
   def update_data(%Job{} = job, data) do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
-    Scripts.update_data(job.connection, ctx, job.id, data)
+    Backend.update_data(job_backend(job), job.id, data)
     :ok
   rescue
     e -> {:error, e}
+  end
+
+  # Builds the datastore backend for a job from its identity + connection.
+  defp job_backend(%Job{} = job) do
+    Backend.create(job.queue_name,
+      connection: job.connection,
+      prefix: job.prefix,
+      backend: job.backend
+    )
   end
 
   # GenServer callbacks
@@ -655,6 +663,9 @@ defmodule BullMQ.Worker do
     # Check processor arity once at init - skip cancellation overhead for arity-1 processors
     supports_cancellation = processor_supports_cancellation?(processor)
 
+    backend_module =
+      Keyword.get(opts, :backend, Application.get_env(:bullmq, :backend, BullMQ.Backends.Redis))
+
     state = %__MODULE__{
       name: Keyword.get(opts, :name),
       queue_name: queue_name,
@@ -669,12 +680,18 @@ defmodule BullMQ.Worker do
       drain_delay: Keyword.get(opts, :drain_delay, @default_drain_delay),
       limiter: Keyword.get(opts, :limiter),
       keys: Keys.new(queue_name, prefix: prefix),
+      backend:
+        Backend.create(queue_name,
+          connection: connection,
+          backend: backend_module,
+          prefix: prefix,
+          owns_connection: false
+        ),
       token: generate_token(),
       opts: Map.new(opts),
       telemetry: Keyword.get(opts, :telemetry),
       remove_on_complete: Keyword.get(opts, :remove_on_complete),
       remove_on_fail: Keyword.get(opts, :remove_on_fail),
-      client_name_telemetry_id: nil,
       # Event callbacks
       on_completed: Keyword.get(opts, :on_completed),
       on_failed: Keyword.get(opts, :on_failed),
@@ -737,25 +754,33 @@ defmodule BullMQ.Worker do
       # First try to get a job without blocking
       case fetch_next_job_with_token(state, token) do
         {:ok, nil} when block ->
-          # No job available, wait for one using BZPOPMIN on marker
-          case wait_for_job(state, timeout) do
-            :job_available ->
-              # A job became available, try to fetch it
-              result = fetch_next_job_with_token(state, token)
+          # No job available, wait for one via the backend's blocking primitive.
+          # Ensure the backend's dedicated blocking connection exists (manual
+          # processing may never have run the :start handler).
+          case ensure_blocking(state) do
+            {:ok, state} ->
+              case wait_for_job(state, timeout) do
+                :job_available ->
+                  # A job became available, try to fetch it
+                  result = fetch_next_job_with_token(state, token)
 
-              case result do
-                {:ok, %Job{} = job} -> emit_event(state.on_active, [job])
-                _ -> :ok
+                  case result do
+                    {:ok, %Job{} = job} -> emit_event(state.on_active, [job])
+                    _ -> :ok
+                  end
+
+                  {:reply, result, state}
+
+                :timeout ->
+                  # Timed out waiting, return nil
+                  {:reply, {:ok, nil}, state}
+
+                {:error, _} = error ->
+                  {:reply, error, state}
               end
 
-              {:reply, result, state}
-
-            :timeout ->
-              # Timed out waiting, return nil
-              {:reply, {:ok, nil}, state}
-
-            {:error, _} = error ->
-              {:reply, error, state}
+            {:error, reason} ->
+              {:reply, {:error, reason}, state}
           end
 
         {:ok, %Job{} = job} = result ->
@@ -841,11 +866,19 @@ defmodule BullMQ.Worker do
 
   @impl true
   def handle_info(:start, state) do
-    # Create blocking connection for BRPOPLPUSH
-    case RedisConnection.blocking_connection(state.connection) do
-      {:ok, blocking_conn} ->
-        set_worker_client_name(blocking_conn, state)
-        client_name_telemetry_id = attach_worker_client_name_handler(blocking_conn, state)
+    # Establish the backend's dedicated blocking connection (the backend owns it;
+    # the worker never touches a datastore client directly).
+    base_backend =
+      Backend.create(state.queue_name,
+        connection: state.connection,
+        backend: backend_module(state),
+        prefix: state.prefix,
+        client_name: worker_client_name(state),
+        owns_connection: false
+      )
+
+    case Backend.reconnect_blocking(base_backend) do
+      {:ok, backend} ->
         # Start stalled job checker
         stalled_timer = schedule_stalled_check(state.stalled_interval)
 
@@ -857,6 +890,7 @@ defmodule BullMQ.Worker do
         {:ok, lock_manager} =
           LockManager.start_link(
             connection: state.connection,
+            backend: backend_module(state),
             keys: state.keys,
             lock_duration: state.lock_duration,
             on_lock_renewal_failed: fn failed_job_ids ->
@@ -871,8 +905,8 @@ defmodule BullMQ.Worker do
         new_state = %{
           state
           | running: true,
-            blocking_conn: blocking_conn,
-            client_name_telemetry_id: client_name_telemetry_id,
+            backend: backend,
+            blocking_ready: true,
             stalled_timer: stalled_timer,
             lock_manager: lock_manager
         }
@@ -1080,6 +1114,16 @@ defmodule BullMQ.Worker do
     end
   end
 
+  def handle_info({:job_unrecoverable, job_id, reason}, state) do
+    case Map.get(state.active_jobs, job_id) do
+      nil ->
+        {:noreply, state}
+
+      {job, _task_ref} ->
+        handle_job_unrecoverable(job, reason, state)
+    end
+  end
+
   def handle_info({:DOWN, ref, :process, _pid, reason}, state) do
     # Find the job associated with this task
     case find_job_by_ref(state.active_jobs, ref) do
@@ -1095,14 +1139,25 @@ defmodule BullMQ.Worker do
   end
 
   def handle_info(:check_stalled, state) do
-    # Run stalled job check
+    # Run stalled job check in a separate process (so it doesn't block the
+    # GenServer) but report the outcome back so on_stalled/on_failed fire.
+    # Previously the result was discarded entirely, so jobs that the sweep
+    # permanently failed (stall count > max_stalled_count) never triggered
+    # on_failed, and jobs merely requeued never triggered on_stalled.
+    coordinator = self()
+
     spawn(fn ->
-      Scripts.move_stalled_jobs_to_wait(
-        state.connection,
-        state.keys,
-        state.max_stalled_count,
-        []
-      )
+      case Backend.move_stalled_jobs_to_wait(
+             state.backend,
+             state.max_stalled_count,
+             stalled_interval: state.stalled_interval
+           ) do
+        {:ok, result} ->
+          send(coordinator, {:stalled_check_result, result})
+
+        {:error, reason} ->
+          Logger.error("[BullMQ.Worker] Stalled job check failed: #{inspect(reason)}")
+      end
     end)
 
     # Schedule next check
@@ -1110,9 +1165,45 @@ defmodule BullMQ.Worker do
     {:noreply, %{state | stalled_timer: stalled_timer}}
   end
 
+  # Handles the outcome of a stalled-job sweep and fires the corresponding
+  # event callbacks.
+  #
+  # `result` is whatever the backend returns from `move_stalled_jobs_to_wait/3`.
+  # For Redis (moveStalledJobsToWait-9.lua) this is a single list of stalled job ids.
+  # Jobs that exceed `max_stalled_count` are *marked* with a deferred failure reason
+  # (`defa`) and will fail on their next pickup rather than being returned separately here.
+  # If an adapter returns a different shape, adjust `normalize_stalled_result/1` accordingly.
+  def handle_info({:stalled_check_result, result}, state) do
+    {failed_ids, stalled_ids} = normalize_stalled_result(result)
+
+    Enum.each(stalled_ids, fn job_id ->
+      emit_event(state.on_stalled, [job_id])
+    end)
+
+    Enum.each(failed_ids, fn job_id ->
+      reason = "job stalled more than allowable limit"
+
+      case fetch_job_for_event(state, job_id) do
+        {:ok, job} ->
+          updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: reason}
+          emit_event(state.on_failed, [updated_job, reason])
+
+        :error ->
+          Logger.warning(
+            "[BullMQ.Worker] Job #{job_id} was failed by the stalled checker but could " <>
+              "not be reloaded to emit on_failed"
+          )
+      end
+    end)
+
+    {:noreply, state}
+  end
+
   def handle_info({:cancel_jobs_lock_lost, job_ids}, state) do
-    # Cancel jobs whose locks failed to renew
-    # This prevents duplicate processing if another worker picks up the job
+    # The LockManager reports jobs whose lock could not be renewed. Record the
+    # loss independently of cancellation-token support because arity-1
+    # processors cannot be cancelled. The stalled checker remains responsible
+    # for recovering the Redis job.
     Enum.each(job_ids, fn job_id ->
       case Map.get(state.cancellation_tokens, job_id) do
         nil ->
@@ -1125,7 +1216,26 @@ defmodule BullMQ.Worker do
           CancellationToken.cancel(processor_pid, token, {:lock_lost, job_id})
       end
 
-      # Call the user's on_lock_renewal_failed callback if provided (regardless of token)
+      # Notify the autonomous worker directly when we know which process owns
+      # the job. This is needed for processors that do not accept a cancellation token.
+      Enum.each(state.worker_pids, fn {worker_pid, active_job_id} ->
+        if active_job_id == job_id and Process.alive?(worker_pid) do
+          send(worker_pid, {:job_lock_lost, job_id})
+        end
+      end)
+
+      if state.max_stalled_count == 0 do
+        # Run recovery promptly. Cancel the currently scheduled check first
+        # so lock-loss recovery does not accumulate stalled-check timers.
+        if state.stalled_timer do
+          Process.cancel_timer(state.stalled_timer)
+        end
+
+        send(self(), :check_stalled)
+      end
+    end)
+
+    Enum.each(job_ids, fn job_id ->
       if state.on_lock_renewal_failed do
         try do
           state.on_lock_renewal_failed.([job_id])
@@ -1188,6 +1298,61 @@ defmodule BullMQ.Worker do
     end
   end
 
+  # Normalizes the return of `Backend.move_stalled_jobs_to_wait/3` into
+  # `{failed_job_ids, stalled_job_ids}`, mirroring the Node.js Lua script's
+  # `[failed, stalled]` result shape. Extend this to match your adapter's
+  # actual return value if it differs (e.g. a map with `:failed`/`:stalled`
+  # keys instead of a positional pair).
+  defp normalize_stalled_result({failed, stalled})
+       when is_list(failed) and is_list(stalled) do
+    {failed, stalled}
+  end
+
+  defp normalize_stalled_result([failed, stalled])
+       when is_list(failed) and is_list(stalled) do
+    {failed, stalled}
+  end
+
+  defp normalize_stalled_result(%{failed: failed, stalled: stalled}) do
+    {failed || [], stalled || []}
+  end
+
+  defp normalize_stalled_result(_other), do: {[], []}
+
+  # Reloads a job by id so the `on_failed` callback receives a real
+  # `Job.t()` rather than a bare id. Adjust the pattern match(es) here if
+  # `Backend.get_job_data/2` returns a different shape for your adapter
+  # (this assumes the same flat `[key, value, ...]` list format used
+  # elsewhere in this module via `list_to_job_map/1`).
+  defp fetch_job_for_event(state, job_id) do
+    case Backend.get_job_data(state.backend, job_id) do
+      {:ok, job_data} when is_list(job_data) and job_data != [] ->
+        job_map = list_to_job_map(job_data)
+
+        {:ok,
+         Job.from_redis(job_id, state.queue_name, job_map,
+           prefix: state.prefix,
+           token: "",
+           connection: state.connection,
+           backend: backend_module(state),
+           worker: self()
+         )}
+
+      {:ok, job_map} when is_map(job_map) and map_size(job_map) > 0 ->
+        {:ok,
+         Job.from_redis(job_id, state.queue_name, job_map,
+           prefix: state.prefix,
+           token: "",
+           connection: state.connection,
+           backend: backend_module(state),
+           worker: self()
+         )}
+
+      _ ->
+        :error
+    end
+  end
+
   defp worker_client_name(state) do
     case state.name do
       nil -> "#{state.prefix}:#{state.queue_name}"
@@ -1195,40 +1360,14 @@ defmodule BullMQ.Worker do
     end
   end
 
-  defp set_worker_client_name(blocking_conn, state) do
-    client_name = worker_client_name(state)
-
-    case RedisConnection.set_client_name(blocking_conn, client_name) do
-      :ok -> :ok
-      {:error, _} -> :ok
-    end
-  end
-
-  defp attach_worker_client_name_handler(blocking_conn, state) do
-    client_name = worker_client_name(state)
-    handler_id = {:bullmq_worker_client_name, self(), make_ref()}
-
-    # Store config for the handler
-    handler_config = %{blocking_conn: blocking_conn, client_name: client_name}
-
-    case :telemetry.attach(
-           handler_id,
-           [:redix, :connection],
-           &BullMQ.Worker.handle_redix_connection_event/4,
-           handler_config
-         ) do
-      :ok -> handler_id
-      {:error, _} -> nil
-    end
-  end
-
-  # Module function for telemetry handler to avoid performance penalty from anonymous functions
-  @doc false
-  def handle_redix_connection_event(_event, _measurements, metadata, config) do
-    if metadata.connection == config.blocking_conn do
-      _ = RedisConnection.set_client_name(config.blocking_conn, config.client_name)
-    end
-  end
+  # The worker's registration `name` is an atom (or nil). It is also forwarded to
+  # the backend as data (e.g. the Postgres `application_name` and `move_to_active`
+  # parameters), which must be a binary — passing a raw atom raises a
+  # `DBConnection.EncodeError` on the Postgres backend. Coerce to a string so both
+  # the Redis and Postgres backends accept it.
+  defp name_as_string(nil), do: nil
+  defp name_as_string(name) when is_binary(name), do: name
+  defp name_as_string(name), do: to_string(name)
 
   @impl true
   def terminate(_reason, state) do
@@ -1246,12 +1385,14 @@ defmodule BullMQ.Worker do
     worker_ctx = %{
       connection: state.connection,
       keys: state.keys,
+      backend: state.backend,
       token: state.token,
       processor: state.processor,
       processor_supports_cancellation: state.processor_supports_cancellation,
       lock_duration: state.lock_duration,
+      max_stalled_count: state.max_stalled_count,
       limiter: state.limiter,
-      name: state.name,
+      name: name_as_string(state.name),
       queue_name: state.queue_name,
       prefix: state.prefix,
       telemetry: state.telemetry,
@@ -1337,10 +1478,10 @@ defmodule BullMQ.Worker do
     opts = [
       lock_duration: ctx.lock_duration,
       limiter: ctx.limiter,
-      name: ctx.name && Atom.to_string(ctx.name)
+      name: name_as_string(ctx.name)
     ]
 
-    case Scripts.move_to_active(ctx.connection, ctx.keys, ctx.token, opts) do
+    case Backend.move_to_active(ctx.backend, ctx.token, opts) do
       {:ok, [job_data, _job_id, 0, _delay_until]} when job_data in [0, nil, ""] ->
         {:ok, nil}
 
@@ -1357,6 +1498,7 @@ defmodule BullMQ.Worker do
             prefix: ctx.prefix,
             token: ctx.token,
             connection: ctx.connection,
+            backend: backend_module(ctx),
             worker: ctx.coordinator
           )
 
@@ -1383,6 +1525,38 @@ defmodule BullMQ.Worker do
 
     # Process the job (pass the pre-created token)
     result = run_processor_sync(job, ctx, cancel_token)
+
+    # A lock can be lost while an arity-1 processor is still running. In that
+    # case there is no cancellation token to interrupt the processor. The
+    # coordinator notifies this process when the lock manager detects the loss.
+    # For max_stalled_count == 0 the stalled checker must own recovery, so do
+    # not attempt to finish the job with the expired token. For the normal
+    # default case, preserve the BullMQ behavior where the processor is allowed
+    # to finish after a stalled check.
+    job_id = job.id
+
+    lock_lost =
+      receive do
+        {:job_lock_lost, ^job_id} ->
+          true
+      after
+        0 ->
+          false
+      end
+
+    # NOTE: previously this only fired when `ctx.max_stalled_count == 0`.
+    # That left the default (max_stalled_count > 0) case trying to finish the
+    # job with a token the stalled checker had already invalidated, which the
+    # backend rejects — leaving the job stuck in whatever state stalled
+    # recovery put it in instead of being cleanly reprocessed. The stalled
+    # checker owns recovery for a lost lock regardless of max_stalled_count,
+    # so bail out here unconditionally and let the worker fetch its next job.
+    result =
+      if lock_lost do
+        {:lock_lost, job.id}
+      else
+        result
+      end
 
     # Handle result and get next job
     case handle_job_result(job, result, ctx) do
@@ -1431,6 +1605,13 @@ defmodule BullMQ.Worker do
     end
   end
 
+  # Jobs carrying a deferred failure (set by a child with fail_parent_on_failure)
+  # must fail immediately instead of running the processor or retrying.
+  defp run_processor_sync(%Job{deferred_failure: deferred_failure}, _ctx, _cancel_token)
+       when is_binary(deferred_failure) and deferred_failure != "" do
+    {:unrecoverable_error, deferred_failure}
+  end
+
   # Run processor synchronously (called within worker process)
   # The cancel_token parameter allows passing a pre-created token
   # (used by autonomous workers who need to register the token before processing)
@@ -1473,34 +1654,29 @@ defmodule BullMQ.Worker do
         handle_job_result(job, {:error, error_msg, []}, ctx)
 
       {:delay, delay_ms} ->
-        Scripts.move_to_delayed(ctx.connection, ctx.keys, job.id, job.token, delay_ms,
-          skip_attempt: true
-        )
+        Backend.move_to_delayed(ctx.backend, job.id, job.token, delay_ms, skip_attempt: true)
 
         :stop
 
       {:rate_limit, delay_ms} ->
-        Scripts.move_to_delayed(ctx.connection, ctx.keys, job.id, job.token, delay_ms,
-          skip_attempt: true
-        )
+        Backend.move_to_delayed(ctx.backend, job.id, job.token, delay_ms, skip_attempt: true)
 
         :stop
 
       :waiting ->
-        Scripts.move_job_from_active_to_wait(ctx.connection, ctx.keys, job.id, job.token)
+        Backend.move_job_from_active_to_wait(ctx.backend, job.id, job.token)
         :stop
 
       :waiting_children ->
-        Scripts.move_to_waiting_children(ctx.connection, ctx.keys, job.id, job.token)
+        Backend.move_to_waiting_children(ctx.backend, job.id, job.token)
         :stop
 
       _ ->
         # Complete job and get next
         move_opts = build_worker_move_opts(ctx, job)
 
-        case Scripts.move_to_completed(
-               ctx.connection,
-               ctx.keys,
+        case Backend.move_to_completed(
+               ctx.backend,
                job.id,
                job.token,
                return_value,
@@ -1519,10 +1695,15 @@ defmodule BullMQ.Worker do
                 prefix: ctx.prefix,
                 token: ctx.token,
                 connection: ctx.connection,
+                backend: backend_module(ctx),
                 worker: ctx.coordinator
               )
 
             {:continue, next_job}
+
+          {:error, reason} ->
+            error_msg = if is_binary(reason), do: reason, else: inspect(reason)
+            handle_job_result(job, {:error, error_msg, []}, ctx)
 
           _ ->
             # Emit on_completed callback even when no next job
@@ -1533,6 +1714,18 @@ defmodule BullMQ.Worker do
     end
   end
 
+  # A lock-lost job must not be completed with an expired lock. The stalled
+  # checker will move it back to wait or mark it for deferred failure.
+  defp handle_job_result(_job, {:lock_lost, _job_id}, _ctx) do
+    :stop
+  end
+
+  # A deferred/unrecoverable failure must move the job straight to failed,
+  # bypassing the retry logic.
+  defp handle_job_result(job, {:unrecoverable_error, error_msg}, ctx) do
+    move_job_to_failed(job, error_msg, [], ctx)
+  end
+
   defp handle_job_result(job, {:error, error_msg, stacktrace}, ctx) do
     if Job.should_retry?(job) do
       backoff_delay = Job.calculate_backoff(job)
@@ -1541,9 +1734,8 @@ defmodule BullMQ.Worker do
       # Emit on_error callback for retry case
       emit_event(ctx.on_error, [job, error_msg, nil])
 
-      case Scripts.move_to_delayed(
-             ctx.connection,
-             ctx.keys,
+      case Backend.move_to_delayed(
+             ctx.backend,
              job.id,
              job.token,
              effective_delay,
@@ -1562,6 +1754,7 @@ defmodule BullMQ.Worker do
               prefix: ctx.prefix,
               token: ctx.token,
               connection: ctx.connection,
+              backend: backend_module(ctx),
               worker: ctx.coordinator
             )
 
@@ -1571,33 +1764,52 @@ defmodule BullMQ.Worker do
           :retry
       end
     else
-      move_opts = build_worker_move_opts(ctx, job) ++ [stacktrace: format_stacktrace(stacktrace)]
+      move_job_to_failed(job, error_msg, stacktrace, ctx)
+    end
+  end
 
-      case Scripts.move_to_failed(ctx.connection, ctx.keys, job.id, job.token, error_msg, move_opts) do
-        {:ok, [job_data, job_id, _limit_delay, _delay_until]}
-        when is_list(job_data) and job_data != [] ->
-          # Emit on_failed callback with failed_reason set
-          updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_msg}
-          emit_event(ctx.on_failed, [updated_job, error_msg])
+  # Move a job to the failed set and fetch the next job (no retry).
+  defp move_job_to_failed(job, error_msg, stacktrace, ctx) do
+    move_opts = build_worker_move_opts(ctx, job) ++ [stacktrace: format_stacktrace(stacktrace)]
 
-          job_map = list_to_job_map(job_data)
+    case Backend.move_to_failed(ctx.backend, job.id, job.token, error_msg, move_opts) do
+      {:ok, [job_data, job_id, _limit_delay, _delay_until]}
+      when is_list(job_data) and job_data != [] ->
+        # Emit on_failed callback with failed_reason set
+        updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_msg}
+        emit_event(ctx.on_failed, [updated_job, error_msg])
 
-          next_job =
-            Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
-              prefix: ctx.prefix,
-              token: ctx.token,
-              connection: ctx.connection,
-              worker: ctx.coordinator
-            )
+        job_map = list_to_job_map(job_data)
 
-          {:continue, next_job}
+        next_job =
+          Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
+            prefix: ctx.prefix,
+            token: ctx.token,
+            connection: ctx.connection,
+            backend: backend_module(ctx),
+            worker: ctx.coordinator
+          )
 
-        _ ->
-          # Emit on_failed callback even when no next job
-          updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_msg}
-          emit_event(ctx.on_failed, [updated_job, error_msg])
-          :stop
-      end
+        {:continue, next_job}
+
+      {:error, reason} ->
+        # The backend rejected the mutation — most commonly because this
+        # token no longer owns the job's lock (stalled-recovery already
+        # reclaimed it). Don't emit on_failed: we didn't actually fail the
+        # job in Redis, so firing the callback would report something that
+        # never happened. Just stop; whoever now owns the job is responsible
+        # for it.
+        Logger.warning(
+          "[BullMQ.Worker] move_to_failed rejected for job #{job.id}: #{inspect(reason)}"
+        )
+
+        :stop
+
+      _ ->
+        # Emit on_failed callback even when no next job
+        updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_msg}
+        emit_event(ctx.on_failed, [updated_job, error_msg])
+        :stop
     end
   end
 
@@ -1613,15 +1825,19 @@ defmodule BullMQ.Worker do
     [
       lock_duration: ctx.lock_duration,
       fetch_next: true,
-      name: ctx.name,
+      name: name_as_string(ctx.name),
       attempts: get_job_opt(job, :attempts, "attempts", 0),
       limiter: ctx.limiter,
       remove_on_complete: ctx.remove_on_complete,
       remove_on_fail: ctx.remove_on_fail,
-      fail_parent_on_failure: false,
-      continue_parent_on_failure: false,
-      ignore_dependency_on_failure: false,
-      remove_dependency_on_failure: false
+      fail_parent_on_failure:
+        get_job_opt(job, :fail_parent_on_failure, "fail_parent_on_failure", false),
+      continue_parent_on_failure:
+        get_job_opt(job, :continue_parent_on_failure, "continue_parent_on_failure", false),
+      ignore_dependency_on_failure:
+        get_job_opt(job, :ignore_dependency_on_failure, "ignore_dependency_on_failure", false),
+      remove_dependency_on_failure:
+        get_job_opt(job, :remove_dependency_on_failure, "remove_dependency_on_failure", false)
     ]
   end
 
@@ -1630,10 +1846,10 @@ defmodule BullMQ.Worker do
     script_opts = [
       lock_duration: state.lock_duration,
       limiter: state.limiter,
-      name: state.name && Atom.to_string(state.name)
+      name: name_as_string(state.name)
     ]
 
-    case Scripts.move_to_active(state.connection, state.keys, token, script_opts) do
+    case Backend.move_to_active(state.backend, token, script_opts) do
       # No job available
       {:ok, [job_data, _job_id, 0, _delay_until]} when job_data in [0, nil, ""] ->
         {:ok, nil}
@@ -1653,6 +1869,7 @@ defmodule BullMQ.Worker do
             prefix: state.prefix,
             token: token,
             connection: state.connection,
+            backend: backend_module(state),
             worker: self()
           )
 
@@ -1663,50 +1880,10 @@ defmodule BullMQ.Worker do
     end
   end
 
-  # Wait for a job to become available using BZPOPMIN on the marker key
-  # This is more efficient than polling as it uses Redis's blocking primitives
+  # Wait for a job to become available using the backend's blocking primitive.
+  # The backend owns the dedicated blocking connection.
   defp wait_for_job(state, timeout_seconds) do
-    marker_key = Keys.marker(state.keys)
-
-    # Use the blocking connection if available, otherwise create one temporarily
-    blocking_conn = state.blocking_conn
-
-    if blocking_conn && Process.alive?(blocking_conn) do
-      do_wait_for_job(blocking_conn, marker_key, timeout_seconds)
-    else
-      # Create a temporary blocking connection
-      case RedisConnection.blocking_connection(state.connection) do
-        {:ok, temp_conn} ->
-          set_worker_client_name(temp_conn, state)
-          result = do_wait_for_job(temp_conn, marker_key, timeout_seconds)
-          RedisConnection.close_blocking(state.connection, temp_conn)
-          result
-
-        {:error, reason} ->
-          Logger.warning("[BullMQ.Worker] Failed to create blocking connection: #{inspect(reason)}")
-          {:error, reason}
-      end
-    end
-  end
-
-  defp do_wait_for_job(conn, marker_key, timeout_seconds) do
-    # BZPOPMIN returns [key, member, score] or nil on timeout
-    case Redix.command(conn, ["BZPOPMIN", marker_key, timeout_seconds], timeout: :infinity) do
-      {:ok, nil} ->
-        # Timeout - no job became available
-        :timeout
-
-      {:ok, [_key, _member, _score]} ->
-        # A marker was added, meaning a job is available
-        :job_available
-
-      {:error, %Redix.ConnectionError{}} ->
-        # Connection issue - caller should retry
-        :timeout
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+    normalize_wait(Backend.wait_for_job(state.backend, timeout_seconds))
   end
 
   # Convert flat list [key1, val1, key2, val2, ...] to map
@@ -1815,48 +1992,74 @@ defmodule BullMQ.Worker do
 
   # Execute processor without telemetry
   defp execute_processor(processor_fn, job, worker_pid) do
-    try do
-      result = processor_fn.()
-      send(worker_pid, {:job_completed, job.id, result})
-    rescue
-      e ->
-        stacktrace = __STACKTRACE__
-        send(worker_pid, {:job_failed, job.id, Exception.message(e), stacktrace})
-    catch
-      :exit, reason ->
-        stacktrace = __STACKTRACE__
-        send(worker_pid, {:job_failed, job.id, inspect(reason), stacktrace})
+    case deferred_failure_reason(job) do
+      nil ->
+        try do
+          result = processor_fn.()
+          send(worker_pid, {:job_completed, job.id, result})
+        rescue
+          e ->
+            stacktrace = __STACKTRACE__
+            send(worker_pid, {:job_failed, job.id, Exception.message(e), stacktrace})
+        catch
+          :exit, reason ->
+            stacktrace = __STACKTRACE__
+            send(worker_pid, {:job_failed, job.id, inspect(reason), stacktrace})
 
-      :throw, value ->
-        stacktrace = __STACKTRACE__
-        send(worker_pid, {:job_failed, job.id, inspect(value), stacktrace})
+          :throw, value ->
+            stacktrace = __STACKTRACE__
+            send(worker_pid, {:job_failed, job.id, inspect(value), stacktrace})
+        end
+
+      reason ->
+        # Jobs carrying a deferred failure (e.g. stalled over the allowable
+        # limit) must fail immediately without running the processor.
+        send(worker_pid, {:job_unrecoverable, job.id, reason})
     end
   end
 
   # Execute processor with telemetry span
   defp execute_processor_with_span(processor_fn, job, worker_pid, telemetry_mod, span) do
-    try do
-      result = processor_fn.()
-      telemetry_mod.end_span(span, :ok)
-      send(worker_pid, {:job_completed, job.id, result})
-    rescue
-      e ->
-        stacktrace = __STACKTRACE__
-        telemetry_mod.record_exception(span, e, stacktrace)
-        telemetry_mod.end_span(span, {:error, Exception.message(e)})
-        send(worker_pid, {:job_failed, job.id, Exception.message(e), stacktrace})
-    catch
-      :exit, reason ->
-        stacktrace = __STACKTRACE__
-        telemetry_mod.end_span(span, {:error, inspect(reason)})
-        send(worker_pid, {:job_failed, job.id, inspect(reason), stacktrace})
+    case deferred_failure_reason(job) do
+      nil ->
+        try do
+          result = processor_fn.()
+          telemetry_mod.end_span(span, :ok)
+          send(worker_pid, {:job_completed, job.id, result})
+        rescue
+          e ->
+            stacktrace = __STACKTRACE__
+            telemetry_mod.record_exception(span, e, stacktrace)
+            telemetry_mod.end_span(span, {:error, Exception.message(e)})
+            send(worker_pid, {:job_failed, job.id, Exception.message(e), stacktrace})
+        catch
+          :exit, reason ->
+            stacktrace = __STACKTRACE__
+            telemetry_mod.end_span(span, {:error, inspect(reason)})
+            send(worker_pid, {:job_failed, job.id, inspect(reason), stacktrace})
 
-      :throw, value ->
-        stacktrace = __STACKTRACE__
-        telemetry_mod.end_span(span, {:error, inspect(value)})
-        send(worker_pid, {:job_failed, job.id, inspect(value), stacktrace})
+          :throw, value ->
+            stacktrace = __STACKTRACE__
+            telemetry_mod.end_span(span, {:error, inspect(value)})
+            send(worker_pid, {:job_failed, job.id, inspect(value), stacktrace})
+        end
+
+      reason ->
+        # Jobs carrying a deferred failure (e.g. stalled over the allowable
+        # limit) must fail immediately without running the processor.
+        telemetry_mod.end_span(span, {:error, reason})
+        send(worker_pid, {:job_unrecoverable, job.id, reason})
     end
   end
+
+  # Jobs carrying a deferred failure must fail immediately instead of running
+  # the processor or retrying.
+  defp deferred_failure_reason(%Job{deferred_failure: deferred_failure})
+       when is_binary(deferred_failure) and deferred_failure != "" do
+    deferred_failure
+  end
+
+  defp deferred_failure_reason(_), do: nil
 
   # Check if processor accepts cancellation token (arity 2)
   defp processor_supports_cancellation?(processor) when is_function(processor) do
@@ -1884,9 +2087,8 @@ defmodule BullMQ.Worker do
       case return_value do
         {:delay, delay_ms} ->
           # Move job back to delayed
-          Scripts.move_to_delayed(
-            state.connection,
-            state.keys,
+          Backend.move_to_delayed(
+            state.backend,
             job.id,
             job.token,
             delay_ms,
@@ -1898,9 +2100,8 @@ defmodule BullMQ.Worker do
         {:rate_limit, delay_ms} ->
           # Move job back to wait and apply rate limiting delay
           # This is similar to delay but indicates the job should wait due to rate limiting
-          Scripts.move_to_delayed(
-            state.connection,
-            state.keys,
+          Backend.move_to_delayed(
+            state.backend,
             job.id,
             job.token,
             delay_ms,
@@ -1911,9 +2112,8 @@ defmodule BullMQ.Worker do
 
         :waiting ->
           # Move job back to waiting queue
-          Scripts.move_job_from_active_to_wait(
-            state.connection,
-            state.keys,
+          Backend.move_job_from_active_to_wait(
+            state.backend,
             job.id,
             job.token
           )
@@ -1922,9 +2122,8 @@ defmodule BullMQ.Worker do
 
         :waiting_children ->
           # Move job to waiting-children state
-          Scripts.move_to_waiting_children(
-            state.connection,
-            state.keys,
+          Backend.move_to_waiting_children(
+            state.backend,
             job.id,
             job.token
           )
@@ -1933,9 +2132,8 @@ defmodule BullMQ.Worker do
 
         _ ->
           # Complete the job and get next job if available
-          Scripts.move_to_completed(
-            state.connection,
-            state.keys,
+          Backend.move_to_completed(
+            state.backend,
             job.id,
             job.token,
             return_value,
@@ -1943,38 +2141,44 @@ defmodule BullMQ.Worker do
           )
       end
 
-    # Determine if this was a "soft" return (not a real completion)
-    is_soft_return =
-      match?({:delay, _}, return_value) or
-        match?({:rate_limit, _}, return_value) or
-        return_value == :waiting or
-        return_value == :waiting_children
+    case next_job_result do
+      {:error, reason} ->
+        handle_job_failure(job, reason, [], state)
 
-    # Update job's attempts_made to match Redis state (incremented during moveToFinished)
-    # This mirrors TypeScript behavior where job.attemptsMade += 1 after moveToCompleted
-    updated_job =
-      if is_soft_return do
-        job
-      else
-        %{job | attempts_made: job.attempts_made + 1}
-      end
+      _ ->
+        # Determine if this was a "soft" return (not a real completion)
+        is_soft_return =
+          match?({:delay, _}, return_value) or
+            match?({:rate_limit, _}, return_value) or
+            return_value == :waiting or
+            return_value == :waiting_children
 
-    # If this was a repeatable job, schedule the next iteration (only on actual completion)
-    unless is_soft_return do
-      # Emit completed event callback (soft returns are not completions)
-      emit_event(state.on_completed, [updated_job, return_value])
+        # Update job's attempts_made to match Redis state (incremented during moveToFinished)
+        # This mirrors TypeScript behavior where job.attemptsMade += 1 after moveToCompleted
+        updated_job =
+          if is_soft_return do
+            job
+          else
+            %{job | attempts_made: job.attempts_made + 1}
+          end
+
+        # If this was a repeatable job, schedule the next iteration (only on actual completion)
+        unless is_soft_return do
+          # Emit completed event callback (soft returns are not completions)
+          emit_event(state.on_completed, [updated_job, return_value])
+        end
+
+        # Untrack job from LockManager
+        if state.lock_manager do
+          LockManager.untrack_job(state.lock_manager, job.id)
+        end
+
+        # Remove completed job from active jobs and clean up cancellation token
+        new_state = cleanup_job_resources(job.id, state)
+
+        # Handle next job from moveToFinished result
+        handle_next_job_or_fetch(next_job_result, new_state)
     end
-
-    # Untrack job from LockManager
-    if state.lock_manager do
-      LockManager.untrack_job(state.lock_manager, job.id)
-    end
-
-    # Remove completed job from active jobs and clean up cancellation token
-    new_state = cleanup_job_resources(job.id, state)
-
-    # Handle next job from moveToFinished result
-    handle_next_job_or_fetch(next_job_result, new_state)
   end
 
   # Handle the result from moveToFinished which may contain the next job
@@ -2001,6 +2205,7 @@ defmodule BullMQ.Worker do
         prefix: state.prefix,
         token: state.token,
         connection: state.connection,
+        backend: backend_module(state),
         worker: self()
       )
 
@@ -2030,9 +2235,8 @@ defmodule BullMQ.Worker do
 
         # Move to delayed for retry (Lua script handles incrementing attempts)
         # Also store the stacktrace for this attempt
-        case Scripts.move_to_delayed(
-               state.connection,
-               state.keys,
+        case Backend.move_to_delayed(
+               state.backend,
                job.id,
                job.token,
                effective_delay,
@@ -2051,6 +2255,7 @@ defmodule BullMQ.Worker do
                 prefix: state.prefix,
                 token: state.token,
                 connection: state.connection,
+                backend: backend_module(state),
                 worker: self()
               )
 
@@ -2061,9 +2266,8 @@ defmodule BullMQ.Worker do
         end
       else
         # Move to failed and get next job
-        Scripts.move_to_failed(
-          state.connection,
-          state.keys,
+        Backend.move_to_failed(
+          state.backend,
           job.id,
           job.token,
           error_message,
@@ -2076,6 +2280,33 @@ defmodule BullMQ.Worker do
       updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_message}
       emit_event(state.on_failed, [updated_job, error_message])
     end
+
+    # Untrack job from LockManager
+    if state.lock_manager do
+      LockManager.untrack_job(state.lock_manager, job.id)
+    end
+
+    # Remove from active jobs, clean up cancellation token, and handle next job
+    new_state = cleanup_job_resources(job.id, state)
+    handle_next_job_or_fetch(next_job_result, new_state)
+  end
+
+  # A deferred/unrecoverable failure moves the job straight to failed,
+  # bypassing the retry logic (mirrors the autonomous worker path).
+  defp handle_job_unrecoverable(job, reason, state) do
+    error_message = if is_binary(reason), do: reason, else: inspect(reason)
+
+    next_job_result =
+      Backend.move_to_failed(
+        state.backend,
+        job.id,
+        job.token,
+        error_message,
+        build_move_opts(state, job) ++ [stacktrace: nil]
+      )
+
+    updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_message}
+    emit_event(state.on_failed, [updated_job, error_message])
 
     # Untrack job from LockManager
     if state.lock_manager do
@@ -2118,12 +2349,11 @@ defmodule BullMQ.Worker do
     end
   end
 
-  # Start a blocking wait for jobs using BZPOPMIN on the marker key
-  # This is done in a spawned process so it doesn't block the GenServer
+  # Start a blocking wait for jobs using the backend's blocking primitive.
+  # This is done in a spawned process so it doesn't block the GenServer.
   defp start_blocking_wait(state) do
     coordinator = self()
-    marker_key = Keys.marker(state.keys)
-    blocking_conn = state.blocking_conn
+    backend = state.backend
     # Calculate timeout based on block_until (like Node.js)
     timeout_seconds = get_block_timeout(state)
 
@@ -2133,20 +2363,7 @@ defmodule BullMQ.Worker do
     spawn_link(fn ->
       result =
         try do
-          if blocking_conn && Process.alive?(blocking_conn) do
-            do_blocking_wait(blocking_conn, marker_key, timeout_seconds)
-          else
-            # No blocking connection available, use a temporary one
-            case RedisConnection.blocking_connection(state.connection) do
-              {:ok, temp_conn} ->
-                res = do_blocking_wait(temp_conn, marker_key, timeout_seconds)
-                RedisConnection.close_blocking(state.connection, temp_conn)
-                res
-
-              {:error, reason} ->
-                {:error, reason}
-            end
-          end
+          Backend.wait_for_job(backend, timeout_seconds)
         rescue
           e -> {:error, {:exception, Exception.message(e)}}
         catch
@@ -2160,6 +2377,37 @@ defmodule BullMQ.Worker do
     {:noreply, %{state | waiting_for_jobs: true}}
   end
 
+  # The manual (get_next_job) path only cares whether a job became available.
+  defp normalize_wait({:job_available, _block_until}), do: :job_available
+  defp normalize_wait(other), do: other
+
+  # Ensures the backend's dedicated blocking connection is established. In
+  # autorun mode this happens in the :start handler; in manual processing mode
+  # (no :start) it is established lazily on the first blocking fetch.
+  defp ensure_blocking(%{blocking_ready: true} = state), do: {:ok, state}
+
+  defp ensure_blocking(state) do
+    base_backend =
+      Backend.create(state.queue_name,
+        connection: state.connection,
+        backend: backend_module(state),
+        prefix: state.prefix,
+        client_name: worker_client_name(state),
+        owns_connection: false
+      )
+
+    case Backend.reconnect_blocking(base_backend) do
+      {:ok, backend} ->
+        {:ok, %{state | backend: backend, blocking_ready: true}}
+
+      {:error, reason} ->
+        Logger.error("[BullMQ.Worker] Failed to create blocking connection: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  defp backend_module(%{backend: %mod{}}), do: mod
+
   # Calculate blocking timeout like Node.js does:
   # - If block_until is set (delayed job timestamp), wait until that time
   # - Otherwise use drain_delay (default 5s)
@@ -2170,9 +2418,13 @@ defmodule BullMQ.Worker do
     block_delay_ms = block_until - now_ms
 
     cond do
-      # Delayed job is ready now
+      # Delayed job is ready now. Use the minimum block timeout (NOT 0): a
+      # BZPOPMIN timeout of 0 blocks *forever* in Redis, which would hang the
+      # worker if the delay marker was already consumed and the ready job has
+      # not been fetched yet. A tiny timeout makes the blocking wait return
+      # immediately so the worker re-fetches and promotes the ready job.
       block_delay_ms <= 0 ->
-        0
+        @minimum_block_timeout
 
       # Delayed job will be ready very soon
       block_delay_ms < @minimum_block_timeout * 1000 ->
@@ -2189,58 +2441,24 @@ defmodule BullMQ.Worker do
     max(drain_delay, @minimum_block_timeout)
   end
 
-  # Perform the actual blocking wait
-  # Returns:
-  #   {:job_available, block_until} - a marker was found, block_until is next delayed job timestamp or nil
-  #   :timeout - no marker within timeout
-  #   {:error, reason} - error occurred
-  defp do_blocking_wait(conn, marker_key, timeout_seconds) do
-    case Redix.command(conn, ["BZPOPMIN", marker_key, timeout_seconds], timeout: :infinity) do
-      {:ok, nil} ->
-        # Timeout - no marker available
-        :timeout
-
-      {:ok, [_key, member, score]} ->
-        # Got a marker. Member "0" means job immediately available,
-        # Member "1" with future score means delayed job timestamp.
-        case member do
-          "0" ->
-            # Immediate job available, reset block_until
-            {:job_available, nil}
-
-          "1" ->
-            # Delayed job marker - score is the timestamp when it becomes ready
-            block_until = String.to_integer(score)
-            {:job_available, block_until}
-
-          _ ->
-            # Unknown marker type, treat as job available
-            {:job_available, nil}
-        end
-
-      {:error, %Redix.ConnectionError{}} ->
-        # Connection issue - caller should retry
-        :timeout
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
   # Build options for move_to_finished/completed/failed calls
   defp build_move_opts(state, job) do
     [
       lock_duration: state.lock_duration,
       fetch_next: true,
-      name: state.name,
+      name: name_as_string(state.name),
       attempts: get_job_opt(job, :attempts, "attempts", 0),
       limiter: state.limiter,
       remove_on_complete: state.remove_on_complete || %{"count" => -1},
       remove_on_fail: state.remove_on_fail || %{"count" => -1},
-      fail_parent_on_failure: false,
-      continue_parent_on_failure: false,
-      ignore_dependency_on_failure: false,
-      remove_dependency_on_failure: false
+      fail_parent_on_failure:
+        get_job_opt(job, :fail_parent_on_failure, "fail_parent_on_failure", false),
+      continue_parent_on_failure:
+        get_job_opt(job, :continue_parent_on_failure, "continue_parent_on_failure", false),
+      ignore_dependency_on_failure:
+        get_job_opt(job, :ignore_dependency_on_failure, "ignore_dependency_on_failure", false),
+      remove_dependency_on_failure:
+        get_job_opt(job, :remove_dependency_on_failure, "remove_dependency_on_failure", false)
     ]
   end
 
@@ -2271,7 +2489,8 @@ defmodule BullMQ.Worker do
     %{
       state
       | active_jobs: Map.delete(state.active_jobs, job_id),
-        cancellation_tokens: Map.delete(state.cancellation_tokens, job_id)
+        cancellation_tokens: Map.delete(state.cancellation_tokens, job_id),
+        lock_lost_jobs: MapSet.delete(state.lock_lost_jobs, job_id)
     }
   end
 
@@ -2345,13 +2564,10 @@ defmodule BullMQ.Worker do
       Process.cancel_timer(state.stalled_timer)
     end
 
-    # Close blocking connection
-    if state.blocking_conn do
-      RedisConnection.close_blocking(state.connection, state.blocking_conn)
-    end
-
-    if state.client_name_telemetry_id do
-      :telemetry.detach(state.client_name_telemetry_id)
+    # Close the backend (its dedicated blocking connection is owned and torn
+    # down by the backend; the worker holds no datastore client directly).
+    if state.backend do
+      Backend.close(state.backend)
     end
 
     :ok
@@ -2430,9 +2646,8 @@ defmodule BullMQ.Worker do
         packed_opts = Msgpax.pack!(job_opts, iodata: false)
         template_data = Jason.encode!(job.data || %{})
 
-        case Scripts.update_job_scheduler(
-               state.connection,
-               state.keys,
+        case Backend.update_job_scheduler(
+               state.backend,
                scheduler_id,
                next_millis,
                template_data,

@@ -8,17 +8,19 @@ import {
   QueueEventsHost,
   OnQueueEvent,
 } from '@nestjs/bullmq';
+// Aliased because `QueueEventsListener` from '@nestjs/bullmq' is the decorator
+import type { QueueEventsListener as QueueEventsListenerType } from 'bullmq';
+
+// Use the generic to type the event payload with your job's return value
+type CompletedEvent = QueueEventsListenerType<{ result: number }>['completed'];
+
+type CompletedEventArgs = Parameters<CompletedEvent>[0];
 
 @QueueEventsListener('queueName')
 export class TestQueueEvents extends QueueEventsHost {
   @OnQueueEvent('completed')
-  onCompleted({
-    jobId,
-  }: {
-    jobId: string;
-    returnvalue: string;
-    prev?: string;
-  }) {
+  onCompleted({ jobId, returnvalue }: CompletedEventArgs) {
+    // returnvalue is typed as { result: number }
     // do some stuff
   }
 }
@@ -46,4 +48,4 @@ export class AppModule {}
 
 - 💡 [Queues Technique](https://docs.nestjs.com/techniques/queues)
 - 💡 [Register Queue API Reference](https://nestjs.bullmq.pro/classes/BullModule.html#registerQueue)
-- 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.QueueEventsListener.html)
+- 💡 [Queue Events Listener API Reference](https://docs.bullmq.io/api/interfaces/v6.QueueEventsListener.html)

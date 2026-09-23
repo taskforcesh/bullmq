@@ -10,7 +10,6 @@
     eventStreamKey - event stream key
     rateLimiterKey - rate limiter key
     delayedKey - delayed sorted set key
-    pausedKey - paused list key
     metaKey - meta hash key
     pcKey - priority counter key
     markerKey - marker key
@@ -23,22 +22,22 @@
 ]]
 
 -- Includes
+--- @include "getQueueMetadata"
 --- @include "getNextDelayedTimestamp"
 --- @include "getRateLimitTTL"
---- @include "getTargetQueueList"
 --- @include "moveJobFromPrioritizedToActive"
 --- @include "prepareJobForProcessing"
 --- @include "promoteDelayedJobs"
 
 local function fetchNextJob(waitKey, activeKey, prioritizedKey, eventStreamKey,
-    rateLimiterKey, delayedKey, pausedKey, metaKey, pcKey, markerKey, prefix,
+    rateLimiterKey, delayedKey, metaKey, pcKey, markerKey, prefix,
     timestamp, opts)
 
-    local target, isPausedOrMaxed, rateLimitMax, rateLimitDuration =
-        getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
+    local isPausedOrMaxed, rateLimitMax, rateLimitDuration =
+        getQueueMetadata(metaKey, activeKey, waitKey)
 
     -- Check if there are delayed jobs that can be promoted
-    promoteDelayedJobs(delayedKey, markerKey, target, prioritizedKey,
+    promoteDelayedJobs(delayedKey, markerKey, waitKey, prioritizedKey,
         eventStreamKey, prefix, timestamp, pcKey, isPausedOrMaxed)
 
     local maxJobs = tonumber(rateLimitMax or (opts['limiter'] and opts['limiter']['max']))

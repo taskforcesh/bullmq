@@ -35,3 +35,6 @@ tmp/
 
 # Copied Lua scripts (from rawScripts/)
 priv/scripts/
+
+# Copied PostgreSQL artifacts (from src/postgres/)
+priv/postgres/

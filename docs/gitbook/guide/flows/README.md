@@ -8,7 +8,7 @@ This functionality enables the creation of flows where jobs are the node of tree
 Flows are added to a queue using the `FlowProducer` class.
 {% endhint %}
 
-In order to create "flows" you must use the [`FlowProducer`](https://api.docs.bullmq.io/classes/v5.FlowProducer.html) class. The [_**`add`**_](https://api.docs.bullmq.io/classes/v5.FlowProducer.html#add) method accepts an object with the following interface:
+In order to create "flows" you must use the [`FlowProducer`](https://docs.bullmq.io/api/classes/v6.FlowProducer.html) class. The [_**`add`**_](https://docs.bullmq.io/api/classes/v6.FlowProducer.html#add) method accepts an object with the following interface:
 
 ```typescript
 interface FlowJobBase<T> {
@@ -73,6 +73,51 @@ flow = await flowProducer.add({
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{FlowProducer, FlowProducerOptions, FlowJob};
+
+// A FlowProducer connects to a local Redis instance by default.
+let flow_producer = FlowProducer::new(FlowProducerOptions::default()).await?;
+
+let flow = flow_producer.add(FlowJob {
+    name: "renovate-interior".to_string(),
+    queue_name: "renovate".to_string(),
+    data: serde_json::json!({}),
+    opts: None,
+    prefix: None,
+    children: Some(vec![
+        FlowJob {
+            name: "paint".to_string(),
+            queue_name: "steps".to_string(),
+            data: serde_json::json!({ "place": "ceiling" }),
+            opts: None,
+            prefix: None,
+            children: None,
+        },
+        FlowJob {
+            name: "paint".to_string(),
+            queue_name: "steps".to_string(),
+            data: serde_json::json!({ "place": "walls" }),
+            opts: None,
+            prefix: None,
+            children: None,
+        },
+        FlowJob {
+            name: "fix".to_string(),
+            queue_name: "steps".to_string(),
+            data: serde_json::json!({ "place": "floor" }),
+            opts: None,
+            prefix: None,
+            children: None,
+        },
+    ]),
+}).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 The above code will atomically add 4 jobs: one to the "renovate" queue, and 3 to the "steps" queue. When the 3 jobs in the "steps" queue are completed, the parent job in the "renovate" queue will be processed as a regular job.
@@ -121,6 +166,30 @@ async def process(job: Job, token: str):
     return 1750
 
 stepsWorker = Worker("steps", process, {"connection": connection})
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Worker, WorkerOptions, Job};
+use bullmq::worker::{CancellationToken, ProcessorFn};
+use std::sync::Arc;
+
+let processor: ProcessorFn = Arc::new(|job: Job, _token: CancellationToken| {
+    Box::pin(async move {
+        perform_step(job.data()).await;
+
+        match job.name() {
+            "paint" => Ok(serde_json::json!(2500)),
+            "fix" => Ok(serde_json::json!(1750)),
+            _ => Ok(serde_json::Value::Null),
+        }
+    })
+});
+
+let steps_worker = Worker::new("steps", processor, WorkerOptions::default()).await?;
 ```
 
 {% endtab %}
@@ -191,6 +260,40 @@ chain = await flowProducer.add({
     },
   ],
 })
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{FlowProducer, FlowProducerOptions, FlowJob};
+
+let flow_producer = FlowProducer::new(FlowProducerOptions::default()).await?;
+
+let queue_name = "assembly-line";
+let chain = flow_producer.add(FlowJob {
+    name: "car".to_string(),
+    queue_name: queue_name.to_string(),
+    data: serde_json::json!({ "step": "engine" }),
+    opts: None,
+    prefix: None,
+    children: Some(vec![FlowJob {
+        name: "car".to_string(),
+        queue_name: queue_name.to_string(),
+        data: serde_json::json!({ "step": "wheels" }),
+        opts: None,
+        prefix: None,
+        children: Some(vec![FlowJob {
+            name: "car".to_string(),
+            queue_name: queue_name.to_string(),
+            data: serde_json::json!({ "step": "chassis" }),
+            opts: None,
+            prefix: None,
+            children: None,
+        }]),
+    }]),
+}).await?;
 ```
 
 {% endtab %}
@@ -350,8 +453,8 @@ await queue.remove(job.id);
 ## Read more:
 
 - 📋 [Divide large jobs using flows](https://blog.taskforce.sh/splitting-heavy-jobs-using-bullmq-flows/)
-- 💡 [FlowProducer API Reference](https://api.docs.bullmq.io/classes/v5.FlowProducer.html)
-- 💡 [Job API Reference](https://api.docs.bullmq.io/classes/v5.Job.html)
-- 💡 [Get Children Values API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getchildrenvalues)
-- 💡 [Get Dependencies API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getdependencies)
-- 💡 [Get Dependencies Count API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getdependenciescount)
+- 💡 [FlowProducer API Reference](https://docs.bullmq.io/api/classes/v6.FlowProducer.html)
+- 💡 [Job API Reference](https://docs.bullmq.io/api/classes/v6.Job.html)
+- 💡 [Get Children Values API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#getchildrenvalues)
+- 💡 [Get Dependencies API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#getdependencies)
+- 💡 [Get Dependencies Count API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#getdependenciescount)

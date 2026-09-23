@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "5.76.10",
+  "version": "6.3.8",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -20,22 +20,33 @@
     "dist"
   ],
   "engines": {
-    "node": ">=12.22.0"
+    "node": ">=14.17.0"
   },
   "scripts": {
-    "build": "npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua",
+    "build": "npm run clean:dist && npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua && npm run copy:sql",
     "circular:references": "madge --circular --extensions ts ./src",
+    "clean:dist": "rimraf dist",
     "clean:scripts": "rimraf rawScripts src/scripts",
     "clean:temp:files": "rimraf dist/cjs/bullmq.d.ts dist/esm/bullmq.d.ts dist/tsdoc-metadata.json",
     "copy:includes:lua": "cpx \"./src/commands/includes/*.lua\" ./dist/cjs/commands/includes && cpx \"./src/commands/includes/*.lua\" ./dist/esm/commands/includes",
     "copy:lua": "cpx \"./src/commands/*.lua\" ./dist/cjs/commands && cpx \"./src/commands/*.lua\" ./dist/esm/commands",
-    "copy:lua:python": "cpx \"./rawScripts/*.lua\" ./python/bullmq/commands",
-    "copy:lua:elixir": "cpx \"./rawScripts/*.lua\" ./elixir/priv/scripts",
-    "copy:lua:php": "cpx \"./rawScripts/*.lua\" ./php/src/commands",
+    "copy:sql": "cpx \"./src/postgres/migrations/*.sql\" ./dist/cjs/postgres/migrations && cpx \"./src/postgres/migrations/*.sql\" ./dist/esm/postgres/migrations && cpx \"./src/postgres/commands/*.sql\" ./dist/cjs/postgres/commands && cpx \"./src/postgres/commands/*.sql\" ./dist/esm/postgres/commands",
+    "copy:lua:python": "rm -f ./python/bullmq/commands/*.lua && cpx \"./rawScripts/*.lua\" ./python/bullmq/commands",
+    "copy:sql:python": "rm -f ./python/bullmq/postgres/migrations/*.sql ./python/bullmq/postgres/commands/*.sql && cpx \"./src/postgres/migrations/*.sql\" ./python/bullmq/postgres/migrations && cpx \"./src/postgres/commands/*.sql\" ./python/bullmq/postgres/commands",
+    "copy:lua:elixir": "rm -f ./elixir/priv/scripts/*.lua && cpx \"./rawScripts/*.lua\" ./elixir/priv/scripts",
+    "copy:sql:elixir": "rm -f ./elixir/priv/postgres/migrations/*.sql ./elixir/priv/postgres/commands/*.sql && cpx \"./src/postgres/migrations/*.sql\" ./elixir/priv/postgres/migrations && cpx \"./src/postgres/commands/*.sql\" ./elixir/priv/postgres/commands",
+    "copy:lua:php": "rm -f ./php/src/commands/*.lua && cpx \"./rawScripts/*.lua\" ./php/src/commands",
+    "copy:lua:rust": "rm -f ./rust/src/commands/*.lua && cpx \"./rawScripts/*.lua\" ./rust/src/commands",
+    "copy:lua:dotnet": "rm -f ./dotnet/src/BullMQ/Commands/*.lua && cpx \"./rawScripts/*.lua\" ./dotnet/src/BullMQ/Commands",
+    "copy:sql:dotnet": "rm -f ./dotnet/src/BullMQ/Postgres/migrations/*.sql ./dotnet/src/BullMQ/Postgres/commands/*.sql && cpx \"./src/postgres/migrations/*.sql\" ./dotnet/src/BullMQ/Postgres/migrations && cpx \"./src/postgres/commands/*.sql\" ./dotnet/src/BullMQ/Postgres/commands",
     "copy:main:type": "cpx \"./dist/esm/classes/main.d.ts\" ./dist/cjs/classes && cpx \"./dist/esm/classes/main-worker.d.ts\" ./dist/cjs/classes",
-    "coverage": "vitest run --no-file-parallelism --coverage",
+    "coverage": "vitest run --no-file-parallelism --coverage --config vitest.coverage.config.ts",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
-    "docs:json": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v5.json --name v5",
+    "docs:api": "yarn docs:json && typedoc --includeVersion --excludeExternals --excludeProtected --excludePrivate --readme ./README.md --entryPointStrategy merge --out ./docs/gitbook/public/api $(find ./apiVersions -maxdepth 1 -name 'v*.json' | sort -r)",
+    "docs:json": "mkdir -p ./apiVersions && yarn pretest && typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v6.json --name v6",
+    "docs:dev": "yarn docs:api && vitepress dev docs",
+    "docs:build": "yarn docs:api && vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "dc:up": "docker-compose -f docker-compose.yml up -d",
     "dc:down": "docker-compose -f docker-compose.yml down",
     "dry-run": "npm publish --dry-run",
@@ -52,68 +63,102 @@
     "semantic-release:debug": "semantic-release --no-ci --dry-run --debug",
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
     "test": "vitest run --no-file-parallelism",
+    "test:smoke": "vitest run --no-file-parallelism --bail=1 tests/async_fifo_queue.test.ts tests/script_loader.test.ts tests/scripts.test.ts tests/child-pool.test.ts tests/bulk.test.ts tests/queue.test.ts",
     "test:vitest": "vitest run --no-file-parallelism",
     "test:vitest:watch": "vitest",
     "test:vitest:ui": "vitest --ui",
-    "test:bun": "bun run vitest run --no-file-parallelism",
+    "test:ioredis": "vitest run --no-file-parallelism --config vitest.ioredis.config.ts",
+    "test:node-redis": "vitest run --no-file-parallelism --config vitest.node-redis.config.ts",
+    "test:postgres": "vitest run --config vitest.postgres.config.ts",
+    "test:postgres:smoke": "vitest run --no-file-parallelism --config vitest.postgres.smoke.config.ts",
+    "test:valkey-glide": "vitest run --no-file-parallelism --config vitest.valkey-glide.config.ts",
+    "test:adapter-conformance": "vitest run --no-file-parallelism --config vitest.adapter-conformance.config.ts",
+    "test:bun": "bun node_modules/vitest/dist/cli.js run --no-file-parallelism --config vitest.bun.config.ts",
+    "test:bun:smoke": "bun test --timeout 20000 tests/bun-redis.test.ts tests/bun-adapter-suite.test.ts",
     "test:watch": "vitest --watch",
     "transform:commands": "node ./scripts/commandTransform.js ./rawScripts ./src/scripts",
     "tsc": "tsc",
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
-    "cron-parser": "4.9.0",
-    "ioredis": "5.10.1",
-    "msgpackr": "2.0.1",
+    "cron-parser": "5.10.1",
+    "msgpackr": "2.1.0",
     "node-abort-controller": "3.1.1",
-    "semver": "7.8.0",
+    "semver": "7.8.5",
     "tslib": "2.8.1"
   },
+  "peerDependencies": {
+    "bullmq-otel": ">=2.0.0",
+    "ioredis": ">=5.0.0",
+    "pg": ">=8.0.0",
+    "redis": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "bullmq-otel": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "redis": {
+      "optional": true
+    }
+  },
   "devDependencies": {
-    "@commitlint/cli": "21.0.1",
-    "@commitlint/config-conventional": "21.0.1",
-    "@semantic-release/changelog": "6.0.3",
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3",
+    "@eslint/eslintrc": "3.3.7",
+    "@eslint/js": "10.0.1",
+    "@semantic-release/changelog": "7.0.0",
     "@semantic-release/commit-analyzer": "13.0.1",
     "@semantic-release/exec": "7.1.0",
-    "@semantic-release/git": "10.0.1",
-    "@semantic-release/github": "12.0.8",
-    "@semantic-release/npm": "13.1.5",
+    "@semantic-release/git": "11.0.1",
+    "@semantic-release/github": "12.0.10",
+    "@semantic-release/npm": "13.2.0",
     "@semantic-release/release-notes-generator": "14.1.1",
     "@types/lodash.defaults": "4.2.9",
     "@types/lodash.isarguments": "3.1.9",
     "@types/msgpack": "0.0.34",
-    "@types/node": "24.12.4",
-    "@types/semver": "7.7.1",
-    "@types/sinon": "21.0.1",
-    "@typescript-eslint/eslint-plugin": "8.59.3",
-    "@typescript-eslint/parser": "8.59.3",
-    "@vitest/coverage-v8": "4.1.6",
-    "coveralls-next": "6.0.1",
-    "cpx2": "8.0.2",
-    "eslint": "9.39.4",
-    "eslint-config-prettier": "8.10.2",
-    "eslint-plugin-prettier": "4.2.5",
+    "@types/node": "24.13.6",
+    "@types/pg": "8.23.1",
+    "@types/semver": "7.8.0",
+    "@types/sinon": "22.0.0",
+    "@typescript-eslint/eslint-plugin": "8.70.1",
+    "@typescript-eslint/parser": "8.70.1",
+    "@vitest/coverage-v8": "4.1.11",
+    "coveralls-next": "6.0.2",
+    "cpx2": "9.0.3",
+    "eslint": "10.11.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-prettier": "5.5.6",
     "eslint-plugin-promise": "7.3.0",
-    "eslint-plugin-tsdoc": "0.5.2",
+    "eslint-plugin-tsdoc": "0.5.3",
     "fast-glob": "3.3.3",
-    "globals": "17.6.0",
+    "globals": "17.12.0",
     "husky": "9.1.7",
-    "lint-staged": "16.4.0",
+    "ioredis": "5.11.1",
+    "lint-staged": "17.5.1",
     "madge": "8.0.0",
-    "minimatch": "10.2.5",
-    "moment": "2.30.1",
-    "prettier": "3.8.3",
+    "minimatch": "10.2.6",
+    "moment": "2.31.0",
+    "pg": "8.23.0",
+    "prettier": "3.9.8",
     "pretty-quick": "4.2.2",
     "progress": "2.0.3",
+    "redis": "6.2.1",
     "rimraf": "6.1.3",
     "rrule": "2.8.1",
-    "semantic-release": "25.0.3",
-    "sinon": "21.1.2",
+    "semantic-release": "25.0.9",
+    "sinon": "22.1.0",
     "test-console": "2.0.0",
     "ts-node": "10.9.2",
-    "typedoc": "0.28.19",
+    "typedoc": "0.28.20",
     "typescript": "5.9.3",
-    "vitest": "4.1.6"
+    "vitepress": "2.0.0-alpha.20",
+    "vitest": "4.1.11"
   },
   "commitlint": {
     "extends": [
@@ -134,15 +179,27 @@
         {
           "releaseRules": [
             {
-              "message": "*\\[python\\]*",
+              "header": "**/*\\[python\\]*",
               "release": false
             },
             {
-              "message": "*\\[elixir\\]*",
+              "header": "**/*\\[elixir\\]*",
               "release": false
             },
             {
-              "message": "*\\[php\\]*",
+              "header": "**/*\\[php\\]*",
+              "release": false
+            },
+            {
+              "header": "**/*\\[rust\\]*",
+              "release": false
+            },
+            {
+              "header": "**/*\\[dotnet\\]*",
+              "release": false
+            },
+            {
+              "header": "**/*\\[dotnet\\]*",
               "release": false
             }
           ]
@@ -153,7 +210,7 @@
         {
           "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "(\\[python\\]|\\[elixir\\]|\\[php\\])"
+            "ignoreCommits": "(\\[python\\]|\\[elixir\\]|\\[php\\]|\\[rust\\]|\\[dotnet\\])"
           }
         }
       ],
@@ -181,8 +238,10 @@
   },
   "packageManager": "yarn@1.22.22",
   "resolutions": {
-    "brace-expansion": ">=1.1.13",
-    "picomatch": ">=2.3.2",
-    "yaml": ">=2.8.3"
+    "brace-expansion": "5.0.12",
+    "js-yaml": "5.4.2",
+    "picomatch": "4.0.7",
+    "tar": "7.5.22",
+    "yaml": "2.9.1"
   }
 }

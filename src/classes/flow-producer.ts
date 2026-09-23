@@ -1,24 +1,39 @@
 import { EventEmitter } from 'events';
-import { Redis, ChainableCommander } from 'ioredis';
 import {
+  BackendFactory,
   FlowJob,
+  FlowProducerOptions,
   FlowQueuesOpts,
   FlowOpts,
   IoredisListener,
+  IQueueBackend,
+  JobJson,
+  ParentKeyOpts,
   ParentOptions,
-  QueueBaseOptions,
-  RedisClient,
   Tracer,
   ContextManager,
 } from '../interfaces';
-import { getParentKey, isRedisInstance, randomUUID, trace } from '../utils';
+import { getParentKey, randomUUID, trace } from '../utils';
+import { getDefaultBackendFactory } from '../utils/create-backend';
 import { Job } from './job';
-import { KeysMap, QueueKeys } from './queue-keys';
-import { RedisConnection } from './redis-connection';
+import { RedisQueueBackend } from './redis-queue-backend';
+import { KeysMap } from './queue-keys';
 import { ErrorCode, SpanKind, TelemetryAttributes } from '../enums';
 
+/**
+ * A single job insert collected while walking a flow tree, ready to be handed
+ * to the backend's atomic {@link IQueueBackend.addFlow} operation.
+ */
+export interface FlowJobEntry {
+  jobData: JobJson;
+  jobId: string;
+  parentKeyOpts: ParentKeyOpts;
+  prefix: string;
+  queueName: string;
+}
+
 export interface AddNodeOpts {
-  multi: ChainableCommander;
+  entries: FlowJobEntry[];
   node: FlowJob;
   parent?: {
     parentOpts: ParentOptions;
@@ -31,7 +46,7 @@ export interface AddNodeOpts {
 }
 
 export interface AddChildrenOpts {
-  multi: ChainableCommander;
+  entries: FlowJobEntry[];
   nodes: FlowJob[];
   parent: {
     parentOpts: ParentOptions;
@@ -85,44 +100,43 @@ export interface FlowProducerListener extends IoredisListener {
  * will be processed, being able to access the children's result data.
  * All Jobs can be in different queues, either children or parents,
  */
-export class FlowProducer extends EventEmitter {
+export class FlowProducer<
+  B extends IQueueBackend = RedisQueueBackend,
+> extends EventEmitter {
   toKey: (name: string, type: string) => string;
   keys: KeysMap;
   closing: Promise<void> | undefined;
-  queueKeys: QueueKeys;
 
-  protected connection: RedisConnection;
+  protected backend: B;
   protected telemetry: {
     tracer: Tracer | undefined;
     contextManager: ContextManager | undefined;
   };
 
   constructor(
-    public opts: QueueBaseOptions = { connection: {} },
-    Connection: typeof RedisConnection = RedisConnection,
+    public opts: FlowProducerOptions = { connection: {} },
+    backendFactory: BackendFactory<B> = getDefaultBackendFactory<B>(),
   ) {
     super();
 
     this.opts = {
-      prefix: 'bull',
       ...opts,
     };
 
-    this.connection = new Connection(opts.connection, {
-      shared: isRedisInstance(opts.connection),
-      blocking: false,
-      skipVersionCheck: opts.skipVersionCheck,
-      skipWaitingForReady: opts.skipWaitingForReady,
-    });
+    // The flow producer is not bound to a single queue: each flow entry carries
+    // its own queue identity, so the backend is created with an empty name.
+    this.backend = backendFactory('', this.opts);
 
-    this.connection.on('error', (error: Error) => this.emit('error', error));
-    this.connection.on('close', () => {
+    this.backend.on('error', (error: Error) => {
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', error);
+      }
+    });
+    this.backend.on('close', () => {
       if (!this.closing) {
         this.emit('ioredis:close');
       }
     });
-
-    this.queueKeys = new QueueKeys(opts.prefix);
 
     if (opts?.telemetry) {
       this.telemetry = opts.telemetry;
@@ -161,21 +175,27 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
-   * Returns a promise that resolves to a redis client. Normally used only by subclasses.
-   */
-  get client(): Promise<RedisClient> {
-    return this.connection.client;
-  }
-
-  /**
    * Helper to easily extend Job class calls.
    */
   protected get Job(): typeof Job {
     return Job;
   }
 
-  waitUntilReady(): Promise<RedisClient> {
-    return this.client;
+  waitUntilReady(): Promise<void> {
+    return this.backend.waitUntilReady();
+  }
+
+  /**
+   * Returns the datastore backend that powers this flow producer.
+   *
+   * The backend owns its connection and exposes every datastore-agnostic
+   * operation through {@link IQueueBackend}. Datastore-specific escape hatches
+   * (e.g. the raw Redis client) live on the concrete backend implementation,
+   * and are exposed here when the flow producer is parameterized on that
+   * concrete backend type (the default is the Redis backend).
+   */
+  getBackend(): B {
+    return this.backend;
   }
 
   /**
@@ -192,10 +212,16 @@ export class FlowProducer extends EventEmitter {
     if (this.closing) {
       return;
     }
-    const client = await this.connection.client;
-    const multi = client.multi();
 
-    const parentOpts = flow?.opts?.parent;
+    this.validateFlowJobs([flow]);
+
+    // Ensure the backend (and thus the connection) is ready before building
+    // the per-node queue contexts used to create jobs.
+    await this.backend.waitUntilReady();
+
+    const flowOpts = flow?.opts;
+    const parentOpts =
+      flowOpts && 'parent' in flowOpts ? flowOpts.parent : undefined;
     const parentKey = getParentKey(parentOpts);
     const parentDependenciesKey = parentKey
       ? `${parentKey}:dependencies`
@@ -212,8 +238,9 @@ export class FlowProducer extends EventEmitter {
           [TelemetryAttributes.FlowName]: flow.name,
         });
 
+        const entries: FlowJobEntry[] = [];
         const jobsTree = await this.addNode({
-          multi,
+          entries,
           node: flow,
           queuesOpts: opts?.queuesOptions,
           parent: {
@@ -222,15 +249,10 @@ export class FlowProducer extends EventEmitter {
           },
         });
 
-        const results = (await multi.exec()) as
-          | [null | Error, string | number][]
-          | null;
+        const results = await this.backend.addFlow(entries);
         const [result] = results || [];
         if (result) {
           const [err, jobId] = result;
-          // Surface failures of the root flow job so that callers do not
-          // silently lose jobs (for example when adding a child node
-          // whose parent does not exist in Redis, see GH #3264).
           if (err) {
             throw err;
           }
@@ -256,7 +278,7 @@ export class FlowProducer extends EventEmitter {
     if (this.closing) {
       return;
     }
-    const client = await this.connection.client;
+    await this.backend.waitUntilReady();
 
     const updatedOpts = Object.assign(
       {
@@ -266,7 +288,7 @@ export class FlowProducer extends EventEmitter {
       },
       opts,
     );
-    const jobsTree = this.getNode(client, updatedOpts);
+    const jobsTree = this.getNode(updatedOpts);
 
     return jobsTree;
   }
@@ -289,8 +311,12 @@ export class FlowProducer extends EventEmitter {
     if (this.closing) {
       return;
     }
-    const client = await this.connection.client;
-    const multi = client.multi();
+
+    this.validateFlowJobs(flows);
+
+    // Ensure the backend (and thus the connection) is ready before building
+    // the per-node queue contexts used to create jobs.
+    await this.backend.waitUntilReady();
 
     return trace<Promise<JobNode[]>>(
       this.telemetry,
@@ -306,11 +332,10 @@ export class FlowProducer extends EventEmitter {
             .join(','),
         });
 
-        const jobsTrees = await this.addNodes(multi, flows);
+        const entries: FlowJobEntry[] = [];
+        const jobsTrees = await this.addNodes(entries, flows);
 
-        const results = (await multi.exec()) as
-          | [null | Error, string | number][]
-          | null;
+        const results = await this.backend.addFlow(entries);
         for (let index = 0; index < jobsTrees.length; ++index) {
           const result = results?.[index];
           if (!result) {
@@ -334,19 +359,19 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi - ioredis ChainableCommander
+   * @param multi - IRedisTransaction
    * @param node - the node representing a job to be added to some queue
    * @param parent - parent data sent to children to create the "links" to their parent
    * @returns
    */
   protected async addNode({
-    multi,
+    entries,
     node,
     parent,
     queuesOpts,
   }: AddNodeOpts): Promise<JobNode> {
     const prefix = node.prefix || this.opts.prefix;
-    const queue = this.queueFromNode(node, new QueueKeys(prefix), prefix);
+    const queue = this.queueFromNode(node, prefix);
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
     const jobsOpts = queueOpts?.defaultJobOptions ?? {};
@@ -398,28 +423,24 @@ export class FlowProducer extends EventEmitter {
         if (node.children && node.children.length > 0) {
           // Create the parent job, it will be a job in status "waiting-children".
           const parentId = jobId;
-          const queueKeysParent = new QueueKeys(
-            node.prefix || this.opts.prefix,
-          );
 
-          await job.addJob(<Redis>(multi as unknown), {
+          await this.collectFlowEntry(entries, job, {
             parentDependenciesKey: parent?.parentDependenciesKey,
             addToWaitingChildren: true,
             parentKey,
           });
 
-          const parentDependenciesKey = `${queueKeysParent.toKey(
-            node.queueName,
-            parentId,
-          )}:dependencies`;
+          // Queue identity is owned by the backend (the `queue` object above is
+          // bound to this node's queue via the backend's `forQueue`).
+          const parentDependenciesKey = `${queue.toKey(parentId)}:dependencies`;
 
           const children = await this.addChildren({
-            multi,
+            entries,
             nodes: node.children,
             parent: {
               parentOpts: {
                 id: parentId,
-                queue: queueKeysParent.getQueueQualifiedName(node.queueName),
+                queue: queue.qualifiedName,
               },
               parentDependenciesKey,
             },
@@ -428,7 +449,7 @@ export class FlowProducer extends EventEmitter {
 
           return { job, children };
         } else {
-          await job.addJob(<Redis>(multi as unknown), {
+          await this.collectFlowEntry(entries, job, {
             parentDependenciesKey: parent?.parentDependenciesKey,
             parentKey,
           });
@@ -445,24 +466,39 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi - ioredis ChainableCommander
+   * @param multi - IRedisTransaction
    * @param nodes - the nodes representing jobs to be added to some queue
    * @returns
    */
+  /**
+   * Collects a single job insert for a flow, preserving the same await point
+   * as the previous transaction-based insert so that the relative order of
+   * entries (in particular, roots before their descendants) is unchanged.
+   */
+  private async collectFlowEntry(
+    entries: FlowJobEntry[],
+    job: Job,
+    parentOpts: ParentKeyOpts,
+  ): Promise<void> {
+    entries.push(job.toFlowEntry(parentOpts));
+  }
+
   protected addNodes(
-    multi: ChainableCommander,
+    entries: FlowJobEntry[],
     nodes: FlowJob[],
   ): Promise<JobNode[]> {
     return Promise.all(
       nodes.map(node => {
-        const parentOpts = node?.opts?.parent;
+        const nodeOpts = node?.opts;
+        const parentOpts =
+          nodeOpts && 'parent' in nodeOpts ? nodeOpts.parent : undefined;
         const parentKey = getParentKey(parentOpts);
         const parentDependenciesKey = parentKey
           ? `${parentKey}:dependencies`
           : undefined;
 
         return this.addNode({
-          multi,
+          entries,
           node,
           parent: {
             parentOpts,
@@ -473,12 +509,8 @@ export class FlowProducer extends EventEmitter {
     );
   }
 
-  private async getNode(client: RedisClient, node: NodeOpts): Promise<JobNode> {
-    const queue = this.queueFromNode(
-      node,
-      new QueueKeys(node.prefix),
-      node.prefix,
-    );
+  private async getNode(node: NodeOpts): Promise<JobNode> {
+    const queue = this.queueFromNode(node, node.prefix);
 
     const job = await this.Job.fromId(queue, node.id);
 
@@ -513,7 +545,6 @@ export class FlowProducer extends EventEmitter {
       const newDepth = node.depth - 1;
       if (childrenCount > 0 && newDepth) {
         const children = await this.getChildren(
-          client,
           [...processedKeys, ...unprocessed, ...failed, ...ignoredKeys],
           newDepth,
           node.maxChildren,
@@ -526,22 +557,39 @@ export class FlowProducer extends EventEmitter {
     }
   }
 
-  private addChildren({ multi, nodes, parent, queuesOpts }: AddChildrenOpts) {
+  private validateFlowJobs(nodes: FlowJob[]): void {
+    for (const node of nodes) {
+      const children = node.children;
+      if (children && children.length > 0) {
+        const nodeOpts = node.opts;
+        const hasDeduplication =
+          nodeOpts && 'deduplication' in nodeOpts && nodeOpts.deduplication;
+        if (hasDeduplication) {
+          throw new Error(
+            'Deduplication options cannot be used on flow nodes with children',
+          );
+        }
+
+        this.validateFlowJobs(children);
+      }
+    }
+  }
+
+  private addChildren({ entries, nodes, parent, queuesOpts }: AddChildrenOpts) {
     return Promise.all(
-      nodes.map(node => this.addNode({ multi, node, parent, queuesOpts })),
+      nodes.map(node => this.addNode({ entries, node, parent, queuesOpts })),
     );
   }
 
   private getChildren(
-    client: RedisClient,
     childrenKeys: string[],
     depth: number,
     maxChildren: number,
   ) {
     const getChild = (key: string) => {
-      const [prefix, queueName, id] = key.split(':');
+      const { prefix, queueName, id } = this.backend.parseNodeKey(key);
 
-      return this.getNode(client, {
+      return this.getNode({
         id,
         queueName,
         prefix,
@@ -558,45 +606,41 @@ export class FlowProducer extends EventEmitter {
    * required to create jobs in any queue.
    *
    * @param node - The flow node containing the queue name and other job options.
-   * @param queueKeys - The queue keys helper used to resolve key names.
-   * @param prefix - The Redis key prefix used for the queue.
-   * @returns A queue-like object with the client, keys, and options needed to create jobs.
+   * @param prefix - The key prefix for the queue (honored by the Redis backend only).
+   * @returns A queue-like object with the keys, identity and backend needed to create jobs.
    */
   private queueFromNode(
     node: Omit<NodeOpts, 'id' | 'depth' | 'maxChildren'>,
-    queueKeys: QueueKeys,
     prefix: string,
   ) {
+    // Queue identity and key building are owned by the backend (the Redis
+    // backend encodes the key `prefix`; other backends format their own
+    // identity). The flow's own backend is queue-agnostic, so we ask it for a
+    // sibling bound to this node's queue.
+    const backend = this.backend.forQueue(node.queueName, prefix);
     return {
-      client: this.connection.client,
       name: node.queueName,
-      keys: queueKeys.getKeys(node.queueName),
-      toKey: (type: string) => queueKeys.toKey(node.queueName, type),
+      keys: backend.keys,
+      toKey: (type: string) => backend.toKey(type),
       opts: { prefix, connection: {} },
-      qualifiedName: queueKeys.getQueueQualifiedName(node.queueName),
+      qualifiedName: backend.qualifiedName,
       closing: this.closing,
-      waitUntilReady: async () => this.connection.client,
+      backend,
+      waitUntilReady: async (): Promise<void> => {
+        await this.backend.waitUntilReady();
+      },
       removeListener: this.removeListener.bind(this) as any,
       emit: this.emit.bind(this) as any,
       on: this.on.bind(this) as any,
-      redisVersion: this.connection.redisVersion,
-      databaseType: this.connection.databaseType,
       trace: async (): Promise<any> => {},
     };
   }
 
   /**
-   * Translates a numeric error code returned by the addJob Lua script
-   * into a descriptive Error. Without this translation, a failed
-   * `multi.exec()` result would be silently ignored and the job would
-   * appear to be "dropped" with no feedback to the caller.
+   * Translates numeric addJob Lua error codes returned by root flow exec.
    *
-   * Messages and the attached `code` property are kept aligned with
-   * `Scripts.finishedErrors` so programmatic callers can key off the
-   * same `(err as any).code` across both code paths.
-   *
-   * @param code - the numeric error code returned from Redis.
-   * @param parentKey - the parent key, when available, for the error message.
+   * @param code - Numeric error code returned from Redis.
+   * @param parentKey - Parent key for contextual error messages.
    */
   private toFlowError(code: number, parentKey?: string): Error {
     let error: Error;
@@ -622,7 +666,7 @@ export class FlowProducer extends EventEmitter {
    */
   async close(): Promise<void> {
     if (!this.closing) {
-      this.closing = this.connection.close();
+      this.closing = this.backend.close();
     }
     await this.closing;
   }
@@ -632,6 +676,6 @@ export class FlowProducer extends EventEmitter {
    * Force disconnects a connection.
    */
   disconnect(): Promise<void> {
-    return this.connection.disconnect();
+    return this.backend.disconnect();
   }
 }

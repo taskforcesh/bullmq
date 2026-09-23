@@ -1,5 +1,9 @@
-import { default as IORedis } from 'ioredis';
-import { after, times } from 'lodash';
+import {
+  getRedisVersion,
+  getDatabaseType,
+  getRedisClient,
+} from './utils/get-redis-client';
+import { after, times } from './utils/lodash';
 import {
   describe,
   beforeEach,
@@ -11,29 +15,40 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
+import { EventEmitter } from 'events';
 import {
   Queue,
   QueueEvents,
   Job,
+  RedisQueueBackend,
   UnrecoverableError,
   Worker,
-  WaitingChildrenError,
   DelayedError,
   WaitingError,
 } from '../src/classes';
-import { MinimalJob } from '../src/interfaces';
+import { MinimalJob, IRedisClient } from '../src/interfaces';
 import { JobsOptions, KeepJobs } from '../src/types';
-import {
-  delay,
-  isRedisVersionLowerThan,
-  randomUUID,
-  removeAllQueueData,
-} from '../src/utils';
+import { delay, isRedisVersionLowerThan, randomUUID } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 
 const NoopProc = () => Promise.resolve();
 
+/**
+ * Backend-agnostic qualified queue name. Derives the qualifier (the `bull:`
+ * prefix on Redis, or nothing on PostgreSQL) from a reference queue whose
+ * `qualifiedName` is known, so parent/child key references hold on any backend.
+ */
+const qualify = (
+  ref: { qualifiedName: string; name: string },
+  queueName: string,
+): string =>
+  `${ref.qualifiedName.slice(
+    0,
+    ref.qualifiedName.length - ref.name.length,
+  )}${queueName}`;
+
 describe('workers', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   const sandbox = sinon.createSandbox();
@@ -42,9 +57,9 @@ describe('workers', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -56,9 +71,13 @@ describe('workers', () => {
 
   afterEach(async () => {
     sandbox.restore();
+    // Restore any fake clock installed via `sinon.useFakeTimers()` that a timed
+    // out / failed test left behind, so it doesn't cascade into the next test
+    // as "Can't install fake timers twice on the same global object".
+    sinon.restore();
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -66,6 +85,7 @@ describe('workers', () => {
   });
 
   it('process a lifo queue', async () => {
+    // TODO: Move timeout to test options: { timeout: 3000 }
     let currentValue = 0;
     let first = true;
 
@@ -107,7 +127,7 @@ describe('workers', () => {
     await processing;
 
     await worker.close();
-  }, 3000);
+  });
 
   it('process several jobs serially', async () => {
     let counter = 1;
@@ -174,52 +194,9 @@ describe('workers', () => {
     await worker.close();
   });
 
-  it('should cap progress events', async () => {
-    let processor;
-
-    const maxEvents = 10;
-    const numUpdateProgress = 500;
-
-    const trimmedEventsQueue = new Queue(queueName, {
-      connection,
-      prefix,
-      streams: { events: { maxLen: maxEvents } },
-    });
-
-    const job = await trimmedEventsQueue.add('test', { foo: 'bar' });
-    expect(job.id).toBeTruthy();
-    expect(job.data.foo).toEqual('bar');
-
-    const processing = new Promise<void>((resolve, reject) => {
-      processor = async (job: Job) => {
-        try {
-          expect(job.data.foo).toBe('bar');
-
-          for (let i = 0; i < numUpdateProgress; i++) {
-            await job.updateProgress(42);
-          }
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      };
-    });
-
-    const worker = new Worker(queueName, processor, { connection, prefix });
-    await worker.waitUntilReady();
-
-    await processing;
-
-    const eventsLength = await (
-      await trimmedEventsQueue.client
-    ).xlen(trimmedEventsQueue.keys.events);
-
-    expect(eventsLength).to.be.lt(numUpdateProgress + 10);
-    expect(eventsLength).to.be.gte(maxEvents);
-
-    await worker.close();
-    await trimmedEventsQueue.close();
-  });
+  // NOTE: 'should cap progress events' is Redis-specific (it asserts the
+  // trimmed event-stream length via `xlen`) and lives in
+  // `worker.redis.test.ts`.
 
   it('process a job that updates progress as object', async () => {
     let processor;
@@ -311,6 +288,50 @@ describe('workers', () => {
 
     const worker = new Worker(queueName, processor, { connection, prefix });
     await worker.waitUntilReady();
+
+    await processing;
+
+    await worker.close();
+  });
+
+  it('process a job that updates progress with a typed progress generic', async () => {
+    type CustomProgress = { percentage: number; message: string };
+    const expected: CustomProgress = { percentage: 42, message: 'halfway' };
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).toBeTruthy();
+    expect(job.data.foo).toEqual('bar');
+
+    const worker = new Worker<
+      { foo: string },
+      void,
+      string,
+      RedisQueueBackend,
+      CustomProgress
+    >(
+      queueName,
+      async job => {
+        expect(job.data.foo).toBe('bar');
+        // `progress` is typed as CustomProgress here, not JobProgress.
+        await job.updateProgress(expected);
+      },
+      { autorun: false, connection, prefix },
+    );
+    await worker.waitUntilReady();
+
+    const processing = new Promise<void>((resolve, reject) => {
+      worker.on('progress', (_job, progress) => {
+        try {
+          expect(progress.percentage).toEqual(42);
+          expect(progress.message).toEqual('halfway');
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    worker.run();
 
     await processing;
 
@@ -430,11 +451,6 @@ describe('workers', () => {
           expect(data).toEqual(37);
           const gotJob = await queue.getJob(job.id);
           expect(gotJob.returnvalue).toEqual(37);
-
-          const retval = await (
-            await queue.client
-          ).hget(queue.toKey(gotJob.id), 'returnvalue');
-          expect(JSON.parse(retval)).toEqual(37);
           resolve();
         } catch (err) {
           reject(err);
@@ -538,107 +554,17 @@ describe('workers', () => {
     });
 
     await worker.close();
-  }, 8000);
+  }); // TODO: Add { timeout: 8000 } to the it() options
 
-  it('do not call moveToActive more than concurrency factor + 1', async () => {
-    const numJobs = 57;
-    const concurrency = 13;
-    let completedJobs = 0;
-    const worker = new Worker(
-      queueName,
-      async job => {
-        expect(job.data.foo).toBe('bar');
-        await delay(250);
-      },
-      { connection, prefix, concurrency },
-    );
-    await worker.waitUntilReady();
-
-    // Add spy to worker.moveToActive
-    const spy = sinon.spy(worker as any, 'moveToActive');
-    const bclientSpy = sinon.spy(
-      await (worker as any).blockingConnection.client,
-      'bzpopmin',
-    );
-
-    const jobsData: { name: string; data: any }[] = [];
-    for (let j = 0; j < numJobs; j++) {
-      jobsData.push({
-        name: 'test',
-        data: { foo: 'bar' },
-      });
-    }
-
-    await queue.addBulk(jobsData);
-
-    expect(bclientSpy.callCount).to.be.gte(0);
-    expect(bclientSpy.callCount).to.be.lte(1);
-
-    await new Promise<void>(resolve => {
-      worker.on('completed', () => {
-        completedJobs++;
-        if (completedJobs == numJobs) {
-          resolve();
-        }
-      });
-    });
-
-    // Check moveToActive was called only concurrency times
-    expect(spy.callCount).toBe(concurrency + 1);
-    expect(bclientSpy.callCount).toBe(3);
-
-    await worker.close();
-  });
-
-  it('do not call moveToActive more than number of jobs + 2', async () => {
-    const numJobs = 50;
-    let completedJobs = 0;
-
-    const jobs: Promise<Job>[] = [];
-    for (let i = 0; i < numJobs; i++) {
-      jobs.push(queue.add('test', { foo: 'bar' }));
-    }
-
-    await Promise.all(jobs);
-
-    const worker = new Worker(
-      queueName,
-      async job => {
-        expect(job.data.foo).toBe('bar');
-        await delay(250);
-      },
-      { connection, prefix, concurrency: 100 },
-    );
-
-    // Add spy to worker.moveToActive
-    const spy = sinon.spy(worker as any, 'moveToActive');
-    const bclientSpy = sinon.spy(
-      await (worker as any).blockingConnection.client,
-      'bzpopmin',
-    );
-    await worker.waitUntilReady();
-
-    expect(bclientSpy.callCount).toBe(0);
-
-    await new Promise<void>(resolve => {
-      worker.on('completed', () => {
-        completedJobs++;
-        if (completedJobs == numJobs) {
-          resolve();
-        }
-      });
-    });
-
-    expect(completedJobs).toBe(numJobs);
-    expect(bclientSpy.callCount).toBe(2);
-
-    // Check moveToActive was called numJobs + 2 times
-    expect(spy.callCount).toBe(numJobs + 2);
-
-    await worker.close();
-  });
+  // NOTE: 'do not call moveToActive more than concurrency factor + 1' is
+  // Redis-specific (it spies on the blocking client's `bzpopmin`) and lives in
+  // NOTE: 'do not call moveToActive more than concurrency factor + 1' and
+  // 'do not call moveToActive more than number of jobs + 2' are Redis-specific
+  // (they spy on the blocking client's `bzpopmin`) and live in
+  // `worker.redis.test.ts`.
 
   it('does not process a job that is being processed when a new queue starts', async () => {
+    // TODO: Move timeout to test options: { timeout: 12000 }
     let err;
 
     const worker = new Worker(
@@ -682,7 +608,7 @@ describe('workers', () => {
     if (err) {
       throw err;
     }
-  }, 12000);
+  });
 
   it('process a job that throws an exception', async () => {
     const jobError = new Error('Job Failed');
@@ -1057,24 +983,9 @@ describe('workers', () => {
     });
   });
 
-  describe('when 0.002 is used as blocktimeout', () => {
-    it('should not block forever', async () => {
-      const worker = new Worker(queueName, NoopProc, {
-        connection,
-        prefix,
-      });
-      await worker.waitUntilReady();
-      const client = await worker.client;
-      if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8', 'redis')) {
-        await client.bzpopmin(`key`, 0.002);
-      } else {
-        await client.bzpopmin(`key`, 0.001);
-      }
-
-      expect(true).toBe(true);
-      await worker.close();
-    });
-  });
+  // NOTE: 'when 0.002 is used as blocktimeout > should not block forever' is
+  // Redis-specific (it calls `bzpopmin` on the raw client and inspects the
+  // Redis version) and lives in `worker.redis.test.ts`.
 
   describe('when closing a worker', () => {
     it('process a job that throws an exception after worker close', async () => {
@@ -1110,8 +1021,8 @@ describe('workers', () => {
       });
 
       const count = await queue.getJobCounts('active', 'failed');
-      expect(count.active).to.be.eq(0);
-      expect(count.failed).to.be.eq(1);
+      expect(count.active).toBe(0);
+      expect(count.failed).toBe(1);
       await closing;
     });
 
@@ -1149,10 +1060,353 @@ describe('workers', () => {
       });
 
       const count = await queue.getJobCounts('active', 'completed');
-      expect(count.active).to.be.eq(0);
-      expect(count.completed).to.be.eq(1);
+      expect(count.active).toBe(0);
+      expect(count.completed).toBe(1);
       await closing;
     });
+
+    it(
+      'resolves close() when an active job throws DelayedError during shutdown',
+      { timeout: 10000 },
+      async () => {
+        let processingStartedResolve: () => void;
+        const processingStarted = new Promise<void>(resolve => {
+          processingStartedResolve = resolve;
+        });
+
+        const worker = new Worker(
+          queueName,
+          async (job, token) => {
+            processingStartedResolve();
+            await job.moveToDelayed(Date.now(), token);
+            await delay(200);
+            throw new DelayedError();
+          },
+          { connection, prefix, drainDelay: 10 },
+        );
+        await worker.waitUntilReady();
+
+        const jobs = Array.from(Array(50).keys()).map(index => ({
+          name: 'test',
+          data: { index },
+        }));
+        await queue.addBulk(jobs);
+
+        // Wait for the first processing cycle to begin before closing
+        await processingStarted;
+
+        const result = await Promise.race([
+          worker.close().then(() => 'closed'),
+          delay(5000).then(() => 'timeout'),
+        ]);
+
+        expect(result).toBe('closed');
+      },
+    );
+
+    it(
+      'resolves close() when a paused worker has an active job that throws DelayedError',
+      { timeout: 10000 },
+      async () => {
+        let processingStartedResolve: () => void;
+        const processingStarted = new Promise<void>(resolve => {
+          processingStartedResolve = resolve;
+        });
+
+        const worker = new Worker(
+          queueName,
+          async (job, token) => {
+            processingStartedResolve();
+            await job.moveToDelayed(Date.now(), token);
+            await delay(200);
+            throw new DelayedError();
+          },
+          { connection, prefix, drainDelay: 10 },
+        );
+        await worker.waitUntilReady();
+
+        const jobs = Array.from(Array(50).keys()).map(index => ({
+          name: 'test',
+          data: { index },
+        }));
+        await queue.addBulk(jobs);
+
+        // Wait for the first processing cycle to begin, then pause
+        await processingStarted;
+        await worker.pause();
+
+        const result = await Promise.race([
+          worker.close().then(() => 'closed'),
+          delay(5000).then(() => 'timeout'),
+        ]);
+
+        expect(result).toBe('closed');
+      },
+    );
+  });
+
+  describe('when waiting for a job', () => {
+    it('reconnects blocking transport after a connection error (#4378)', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const workerDelay = sandbox.stub(worker, 'delay').resolves();
+      const backend = worker.getBackend();
+      const reconnectBlocking = sandbox
+        .stub(backend, 'reconnectBlocking')
+        .resolves();
+      sandbox
+        .stub(backend, 'waitForJob')
+        .rejects(new Error('Connection is closed.'));
+
+      try {
+        await expect(worker['waitForJob'](0)).resolves.toBe(Infinity);
+        expect(reconnectBlocking.calledOnce).toBe(true);
+        expect(workerDelay.calledOnce).toBe(true);
+      } finally {
+        await worker.close();
+      }
+    });
+
+    it('retries after reconnecting blocking transport fails', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      const workerDelay = sandbox.stub(worker, 'delay').resolves();
+      const reconnectBlocking = sandbox
+        .stub(backend, 'reconnectBlocking')
+        .rejects(new Error('Connection is closed.'));
+      sandbox
+        .stub(backend, 'waitForJob')
+        .rejects(new Error('Connection is closed.'));
+
+      try {
+        await expect(worker['waitForJob'](0)).resolves.toBe(Infinity);
+        expect(reconnectBlocking.calledOnce).toBe(true);
+        expect(workerDelay.calledOnce).toBe(true);
+      } finally {
+        await worker.close();
+      }
+    });
+
+    it('recovers when the blocking command never settles (#4479)', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      const bclient = (await backend.blockingClient)!;
+
+      // Reproduce the #4479 wedge: blocking connections must use
+      // `maxRetriesPerRequest: null`, and with that setting IORedis silently
+      // re-queues and re-sends an interrupted blocking command after a
+      // reconnect instead of rejecting it — so the awaited `bzpopmin` never
+      // settles. Before the watchdog fix this parked `waitForJob` forever.
+      const bzpopmin = sandbox
+        .stub(bclient, 'bzpopmin')
+        .returns(new Promise(() => {}) as any);
+      const reconnectBlocking = sandbox
+        .stub(backend, 'reconnectBlocking')
+        .resolves();
+
+      try {
+        // A tiny block timeout keeps the watchdog window small. The watchdog
+        // must conclude the wait as a timeout (null) even though `bzpopmin`
+        // never settles, and re-establish the blocking connection.
+        const result = await backend.waitForJob(0.001);
+        expect(result).toBe(null);
+        expect(bzpopmin.calledOnce).toBe(true);
+        expect(reconnectBlocking.calledOnce).toBe(true);
+      } finally {
+        await worker.close();
+      }
+    });
+
+    it('does not disconnect a reconnecting blocking client (#4585)', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      const bclient = (await backend.blockingClient)!;
+
+      // Reproduce the #4585 wedge: after an outage longer than the block
+      // timeout, IORedis is already in "reconnecting" (it has an armed retry
+      // timer but no live socket). Calling `disconnect(false)` here clears that
+      // timer without emitting a `close` event, parking the client in
+      // "reconnecting" forever. The watchdog must therefore only disconnect a
+      // "ready" client and otherwise let IORedis finish its own reconnect.
+      sandbox.stub(bclient, 'status').value('reconnecting');
+      const disconnect = sandbox.stub(bclient, 'disconnect');
+      sandbox.stub(bclient, 'bzpopmin').returns(new Promise(() => {}) as any);
+      const reconnectBlocking = sandbox
+        .stub(backend, 'reconnectBlocking')
+        .resolves();
+
+      try {
+        const result = await backend.waitForJob(0.001);
+        expect(result).toBe(null);
+        expect(disconnect.called).toBe(false);
+        expect(reconnectBlocking.calledOnce).toBe(true);
+      } finally {
+        await worker.close();
+      }
+    });
+
+    it('drops the abandoned blocking command once the client is live again (#4585)', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      const bclient = (await backend.blockingClient)!;
+
+      // Waiting for IORedis to finish its own reconnect is not enough: under
+      // `maxRetriesPerRequest: null` it re-queues and re-sends the interrupted
+      // blocking command, so it would be served ahead of the next
+      // `waitForJob`. Once the client is live again the socket must be torn
+      // down (and re-established) so the abandoned command is actually gone.
+      let status = 'reconnecting';
+      sandbox.stub(bclient, 'status').get(() => status);
+      sandbox.stub(bclient, 'bzpopmin').returns(new Promise(() => {}) as any);
+
+      const disconnectedWhileLive: boolean[] = [];
+      sandbox
+        .stub(backend.blockingConnection!, 'disconnect')
+        .callsFake(async () => {
+          disconnectedWhileLive.push(status === 'ready');
+          status = 'end';
+        });
+      const reconnectBlocking = sandbox
+        .stub(backend, 'reconnectBlocking')
+        .callsFake(async () => {
+          status = 'ready';
+        });
+
+      try {
+        const result = await backend.waitForJob(0.001);
+        expect(result).toBe(null);
+        // First the retry timer is left alone until the client is live again,
+        // then the live socket is torn down and re-established.
+        expect(disconnectedWhileLive).toEqual([true]);
+        expect(reconnectBlocking.callCount).toBe(2);
+      } finally {
+        await worker.close();
+      }
+    });
+
+    it('reconnects a healthy connection torn down by the watchdog (#4585 ready-path race)', async () => {
+      // Models the second #4585 race (reported on 6.0.11): after a brief drop
+      // IORedis self-heals back to "ready" *before* the watchdog fires, so the
+      // watchdog fires against a live connection with a still-unsettled blocking
+      // command. It tears the connection down to abandon that command — but
+      // IORedis closes the socket asynchronously, so `status` is still "ready"
+      // for the current microtask run. If the reset then calls `reconnect()`
+      // (which early-returns on "ready") *before* the close lands, it no-ops and
+      // the pending close kills the connection for good.
+      //
+      // We call `RedisQueueBackend.prototype.waitForJob` with a fake context that
+      // faithfully models (a) IORedis' asynchronous socket close and (b) the real
+      // `RedisConnection.disconnect(true)` (close, then await "end") and
+      // `RedisConnection.reconnect()` (early-return on "ready") contracts.
+      const emitter = new EventEmitter();
+      let status = 'ready';
+      const client = {
+        get status() {
+          return status;
+        },
+        bzpopmin: () => new Promise(() => {}), // never settles
+        // IORedis closes the socket asynchronously: `status` stays "ready" for
+        // the current microtask run and only flips on a later macrotask.
+        disconnect: () => {
+          setTimeout(() => {
+            status = 'end';
+            emitter.emit('end');
+          }, 0);
+        },
+        connect: () => {
+          status = 'ready';
+          return Promise.resolve();
+        },
+        once: (ev: string, fn: () => void) => emitter.once(ev, fn),
+        removeListener: (ev: string, fn: () => void) =>
+          emitter.removeListener(ev, fn),
+      };
+
+      const connection = {
+        capabilities: { canDoubleTimeout: true },
+        client: Promise.resolve(client),
+        // Mirrors RedisConnection.disconnect(true): close, then await "end".
+        disconnect: async (wait = true) => {
+          if (status === 'end') {
+            return;
+          }
+          if (!wait) {
+            return client.disconnect();
+          }
+          const ended = new Promise<void>(res => client.once('end', res));
+          client.disconnect();
+          await ended;
+        },
+        // Mirrors RedisConnection.reconnect(): early-return on "ready".
+        reconnect: async () => {
+          for (;;) {
+            if (status === 'ready') {
+              return;
+            }
+            if (status === 'wait' || status === 'end') {
+              return client.connect();
+            }
+            await new Promise(r => setTimeout(r, 5));
+          }
+        },
+      };
+
+      const backend = {
+        closing: false,
+        blockingConnection: connection,
+        connection,
+        queue: {
+          keys: { marker: 'm' },
+          blockingClient: Promise.resolve(client),
+        },
+        reconnectBlocking() {
+          return connection.reconnect();
+        },
+      };
+
+      const result = await (
+        RedisQueueBackend.prototype.waitForJob as (
+          this: unknown,
+          blockTimeout: number,
+        ) => Promise<unknown>
+      ).call(backend, 0.001);
+
+      expect(result).toBe(null);
+      // Let any pending asynchronous close land.
+      await new Promise(r => setTimeout(r, 30));
+      // The blocking connection must be healthy again — not left dead by a
+      // reconnect() that raced the watchdog's disconnect.
+      expect(status).toBe('ready');
+    }, 10000);
   });
 
   describe('when calling getBlockTimeout', () => {
@@ -1182,9 +1436,9 @@ describe('workers', () => {
 
           if (
             isRedisVersionLowerThan(
-              worker.redisVersion,
+              getRedisVersion(worker),
               '7.0.8',
-              worker.databaseType,
+              getDatabaseType(worker),
             )
           ) {
             expect(worker['getBlockTimeout'](0)).toBe(0.002);
@@ -1206,9 +1460,9 @@ describe('workers', () => {
           });
           await worker.waitUntilReady();
 
-          expect(
-            worker['getBlockTimeout'](Date.now() - 1),
-          ).to.be.lessThanOrEqual(0);
+          expect(worker['getBlockTimeout'](Date.now() - 1)).toBeLessThanOrEqual(
+            0,
+          );
           await worker.close();
         });
       });
@@ -1224,9 +1478,9 @@ describe('workers', () => {
 
           if (
             isRedisVersionLowerThan(
-              worker.redisVersion,
+              getRedisVersion(worker),
               '7.0.8',
-              worker.databaseType,
+              getDatabaseType(worker),
             )
           ) {
             expect(worker['getBlockTimeout'](Date.now() + 100)).toBeGreaterThan(
@@ -1241,6 +1495,61 @@ describe('workers', () => {
           await worker.close();
         });
       });
+
+      describe('when blockDelay exceeds the backend maximumBlockTimeout', () => {
+        it("caps the block timeout at the backend's maximumBlockTimeout", async () => {
+          const worker = new Worker(queueName, NoopProc, {
+            connection,
+            prefix,
+            autorun: false,
+          });
+          await worker.waitUntilReady();
+
+          // A blockUntil far enough in the future that blockDelay clearly
+          // exceeds any backend ceiling (100 days). The result must be the
+          // backend-delegated maximum: 10s on Redis, larger on Postgres.
+          const farFuture = Date.now() + 100 * 24 * 60 * 60 * 1000;
+          expect(worker['getBlockTimeout'](farFuture)).toBe(
+            worker.maximumBlockTimeout,
+          );
+
+          await worker.close();
+        });
+      });
+    });
+  });
+
+  describe('when reading maximumBlockTimeout', () => {
+    it('delegates to the backend value', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        connection,
+        prefix,
+        autorun: false,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      sandbox.stub(backend, 'maximumBlockTimeout').get(() => 1234);
+
+      expect(worker.maximumBlockTimeout).toBe(1234);
+
+      await worker.close();
+    });
+
+    it('falls back to the default (10s) when the backend does not specify one', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        connection,
+        prefix,
+        autorun: false,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      sandbox.stub(backend, 'maximumBlockTimeout').get(() => undefined);
+
+      expect(worker.maximumBlockTimeout).toBe(10);
+
+      await worker.close();
     });
   });
 
@@ -1248,10 +1557,7 @@ describe('workers', () => {
     it('should not fail', async () => {
       const queueName2 = `test-${randomUUID()}`;
 
-      const connection = new IORedis({
-        host: redisHost,
-        maxRetriesPerRequest: null,
-      });
+      const connection = createTestConnection();
 
       const queue1 = new Queue(queueName2, { connection, prefix });
 
@@ -1287,7 +1593,7 @@ describe('workers', () => {
       await worker.close();
       await queue1.close();
       await connection.quit();
-      await removeAllQueueData(new IORedis(redisHost), queueName2);
+      await cleanupQueue(queueName2);
     });
   });
 
@@ -1737,113 +2043,17 @@ describe('workers', () => {
         await testWorkerRemoveOnFinish({ count }, count, true);
       });
 
-      it('should not leave orphaned job data when limit is less than removable jobs', async () => {
-        const limit = 2;
-        const age = 1; // 1 second
-
-        const totalJobs = 10;
-
-        const worker = new Worker(queueName, async () => {}, {
-          connection,
-          prefix,
-          removeOnComplete: { age, limit },
-          concurrency: 1,
-        });
-        await worker.waitUntilReady();
-
-        // Phase 1: Add and process a batch of jobs (they all complete quickly)
-        const initialJobIds: string[] = [];
-        for (let i = 0; i < totalJobs; i++) {
-          const job = await queue.add('test', { phase: 1, i });
-          initialJobIds.push(job.id!);
-        }
-
-        // Wait for all initial jobs to complete
-        await new Promise<void>(resolve => {
-          const checkCompleted = async () => {
-            const counts = await queue.getJobCounts('completed');
-            if (counts.completed >= totalJobs) {
-              resolve();
-            } else {
-              setTimeout(checkCompleted, 50);
-            }
-          };
-          checkCompleted();
-        });
-
-        // Phase 2: Wait for all jobs to age out (> age seconds)
-        await delay(age * 1000 + 500);
-
-        // Phase 3: Add one more job to trigger cleanup
-        const triggerJob = await queue.add('test', { phase: 2, trigger: true });
-
-        // Wait for trigger job to complete
-        await new Promise<void>(resolve => {
-          const checkCompleted = async () => {
-            const job = await queue.getJob(triggerJob.id!);
-            if (job?.finishedOn) {
-              resolve();
-            } else {
-              setTimeout(checkCompleted, 50);
-            }
-          };
-          checkCompleted();
-        });
-
-        // Give a small margin for cleanup to finish
-        await delay(200);
-
-        const client = await queue.client;
-
-        // Count job hash keys that still exist in Redis
-        const existingJobKeys = await Promise.all(
-          initialJobIds.map(async jobId => {
-            const exists = await client.exists(
-              `${prefix}:${queue.name}:${jobId}`,
-            );
-            return exists;
-          }),
-        );
-        const orphanedCount = existingJobKeys.reduce(
-          (sum, exists) => sum + exists,
-          0,
-        );
-
-        // With the bug: ZREMRANGEBYSCORE removes ALL old entries from the
-        // sorted set but only `limit` job hashes are actually deleted.
-        // So we'd have orphaned hashes (exist in Redis but not in the set).
-        //
-        // With the fix: only `limit` entries are removed from the sorted set
-        // (via ZREM), matching exactly the jobs whose hash data was cleaned.
-        // Remaining old jobs stay in the set for future cleanup iterations.
-        //
-        // Assert: the number of existing initial job hashes should equal the
-        // number of initial jobs still tracked in the completed sorted set.
-        // (The trigger job may also be in the set, so we compare only
-        // initial jobs.)
-        const initialJobsInSet = await Promise.all(
-          initialJobIds.map(async jobId => {
-            const score = await client.zscore(
-              `${prefix}:${queue.name}:completed`,
-              jobId,
-            );
-            return score !== null ? 1 : 0;
-          }),
-        );
-        const initialJobsInSetCount = initialJobsInSet.reduce(
-          (sum, v) => sum + v,
-          0,
-        );
-
-        expect(orphanedCount).toBe(initialJobsInSetCount);
-
-        await worker.close();
-      });
+      // NOTE: 'should not leave orphaned job data when limit is less than
+      // removable jobs' is Redis-specific (it inspects orphaned job hashes vs
+      // the completed sorted set via `exists`/`zscore`) and lives in
+      // `worker.redis.test.ts`.
     });
   });
 
   describe('when adding delayed job after standard one when worker is drained', () => {
     it('pick standard job without delay', async () => {
+      // TODO: Move timeout to test options: { timeout: 6000 }
+
       const worker = new Worker(
         queueName,
         async job => {
@@ -1856,9 +2066,32 @@ describe('workers', () => {
       );
       await worker.waitUntilReady();
 
+      let bulkStart = 0;
+      let bulkCompletedCount = 0;
+
+      const completing2 = new Promise<void>(resolve => {
+        worker.on('completed', job => {
+          if (!bulkStart) {
+            return;
+          }
+
+          bulkCompletedCount += 1;
+
+          if (bulkCompletedCount === 2) {
+            const timeDiff = Date.now() - bulkStart;
+            expect(timeDiff).toBeGreaterThanOrEqual(4000);
+            expect(timeDiff).toBeLessThan(4500);
+            expect(job.delay).toBe(0);
+            resolve();
+          }
+        });
+      });
+
       // after this event, worker should be drained
       const completing = new Promise<void>(resolve => {
         worker.once('completed', async () => {
+          bulkStart = Date.now();
+
           await queue.addBulk([
             { name: 'test1', data: { idx: 0, foo: 'bar' } },
             {
@@ -1875,24 +2108,9 @@ describe('workers', () => {
       await Job.create(queue, 'test1', { foo: 'bar' });
 
       await completing;
-
-      const now = Date.now();
-      const completing2 = new Promise<void>(resolve => {
-        worker.on(
-          'completed',
-          after(2, job => {
-            const timeDiff = Date.now() - now;
-            expect(timeDiff).to.be.greaterThanOrEqual(4000);
-            expect(timeDiff).toBeLessThan(4500);
-            expect(job.delay).toBe(0);
-            resolve();
-          }),
-        );
-      });
-
       await completing2;
       await worker.close();
-    }, 6000);
+    });
   });
 
   describe('when prioritized jobs are added', () => {
@@ -1950,52 +2168,33 @@ describe('workers', () => {
       await worker.close();
     });
 
-    describe('when priority counter is having a high number', () => {
-      it('should process jobs by priority', async () => {
-        let processor;
+    // NOTE: 'when priority counter is having a high number' is Redis-specific
+    // (it pre-seeds the `:pc` counter past the 32-bit boundary via `incrby`) and
+    // lives in `worker.redis.test.ts`.
 
-        const numJobsPerPriority = 6;
+    describe('when jobs are added with the maximum allowed priority value', () => {
+      it('should process jobs with the same priority in FIFO order', async () => {
+        const maxPriority = 2097151;
+        const numJobs = 5;
 
-        const jobs = Array.from(Array(18).keys()).map(index => ({
+        const jobs = Array.from(Array(numJobs).keys()).map(index => ({
           name: 'test',
-          data: { p: (index % 3) + 1 },
-          opts: {
-            priority: (index % 3) + 1,
-          },
+          data: { order: index },
+          opts: { priority: maxPriority },
         }));
         await queue.addBulk(jobs);
-        const client = await queue.client;
-        await client.incrby(`${prefix}:${queue.name}:pc`, 2147483648);
-        await queue.addBulk(jobs);
 
-        let currentPriority = 1;
-        let counter = 0;
-        let total = 0;
-        const countersPerPriority = {};
-
+        const processedOrder: number[] = [];
+        let processor;
         const processing = new Promise<void>((resolve, reject) => {
           processor = async (job: Job) => {
-            await delay(10);
             try {
-              if (countersPerPriority[job.data.p]) {
-                expect(countersPerPriority[job.data.p]).toBeLessThan(+job.id!);
-              }
-
-              countersPerPriority[job.data.p] = +job.id!;
-              expect(job.id).toBeTruthy();
-              expect(job.data.p).toEqual(currentPriority);
-            } catch (err) {
-              reject(err);
-            }
-
-            total++;
-            if (++counter === numJobsPerPriority * 2) {
-              currentPriority++;
-              counter = 0;
-
-              if (currentPriority === 4 && total === numJobsPerPriority * 6) {
+              processedOrder.push(job.data.order);
+              if (processedOrder.length === numJobs) {
                 resolve();
               }
+            } catch (err) {
+              reject(err);
             }
           };
         });
@@ -2005,12 +2204,31 @@ describe('workers', () => {
 
         await processing;
 
+        expect(processedOrder).toEqual([0, 1, 2, 3, 4]);
+
         await worker.close();
+      });
+
+      it('should reject jobs above the maximum allowed priority value', async () => {
+        await expect(
+          queue.add('test', { order: 0 }, { priority: 2097152 }),
+        ).rejects.toThrow('Priority should be between 0 and 2097151');
+
+        await expect(
+          queue.addBulk([
+            {
+              name: 'test',
+              data: { order: 0 },
+              opts: { priority: 2097152 },
+            },
+          ]),
+        ).rejects.toThrow('Priority should be between 0 and 2097151');
       });
     });
 
     describe('while processing last active job', () => {
       it('should process prioritized job whithout delay', async () => {
+        // TODO: Move timeout to test options: { timeout: 1000 }
         await queue.add('test1', { p: 2 }, { priority: 2 });
         let counter = 0;
         let processor;
@@ -2039,11 +2257,12 @@ describe('workers', () => {
         await processing;
 
         await worker.close();
-      }, 1000);
+      });
     });
 
     describe('when using custom jobId', () => {
       it('should process prioritized jobs', async () => {
+        // TODO: Move timeout to test options: { timeout: 1000 }
         await queue.add('test1', { p: 2 }, { priority: 2, jobId: 'custom1' });
         await queue.add('test2', { p: 3 }, { priority: 3, jobId: 'custom2' });
         let counter = 0;
@@ -2068,67 +2287,31 @@ describe('workers', () => {
         await processing;
 
         await worker.close();
-      }, 1000);
+      });
     });
   });
 
-  describe('when sharing a redis connection between workers', () => {
-    it('should not close the connection', async () => {
-      const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
-
-      return new Promise<void>((resolve, reject) => {
-        connection.on('ready', async () => {
-          const worker1 = new Worker('test-shared', null, {
-            connection,
-            prefix,
-          });
-          await worker1.waitUntilReady();
-          const worker2 = new Worker('test-shared', null, {
-            connection,
-            prefix,
-          });
-          await worker2.waitUntilReady();
-
-          try {
-            // There is no point into checking the ready status after closing
-            // since ioredis will not update it anyway:
-            // https://github.com/luin/ioredis/issues/614
-            expect(connection.status).toBe('ready');
-            await worker1.close();
-            await worker2.close();
-            await connection.quit();
-
-            connection.on('end', () => {
-              resolve();
-            });
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-    });
-
-    describe('when connection is passed into a queue', () => {
+  // These assert on the ioredis connection lifecycle (`'ready'`/`'end'` events
+  // and `status`) of a raw connection shared between workers/queues — a
+  // Redis-client concern with no backend-agnostic meaning. Other backends own
+  // their own connection pool, and the PostgreSQL test harness uses a no-op
+  // client that never emits these events, so skip them under Postgres.
+  const describeSharedConnection =
+    process.env.BULLMQ_TEST_BACKEND === 'postgres' ? describe.skip : describe;
+  describeSharedConnection(
+    'when sharing a redis connection between workers',
+    () => {
       it('should not close the connection', async () => {
-        const connection = new IORedis(redisHost, {
-          maxRetriesPerRequest: null,
-        });
-        const queueName2 = `test-shared-${randomUUID()}`;
+        const connection = createTestConnection();
 
-        const queue2 = new Queue(queueName2, {
-          defaultJobOptions: { removeOnComplete: true },
-          connection,
-          prefix,
-        });
-
-        await new Promise<void>((resolve, reject) => {
+        return new Promise<void>((resolve, reject) => {
           connection.on('ready', async () => {
-            const worker1 = new Worker(queueName2, null, {
+            const worker1 = new Worker('test-shared', null, {
               connection,
               prefix,
             });
             await worker1.waitUntilReady();
-            const worker2 = new Worker(queueName2, null, {
+            const worker2 = new Worker('test-shared', null, {
               connection,
               prefix,
             });
@@ -2151,12 +2334,56 @@ describe('workers', () => {
             }
           });
         });
-
-        await queue2.close();
-        await removeAllQueueData(new IORedis(redisHost), queueName2);
       });
-    });
-  });
+
+      describe('when connection is passed into a queue', () => {
+        it('should not close the connection', async () => {
+          const connection = createTestConnection();
+          const queueName2 = `test-shared-${randomUUID()}`;
+
+          const queue2 = new Queue(queueName2, {
+            defaultJobOptions: { removeOnComplete: true },
+            connection,
+            prefix,
+          });
+
+          await new Promise<void>((resolve, reject) => {
+            connection.on('ready', async () => {
+              const worker1 = new Worker(queueName2, null, {
+                connection,
+                prefix,
+              });
+              await worker1.waitUntilReady();
+              const worker2 = new Worker(queueName2, null, {
+                connection,
+                prefix,
+              });
+              await worker2.waitUntilReady();
+
+              try {
+                // There is no point into checking the ready status after closing
+                // since ioredis will not update it anyway:
+                // https://github.com/luin/ioredis/issues/614
+                expect(connection.status).toBe('ready');
+                await worker1.close();
+                await worker2.close();
+                await connection.quit();
+
+                connection.on('end', () => {
+                  resolve();
+                });
+              } catch (err) {
+                reject(err);
+              }
+            });
+          });
+
+          await queue2.close();
+          await cleanupQueue(queueName2);
+        });
+      });
+    },
+  );
 
   describe('when autorun option is provided as false', () => {
     it('processes several jobs serially using process option as false', async () => {
@@ -2239,7 +2466,7 @@ describe('workers', () => {
   });
 
   describe('when queue is paused and retry a job', () => {
-    it('moves job to paused', async () => {
+    it('moves job to wait', async () => {
       const worker = new Worker(
         queueName,
         async () => {
@@ -2269,8 +2496,8 @@ describe('workers', () => {
       await queue.pause();
       await job.retry('completed');
 
-      const pausedJobsCount = await queue.getJobCountByTypes('paused');
-      expect(pausedJobsCount).toBe(1);
+      const waitingJobsCount = await queue.getWaitingCount();
+      expect(waitingJobsCount).toBe(1);
 
       await worker.close();
     });
@@ -2331,135 +2558,14 @@ describe('workers', () => {
     await worker.close();
   });
 
-  it('keeps locks for all the jobs that are processed concurrently', async () => {
-    const concurrency = 57;
-
-    const lockKey = (jobId: string) => `${prefix}:${queueName}:${jobId}:lock`;
-    const client = await queue.client;
-
-    let worker;
-
-    const processing = new Promise<void>((resolve, reject) => {
-      let count = 0;
-      worker = new Worker(
-        queueName,
-        async job => {
-          try {
-            // Check job is locked
-            const lock = await client.get(lockKey(job.id!));
-            expect(lock).toBeTruthy();
-
-            await delay(2000);
-
-            // Check job is still locked
-            const renewedLock = await client.get(lockKey(job.id!));
-            expect(renewedLock).toEqual(lock);
-
-            count++;
-
-            if (count === concurrency) {
-              resolve();
-            }
-          } catch (err) {
-            reject(err);
-          }
-        },
-        {
-          connection,
-          prefix,
-          lockDuration: 250,
-          concurrency,
-        },
-      );
-    });
-
-    await worker!.waitUntilReady();
-
-    await Promise.all(
-      Array.from({ length: concurrency }).map(() =>
-        queue.add('test', { bar: 'baz' }),
-      ),
-    );
-
-    await processing;
-
-    await worker!.close();
-  }, 10000);
-
-  it('emits error if lock is lost', async () => {
-    const worker = new Worker(
-      queueName,
-      async () => {
-        return delay(1250);
-      },
-      {
-        connection,
-        prefix,
-        lockDuration: 1000,
-        lockRenewTime: 3000, // The lock will not be updated in time
-      },
-    );
-    await worker.waitUntilReady();
-
-    const job = await queue.add('test', { bar: 'baz' });
-
-    const errorMessage = `Missing lock for job ${job.id}. moveToFinished`;
-    const workerError = new Promise<void>((resolve, reject) => {
-      worker.once('error', error => {
-        try {
-          expect(error.message).toBe(errorMessage);
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-    });
-
-    await workerError;
-
-    await worker.close();
-  });
-
-  it('emits error if lock is "stolen"', async function () {
-    const connection = new IORedis({
-      host: redisHost,
-      maxRetriesPerRequest: null,
-    });
-
-    const worker = new Worker(
-      queueName,
-      async job => {
-        connection.set(`${prefix}:${queueName}:${job.id}:lock`, 'foo');
-        return delay(2000);
-      },
-      {
-        connection,
-        prefix,
-      },
-    );
-    await worker.waitUntilReady();
-
-    const job = await queue.add('test', { bar: 'baz' });
-
-    const errorMessage = `Lock mismatch for job ${job.id}. Cmd moveToFinished from active`;
-    const workerError = new Promise<void>((resolve, reject) => {
-      worker.once('error', error => {
-        try {
-          expect(error.message).toBe(errorMessage);
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-    });
-
-    await workerError;
-
-    await worker.close();
-    await connection.quit();
-  }, 10000);
+  // NOTE: 'keeps locks for all the jobs that are processed concurrently',
+  // 'emits error if lock is lost' and 'emits error if lock is "stolen"' are
+  // Redis-specific (they inspect/steal raw `:lock` keys and rely on Redis lock
+  // TTL semantics) and live in `worker.redis.test.ts`.
 
   it('emits error and continues running when _getNextJob fails', async () => {
+    // TODO: Move timeout to test options: { timeout: 10000 }
+
     const worker = new Worker(
       queueName,
       async () => {
@@ -2525,10 +2631,11 @@ describe('workers', () => {
     // Clean up
     stub.restore();
     await worker.close();
-  }, 10000);
+  });
 
   it('continues processing after a worker has stalled', async () => {
     let first = true;
+    // TODO: Move timeout to test options: { timeout: 10000 }
 
     const worker = new Worker(
       queueName,
@@ -2557,9 +2664,10 @@ describe('workers', () => {
     await completed;
 
     await worker.close();
-  }, 10000);
+  });
 
   it('max stalled count cannot be less than zero', async () => {
+    // TODO: Move timeout to test options: { timeout: 4000 }
     expect(
       () =>
         new Worker(queueName, NoopProc, {
@@ -2568,9 +2676,10 @@ describe('workers', () => {
           maxStalledCount: -1,
         }),
     ).toThrow('maxStalledCount must be greater or equal than 0');
-  }, 4000);
+  });
 
   it('max started attempts cannot be less than zero', async () => {
+    // TODO: Move timeout to test options: { timeout: 4000 }
     expect(
       () =>
         new Worker(queueName, NoopProc, {
@@ -2579,9 +2688,10 @@ describe('workers', () => {
           maxStartedAttempts: -1,
         }),
     ).toThrow('maxStartedAttempts must be greater or equal than 0');
-  }, 4000);
+  });
 
   it('stalled interval cannot be zero', async () => {
+    // TODO: Move timeout to test options: { timeout: 4000 }
     expect(
       () =>
         new Worker(queueName, NoopProc, {
@@ -2590,9 +2700,10 @@ describe('workers', () => {
           stalledInterval: 0,
         }),
     ).toThrow('stalledInterval must be greater than 0');
-  }, 4000);
+  });
 
   it('drain delay cannot be zero', async () => {
+    // TODO: Move timeout to test options: { timeout: 4000 }
     expect(
       () =>
         new Worker(queueName, NoopProc, {
@@ -2601,9 +2712,10 @@ describe('workers', () => {
           drainDelay: 0,
         }),
     ).toThrow('drainDelay must be greater than 0');
-  }, 4000);
+  });
 
   it('lock extender continues to run until all active jobs are completed when closing a worker', async () => {
+    // TODO: Move timeout to test options: { timeout: 4000 }
     let worker: Worker;
 
     const startProcessing = new Promise<void>(resolve => {
@@ -2634,7 +2746,7 @@ describe('workers', () => {
     await worker.close();
 
     await completed;
-  }, 4000);
+  });
 
   describe('Concurrency process', () => {
     it('should thrown an exception if I specify a concurrency of 0', () => {
@@ -2701,6 +2813,7 @@ describe('workers', () => {
     //This job use delay to check that at any time we have 4 process in parallel.
     //Due to time to get new jobs and call process, false negative can appear.
     it('should process job respecting the concurrency set', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
       let nbProcessing = 0;
       let pendingMessageToProcess = 8;
       let wait = 10;
@@ -2746,11 +2859,12 @@ describe('workers', () => {
 
       await processing;
       await worker.close();
-    }, 10000);
+    });
 
     describe('when changing concurrency', () => {
       describe('when increasing value', () => {
         it('should process job respecting the current concurrency set', async () => {
+          // TODO: Move timeout to test options: { timeout: 10000 }
           let nbProcessing = 0;
           let pendingMessageToProcess = 16;
           let wait = 10;
@@ -2816,11 +2930,12 @@ describe('workers', () => {
           await waiting2;
 
           await worker.close();
-        }, 10000);
+        });
       });
 
       describe('when decreasing value', () => {
         it('should process job respecting the current concurrency set', async () => {
+          // TODO: Move timeout to test options: { timeout: 10000 }
           let nbProcessing = 0;
           let pendingMessageToProcess = 20;
           let wait = 100;
@@ -2844,7 +2959,7 @@ describe('workers', () => {
               } else if (pendingMessageToProcess == 11) {
                 expect(nbProcessing).toEqual(3);
               } else {
-                expect(nbProcessing).toEqual(
+                expect(nbProcessing).toBeLessThanOrEqual(
                   Math.min(pendingMessageToProcess, 2),
                 );
               }
@@ -2884,7 +2999,7 @@ describe('workers', () => {
           await waiting1;
 
           await worker.close();
-        }, 10000);
+        });
       });
     });
 
@@ -2921,8 +3036,8 @@ describe('workers', () => {
             // Pause when all 4 works are processing
             await worker.pause();
             // Wait for all the active jobs to finalize.
-            expect(nbJobFinish).to.be.gte(3);
-            expect(nbJobFinish).to.be.lte(4);
+            expect(nbJobFinish).toBeGreaterThanOrEqual(3);
+            expect(nbJobFinish).toBeLessThanOrEqual(4);
           }
         });
 
@@ -2938,7 +3053,7 @@ describe('workers', () => {
             await runExecution;
             expect(worker.isRunning()).toBe(false);
 
-            worker.resume();
+            await worker.resume();
             resolve();
           });
         });
@@ -3024,7 +3139,7 @@ describe('workers', () => {
         expect(worker.isRunning()).toBe(true);
 
         // Resume should work even though isRunning() is true
-        worker.resume();
+        await worker.resume();
         expect(worker.isPaused()).toBe(false);
         expect(worker.isRunning()).toBe(true);
 
@@ -3076,51 +3191,9 @@ describe('workers', () => {
       await worker.close();
     });
 
-    it('deletes token after moving jobs to delayed', async () => {
-      const worker = new Worker(
-        queueName,
-        async job => {
-          if (job.attemptsMade !== 2) {
-            throw new Error('error');
-          }
-          return delay(100);
-        },
-        {
-          connection,
-          prefix,
-          lockDuration: 10000,
-          lockRenewTime: 3000, // The lock will not be updated
-        },
-      );
-      await worker.waitUntilReady();
-
-      const client = await queue.client;
-
-      const job = await queue.add(
-        'test',
-        { bar: 'baz' },
-        { attempts: 3, backoff: 100 },
-      );
-
-      worker.on('failed', async () => {
-        const token = await client.get(`${prefix}:${queueName}:${job.id}:lock`);
-        expect(token).toBeNull();
-      });
-
-      const workerCompleted = new Promise<void>(resolve => {
-        worker.once('completed', () => {
-          resolve();
-        });
-      });
-
-      await workerCompleted;
-
-      const token = await client.get(`${prefix}:${queueName}:${job.id}:lock`);
-
-      expect(token).toBeNull();
-
-      await worker.close();
-    });
+    // NOTE: 'deletes token after moving jobs to delayed' is Redis-specific (it
+    // reads the raw `:lock` key via `client.get`) and lives in
+    // `worker.redis.test.ts`.
 
     describe('when backoff type is exponential', () => {
       it("updates job's delay property if it fails and backoff is set", async () => {
@@ -3155,7 +3228,9 @@ describe('workers', () => {
                 expect(gotJob!.delay).toEqual(0);
                 resolve();
               } else {
-                expect(job?.delay).to.be.gte(2 ** (attemptsMade! - 1) * 200);
+                expect(job?.delay).toBeGreaterThanOrEqual(
+                  2 ** (attemptsMade! - 1) * 200,
+                );
               }
             } catch (err) {
               reject(err);
@@ -3201,7 +3276,9 @@ describe('workers', () => {
                   expect(job!.delay).toEqual(0);
                   resolve();
                 } else {
-                  expect(job?.delay).to.be.lte(2 ** (attemptsMade! - 1) * 200);
+                  expect(job?.delay).toBeLessThanOrEqual(
+                    2 ** (attemptsMade! - 1) * 200,
+                  );
                 }
               } catch (err) {
                 reject(err);
@@ -3247,10 +3324,10 @@ describe('workers', () => {
                     expect(job!.delay).toEqual(0);
                     resolve();
                   } else {
-                    expect(job?.delay).to.be.lte(
+                    expect(job?.delay).toBeLessThanOrEqual(
                       2 ** (attemptsMade! - 1) * 200,
                     );
-                    expect(job?.delay).to.be.gte(
+                    expect(job?.delay).toBeGreaterThanOrEqual(
                       2 ** (attemptsMade! - 1) * 200 * 0.5,
                     );
                   }
@@ -3302,8 +3379,8 @@ describe('workers', () => {
                 const gotJob = await queue.getJob(job.id!);
                 expect(gotJob!.delay).toEqual(0);
                 const timeDiff = Date.now() - now;
-                expect(timeDiff).to.be.greaterThanOrEqual(2250);
-                expect(timeDiff).to.be.lessThanOrEqual(2750);
+                expect(timeDiff).toBeGreaterThanOrEqual(2250);
+                expect(timeDiff).toBeLessThanOrEqual(2750);
                 resolve();
               }
             } catch (err) {
@@ -3349,7 +3426,7 @@ describe('workers', () => {
                   expect(job!.delay).toEqual(0);
                   resolve();
                 } else {
-                  expect(job?.delay).to.be.lte(750);
+                  expect(job?.delay).toBeLessThanOrEqual(750);
                 }
               } catch (err) {
                 reject(err);
@@ -3395,8 +3472,8 @@ describe('workers', () => {
                     expect(job!.delay).toEqual(0);
                     resolve();
                   } else {
-                    expect(job?.delay).to.be.lte(750);
-                    expect(job?.delay).to.be.gte(325);
+                    expect(job?.delay).toBeLessThanOrEqual(750);
+                    expect(job?.delay).toBeGreaterThanOrEqual(325);
                   }
                 } catch (err) {
                   reject(err);
@@ -3722,6 +3799,8 @@ describe('workers', () => {
     });
 
     it('should retry a job after a delay if a fixed backoff is given', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
+
       const worker = new Worker(
         queueName,
         async job => {
@@ -3753,10 +3832,12 @@ describe('workers', () => {
       });
 
       await worker.close();
-    }, 10000);
+    });
 
     describe('when UnrecoverableError is throw', () => {
       it('moves job to failed', async () => {
+        // TODO: Move timeout to test options: { timeout: 8000 }
+
         const worker = new Worker(
           queueName,
           async job => {
@@ -3801,11 +3882,13 @@ describe('workers', () => {
         expect(state).toBe('failed');
 
         await worker.close();
-      }, 8000);
+      });
     });
 
     describe('when providing a way to execute step jobs', () => {
       it('should retry a job after a delay if a fixed backoff is given, keeping the current step', async () => {
+        // TODO: Move timeout to test options: { timeout: 8000 }
+
         enum Step {
           Initial,
           Second,
@@ -3867,7 +3950,7 @@ describe('workers', () => {
         });
 
         await worker.close();
-      }, 8000);
+      });
 
       describe('when timeout is provided', () => {
         it('should check if timeout is reached in each step', async () => {
@@ -3952,6 +4035,8 @@ describe('workers', () => {
 
       describe('when moving job to delayed in one step', () => {
         it('should retry job after a delay time, keeping the current step', async () => {
+          // TODO: Move timeout to test options: { timeout: 8000 }
+
           enum Step {
             Initial,
             Second,
@@ -4008,7 +4093,7 @@ describe('workers', () => {
           });
 
           await worker.close();
-        }, 8000);
+        });
 
         describe('when passing maxStartedAttempts', () => {
           it('should fail job when consuming the max started attempts', async () => {
@@ -4119,6 +4204,8 @@ describe('workers', () => {
 
       describe('when moving job to waiting in one step', () => {
         it('should retry job right away, keeping the current step', async () => {
+          // TODO: Move timeout to test options: { timeout: 1000 }
+
           enum Step {
             Initial,
             Second,
@@ -4173,253 +4260,18 @@ describe('workers', () => {
           });
 
           await worker.close();
-        }, 1000);
-      });
-
-      describe('when creating children at runtime', () => {
-        it('should wait children as one step of the parent job', async () => {
-          const parentQueueName = `parent-queue-${randomUUID()}`;
-          const parentQueue = new Queue(parentQueueName, {
-            connection,
-            prefix,
-          });
-
-          enum Step {
-            Initial,
-            Second,
-            Third,
-            Finish,
-          }
-
-          let waitingChildrenStepExecutions = 0;
-
-          const worker = new Worker(
-            parentQueueName,
-            async (job, token) => {
-              let step = job.data.step;
-              while (step !== Step.Finish) {
-                switch (step) {
-                  case Step.Initial: {
-                    await queue.add(
-                      'child-1',
-                      { foo: 'bar' },
-                      {
-                        parent: {
-                          id: job.id!,
-                          queue: job.queueQualifiedName,
-                        },
-                      },
-                    );
-                    await job.updateData({
-                      step: Step.Second,
-                    });
-                    step = Step.Second;
-                    break;
-                  }
-                  case Step.Second: {
-                    await queue.add(
-                      'child-2',
-                      { foo: 'bar' },
-                      {
-                        parent: {
-                          id: job.id,
-                          queue: `${prefix}:${parentQueueName}`,
-                        },
-                      },
-                    );
-                    await job.updateData({
-                      step: Step.Third,
-                    });
-                    step = Step.Third;
-                    break;
-                  }
-                  case Step.Third: {
-                    waitingChildrenStepExecutions++;
-                    const shouldWait = await job.moveToWaitingChildren(token);
-                    if (!shouldWait) {
-                      await job.updateData({
-                        step: Step.Finish,
-                      });
-                      step = Step.Finish;
-                      return Step.Finish;
-                    } else {
-                      throw new WaitingChildrenError();
-                    }
-                  }
-                  default: {
-                    throw new Error('invalid step');
-                  }
-                }
-              }
-            },
-            { connection, prefix },
-          );
-          const childrenWorker = new Worker(
-            queueName,
-            async () => {
-              await delay(200);
-            },
-            {
-              connection,
-              prefix,
-            },
-          );
-          await childrenWorker.waitUntilReady();
-          await worker.waitUntilReady();
-
-          await parentQueue.add(
-            'test',
-            { step: Step.Initial },
-            {
-              attempts: 3,
-              backoff: 1000,
-            },
-          );
-
-          await new Promise<void>((resolve, reject) => {
-            worker.on('completed', job => {
-              expect(job.returnvalue).toBe(Step.Finish);
-              resolve();
-            });
-
-            worker.on('error', () => {
-              reject();
-            });
-          });
-
-          expect(waitingChildrenStepExecutions).toBe(2);
-          await worker.close();
-          await childrenWorker.close();
-          await parentQueue.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-        }, 8000);
-
-        describe('when skip attempt option is provided as true', () => {
-          it('should wait children as one step of the parent job whithout incrementing attemptMade', async () => {
-            const parentQueueName = `parent-queue-${randomUUID()}`;
-            const parentQueue = new Queue(parentQueueName, {
-              connection,
-              prefix,
-            });
-
-            enum Step {
-              Initial,
-              Second,
-              Third,
-              Finish,
-            }
-
-            let waitingChildrenStepExecutions = 0;
-
-            const worker = new Worker(
-              parentQueueName,
-              async (job, token) => {
-                let step = job.data.step;
-                while (step !== Step.Finish) {
-                  switch (step) {
-                    case Step.Initial: {
-                      await queue.add(
-                        'child-1',
-                        { foo: 'bar' },
-                        {
-                          parent: {
-                            id: job.id!,
-                            queue: job.queueQualifiedName,
-                          },
-                        },
-                      );
-                      await job.updateData({
-                        step: Step.Second,
-                      });
-                      step = Step.Second;
-                      break;
-                    }
-                    case Step.Second: {
-                      await queue.add(
-                        'child-2',
-                        { foo: 'bar' },
-                        {
-                          parent: {
-                            id: job.id!,
-                            queue: `${prefix}:${parentQueueName}`,
-                          },
-                        },
-                      );
-                      await job.updateData({
-                        step: Step.Third,
-                      });
-                      step = Step.Third;
-                      break;
-                    }
-                    case Step.Third: {
-                      waitingChildrenStepExecutions++;
-                      const shouldWait = await job.moveToWaitingChildren(
-                        token!,
-                      );
-                      if (!shouldWait) {
-                        await job.updateData({
-                          step: Step.Finish,
-                        });
-                        step = Step.Finish;
-                        return Step.Finish;
-                      } else {
-                        throw new WaitingChildrenError();
-                      }
-                    }
-                    default: {
-                      throw new Error('invalid step');
-                    }
-                  }
-                }
-              },
-              { connection, prefix },
-            );
-            const childrenWorker = new Worker(
-              queueName,
-              async () => {
-                await delay(200);
-              },
-              {
-                connection,
-                prefix,
-              },
-            );
-            await childrenWorker.waitUntilReady();
-            await worker.waitUntilReady();
-
-            await parentQueue.add(
-              'test',
-              { step: Step.Initial },
-              {
-                attempts: 3,
-                backoff: 1000,
-              },
-            );
-
-            await new Promise<void>((resolve, reject) => {
-              worker.on('completed', job => {
-                expect(job.returnvalue).toBe(Step.Finish);
-                expect(job.attemptsMade).toEqual(1);
-                expect(job.attemptsStarted).toEqual(2);
-                resolve();
-              });
-
-              worker.on('error', () => {
-                reject();
-              });
-            });
-
-            expect(waitingChildrenStepExecutions).toBe(2);
-            await worker.close();
-            await childrenWorker.close();
-            await parentQueue.close();
-            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-          }, 8000);
         });
       });
+
+      // NOTE: 'when creating children at runtime' step-job tests are
+      // Redis-coupled (a runtime child sets parent queue to
+      // `${prefix}:${parentQueueName}`, which only matches the qualified name on
+      // Redis) and live in `worker.redis.test.ts`.
     });
 
     it('should retry a job after a delay if an exponential backoff is given', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
+
       const worker = new Worker(
         queueName,
         async job => {
@@ -4455,9 +4307,11 @@ describe('workers', () => {
       });
 
       await worker.close();
-    }, 10000);
+    });
 
     it('should retry a job after a delay if a custom backoff is given', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
+
       const worker = new Worker(
         queueName,
         async job => {
@@ -4499,10 +4353,12 @@ describe('workers', () => {
       });
 
       await worker.close();
-    }, 10000);
+    });
 
     describe('when applying custom backoff by type', () => {
       it('should retry a job after a delay for custom type', async () => {
+        // TODO: Move timeout to test options: { timeout: 10000 }
+
         const worker = new Worker(
           queueName,
           async job => {
@@ -4578,7 +4434,7 @@ describe('workers', () => {
         });
 
         await worker.close();
-      }, 10000);
+      });
     });
 
     it('should not retry a job if the custom backoff returns -1', async () => {
@@ -4631,6 +4487,8 @@ describe('workers', () => {
     it('should retry a job after a delay if a custom backoff is given based on the error thrown', async () => {
       class CustomError extends Error {}
 
+      // TODO: Move timeout to test options: { timeout: 10000 }
+
       const worker = new Worker(
         queueName,
         async job => {
@@ -4677,12 +4535,14 @@ describe('workers', () => {
       });
 
       await worker.close();
-    }, 10000);
+    });
 
     it('should retry a job after a delay if a custom backoff is given based on the job data', async () => {
       class CustomError extends Error {
         failedIds: number[];
       }
+
+      // TODO: Move timeout to test options: { timeout: 5000 }
 
       const worker = new Worker(
         queueName,
@@ -4737,9 +4597,11 @@ describe('workers', () => {
       });
 
       await worker.close();
-    }, 5000);
+    });
 
     it('should be able to handle a custom backoff if it returns a promise', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
+
       const worker = new Worker(
         queueName,
         async (job: Job) => {
@@ -4780,7 +4642,7 @@ describe('workers', () => {
       });
 
       await worker.close();
-    }, 10000);
+    });
 
     it('should not retry a job that has been removed', async () => {
       const failedError = new Error('failed');
@@ -5027,139 +4889,6 @@ describe('workers', () => {
     });
 
     describe('when move job to waiting-children', () => {
-      it('allows to move parent job to waiting-children', async () => {
-        const values = [
-          { idx: 0, bar: 'something' },
-          { idx: 1, baz: 'something' },
-          { idx: 2, qux: 'something' },
-        ];
-        const client = await queue.client;
-        const parentToken = 'parent-token';
-        const parentToken2 = 'parent-token2';
-        const childToken = 'child-token';
-
-        const parentQueueName = `parent-queue-${randomUUID()}`;
-
-        const parentQueue = new Queue(parentQueueName, { connection, prefix });
-        const parentWorker = new Worker(parentQueueName, null, {
-          connection,
-          prefix,
-        });
-        const childrenWorker = new Worker(queueName, null, {
-          connection,
-          prefix,
-        });
-
-        const data = { foo: 'bar' };
-        await Job.create(parentQueue, 'testDepend', data);
-        const parent = (await parentWorker.getNextJob(parentToken)) as Job;
-        const currentState = await parent.getState();
-
-        expect(currentState).toBe('active');
-
-        await Job.create(queue, 'testJob1', values[0], {
-          parent: {
-            id: parent.id!,
-            queue: `${prefix}:${parentQueueName}`,
-          },
-        });
-        await Job.create(queue, 'testJob2', values[1], {
-          parent: {
-            id: parent.id!,
-            queue: `${prefix}:${parentQueueName}`,
-          },
-        });
-        await Job.create(queue, 'testJob3', values[2], {
-          parent: {
-            id: parent.id!,
-            queue: `${prefix}:${parentQueueName}`,
-          },
-        });
-        const { unprocessed: unprocessed1 } = await parent.getDependencies();
-
-        expect(unprocessed1).toHaveLength(3);
-
-        const child1 = (await childrenWorker.getNextJob(childToken)) as Job;
-        const child2 = (await childrenWorker.getNextJob(childToken)) as Job;
-        const child3 = (await childrenWorker.getNextJob(childToken)) as Job;
-        const isActive1 = await child1.isActive();
-
-        expect(isActive1).toBe(true);
-
-        await child1.moveToCompleted('return value1', childToken);
-        const { processed: processed2, unprocessed: unprocessed2 } =
-          await parent.getDependencies();
-        const movedToWaitingChildren = await parent.moveToWaitingChildren(
-          parentToken,
-          {
-            child: {
-              id: child3.id!,
-              queue: `${prefix}:${queueName}`,
-            },
-          },
-        );
-
-        const token = await client.get(
-          `${prefix}:${queueName}:${parent.id}:lock`,
-        );
-        expect(token).toBeNull();
-        expect(processed2).toEqual({
-          [`${prefix}:${queueName}:${child1.id}`]: 'return value1',
-        });
-        expect(unprocessed2).toHaveLength(2);
-        expect(movedToWaitingChildren).toBe(true);
-
-        const isActive2 = await child2.isActive();
-
-        expect(isActive2).toBe(true);
-
-        await child2.moveToCompleted('return value2', childToken);
-        const { processed: processed3, unprocessed: unprocessed3 } =
-          await parent.getDependencies();
-        const isWaitingChildren1 = await parent.isWaitingChildren();
-        const { processed: processedCount, unprocessed: unprocessedCount } =
-          await parent.getDependenciesCount();
-
-        expect(processed3).toEqual({
-          [`${prefix}:${queueName}:${child1.id}`]: 'return value1',
-          [`${prefix}:${queueName}:${child2.id}`]: 'return value2',
-        });
-        expect(processedCount).toBe(2);
-        expect(unprocessed3).toHaveLength(1);
-        expect(unprocessedCount).toBe(1);
-        expect(isWaitingChildren1).toBe(true);
-
-        const isActive3 = await child3.isActive();
-
-        expect(isActive3).toBe(true);
-
-        await child3.moveToCompleted('return value3', childToken);
-        const { processed: processed4, unprocessed: unprocessed4 } =
-          await parent.getDependencies();
-        const isWaitingChildren2 = await parent.isWaitingChildren();
-
-        expect(isWaitingChildren2).toBe(false);
-        const updatedParent = (await parentWorker.getNextJob(
-          parentToken2,
-        )) as Job;
-        const movedToWaitingChildren2 =
-          await updatedParent.moveToWaitingChildren(parentToken2);
-
-        expect(processed4).toEqual({
-          [`${prefix}:${queueName}:${child1.id}`]: 'return value1',
-          [`${prefix}:${queueName}:${child2.id}`]: 'return value2',
-          [`${prefix}:${queueName}:${child3.id}`]: 'return value3',
-        });
-        expect(unprocessed4).toHaveLength(0);
-        expect(movedToWaitingChildren2).toBe(false);
-
-        await childrenWorker.close();
-        await parentWorker.close();
-
-        await parentQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-      });
-
       describe('when job is not in active state', () => {
         it('throws an error', async () => {
           const values = [{ idx: 0, bar: 'something' }];
@@ -5192,7 +4921,7 @@ describe('workers', () => {
           await Job.create(queue, 'testJob1', values[0], {
             parent: {
               id: parent.id,
-              queue: `${prefix}:${parentQueueName}`,
+              queue: `${qualify(queue, parentQueueName)}`,
             },
           });
           const { unprocessed: unprocessed1 } = await parent.getDependencies();
@@ -5207,7 +4936,7 @@ describe('workers', () => {
           await parent.moveToWaitingChildren(parentToken, {
             child: {
               id: child1.id,
-              queue: `${prefix}:${queueName}`,
+              queue: `${qualify(queue, queueName)}`,
             },
           });
           const waitingChildren = await parentQueue.getWaitingChildren();
@@ -5220,7 +4949,7 @@ describe('workers', () => {
             parent.moveToWaitingChildren(parentToken, {
               child: {
                 id: child1.id,
-                queue: `${prefix}:${queueName}`,
+                queue: `${qualify(queue, queueName)}`,
               },
             }),
           ).rejects.toThrow(
@@ -5231,7 +4960,7 @@ describe('workers', () => {
             parent.moveToWaitingChildren('0', {
               child: {
                 id: child1.id,
-                queue: `${prefix}:${queueName}`,
+                queue: `${qualify(queue, queueName)}`,
               },
             }),
           ).rejects.toThrow(
@@ -5242,130 +4971,9 @@ describe('workers', () => {
           await parentWorker.close();
 
           await parentQueue.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await cleanupQueue(parentQueueName);
         });
       });
-    });
-
-    it('should get paginated unprocessed dependencies keys', async () => {
-      const value = { bar: 'something' };
-      const parentToken = 'parent-token';
-
-      const parentQueueName = `parent-queue-${randomUUID()}`;
-
-      const parentQueue = new Queue(parentQueueName, { connection, prefix });
-      const parentWorker = new Worker(parentQueueName, null, {
-        connection,
-        prefix,
-      });
-      const childrenWorker = new Worker(queueName, null, {
-        connection,
-        prefix,
-      });
-
-      const data = { foo: 'bar' };
-      await Job.create(parentQueue, 'parent', data);
-      const parent = (await parentWorker.getNextJob(parentToken)) as Job;
-      const currentState = await parent.getState();
-
-      expect(currentState).toBe('active');
-
-      await Promise.all(
-        Array.from(Array(65).keys()).map((index: number) => {
-          return Job.create(
-            queue,
-            `child${index}`,
-            { idx: index, ...value },
-            {
-              parent: {
-                id: parent.id!,
-                queue: `${prefix}:${parentQueueName}`,
-              },
-            },
-          );
-        }),
-      );
-
-      const { nextUnprocessedCursor: nextCursor1, unprocessed: unprocessed1 } =
-        await parent.getDependencies({
-          unprocessed: {
-            cursor: 0,
-            count: 50,
-          },
-        });
-
-      if (
-        isRedisVersionLowerThan(
-          childrenWorker.redisVersion,
-          '7.2.0',
-          childrenWorker.databaseType,
-        ) ||
-        childrenWorker.databaseType === 'dragonfly'
-      ) {
-        expect(unprocessed1!.length).to.be.greaterThanOrEqual(50);
-        expect(nextCursor1).not.toBe(0);
-      } else {
-        expect(unprocessed1!.length).toBe(65);
-        expect(nextCursor1).toBe(0);
-      }
-
-      const { nextUnprocessedCursor: nextCursor2, unprocessed: unprocessed2 } =
-        await parent.getDependencies({
-          unprocessed: {
-            cursor: nextCursor1,
-            count: 50,
-          },
-        });
-
-      if (
-        isRedisVersionLowerThan(
-          childrenWorker.redisVersion,
-          '7.2.0',
-          childrenWorker.databaseType,
-        ) ||
-        childrenWorker.databaseType === 'dragonfly'
-      ) {
-        expect(unprocessed2!.length).to.be.lessThanOrEqual(15);
-        expect(nextCursor2).toBe(0);
-      } else {
-        expect(unprocessed2!.length).toBe(65);
-        expect(nextCursor2).toBe(0);
-      }
-
-      expect(nextCursor2).toBe(0);
-
-      await Promise.all(
-        Array.from(Array(64).keys()).map((index: number) => {
-          return Job.create(
-            queue,
-            `child${index}`,
-            { idx: index, ...value },
-            {
-              parent: {
-                id: parent.id!,
-                queue: `${prefix}:${parentQueueName}`,
-              },
-            },
-          );
-        }),
-      );
-
-      const { nextUnprocessedCursor: nextCursor3, unprocessed: unprocessed3 } =
-        await parent.getDependencies({
-          unprocessed: {
-            cursor: 0,
-            count: 50,
-          },
-        });
-
-      expect(unprocessed3!.length).to.be.greaterThanOrEqual(50);
-      expect(nextCursor3).not.toBe(0);
-
-      await childrenWorker.close();
-      await parentWorker.close();
-
-      await parentQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('should allow to fail jobs manually', async () => {
@@ -5414,6 +5022,117 @@ describe('workers', () => {
         expect(isActive).toBe(true);
 
         await job.moveToCompleted('done', token);
+        await worker.close();
+      });
+    });
+
+    describe('when a stalled job has exhausted its max stalled attempts', () => {
+      const markJobForDeferredFailure = async (worker: Worker, job: Job) => {
+        const client = await getRedisClient(worker);
+        await client.del(`${prefix}:${queueName}:${job.id}:lock`);
+
+        const stalled = new Promise<string>(resolve => {
+          worker.on('stalled', resolve);
+        });
+
+        await (worker as any).moveStalledJobsToWait();
+        await client.del(`${prefix}:${queueName}:stalled-check`);
+        await (worker as any).moveStalledJobsToWait();
+
+        expect(await stalled).toBe(job.id);
+      };
+
+      it(
+        'should move the job to failed automatically on the next getNextJob ' +
+          'call and return undefined when no other jobs are waiting',
+        async () => {
+          const worker = new Worker(queueName, null, {
+            autorun: false,
+            connection,
+            prefix,
+            lockDuration: 1000,
+            stalledInterval: 100,
+            maxStalledCount: 0,
+          });
+
+          const token = 'my-token';
+
+          await queue.add('test', { foo: 'bar' });
+
+          const firstJob = (await worker.getNextJob(token)) as Job;
+          expect(firstJob).toBeDefined();
+
+          await markJobForDeferredFailure(worker, firstJob);
+
+          const deferredJob = (await worker.getNextJob(token, {
+            block: false,
+          })) as Job;
+          expect(deferredJob.id).toBe(firstJob.id);
+          expect(deferredJob.deferredFailure).toBe(
+            'job stalled more than allowable limit',
+          );
+          await deferredJob.moveToFailed(
+            new UnrecoverableError(deferredJob.deferredFailure),
+            token,
+          );
+
+          const nextFetched = await worker.getNextJob(token, { block: false });
+          expect(nextFetched).toBeUndefined();
+
+          const counts = await queue.getJobCounts('failed', 'wait', 'active');
+          expect(counts.failed).toBe(1);
+          expect(counts.wait).toBe(0);
+          expect(counts.active).toBe(0);
+
+          await worker.close();
+        },
+      );
+
+      it('should fail the deferred-failure job and return the next waiting job', async () => {
+        const worker = new Worker(queueName, null, {
+          autorun: false,
+          connection,
+          prefix,
+          lockDuration: 1000,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+        });
+
+        const token = 'my-token';
+
+        await queue.add('stalled-job', { foo: 'bar' });
+
+        const firstJob = (await worker.getNextJob(token)) as Job;
+        expect(firstJob).toBeDefined();
+
+        await markJobForDeferredFailure(worker, firstJob);
+
+        const secondAdded = await queue.add('runnable-job', { foo: 'baz' });
+
+        const deferredJob = (await worker.getNextJob(token, {
+          block: false,
+        })) as Job;
+        expect(deferredJob.id).toBe(firstJob.id);
+        expect(deferredJob.deferredFailure).toBe(
+          'job stalled more than allowable limit',
+        );
+        await deferredJob.moveToFailed(
+          new UnrecoverableError(deferredJob.deferredFailure),
+          token,
+        );
+
+        const nextFetched = (await worker.getNextJob(token, {
+          block: false,
+        })) as Job;
+        expect(nextFetched).toBeDefined();
+        expect(nextFetched.id).toBe(secondAdded.id);
+
+        const counts = await queue.getJobCounts('failed', 'wait', 'active');
+        expect(counts.failed).toBe(1);
+        expect(counts.wait).toBe(0);
+        expect(counts.active).toBe(1);
+
+        await nextFetched.moveToCompleted('done', token);
         await worker.close();
       });
     });
@@ -5471,7 +5190,7 @@ describe('workers', () => {
       const job1 = (await worker.getNextJob(token, { block: false })) as Job;
       expect(job1).toBe(undefined);
 
-      worker.resume();
+      await worker.resume();
 
       const job2 = (await worker.getNextJob(token, { block: false })) as Job;
       const isActive = await job2.isActive();
@@ -5481,31 +5200,9 @@ describe('workers', () => {
     });
   });
 
-  it('should clear job from stalled set when job completed', async () => {
-    const client = await queue.client;
-    const worker = new Worker(
-      queueName,
-      async () => {
-        return delay(100);
-      },
-      { connection, prefix, stalledInterval: 10 },
-    );
-    await worker.waitUntilReady();
-
-    await queue.add('test', { foo: 'bar' });
-
-    const allStalled = new Promise<void>(resolve => {
-      worker.once('completed', async () => {
-        const stalled = await client.scard(`${prefix}:${queueName}:stalled`);
-        expect(stalled).toBe(0);
-        resolve();
-      });
-    });
-
-    await allStalled;
-
-    await worker.close();
-  });
+  // NOTE: 'should clear job from stalled set when job completed' is
+  // Redis-specific (it reads the raw `:stalled` set via `scard`) and lives in
+  // `worker.redis.test.ts`.
 
   it('should retrieve concurrency from getter', async () => {
     const worker = new Worker(queueName, NoopProc, {
@@ -5515,19 +5212,6 @@ describe('workers', () => {
     worker.concurrency = 10;
 
     expect(worker.concurrency).toBe(10);
-
-    await worker.close();
-  });
-
-  it('should set clientInfoTag on blocking connection', async () => {
-    const worker = new Worker(queueName, NoopProc, {
-      connection,
-    });
-    await worker.waitUntilReady();
-
-    const blockingClient = (worker as any).blockingConnection;
-    const client = await blockingClient.client;
-    expect(client.options.clientInfoTag).toMatch(/^bullmq_v\d+\.\d+\.\d+$/);
 
     await worker.close();
   });

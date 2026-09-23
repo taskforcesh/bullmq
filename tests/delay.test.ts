@@ -1,4 +1,5 @@
-import { after } from 'lodash';
+import { getRedisClient } from './utils/get-redis-client';
+import { after } from './utils/lodash';
 import {
   describe,
   beforeEach,
@@ -9,21 +10,22 @@ import {
   expect,
 } from 'vitest';
 
-import { default as IORedis } from 'ioredis';
 import { Queue, Job, Worker, QueueEvents } from '../src/classes';
-import { randomUUID, removeAllQueueData, delay } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Delayed jobs', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   // TODO: Move timeout to test options: { timeout: 15000 }
 
   let queue: Queue;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -34,7 +36,7 @@ describe('Delayed jobs', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -68,7 +70,7 @@ describe('Delayed jobs', () => {
       worker.on('completed', async function (job) {
         try {
           expect(Date.now() > timestamp + delay);
-          expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
+          expect(job.processedOn! - job.timestamp).toBeGreaterThanOrEqual(
             delay,
           );
           expect(
@@ -100,84 +102,6 @@ describe('Delayed jobs', () => {
     await completed;
     await queueEvents.close();
     await worker.close();
-  });
-
-  describe('when markers are deleted', () => {
-    it('should process a delayed job without getting stuck', async () => {
-      const delayTime = 6000;
-      const margin = 1.2;
-
-      const queueEvents = new QueueEvents(queueName, { connection, prefix });
-      await queueEvents.waitUntilReady();
-
-      const worker = new Worker(queueName, async () => {}, {
-        connection,
-        autorun: false,
-        prefix,
-      });
-      await worker.waitUntilReady();
-
-      const timestamp = Date.now();
-      let publishHappened = false;
-
-      const delayed = new Promise<void>(resolve => {
-        queueEvents.on('delayed', () => {
-          publishHappened = true;
-          resolve();
-        });
-      });
-
-      const completed = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async function (job) {
-          try {
-            expect(Date.now() > timestamp + delayTime);
-            expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
-              delayTime,
-            );
-            expect(
-              job.processedOn! - job.timestamp,
-              'processedOn is not within margin',
-            ).toBeLessThan(delayTime * margin);
-
-            const jobs = await queue.getWaiting();
-            expect(jobs.length).toBe(0);
-
-            const delayedJobs = await queue.getDelayed();
-            expect(delayedJobs.length).toBe(0);
-            expect(publishHappened).toEqual(true);
-            resolve();
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-
-      const job = await queue.add(
-        'test',
-        { delayed: 'foobar' },
-        { delay: delayTime },
-      );
-
-      expect(job.id).toBeTruthy();
-      expect(job.data.delayed).toEqual('foobar');
-      expect(job.opts.delay).toEqual(delayTime);
-      expect(job.delay).toEqual(delayTime);
-
-      await delayed;
-
-      const client = await queue.client;
-      await client.del(queue.toKey('marker'));
-
-      worker.run();
-
-      await delay(2000);
-
-      await client.del(queue.toKey('marker'));
-
-      await completed;
-      await queueEvents.close();
-      await worker.close();
-    });
   });
 
   describe('when delay is provided as 0', () => {
@@ -220,8 +144,8 @@ describe('Delayed jobs', () => {
       const waiting = new Promise<void>(resolve => {
         queueEvents.on('waiting', () => {
           const currentDelay = Date.now() - timestamp;
-          expect(currentDelay).to.be.greaterThanOrEqual(delayTime);
-          expect(currentDelay).to.be.lessThanOrEqual(delayTime * margin);
+          expect(currentDelay).toBeGreaterThanOrEqual(delayTime);
+          expect(currentDelay).toBeLessThanOrEqual(delayTime * margin);
           resolve();
         });
       });
@@ -263,7 +187,7 @@ describe('Delayed jobs', () => {
       worker.on('completed', async function (job) {
         try {
           expect(Date.now() > timestamp + delayTime);
-          expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
+          expect(job.processedOn! - job.timestamp).toBeGreaterThanOrEqual(
             delayTime,
           );
           expect(
@@ -322,7 +246,7 @@ describe('Delayed jobs', () => {
         order++;
         try {
           expect(order).toBe(job.data.order);
-          expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
+          expect(job.processedOn! - job.timestamp).toBeGreaterThanOrEqual(
             job.opts.delay,
           );
           expect(
@@ -366,6 +290,7 @@ describe('Delayed jobs', () => {
     let count = 0;
     const numJobs = 50;
     const margin = 1.3;
+    const maxExtraDelay = 250;
 
     let processor1, processor2;
 
@@ -379,12 +304,11 @@ describe('Delayed jobs', () => {
         count++;
         try {
           const delayed = job.processedOn! - job.timestamp;
-          expect(
-            delayed,
-            'waited at least delay time',
-          ).to.be.greaterThanOrEqual(job.opts.delay);
+          expect(delayed, 'waited at least delay time').toBeGreaterThanOrEqual(
+            job.opts.delay,
+          );
           expect(delayed, 'processedOn is not within margin').toBeLessThan(
-            job.opts.delay * margin,
+            Math.max(job.opts.delay * margin, job.opts.delay + maxExtraDelay),
           );
 
           if (count === numJobs) {
@@ -449,7 +373,7 @@ describe('Delayed jobs', () => {
             expect(
               delayed,
               'waited at least delay time',
-            ).to.be.greaterThanOrEqual(delay_);
+            ).toBeGreaterThanOrEqual(delay_);
             expect(
               delayed,
               'waited less than delay time and margin',

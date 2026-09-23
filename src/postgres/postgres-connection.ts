@@ -1,0 +1,496 @@
+import { EventEmitter } from 'events';
+import {
+  isPgPool,
+  PgClient,
+  PgListenClient,
+  PgModule,
+  PgPool,
+  PgPoolClient,
+  PgPoolConfig,
+} from './pg-types';
+import {
+  assertSchemaCompatibility,
+  DEFAULT_SCHEMA,
+  quoteSchemaName,
+  runMigrations,
+} from './migrator';
+
+/**
+ * A node-postgres pool config / connection string, optionally carrying the
+ * BullMQ-specific `schema` (the connection-level namespace for all queues),
+ * `migrate` / `skipMigrations` (explicit migration mode), and
+ * `skipVersionCheck` options.
+ */
+export type PostgresPoolConfig = PgPoolConfig & {
+  schema?: string;
+  skipVersionCheck?: boolean;
+  migrate?: boolean;
+  skipMigrations?: boolean;
+};
+
+/**
+ * What the user may pass as the PostgreSQL `connection` option:
+ *
+ * - an already-constructed `pg.Pool` instance (we use it as-is and do NOT close
+ *   it on `close()` — the caller owns its lifecycle), or
+ * - a node-postgres pool config / connection string (we lazily `require('pg')`
+ *   and construct the pool ourselves, owning its lifecycle).
+ *
+ * The optional `schema` (the namespace for all queues) is only read from the
+ * **config-object** form, because that is the only case where we build the pool
+ * ourselves and can pin each connection's `search_path` to it. A bare
+ * connection string or an already-constructed `pg.Pool` always uses
+ * {@link DEFAULT_SCHEMA} — a raw pool cannot carry a `schema`, and we cannot set
+ * the `search_path` on a pool we did not create. To select a different schema,
+ * pass a config object (a connection string can be wrapped as
+ * `{ connectionString, schema }`; a pre-built pool must be configured with the
+ * desired `search_path` by the caller).
+ */
+export type PostgresConnectionOptions = PgPool | PostgresPoolConfig | string;
+
+/**
+ * Lazily loads the optional `pg` (node-postgres) driver. Redis-only users never
+ * hit this path, so they never need `pg` installed.
+ *
+ * Only reached when the caller passes a config/connection string (not an
+ * already-constructed `pg.Pool`). In native ESM environments where `require` is
+ * unavailable, callers should pass a `pg.Pool` instance instead.
+ */
+function loadPgModule(): PgModule {
+  try {
+    if (typeof require === 'function') {
+      return require('pg') as PgModule;
+    }
+  } catch {
+    // Fall through to the friendly error below.
+  }
+  throw new Error(
+    "The PostgreSQL backend could not load the optional 'pg' package. " +
+      'Install it with `npm install pg`. In a native ESM environment, pass an ' +
+      'already-constructed `pg.Pool` instance as the connection instead of a ' +
+      'config object or connection string.',
+  );
+}
+
+/**
+ * Idle time (ms) before the first TCP keepalive probe is sent on the dedicated
+ * `LISTEN` connection. Short enough that a silently dropped connection is
+ * detected in seconds instead of the OS default (typically two hours) — which,
+ * with a large `maximumBlockTimeout`, is what a blocked worker would otherwise
+ * have to wait for.
+ */
+const LISTEN_KEEPALIVE_INITIAL_DELAY_MS = 10000;
+
+/**
+ * Best-effort: turns TCP keepalive on for an already-established client's
+ * socket. Needed for the pooled `LISTEN` client, since a user-supplied
+ * `pg.Pool` may have been created without `keepAlive` and a checked-out client
+ * inherits that configuration. Returns whether keepalive is now enabled.
+ */
+function enableSocketKeepAlive(client: PgListenClient): boolean {
+  const stream = client.connection?.stream;
+  if (!stream || typeof stream.setKeepAlive !== 'function') {
+    return false;
+  }
+  try {
+    stream.setKeepAlive(true, LISTEN_KEEPALIVE_INITIAL_DELAY_MS);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Owns the PostgreSQL connection resources for a single backend:
+ *
+ * - a `pg.Pool` for regular, short-lived queries, and
+ * - a dedicated, long-lived `LISTEN` client used by the blocking
+ *   "wait for job" primitive (lazily established).
+ *
+ * Lifecycle mirrors {@link RedisConnection}: it is an {@link EventEmitter} that
+ * surfaces normalized `'ready' | 'error' | 'close'` events and exposes
+ * {@link PostgresConnection.waitUntilReady} and {@link PostgresConnection.close}.
+ */
+export class PostgresConnection extends EventEmitter {
+  readonly pool: PgPool;
+
+  /**
+   * The PostgreSQL schema (namespace) this connection's queues live in. It is
+   * applied to every pooled connection's `search_path`, so the `.sql` command
+   * files (and the operation functions) reference unqualified names and stay
+   * portable — the schema selects the namespace, never the SQL itself.
+   */
+  readonly schema: string;
+
+  /**
+   * `true` when this instance constructed the pool (and must therefore close
+   * it). `false` when the user passed in their own `pg.Pool`.
+   */
+  private readonly ownsPool: boolean;
+
+  /**
+   * When `true`, the minimum-server-version assertion in {@link runMigrations}
+   * is skipped. Only settable via a config object (a raw `pg.Pool` or a bare
+   * connection string always run the check).
+   */
+  private readonly skipVersionCheck: boolean;
+  private readonly migrateOnConnect: boolean;
+
+  private readyPromise: Promise<void> | undefined;
+  private closing: Promise<void> | undefined;
+  private listenClient: PgListenClient | undefined;
+
+  /**
+   * Memoizes the in-flight {@link PostgresConnection.getListenClient}
+   * establishment so concurrent first-callers (e.g. a backend naming its
+   * connection in `waitUntilReady` while its consume loop also asks for the
+   * LISTEN client) all share one connection instead of each opening a
+   * duplicate.
+   */
+  private listenClientPromise: Promise<PgListenClient> | undefined;
+
+  /**
+   * When this instance owns the pool, the lazily-required `pg` module and the
+   * resolved client config (with the pinned `search_path`) used to build a
+   * *dedicated standalone* `LISTEN` connection — so a long-lived `LISTEN` never
+   * consumes a pool slot. Undefined when the user passed their own `pg.Pool`
+   * (then the `LISTEN` client is checked out of that pool instead).
+   */
+  private readonly pgModule: PgModule | undefined;
+  private readonly listenClientConfig: PgPoolConfig | undefined;
+
+  /**
+   * `true` when {@link listenClient} is a standalone `pg.Client` we must `end()`
+   * (owned pool); `false` when it is a pooled client we must `release()`.
+   */
+  private listenClientIsStandalone = false;
+
+  /**
+   * Whether TCP keepalive is known to be enabled on the dedicated `LISTEN`
+   * connection. Only then can a silently dropped connection be detected (as a
+   * socket `'error'`) and rebuilt, which is the premise of the backend's large
+   * {@link PostgresQueueBackend.maximumBlockTimeout}; when it is not, the
+   * backend falls back to a conservative block ceiling instead.
+   */
+  private listenClientKeepAlive: boolean;
+
+  /**
+   * The last `application_name` applied to the `LISTEN` client (via
+   * {@link setListenClientName}). Re-applied whenever that client is rebuilt: a
+   * fresh connection starts unnamed, which would otherwise silently drop the
+   * worker / QueueEvents from `getWorkers()` / `getQueueEvents()` for the rest
+   * of its lifetime.
+   */
+  private listenClientName: string | undefined;
+
+  constructor(connection: PostgresConnectionOptions) {
+    super();
+
+    if (isPgPool(connection)) {
+      this.pool = connection;
+      this.ownsPool = false;
+      this.schema = DEFAULT_SCHEMA;
+      this.skipVersionCheck = false;
+      this.migrateOnConnect = false;
+      this.pgModule = undefined;
+      this.listenClientConfig = undefined;
+      // A user-supplied pool decides its own `keepAlive`; when it is off we try
+      // to enable it on the checked-out LISTEN socket (see getListenClient).
+      this.listenClientKeepAlive = Boolean(
+        (connection as unknown as { options?: { keepAlive?: boolean } }).options
+          ?.keepAlive,
+      );
+    } else {
+      const pg = loadPgModule();
+      const {
+        schema,
+        skipVersionCheck,
+        migrate,
+        skipMigrations,
+        ...poolConfig
+      } =
+        typeof connection === 'string'
+          ? {
+              schema: undefined,
+              skipVersionCheck: undefined,
+              migrate: undefined,
+              skipMigrations: undefined,
+              connectionString: connection,
+            }
+          : connection;
+      if (migrate !== undefined && skipMigrations !== undefined) {
+        throw new Error(
+          'BullMQ: `migrate` and `skipMigrations` are mutually exclusive. Set only one.',
+        );
+      }
+      this.schema = schema ?? DEFAULT_SCHEMA;
+      this.skipVersionCheck = skipVersionCheck ?? false;
+      this.migrateOnConnect =
+        migrate ?? (skipMigrations === undefined ? false : !skipMigrations);
+      // Validate early so a bad schema name fails fast (and before any DDL).
+      const quotedSchema = quoteSchemaName(this.schema);
+      // Pin every pooled connection's search_path to the schema so the `.sql`
+      // command files use unqualified, portable names. Quoted to match the
+      // migration's quoted CREATE SCHEMA (case-preserving).
+      const searchPathOption = `-c search_path=${quotedSchema}`;
+      const existingOptions = (poolConfig as { options?: string }).options;
+      const resolvedConfig: PgPoolConfig = {
+        ...poolConfig,
+        options: existingOptions
+          ? `${existingOptions} ${searchPathOption}`
+          : searchPathOption,
+      };
+      this.pool = new pg.Pool(resolvedConfig);
+      this.ownsPool = true;
+      // Keep the means to build a dedicated LISTEN connection on demand.
+      this.pgModule = pg;
+      this.listenClientConfig = resolvedConfig;
+      // We build the LISTEN client ourselves, always with keepAlive enabled.
+      this.listenClientKeepAlive = true;
+    }
+
+    // The pool emits 'error' for idle clients that drop; surface it but never
+    // let it crash the process — hence the guarded {@link emitError} (a bare
+    // `emit('error')` with no listeners throws).
+    this.pool.on('error', err => this.emitError(err));
+  }
+
+  /**
+   * Forwards an underlying pool / LISTEN-client error as this connection's
+   * `'error'` event, but only when a listener is attached. `EventEmitter.emit`
+   * throws when emitting `'error'` with no listeners, so an unguarded forward
+   * would turn an idle-client error into a hard process crash. Mirrors the
+   * guard in {@link RedisConnection}.
+   */
+  private emitError(err: Error): void {
+    if (this.listenerCount('error') > 0) {
+      this.emit('error', err);
+    }
+  }
+
+  /**
+   * Resolves once the pool is reachable and the schema is compatible.
+   *
+   * Idempotent and memoized. By default this only reads the migration ledger.
+   * When `migrate: true` was configured, migrations run on one checked-out
+   * client so their advisory lock and transaction share a session.
+   */
+  async waitUntilReady(): Promise<void> {
+    if (!this.readyPromise) {
+      this.readyPromise = this.bootstrap();
+    }
+    return this.readyPromise;
+  }
+
+  private async bootstrap(): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      if (this.migrateOnConnect) {
+        await runMigrations(client, this.schema, {
+          skipVersionCheck: this.skipVersionCheck,
+        });
+      } else {
+        await assertSchemaCompatibility(client, this.schema, {
+          skipVersionCheck: this.skipVersionCheck,
+        });
+      }
+    } finally {
+      client.release();
+    }
+    // Defer so listeners attached synchronously after construction still fire.
+    setTimeout(() => this.emit('ready'), 0);
+  }
+
+  /**
+   * Returns the dedicated client used for `LISTEN`/`NOTIFY`, establishing it on
+   * first use.
+   *
+   * When this connection owns the pool we use a *standalone* `pg.Client` (its
+   * own dedicated TCP connection) so the long-lived `LISTEN` never consumes a
+   * pool slot — this is what lets the query pool run at `max: 1` without
+   * deadlocking. When the user supplied their own `pg.Pool` we check a client
+   * out of it (so such pools should be sized `>= 2`).
+   */
+  async getListenClient(): Promise<PgListenClient> {
+    // Memoize the establishment promise (not just the resolved client) so two
+    // callers racing on the first use don't each open a connection — the
+    // `await` below is exactly where a second caller would otherwise slip in.
+    if (!this.listenClientPromise) {
+      const establishing = (async () => {
+        if (this.pgModule && this.listenClientConfig) {
+          const client = new this.pgModule.Client({
+            ...this.listenClientConfig,
+            // A LISTEN subscription is bound to one physical connection. Enable
+            // TCP keepalive so a silently dropped connection surfaces as a
+            // socket `'error'` (and is then rebuilt below) instead of going
+            // unnoticed until the next poll — which, with a large
+            // `maximumBlockTimeout`, could be up to an hour away.
+            keepAlive: true,
+            keepAliveInitialDelayMillis: LISTEN_KEEPALIVE_INITIAL_DELAY_MS,
+          });
+          await client.connect();
+          client.on('error', err => this.handleListenClientError(client, err));
+          this.listenClientKeepAlive = true;
+          this.listenClientIsStandalone = true;
+          this.listenClient = client;
+          await this.applyListenClientName(client);
+          return client;
+        } else {
+          const client = await this.pool.connect();
+          client.on('error', err => this.handleListenClientError(client, err));
+          // The pool is the user's, so its clients may have been created
+          // without `keepAlive`; enable it on this socket so a silent drop is
+          // still detected. If that is not possible the connection reports no
+          // keepalive and the backend caps its block timeout conservatively.
+          this.listenClientKeepAlive =
+            this.listenClientKeepAlive || enableSocketKeepAlive(client);
+          this.listenClientIsStandalone = false;
+          this.listenClient = client;
+          await this.applyListenClientName(client);
+          return client;
+        }
+      })();
+      this.listenClientPromise = establishing;
+      // Memoize only a connect that succeeds. A rejected one (e.g. Postgres
+      // mid-restart) would otherwise be handed to every later caller, so the
+      // worker could never LISTEN again until the process restarts. Callers
+      // sharing this attempt still see its rejection.
+      establishing.catch((): void => {
+        if (this.listenClientPromise === establishing) {
+          this.listenClientPromise = undefined;
+        }
+      });
+    }
+    return this.listenClientPromise;
+  }
+
+  /**
+   * Whether TCP keepalive is enabled on the dedicated `LISTEN` connection, so a
+   * silently dropped connection is detected (and the client rebuilt) instead of
+   * lingering unnoticed. Consulted by the backend when deciding how long a
+   * worker may block.
+   */
+  get hasListenClientKeepAlive(): boolean {
+    return this.listenClientKeepAlive;
+  }
+
+  /**
+   * Sets the `application_name` of the dedicated `LISTEN` connection — the
+   * PostgreSQL analogue of Redis `CLIENT SETNAME` — and remembers it so it is
+   * re-applied to any client rebuilt after a drop.
+   */
+  async setListenClientName(name: string): Promise<void> {
+    this.listenClientName = name;
+    const client = await this.getListenClient();
+    await client.query(`SELECT set_config('application_name', $1, false)`, [
+      name,
+    ]);
+  }
+
+  /**
+   * Re-applies the remembered {@link listenClientName} to a freshly established
+   * `LISTEN` client. Best-effort: discovery must never break the client.
+   */
+  private async applyListenClientName(client: PgListenClient): Promise<void> {
+    if (!this.listenClientName) {
+      return;
+    }
+    try {
+      await client.query(`SELECT set_config('application_name', $1, false)`, [
+        this.listenClientName,
+      ]);
+    } catch {
+      // Discovery is best-effort; leave the connection unnamed.
+    }
+  }
+
+  /**
+   * Handles a fatal error on the dedicated `LISTEN` client.
+   *
+   * A `LISTEN` subscription lives on one specific physical connection: once that
+   * connection drops, the memoized client is dead and every re-`LISTEN` issued
+   * on it is silently lost — so a blocked worker would stop receiving NOTIFYs
+   * until its next poll. Invalidate the memo (and tear the dead client down) so
+   * the next {@link getListenClient} establishes a fresh connection, and emit
+   * `'listenerinvalidated'` so subscribed backends re-`LISTEN` and wake any
+   * in-flight blocking wait (which is parked on the now-dead client).
+   *
+   * Guarded so a stale error from an already-replaced client — or one racing an
+   * in-progress {@link close} (which owns teardown) — does not disturb the
+   * current client; the error is still forwarded either way.
+   */
+  private handleListenClientError(client: PgListenClient, err: Error): void {
+    if (this.listenClient === client && !this.closing) {
+      const wasStandalone = this.listenClientIsStandalone;
+      this.listenClient = undefined;
+      this.listenClientPromise = undefined;
+      // Drop orphaned notification listeners from in-flight waits; keep the
+      // 'error' listener so a follow-up error from the dying client is still
+      // swallowed via `emitError` rather than crashing the process.
+      client.removeAllListeners('notification');
+      try {
+        if (wasStandalone) {
+          void (client as PgClient).end().catch((): undefined => undefined);
+        } else {
+          // Destroy (rather than return) the broken pooled client.
+          (client as PgPoolClient).release(true);
+        }
+      } catch {
+        // Best-effort teardown of an already-broken client.
+      }
+      this.emit('listenerinvalidated');
+    }
+    this.emitError(err);
+  }
+
+  /**
+   * Truthy once {@link PostgresConnection.close} has begun.
+   */
+  get isClosing(): Promise<void> | undefined {
+    return this.closing;
+  }
+
+  /**
+   * Closes the connection: releases the `LISTEN` client and (if owned) ends the
+   * pool. Safe to call multiple times.
+   */
+  async close(): Promise<void> {
+    if (!this.closing) {
+      this.closing = (async () => {
+        // Await any in-flight establishment so we never leak a LISTEN client
+        // whose `getListenClient` promise was still pending when close() ran.
+        const client =
+          this.listenClient ??
+          (await this.listenClientPromise?.catch(
+            (): PgListenClient | undefined => undefined,
+          ));
+        this.listenClientPromise = undefined;
+        if (client) {
+          client.removeAllListeners();
+          if (this.listenClientIsStandalone) {
+            // Standalone dedicated connection: end it outright.
+            await (client as PgClient).end();
+          } else {
+            // Pooled client: return it to the pool.
+            (client as PgPoolClient).release();
+          }
+          this.listenClient = undefined;
+        }
+        if (this.ownsPool) {
+          await this.pool.end();
+        }
+        this.emit('close');
+      })();
+    }
+    return this.closing;
+  }
+
+  /**
+   * Forcibly tears down the connection. For PostgreSQL there is no distinct
+   * "disconnect without waiting" semantics beyond closing, so this delegates to
+   * {@link PostgresConnection.close}.
+   */
+  async disconnect(): Promise<void> {
+    return this.close();
+  }
+}

@@ -1,5 +1,4 @@
-import { default as IORedis } from 'ioredis';
-import { after, every } from 'lodash';
+import { after, every } from './utils/lodash';
 import {
   describe,
   beforeEach,
@@ -19,18 +18,20 @@ import {
   UnrecoverableError,
   Job,
 } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Rate Limiter', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
   let queueEvents: QueueEvents;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -43,7 +44,7 @@ describe('Rate Limiter', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -92,7 +93,7 @@ describe('Rate Limiter', () => {
         queueName,
         async () => {
           const currentTtl = await queue.getRateLimitTtl();
-          expect(currentTtl).to.be.lessThanOrEqual(500);
+          expect(currentTtl).toBeLessThanOrEqual(500);
           expect(currentTtl).toBeGreaterThan(200);
         },
         {
@@ -113,7 +114,7 @@ describe('Rate Limiter', () => {
           after(numJobs, async () => {
             try {
               const timeDiff = new Date().getTime() - startTime;
-              expect(timeDiff).to.be.gte((numJobs - 1) * 500);
+              expect(timeDiff).toBeGreaterThanOrEqual((numJobs - 1) * 500);
               resolve();
             } catch (err) {
               reject(err);
@@ -168,7 +169,7 @@ describe('Rate Limiter', () => {
             after(numJobs, async () => {
               try {
                 const timeDiff = new Date().getTime() - startTime;
-                expect(timeDiff).to.be.lte(150);
+                expect(timeDiff).toBeLessThanOrEqual(150);
                 resolve();
               } catch (err) {
                 reject(err);
@@ -214,7 +215,7 @@ describe('Rate Limiter', () => {
         after(numJobs, async () => {
           try {
             const timeDiff = new Date().getTime() - startTime;
-            expect(timeDiff).to.be.gte((numJobs - 1) * 1000);
+            expect(timeDiff).toBeGreaterThanOrEqual((numJobs - 1) * 1000);
             resolve();
           } catch (err) {
             reject(err);
@@ -263,7 +264,7 @@ describe('Rate Limiter', () => {
       worker.on('completed', async job => {
         try {
           completedCount++;
-          expect(job.finishedOn! - job.processedOn!).to.be.lte(1000);
+          expect(job.finishedOn! - job.processedOn!).toBeLessThanOrEqual(1000);
           if (completedCount === numJobs) {
             resolve();
           }
@@ -361,7 +362,7 @@ describe('Rate Limiter', () => {
   });
 
   describe('when queue is paused between rate limit', () => {
-    it('should add active jobs to paused', async () => {
+    it('should add active jobs to wait', async () => {
       const numJobs = 4;
 
       const commontOpts = {
@@ -406,10 +407,9 @@ describe('Rate Limiter', () => {
 
       await delay(500);
 
-      const counts = await queue.getJobCounts('paused', 'completed', 'wait');
-      expect(counts).toHaveProperty('paused', numJobs - 1);
+      const counts = await queue.getJobCounts('completed', 'wait');
       expect(counts).toHaveProperty('completed', 1);
-      expect(counts).toHaveProperty('wait', 0);
+      expect(counts).toHaveProperty('wait', numJobs - 1);
 
       await worker1.close();
       await worker2.close();
@@ -470,7 +470,7 @@ describe('Rate Limiter', () => {
 
             try {
               const timeDiff = new Date().getTime() - startTime;
-              expect(timeDiff).to.be.gte((numJobs - 1) * 1000);
+              expect(timeDiff).toBeGreaterThanOrEqual((numJobs - 1) * 1000);
               resolve();
             } catch (err) {
               reject(err);
@@ -493,7 +493,7 @@ describe('Rate Limiter', () => {
 
             try {
               const timeDiff = new Date().getTime() - startTime;
-              expect(timeDiff).to.be.gte((numJobs / 2 - 1) * 2000);
+              expect(timeDiff).toBeGreaterThanOrEqual((numJobs / 2 - 1) * 2000);
               resolve();
             } catch (err) {
               reject(err);
@@ -549,7 +549,7 @@ describe('Rate Limiter', () => {
 
           try {
             const timeDiff = new Date().getTime() - startTime;
-            expect(timeDiff).to.be.gte(numJobs / 2 - 1 * 1000);
+            expect(timeDiff).toBeGreaterThanOrEqual((numJobs / 2 - 1) * 1000);
             resolve();
           } catch (err) {
             reject(err);
@@ -590,7 +590,7 @@ describe('Rate Limiter', () => {
           if (job.attemptsStarted === 1) {
             await worker.rateLimit(dynamicLimit);
             const currentTtl = await queue.getRateLimitTtl();
-            expect(currentTtl).to.be.lessThanOrEqual(250);
+            expect(currentTtl).toBeLessThanOrEqual(250);
             expect(currentTtl).toBeGreaterThan(100);
             throw Worker.RateLimitError();
           }
@@ -614,7 +614,7 @@ describe('Rate Limiter', () => {
 
             try {
               const timeDiff = new Date().getTime() - startTime;
-              expect(timeDiff).to.be.gte(
+              expect(timeDiff).toBeGreaterThanOrEqual(
                 (numJobs * dynamicLimit + numJobs * duration) * margin,
               );
               resolve();
@@ -704,7 +704,7 @@ describe('Rate Limiter', () => {
               delay(50);
               await worker.rateLimit(dynamicLimit);
               const currentTtl = await queue.getRateLimitTtl();
-              expect(currentTtl).to.be.lessThanOrEqual(dynamicLimit);
+              expect(currentTtl).toBeLessThanOrEqual(dynamicLimit);
               throw Worker.RateLimitError();
             }
           },
@@ -822,7 +822,7 @@ describe('Rate Limiter', () => {
               if (job.attemptsStarted === 1) {
                 delay(50);
                 const currentTtl = await queue.getRateLimitTtl(1);
-                expect(currentTtl).to.be.lessThanOrEqual(duration);
+                expect(currentTtl).toBeLessThanOrEqual(duration);
               }
             },
             {
@@ -895,7 +895,7 @@ describe('Rate Limiter', () => {
           queueEvents.once('failed', async () => {
             try {
               const timeDiff = new Date().getTime() - startTime;
-              expect(timeDiff).to.be.gte(dynamicLimit);
+              expect(timeDiff).toBeGreaterThanOrEqual(dynamicLimit);
               resolve();
             } catch (err) {
               reject(err);
@@ -1048,7 +1048,7 @@ describe('Rate Limiter', () => {
     });
 
     describe('when queue is paused', () => {
-      it('moves job to paused', async () => {
+      it('moves job to wait', async () => {
         const dynamicLimit = 250;
         const duration = 100;
 
@@ -1090,8 +1090,8 @@ describe('Rate Limiter', () => {
 
         await result;
 
-        const pausedCount = await queue.getJobCountByTypes('paused');
-        expect(pausedCount).toBe(1);
+        const waitingCount = await queue.getJobCountByTypes('wait');
+        expect(waitingCount).toBe(1);
 
         await worker.close();
       });
@@ -1126,8 +1126,10 @@ describe('Rate Limiter', () => {
             after(numJobs, async () => {
               try {
                 const timeDiff = new Date().getTime() - startTime;
-                expect(timeDiff).to.be.gte((numJobs - 1) * duration);
-                expect(timeDiff).to.be.lte(numJobs * duration);
+                expect(timeDiff).toBeGreaterThanOrEqual(
+                  (numJobs - 1) * duration,
+                );
+                expect(timeDiff).toBeLessThanOrEqual(numJobs * duration);
                 resolve();
               } catch (err) {
                 reject(err);
@@ -1262,7 +1264,7 @@ describe('Rate Limiter', () => {
 
         parallelJobs--;
 
-        expect(parallelJobs).to.be.lessThanOrEqual(100);
+        expect(parallelJobs).toBeLessThanOrEqual(100);
 
         return 'success';
       };
@@ -1311,7 +1313,7 @@ describe('Rate Limiter', () => {
 
           parallelJobs--;
 
-          expect(parallelJobs).to.be.lessThanOrEqual(1);
+          expect(parallelJobs).toBeLessThanOrEqual(1);
 
           return 'success';
         };
@@ -1415,7 +1417,7 @@ describe('Rate Limiter', () => {
         'completed',
         after(numJobs, () => {
           try {
-            expect(every(priorityBuckets, value => value === 0)).to.eq(true);
+            expect(every(priorityBuckets, value => value === 0)).toBe(true);
             resolve();
           } catch (err) {
             reject(err);

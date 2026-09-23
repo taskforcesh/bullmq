@@ -62,4 +62,4 @@ worker = new Worker(queueName, processorFile, { useWorkerThreads: true });
 
 ## Read more:
 
-* 💡 [Worker API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html)
+* 💡 [Worker API Reference](https://docs.bullmq.io/api/classes/v6.Worker.html)

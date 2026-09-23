@@ -43,4 +43,4 @@ Only jobs currently in the **delayed** state can have their delay changed.
 
 ## Read more:
 
-- 💡 [Change Delay API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#changedelay)
+- 💡 [Change Delay API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#changedelay)

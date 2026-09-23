@@ -59,6 +59,18 @@ $queue->close();
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+queue.drain(false).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 You can also drain delayed jobs by setting the delayed parameter:
@@ -119,6 +131,19 @@ $queue->drain(true);
 
 $queue->close();
 ?>
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+// Also drain delayed jobs
+queue.drain(true).await?;
 ```
 
 {% endtab %}
@@ -208,6 +233,18 @@ $queue->close();
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+queue.obliterate(false, 1000).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 For more advanced scenarios where you need to force obliteration even with active jobs:
@@ -271,6 +308,19 @@ $queue->close();
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+// Force obliteration even with active jobs
+queue.obliterate(true, 1000).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="warning" %}
@@ -280,6 +330,6 @@ have pending children in other queues, or just moved to wait.
 
 ## Read more:
 
-- 💡 [Drain API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#drain)
-- 💡 [Clean API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#clean)
-- 💡 [Obliterate API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#obliterate)
+- 💡 [Drain API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#drain)
+- 💡 [Clean API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#clean)
+- 💡 [Obliterate API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#obliterate)

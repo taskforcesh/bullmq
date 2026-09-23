@@ -1,0 +1,446 @@
+/**
+ * Smoke tests that exercise core BullMQ operations using the Bun Redis
+ * adapter instead of the default ioredis driver.
+ *
+ * Run with: bun test --timeout 20000 tests/bun-redis.test.ts
+ */
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from 'bun:test';
+import { RedisClient } from 'bun';
+import {
+  createBunRedisClient,
+  FlowProducer,
+  Job,
+  Queue,
+  RedisConnection,
+  Worker,
+} from '../src/classes';
+import { IRedisClient } from '../src/interfaces';
+import { randomUUID } from '../src/utils';
+
+const redisHost = process.env.REDIS_HOST || 'localhost';
+const redisPort = Number(process.env.REDIS_PORT) || 6379;
+const prefix = `bull-bun-${process.pid}`;
+
+let rawClient: RedisClient;
+let client: IRedisClient;
+
+function createRawClient(host = redisHost, port = redisPort): RedisClient {
+  return new RedisClient(`redis://${host}:${port}`);
+}
+
+async function createConnectedClient(): Promise<{
+  raw: RedisClient;
+  client: IRedisClient;
+}> {
+  const raw = createRawClient();
+  const wrapped = createBunRedisClient(raw);
+  await wrapped.connect();
+  return { raw, client: wrapped };
+}
+
+async function cleanQueue(name: string) {
+  const pattern = `${prefix}:${name}:*`;
+  let cursor: string | number = '0';
+  const keys: string[] = [];
+
+  do {
+    const [nextCursor, batch] = await client.scan(cursor, {
+      MATCH: pattern,
+      COUNT: 100,
+    });
+    cursor = nextCursor;
+    keys.push(...batch);
+  } while (String(cursor) !== '0');
+
+  if (keys.length > 0) {
+    await client.del(...keys);
+  }
+}
+
+beforeAll(async () => {
+  const result = await createConnectedClient();
+  rawClient = result.raw;
+  client = result.client;
+
+  RedisConnection.clientFactory = opts => {
+    const host = opts?.host ?? redisHost;
+    const port = opts?.port ?? redisPort;
+    const raw = createRawClient(host, port);
+    return createBunRedisClient(raw);
+  };
+});
+
+afterAll(async () => {
+  RedisConnection.clientFactory = undefined;
+  await client.quit();
+});
+
+describe('bun redis adapter', () => {
+  describe('basic IRedisClient operations', () => {
+    it('should report ready status', () => {
+      expect(client.status).toBe('ready');
+    });
+
+    it('should get/set string values', async () => {
+      const key = `${prefix}:test:string`;
+      await client.set(key, 'hello');
+      const val = await client.get(key);
+      expect(val).toBe('hello');
+      await client.del(key);
+    });
+
+    it('should hset/hget/hgetall', async () => {
+      const key = `${prefix}:test:hash`;
+      await client.hset(key, { field1: 'a', field2: 'b' });
+      expect(await client.hget(key, 'field1')).toBe('a');
+      expect(await client.hgetall(key)).toEqual({ field1: 'a', field2: 'b' });
+      await client.del(key);
+    });
+
+    it('should zrange with WITHSCORES', async () => {
+      const key = `${prefix}:test:zset`;
+      await rawClient.send('ZADD', [key, '1', 'a', '2', 'b']);
+
+      const plain = await client.zrange(key, 0, -1);
+      expect(plain).toEqual(['a', 'b']);
+
+      const withScores = await client.zrange(key, 0, -1, { WITHSCORES: true });
+      expect(withScores).toEqual(['a', '1', 'b', '2']);
+
+      await client.del(key);
+    });
+
+    it('should duplicate', async () => {
+      const dup = client.duplicate();
+      await dup.connect();
+      expect(dup.status).toBe('ready');
+      await dup.set(`${prefix}:test:dup`, 'ok');
+      expect(await client.get(`${prefix}:test:dup`)).toBe('ok');
+      await client.del(`${prefix}:test:dup`);
+      await dup.quit();
+    });
+
+    it('duplicate() targets the same server, not Bun default (#4582)', async () => {
+      const target = 'redis://localhost:16379';
+
+      class FakeRaw {
+        connected = false;
+        onconnect: (() => void) | null = null;
+        onclose: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        constructor(public target = 'redis://DEFAULT:6379') {}
+        async connect() {
+          this.connected = true;
+          this.onconnect?.();
+        }
+        close() {
+          this.connected = false;
+        }
+        async duplicate() {
+          // Native duplicate preserves the connection target.
+          return new FakeRaw(this.target);
+        }
+        async send() {
+          return null;
+        }
+        async get() {
+          return null;
+        }
+        async smembers() {
+          return [];
+        }
+        async incr() {
+          return 0;
+        }
+      }
+
+      const primary = createBunRedisClient(new FakeRaw(target) as any);
+      await primary.connect();
+
+      const dup = primary.duplicate();
+      await dup.connect();
+
+      expect((dup as any).raw.target).toBe(target);
+      expect((dup as any).raw.target).not.toBe('redis://DEFAULT:6379');
+
+      await primary.quit();
+      await dup.quit();
+    });
+
+    it('nested duplicate().duplicate() materializes the grandchild (#4706)', async () => {
+      class FakeRaw {
+        connected = false;
+        onconnect: (() => void) | null = null;
+        onclose: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        constructor(public target = 'redis://localhost:6379') {}
+        async connect() {
+          this.connected = true;
+          this.onconnect?.();
+        }
+        close() {
+          this.connected = false;
+        }
+        async duplicate() {
+          return new FakeRaw(this.target);
+        }
+        async send() {
+          return 'PONG';
+        }
+        async get() {
+          return null;
+        }
+        async smembers() {
+          return [];
+        }
+        async incr() {
+          return 0;
+        }
+      }
+
+      const primary = createBunRedisClient(new FakeRaw() as any);
+      await primary.connect();
+
+      const grandchild = primary.duplicate().duplicate();
+      await grandchild.connect();
+
+      expect(grandchild.status).toBe('ready');
+      expect((grandchild as any).raw).toBeDefined();
+      expect((grandchild as any).raw.target).toBe('redis://localhost:6379');
+      expect(await grandchild.sendCommand('PING', [])).toBe('PONG');
+
+      await primary.quit();
+      await grandchild.quit();
+    });
+
+    it('duplicate() reports ready when Bun returns an already-connected client', async () => {
+      class FakeRaw {
+        connected = false;
+        onconnect: (() => void) | null = null;
+        onclose: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        async connect() {
+          this.connected = true;
+          this.onconnect?.();
+        }
+        close() {
+          this.connected = false;
+        }
+        async duplicate() {
+          const duplicate = new FakeRaw();
+          duplicate.connected = true;
+          return duplicate;
+        }
+        async send() {
+          return null;
+        }
+        async get() {
+          return null;
+        }
+        async smembers() {
+          return [];
+        }
+        async incr() {
+          return 0;
+        }
+      }
+
+      const primary = createBunRedisClient(new FakeRaw() as any);
+      await primary.connect();
+
+      const dup = primary.duplicate();
+      await dup.connect();
+
+      expect(dup.status).toBe('ready');
+
+      await primary.quit();
+      await dup.quit();
+    });
+
+    it('should explicitly reconnect while an automatic reconnect is pending', async () => {
+      const { client: reconnectingClient } = await createConnectedClient();
+
+      reconnectingClient.disconnect(true);
+      await reconnectingClient.connect();
+      await Bun.sleep(1100);
+
+      expect(reconnectingClient.status).toBe('ready');
+      expect(await reconnectingClient.info()).toContain('redis_version');
+      await reconnectingClient.quit();
+    });
+  });
+
+  describe('Queue operations via bun adapter', () => {
+    let queue: Queue;
+    let queueName: string;
+
+    beforeEach(async () => {
+      queueName = `test-bun-${randomUUID()}`;
+      queue = new Queue(queueName, {
+        connection: client,
+        prefix,
+      });
+    });
+
+    afterEach(async () => {
+      if (queue) {
+        await queue.close();
+        await cleanQueue(queueName);
+      }
+    });
+
+    it('should add and retrieve a job', async () => {
+      const job = await queue.add('test-job', { foo: 'bar' });
+      expect(job.id).toBeDefined();
+
+      const fetched = await Job.fromId(queue, job.id);
+      expect(fetched).toBeDefined();
+      expect(fetched?.data).toEqual({ foo: 'bar' });
+    });
+  });
+
+  describe('Worker processing via bun adapter', () => {
+    it('should process a job to completion', async () => {
+      const queueName = `test-bun-worker-${randomUUID()}`;
+      const queue = new Queue(queueName, {
+        connection: client,
+        prefix,
+      });
+
+      const worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          return { result: job.data.input * 2 };
+        },
+        { connection: client, prefix, autorun: false },
+      );
+
+      await queue.add('double', { input: 21 });
+      worker.run();
+
+      const completed = await new Promise<Job>((resolve, reject) => {
+        const timeout = setTimeout(
+          () => reject(new Error('Timed out waiting for job completion')),
+          10000,
+        );
+        worker.on('completed', (j: Job) => {
+          clearTimeout(timeout);
+          resolve(j);
+        });
+        worker.on('failed', (_, err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+      });
+
+      expect(completed.returnvalue).toEqual({ result: 42 });
+
+      await worker.close();
+      await queue.close();
+      await cleanQueue(queueName);
+    });
+  });
+
+  describe('FlowProducer via bun adapter', () => {
+    it('should create a parent-child flow', async () => {
+      const parentQueueName = `test-bun-flow-parent-${randomUUID()}`;
+      const childQueueName = `test-bun-flow-child-${randomUUID()}`;
+
+      const flow = new FlowProducer({ connection: client, prefix });
+
+      const tree = await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: { parent: true },
+        children: [
+          {
+            name: 'child-job',
+            queueName: childQueueName,
+            data: { child: true },
+          },
+        ],
+      });
+
+      expect(tree.job.id).toBeDefined();
+      expect(tree.children).toHaveLength(1);
+      expect(tree.children[0].job.id).toBeDefined();
+
+      await flow.close();
+      await cleanQueue(parentQueueName);
+      await cleanQueue(childQueueName);
+    });
+  });
+
+  describe('shared connection teardown via bun adapter', () => {
+    it('should not flood ConnectionClosedError when the shared connection is closed via the adapter', async () => {
+      const queueName = `test-bun-shared-${randomUUID()}`;
+
+      const sharedRaw = createRawClient();
+      const sharedConnection = createBunRedisClient(sharedRaw);
+      await sharedConnection.connect();
+
+      const connectionClosedErrors: unknown[] = [];
+      const onUnhandled = (err: unknown) => {
+        if ((err as any)?.name === 'ConnectionClosedError') {
+          connectionClosedErrors.push(err);
+        }
+      };
+      process.on('unhandledRejection', onUnhandled);
+
+      try {
+        const queue = new Queue(queueName, {
+          connection: sharedConnection,
+          prefix,
+        });
+        const worker = new Worker(
+          queueName,
+          async (job: Job) => ({ result: job.data.input * 2 }),
+          { connection: sharedConnection, prefix, autorun: false },
+        );
+
+        await queue.add('double', { input: 21 });
+        worker.run();
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(new Error('Timed out waiting for job completion')),
+            10000,
+          );
+          worker.on('completed', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+          worker.on('failed', (_, err) => {
+            clearTimeout(timeout);
+            reject(err);
+          });
+        });
+
+        await worker.close();
+        await queue.close();
+        await cleanQueue(queueName);
+
+        // Close the shared connection through the adapter (the documented
+        // graceful shutdown). This must not surface ConnectionClosedError
+        // rejections from commands that were still in flight.
+        await sharedConnection.quit();
+
+        // Give any deferred rejections a chance to surface.
+        const rejectionSettleMs = 200;
+        await new Promise(resolve => setTimeout(resolve, rejectionSettleMs));
+
+        expect(connectionClosedErrors).toHaveLength(0);
+      } finally {
+        process.removeListener('unhandledRejection', onUnhandled);
+      }
+    });
+  });
+});

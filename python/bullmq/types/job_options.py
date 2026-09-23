@@ -43,6 +43,15 @@ class JobOptions(TypedDict, total=False):
     @defaultValue 0
     """
 
+    priority: int
+    """
+    Ranges from 1 (highest priority) to 2_097_152 (lowest priority).
+    Note that using priorities has a slight impact on performance,
+    so do not use it if not really needed.
+
+    @defaultValue 0 (no priority)
+    """
+
     removeOnComplete: Union[bool, int, KeepJobs]
     """
     If true, removes the job when it successfully completes

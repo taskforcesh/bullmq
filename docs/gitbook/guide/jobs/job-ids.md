@@ -36,4 +36,4 @@ Custom job ids must not be strings that consist only of digits (for example `"12
 
 ## Read more:
 
-- 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/v5.QueueEventsListener.html#duplicated)
+- 💡 [Duplicated Event Reference](https://docs.bullmq.io/api/interfaces/v6.QueueEventsListener.html#duplicated)

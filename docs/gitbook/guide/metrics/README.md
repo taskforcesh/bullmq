@@ -58,4 +58,4 @@ Note that the `getMetrics` method also accepts a `start` and `end` argument (`0`
 
 ## Read more:
 
-* 💡 [Get Metrics API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getmetrics)
+* 💡 [Get Metrics API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#getmetrics)

@@ -14,5 +14,5 @@ You can use a dashboard tool such as https://taskforce.sh for monitoring this pr
 
 ## Read more:
 
-- 💡 [Worker Prefix Option Reference](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#prefix)
-- 💡 [Queue Prefix Option Reference](https://api.docs.bullmq.io/interfaces/v5.QueueOptions.html#prefix)
+- 💡 [Worker Prefix Option Reference](https://docs.bullmq.io/api/interfaces/v6.WorkerOptions.html#prefix)
+- 💡 [Queue Prefix Option Reference](https://docs.bullmq.io/api/interfaces/v6.QueueOptions.html#prefix)

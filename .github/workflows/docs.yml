@@ -1,0 +1,48 @@
+# Build and deploy the VitePress documentation site to GitHub Pages.
+name: Docs
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Allow only one concurrent deployment, skipping runs queued between the run
+# in-progress and latest queued. Do not cancel in-progress runs so that a
+# deployment can complete.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to push the built site to the gh-pages branch
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # Needed for VitePress lastUpdated timestamps
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+          cache: 'yarn'
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      - name: Restore frozen API version snapshots
+        # The pre-generated TypeDoc JSON for older major versions (v1..v5) lives
+        # on the long-lived `docs-api` branch to keep them out of master's tree.
+        # Restore them here so `docs:build` merges them alongside the freshly
+        # generated current-version (v6) docs.
+        run: |
+          git fetch origin docs-api --depth=1
+          git checkout origin/docs-api -- apiVersions
+      - name: Build with VitePress
+        run: yarn docs:build
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/.vitepress/dist
+          cname: docs.bullmq.io

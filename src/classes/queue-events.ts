@@ -1,22 +1,15 @@
-import type { Cluster, Redis } from 'ioredis';
 import { JobProgress } from '../types';
 import {
+  BackendFactory,
   IoredisListener,
   QueueEventsOptions,
-  RedisClient,
   StreamReadRaw,
 } from '../interfaces';
-import {
-  array2obj,
-  clientCommandMessageReg,
-  isRedisInstance,
-  QUEUE_EVENT_SUFFIX,
-} from '../utils';
+import { array2obj, isRedisInstance, QUEUE_EVENT_SUFFIX } from '../utils';
 import { QueueBase } from './queue-base';
-import { RedisConnection } from './redis-connection';
-import { version as packageVersion } from '../version';
+import { createIORedisClient, isIRedisClient } from './ioredis-client';
 
-export interface QueueEventsListener extends IoredisListener {
+export interface QueueEventsListener<ReturnType = any> extends IoredisListener {
   /**
    * Listen to 'active' event.
    *
@@ -61,28 +54,14 @@ export interface QueueEventsListener extends IoredisListener {
    *
    * @param args - An object containing details about the completed job.
    *   - `jobId` - The unique identifier of the job that completed.
-   *   - `returnvalue` - The return value of the job, serialized as a string.
+   *   - `returnvalue` - The value returned by the job's processor, deserialized from JSON.
    *   - `prev` - The previous state of the job before completion (e.g., 'active'), if applicable.
    * @param id - The identifier of the event.
    */
   completed: (
-    args: { jobId: string; returnvalue: string; prev?: string },
+    args: { jobId: string; returnvalue: ReturnType; prev?: string },
     id: string,
   ) => void;
-
-  /**
-   * Listen to 'debounced' event.
-   *
-   * @deprecated Use the 'deduplicated' event instead.
-   *
-   * This event is triggered when a job is debounced because a job with the same debounceId still exists.
-   *
-   * @param args - An object containing details about the debounced job.
-   *   - `jobId` - The unique identifier of the job that was debounced.
-   *   - `debounceId` - The identifier used to debounce the job, preventing duplicate processing.
-   * @param id - The identifier of the event.
-   */
-  debounced: (args: { jobId: string; debounceId: string }, id: string) => void;
 
   /**
    * Listen to 'deduplicated' event.
@@ -108,7 +87,8 @@ export interface QueueEventsListener extends IoredisListener {
    *
    * @param args - An object containing details about the delayed job.
    *  - `jobId` - The unique identifier of the job that was delayed.
-   *  - `delay` - The delay duration in milliseconds before the job becomes active.
+   *  - `delay` - The timestamp at which the job will become active, in milliseconds
+   *    elapsed since January 1, 1970 UTC.
    * @param id - The identifier of the event.
    */
   delayed: (args: { jobId: string; delay: number }, id: string) => void;
@@ -276,7 +256,7 @@ type KeyOf<T extends object> = Extract<keyof T, string>;
  * This class requires a dedicated redis connection.
  *
  */
-export class QueueEvents extends QueueBase {
+export class QueueEvents<ReturnType = any> extends QueueBase {
   private running = false;
   private blocking = false;
 
@@ -285,32 +265,20 @@ export class QueueEvents extends QueueBase {
     { connection, autorun = true, ...opts }: QueueEventsOptions = {
       connection: {},
     },
-    Connection?: typeof RedisConnection,
+    backendFactory?: BackendFactory,
   ) {
-    // Set clientInfoTag for Redis driver identification if not already provided on the original client
-    const clientInfoTag = `bullmq_v${packageVersion}`;
-
     super(
       name,
       {
         ...opts,
         connection: isRedisInstance(connection)
-          ? (<RedisClient>connection).isCluster
-            ? (<Cluster>connection).duplicate(undefined, {
-                redisOptions: {
-                  ...(<Cluster>connection).options?.redisOptions,
-                  clientInfoTag:
-                    (<Cluster>connection).options?.redisOptions
-                      ?.clientInfoTag ?? clientInfoTag,
-                },
-              })
-            : (<Redis>connection).duplicate({
-                clientInfoTag:
-                  (<Redis>connection).options?.clientInfoTag ?? clientInfoTag,
-              })
+          ? (isIRedisClient(connection)
+              ? connection
+              : createIORedisClient(connection as any)
+            ).duplicate()
           : connection,
       },
-      Connection,
+      backendFactory,
       true,
     );
 
@@ -327,14 +295,16 @@ export class QueueEvents extends QueueBase {
   }
 
   emit<
-    QEL extends QueueEventsListener = QueueEventsListener,
+    QEL extends QueueEventsListener<ReturnType> =
+      QueueEventsListener<ReturnType>,
     U extends KeyOf<QEL> = KeyOf<QEL>,
   >(event: U, ...args: CustomParameters<QEL[U]>): boolean {
     return super.emit(event, ...args);
   }
 
   off<
-    QEL extends QueueEventsListener = QueueEventsListener,
+    QEL extends QueueEventsListener<ReturnType> =
+      QueueEventsListener<ReturnType>,
     U extends KeyOf<QEL> = KeyOf<QEL>,
   >(eventName: U, listener: QEL[U]): this {
     super.off(eventName, listener as (...args: any[]) => void);
@@ -342,7 +312,8 @@ export class QueueEvents extends QueueBase {
   }
 
   on<
-    QEL extends QueueEventsListener = QueueEventsListener,
+    QEL extends QueueEventsListener<ReturnType> =
+      QueueEventsListener<ReturnType>,
     U extends KeyOf<QEL> = KeyOf<QEL>,
   >(event: U, listener: QEL[U]): this {
     super.on(event, listener as (...args: any[]) => void);
@@ -350,7 +321,8 @@ export class QueueEvents extends QueueBase {
   }
 
   once<
-    QEL extends QueueEventsListener = QueueEventsListener,
+    QEL extends QueueEventsListener<ReturnType> =
+      QueueEventsListener<ReturnType>,
     U extends KeyOf<QEL> = KeyOf<QEL>,
   >(event: U, listener: QEL[U]): this {
     super.once(event, listener as (...args: any[]) => void);
@@ -365,18 +337,11 @@ export class QueueEvents extends QueueBase {
     if (!this.running) {
       try {
         this.running = true;
-        const client = await this.client;
 
         // TODO: Planned for deprecation as it really has no use case
-        try {
-          await client.client('SETNAME', this.clientName(QUEUE_EVENT_SUFFIX));
-        } catch (err) {
-          if (!clientCommandMessageReg.test((<Error>err).message)) {
-            throw err;
-          }
-        }
+        await this.backend.setName(this.clientName(QUEUE_EVENT_SUFFIX));
 
-        await this.consumeEvents(client);
+        await this.consumeEvents();
       } catch (error) {
         this.running = false;
         throw error;
@@ -386,17 +351,16 @@ export class QueueEvents extends QueueBase {
     }
   }
 
-  private async consumeEvents(client: RedisClient): Promise<void> {
+  private async consumeEvents(): Promise<void> {
     const opts: QueueEventsOptions = this.opts;
 
-    const key = this.keys.events;
     let id = opts.lastEventId || '$';
 
     while (!this.closing) {
       this.blocking = true;
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
       const data: StreamReadRaw = await this.checkConnectionError(() =>
-        client.xread('BLOCK', opts.blockingTimeout!, 'STREAMS', key, id),
+        this.backend.readEvents(id, opts.blockingTimeout!),
       );
       this.blocking = false;
       if (data) {
@@ -416,6 +380,9 @@ export class QueueEvents extends QueueBase {
               break;
             case 'completed':
               args.returnvalue = JSON.parse(args.returnvalue);
+              break;
+            case 'delayed':
+              (args as Record<string, any>).delay = Number(args.delay);
               break;
           }
 
@@ -443,11 +410,10 @@ export class QueueEvents extends QueueBase {
     if (!this.closing) {
       this.closing = (async () => {
         try {
-          // As the connection has been wrongly marked as "shared" by QueueBase,
-          // we need to forcibly close it here. We should fix QueueBase to avoid this in the future.
-          const client = await this.client;
-          client.disconnect();
-          await this.connection.close(this.blocking);
+          // Force a disconnect first to interrupt the blocking XREAD, then
+          // close the underlying connection.
+          await this.backend.disconnect();
+          await this.backend.close();
         } finally {
           this.closed = true;
         }

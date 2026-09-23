@@ -1,9 +1,10 @@
 # Table of contents
 
 - [What is BullMQ](README.md)
-- [Quick Start](<README (1).md>)
-- [API Reference](https://api.docs.bullmq.io)
+- [Quick Start](quick-start.md)
+- [API Reference](/api/index.html)
 - [Changelogs](changelog.md)
+  - [v5](changelogs/changelog-v5.md)
   - [v4](changelogs/changelog-v4.md)
   - [v3](changelogs/changelog-v3.md)
   - [v2](changelogs/changelog-v2.md)
@@ -13,9 +14,11 @@
 
 - [Introduction](guide/introduction.md)
 - [Connections](guide/connections.md)
+- [PostgreSQL backend](guide/postgresql.md)
 - [Queues](guide/queues/README.md)
   - [Auto-removal of jobs](guide/queues/auto-removal-of-jobs.md)
   - [Adding jobs in bulk](guide/queues/adding-bulks.md)
+  - [Working with batches](guide/queues/batches.md)
   - [Global Concurrency](guide/queues/global-concurrency.md)
   - [Global Rate Limit](guide/queues/global-rate-limit.md)
   - [Meta](guide/queues/meta.md)
@@ -80,6 +83,7 @@
 - [Going to production](guide/going-to-production.md)
 - [Migrations](guide/migrations/migration-to-newer-versions.md)
   - [Bull to BullMQ](guide/migrations/bull-to-bullmq.md)
+  - [Migrate from v5 to v6](guide/migrations/migrate-from-v5-to-v6.md)
 - [Troubleshooting](guide/troubleshooting.md)
 
 ## Patterns
@@ -153,17 +157,36 @@
 ## Python
 
 - [Introduction](python/introduction.md)
+- [Flow Producer](python/flow-producer.md)
+- [Job Scheduler](python/job-scheduler.md)
+- [Lock Manager](python/lock-manager.md)
+- [Global Concurrency and Rate Limit](python/global-concurrency-and-rate-limit.md)
+- [Job Cancellation](python/job-cancellation.md)
+- [Queue Events](python/queue-events.md)
 - [Changelogs](python/changelog.md)
+  - [v2](python/changelogs/changelog-v2.md)
   - [v1](python/changelogs/changelog-v1.md)
   - [v0](python/changelogs/changelog-v0.md)
+
+## Rust
+
+- [Introduction](rust/introduction.md)
+- [API Reference](https://docs.rs/bullmq-official)
+- [Changelogs](rust/changelog.md)
 
 ## Elixir
 
 - [Introduction](elixir/introduction.md)
 - [API Reference](https://hexdocs.pm/bullmq)
 - [Changelogs](elixir/changelog.md)
+  - [v1](elixir/changelogs/changelog-v1.md)
 
 ## PHP
 
 - [Introduction](php/introduction.md)
 - [Changelogs](php/changelog.md)
+  - [v1](php/changelogs/changelog-v1.md)
+
+## .Net
+
+- [Changelogs](dotnet/changelog.md)

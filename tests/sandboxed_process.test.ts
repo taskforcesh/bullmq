@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'url';
 import { default as IORedis } from 'ioredis';
-import { after } from 'lodash';
+import { after } from './utils/lodash';
+import { EventEmitter } from 'events';
 import {
   describe,
   beforeEach,
@@ -20,8 +21,16 @@ import {
   UNRECOVERABLE_ERROR,
   Worker,
 } from '../src/classes';
+import sandbox from '../src/classes/sandbox';
+import { ParentCommand } from '../src/enums';
 
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import {
+  delay,
+  errorToJSON,
+  randomUUID,
+  removeAllQueueData,
+} from '../src/utils';
+import { existsSync, unlinkSync, writeFileSync } from 'fs';
 const { stdout, stderr } = require('test-console');
 
 describe('Sandboxed process using child processes', () => {
@@ -228,6 +237,45 @@ describe('Sandboxed process using worker threads', () => {
   });
 });
 
+describe('Sandbox error message handling', () => {
+  // A child that refuses a Start (e.g. 'cannot start a not idling child
+  // process') reports the reason via ParentCommand.Error, whose payload is
+  // carried under the `err` key — unlike ParentCommand.Failed which uses
+  // `value`. The sandbox message handler must read from either key so the
+  // reason is never lost as an empty-message error. This guards the
+  // `msg.value ?? msg.err` fix independently of the child lifecycle, since the
+  // refusal path is otherwise hard to reach once init-failed children exit.
+  it('preserves error message when child reports via ParentCommand.Error', async () => {
+    const reason = 'cannot start a not idling child process';
+
+    const fakeChild: any = new EventEmitter();
+    fakeChild.exitCode = null;
+    fakeChild.signalCode = null;
+    fakeChild.processFile = 'fake-process-file';
+    fakeChild.pid = 1;
+    fakeChild.send = () => {
+      // Simulate the child refusing the Start command and reporting the reason
+      // under `err` (ParentCommand.Error), not `value` (ParentCommand.Failed).
+      queueMicrotask(() => {
+        fakeChild.emit('message', {
+          cmd: ParentCommand.Error,
+          err: errorToJSON(new Error(reason)),
+        });
+      });
+    };
+
+    const fakeChildPool: any = {
+      retain: async () => fakeChild,
+      release: () => {},
+    };
+
+    const processFn = sandbox('fake-process-file', fakeChildPool);
+    const fakeJob: any = { asJSONSandbox: () => ({}) };
+
+    await expect(processFn(fakeJob)).rejects.toThrow(reason);
+  });
+});
+
 function sandboxProcessTests(
   { useWorkerThreads } = { useWorkerThreads: false },
 ) {
@@ -239,6 +287,16 @@ function sandboxProcessTests(
     let queueName: string;
 
     let connection: IORedis;
+
+    // Backend-agnostic qualified queue name: `bull:<name>` on Redis, bare
+    // `<name>` on PostgreSQL. Derived from the child queue's own qualifiedName
+    // so job/parent key assertions hold on any backend.
+    const qualify = (name: string): string =>
+      `${queue.qualifiedName.slice(
+        0,
+        queue.qualifiedName.length - queue.name.length,
+      )}${name}`;
+
     beforeAll(async () => {
       connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
     });
@@ -829,7 +887,7 @@ function sandboxProcessTests(
         parentWorker.on('completed', async (job: Job, value: any) => {
           try {
             expect(value).toEqual({
-              [`${prefix}:${queueName}:${childJobId}`]: { childResult: 'bar' },
+              [`${qualify(queueName)}:${childJobId}`]: { childResult: 'bar' },
             });
             resolve();
           } catch (err) {
@@ -951,7 +1009,7 @@ function sandboxProcessTests(
         parentWorker.on('completed', async (job: Job, value: any) => {
           try {
             expect(value).toEqual({
-              [`${prefix}:${queueName}:${childJobId}`]: 'child error',
+              [`${qualify(queueName)}:${childJobId}`]: 'child error',
             });
             resolve();
           } catch (err) {
@@ -1333,81 +1391,91 @@ function sandboxProcessTests(
       await worker.close();
     });
 
-    it('should process and move to wait for children', async () => {
-      const processFile =
-        __dirname + '/fixtures/fixture_processor_move_to_wait_for_children.js';
+    // This fixture's child process spawns its own raw Redis-backed Queue to add
+    // the child job (see fixture_processor_move_to_wait_for_children.js), so it
+    // is inherently Redis-specific. The moveToWaitingChildren step flow itself
+    // is covered backend-agnostically by the flow suite.
+    const itUnlessPostgres =
+      process.env.BULLMQ_TEST_BACKEND === 'postgres' ? it.skip : it;
+    itUnlessPostgres(
+      'should process and move to wait for children',
+      async () => {
+        const processFile =
+          __dirname +
+          '/fixtures/fixture_processor_move_to_wait_for_children.js';
 
-      const childQueueName = `test-${randomUUID()}`;
+        const childQueueName = `test-${randomUUID()}`;
 
-      const parentWorker = new Worker(queueName, processFile, {
-        autorun: false,
-        connection,
-        prefix,
-        drainDelay: 1,
-        useWorkerThreads,
-      });
-
-      const childWorker = new Worker(
-        childQueueName,
-        () => {
-          return delay(250);
-        },
-        {
+        const parentWorker = new Worker(queueName, processFile, {
           autorun: false,
           connection,
           prefix,
           drainDelay: 1,
-        },
-      );
-      const childQueue = new Queue(childQueueName, { connection, prefix });
+          useWorkerThreads,
+        });
 
-      const waitingParent = new Promise<void>((resolve, reject) => {
-        queueEvents.on('waiting-children', async ({ jobId }) => {
-          try {
-            if (jobId) {
-              expect(jobId).toBe('parent-job-id');
-              resolve();
+        const childWorker = new Worker(
+          childQueueName,
+          () => {
+            return delay(250);
+          },
+          {
+            autorun: false,
+            connection,
+            prefix,
+            drainDelay: 1,
+          },
+        );
+        const childQueue = new Queue(childQueueName, { connection, prefix });
+
+        const waitingParent = new Promise<void>((resolve, reject) => {
+          queueEvents.on('waiting-children', async ({ jobId }) => {
+            try {
+              if (jobId) {
+                expect(jobId).toBe('parent-job-id');
+                resolve();
+              }
+            } catch (err) {
+              console.log(err);
+              reject(err);
             }
-          } catch (err) {
-            console.log(err);
-            reject(err);
-          }
+          });
         });
-      });
 
-      const completingParent = new Promise<void>((resolve, reject) => {
-        parentWorker.on('completed', async (job: Job) => {
-          expect(job.data.queueName).toBe(childQueueName);
-          expect(job.data.step).toBe('finish');
-          expect(job.returnvalue).toBe('finished');
-          resolve();
+        const completingParent = new Promise<void>((resolve, reject) => {
+          parentWorker.on('completed', async (job: Job) => {
+            expect(job.data.queueName).toBe(childQueueName);
+            expect(job.data.step).toBe('finish');
+            expect(job.returnvalue).toBe('finished');
+            resolve();
+          });
         });
-      });
 
-      const completingChild = new Promise<void>((resolve, reject) => {
-        childWorker.on('completed', async (job: Job) => {
-          expect(job.data.foo).toBe('bar');
-          resolve();
+        const completingChild = new Promise<void>((resolve, reject) => {
+          childWorker.on('completed', async (job: Job) => {
+            expect(job.data.foo).toBe('bar');
+            resolve();
+          });
         });
-      });
 
-      await queue.add(
-        'test',
-        { redisHost, queueName: childQueueName },
-        { jobId: 'parent-job-id' },
-      );
+        await queue.add(
+          'test',
+          { redisHost, queueName: childQueueName },
+          { jobId: 'parent-job-id' },
+        );
 
-      parentWorker.run();
-      childWorker.run();
+        parentWorker.run();
+        childWorker.run();
 
-      await waitingParent;
-      await completingChild;
-      await completingParent;
-      await parentWorker.close();
-      await childWorker.close();
-      await childQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), childQueueName);
-    });
+        await waitingParent;
+        await completingChild;
+        await completingParent;
+        await parentWorker.close();
+        await childWorker.close();
+        await childQueue.close();
+        await removeAllQueueData(new IORedis(redisHost), childQueueName);
+      },
+    );
 
     describe('when env variables are provided', () => {
       it('shares env variables', async () => {
@@ -1493,7 +1561,7 @@ function sandboxProcessTests(
             expect(job.data).toEqual({ foo: 'bar' });
             expect(value).toEqual({
               id: 'job-id',
-              queueKey: `${prefix}:${parentQueueName}`,
+              queueKey: qualify(parentQueueName),
             });
             expect(Object.keys(worker['childPool'].retained)).toHaveLength(0);
             expect(worker['childPool'].free[processFile]).toHaveLength(1);
@@ -1750,6 +1818,67 @@ function sandboxProcessTests(
 
       await failing;
       await worker.close();
+    });
+
+    describe('when a child fails to initialize once (transient error)', () => {
+      it('does not reuse the broken child and recovers on the next job', async () => {
+        const processFile =
+          __dirname + '/fixtures/fixture_processor_fail_init_once.js';
+        const flagFile = __dirname + '/fixtures/fail-init-once.flag';
+
+        // Arm the transient failure: the first import of the processor file
+        // will throw and then remove this flag.
+        writeFileSync(flagFile, '1');
+
+        const worker = new Worker(queueName, processFile, {
+          connection,
+          prefix,
+          concurrency: 1,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        try {
+          await worker.waitUntilReady();
+
+          // First job: the child fails during init with the transient error.
+          const failedReason = await new Promise<string>((resolve, reject) => {
+            worker.once('failed', (_job, error) => {
+              try {
+                resolve(error.message);
+              } catch (err) {
+                reject(err);
+              }
+            });
+            queue.add('test', { i: 0 }, { attempts: 1 }).catch(reject);
+          });
+
+          expect(failedReason).toBe('transient module load failure');
+
+          // The broken child must not be released back into the free pool.
+          expect(worker['childPool'].getAllFree()).toHaveLength(0);
+
+          // Second job: a fresh child is forked and processes the job normally.
+          const completedValue = await new Promise<any>((resolve, reject) => {
+            worker.once('completed', (_job, value) => resolve(value));
+            worker.once('failed', (_job, error) =>
+              reject(
+                new Error(
+                  `expected job to complete but it failed with: "${error.message}"`,
+                ),
+              ),
+            );
+            queue.add('test', { i: 1 }, { attempts: 1 }).catch(reject);
+          });
+
+          expect(completedValue).toBe('ok');
+        } finally {
+          if (existsSync(flagFile)) {
+            unlinkSync(flagFile);
+          }
+          await worker.close();
+        }
+      });
     });
 
     describe('when child process a job and its killed direcly after completing', () => {

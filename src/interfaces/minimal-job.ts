@@ -5,7 +5,7 @@ import { JobJson } from './job-json';
 import { ParentKeys } from './parent';
 import { ParentOptions } from './parent-options';
 
-export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
+export type BulkJobOptions = JobsOptions;
 
 export interface MoveToDelayedOpts {
   skipAttempt?: boolean;
@@ -58,6 +58,7 @@ export interface MinimalJob<
   DataType = any,
   ReturnType = any,
   NameType extends string = string,
+  ProgressType extends JobProgress = JobProgress,
 > {
   /**
    * The name of the Job
@@ -76,7 +77,7 @@ export interface MinimalJob<
    * The progress a job has performed so far.
    * @defaultValue 0
    */
-  progress: JobProgress;
+  progress: ProgressType;
   /**
    * The value returned by the processor when processing this job.
    * @defaultValue null
@@ -146,7 +147,7 @@ export interface MinimalJob<
    *
    * @param progress - number or object to be saved as progress.
    */
-  updateProgress(progress: JobProgress): Promise<void>;
+  updateProgress(progress: ProgressType): Promise<void>;
   /**
    * Logs one row of log data.
    *
@@ -160,7 +161,7 @@ export interface MinimalJob<
   get prefix(): string;
   /**
    * @returns it includes the prefix, the namespace separator :, and queue name.
-   * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
+   * @see {@link https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html}
    */
   get queueQualifiedName(): string;
 }

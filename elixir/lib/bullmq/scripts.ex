@@ -55,6 +55,7 @@ defmodule BullMQ.Scripts do
     get_counts_per_priority: "getCountsPerPriority",
     get_dependency_counts: "getDependencyCounts",
     get_job_scheduler: "getJobScheduler",
+    get_jobs: "getJobs",
     get_metrics: "getMetrics",
     get_ranges: "getRanges",
     get_rate_limit_ttl: "getRateLimitTtl",
@@ -1153,8 +1154,7 @@ defmodule BullMQ.Scripts do
     # KEYS[8] stalled key
     # KEYS[9] wait key
     # KEYS[10] rate limiter key
-    # KEYS[11] paused key
-    # KEYS[12] pc priority counter
+    # KEYS[11] pc priority counter
     keys = [
       Keys.marker(ctx),
       Keys.active(ctx),
@@ -1166,7 +1166,6 @@ defmodule BullMQ.Scripts do
       Keys.stalled(ctx),
       Keys.wait(ctx),
       Keys.limiter(ctx),
-      Keys.paused(ctx),
       Keys.pc(ctx)
     ]
 
@@ -1389,25 +1388,39 @@ defmodule BullMQ.Scripts do
           script_result()
   def move_stalled_jobs_to_wait(conn, ctx, max_stalled_count, opts \\ []) do
     keys = [
+      # KEYS[1] stalled
       Keys.stalled(ctx),
+      # KEYS[2] wait
       Keys.wait(ctx),
+      # KEYS[3] active
       Keys.active(ctx),
-      Keys.failed(ctx),
+      # KEYS[4] stalled-check
       Keys.stalled_check(ctx),
+      # KEYS[5] meta
       Keys.meta(ctx),
+      # KEYS[6] paused
       Keys.paused(ctx),
-      Keys.marker(ctx)
+      # KEYS[7] marker
+      Keys.marker(ctx),
+      # KEYS[8] event stream
+      Keys.events(ctx),
+      # KEYS[9] repeat
+      Keys.repeat(ctx)
     ]
 
     timestamp = Keyword.get(opts, :timestamp, System.system_time(:millisecond))
 
+    max_check_time = Keyword.get(opts, :stalled_interval, 30_000)
+
     args = [
-      # ARGV[1] prefix:queueName
-      Keys.key(ctx),
-      # ARGV[2] max stalled count
+      # ARGV[1] max stalled count
       max_stalled_count,
+      # ARGV[2] prefix:queueName: (trailing colon — used to build jobKey directly)
+      Keys.key_prefix(ctx),
       # ARGV[3] timestamp
-      timestamp
+      timestamp,
+      # ARGV[4] max check time
+      max_check_time
     ]
 
     execute(conn, :move_stalled_jobs_to_wait, keys, args)
@@ -1453,12 +1466,12 @@ defmodule BullMQ.Scripts do
       Keys.paused(ctx),
       Keys.meta(ctx),
       Keys.prioritized(ctx),
-      Keys.pc(ctx),
-      Keys.marker(ctx),
-      Keys.events(ctx)
+      Keys.events(ctx),
+      Keys.delayed(ctx),
+      Keys.marker(ctx)
     ]
 
-    args = [if(paused?, do: "paused", else: "resumed")]
+    args = [if(paused?, do: "paused", else: "resumed"), "1"]
 
     execute(conn, :pause, keys, args)
   end
@@ -1523,6 +1536,49 @@ defmodule BullMQ.Scripts do
     ]
 
     execute(conn, :remove_job, keys, args)
+  end
+
+  # Upper bound on the number of forward backfill iterations the `getJobs` Lua
+  # script performs to replace skipped ids (missing job hashes) within a bounded
+  # range. It caps the work done per call so a range full of missing jobs cannot
+  # scan the whole state unboundedly. Mirrors the Node.js implementation.
+  @get_jobs_max_backfill_iterations 5
+
+  @doc """
+  Fetches job ids and their job hashes for the provided states in a single
+  script, skipping ids whose job hash is missing (for example the deprecated
+  wait list marker or jobs removed after their id was read).
+
+  `types` are the Lua state type strings (e.g. `"wait"`, `"active"`,
+  `"waiting-children"`). The result is one array per requested type; each entry
+  is a `[job_id, [field, value, ...]]` tuple where the field/value list is the
+  flattened job hash. For bounded ranges the script iterates forward using the
+  range offset as a cursor to backfill skipped ids.
+  """
+  @spec get_jobs(
+          atom(),
+          queue_context(),
+          [String.t()],
+          integer(),
+          integer(),
+          boolean(),
+          integer()
+        ) :: script_result()
+  def get_jobs(
+        conn,
+        ctx,
+        types,
+        start_idx \\ 0,
+        end_idx \\ -1,
+        asc \\ false,
+        max_iterations \\ @get_jobs_max_backfill_iterations
+      ) do
+    # KEYS[1] is the queue key prefix (with trailing colon); the script builds
+    # the state keys and job hash keys from it.
+    keys = [Keys.key_prefix(ctx)]
+    args = [start_idx, end_idx, if(asc, do: 1, else: 0), max_iterations | types]
+
+    execute(conn, :get_jobs, keys, args)
   end
 
   @doc """
@@ -1734,6 +1790,27 @@ defmodule BullMQ.Scripts do
   end
 
   @doc """
+  Gets job counts per priority.
+
+  Returns a list of counts, one per requested priority, in the same order as
+  the input list.  Priority 0 counts jobs in the wait list (non-prioritized
+  jobs); every other priority value counts jobs in the prioritized sorted set
+  within the corresponding score range.
+
+  ## Parameters
+    * `conn` - Redis connection
+    * `ctx` - Queue context from Keys.new/2
+    * `priorities` - List of priority values to count
+  """
+  @spec get_counts_per_priority(atom(), queue_context(), [integer()]) :: script_result()
+  def get_counts_per_priority(conn, ctx, priorities) do
+    keys = [Keys.wait(ctx), Keys.prioritized(ctx)]
+    args = priorities
+
+    execute(conn, :get_counts_per_priority, keys, args)
+  end
+
+  @doc """
   Checks if the queue is at its max limit.
   """
   @spec is_maxed(atom(), queue_context()) :: script_result()
@@ -1803,7 +1880,6 @@ defmodule BullMQ.Scripts do
       if(state == :failed, do: Keys.failed(ctx), else: Keys.completed(ctx)),
       Keys.wait(ctx),
       Keys.meta(ctx),
-      Keys.paused(ctx),
       Keys.active(ctx),
       Keys.marker(ctx)
     ]
@@ -1947,7 +2023,7 @@ defmodule BullMQ.Scripts do
 
       parent_obj =
         if parent_id != "" do
-          %{"id" => parent_id, "queueKey" => queue_key}
+          build_parent_obj(parent_id, queue_key, job)
         else
           nil
         end
@@ -1969,7 +2045,7 @@ defmodule BullMQ.Scripts do
 
       parent_obj =
         if parent_id != "" do
-          %{"id" => parent_id, "queueKey" => queue_key}
+          build_parent_obj(parent_id, queue_key, job)
         else
           nil
         end
@@ -1981,6 +2057,53 @@ defmodule BullMQ.Scripts do
   end
 
   defp get_parent_info_full(_), do: {nil, nil, nil}
+
+  # Build the parent payload stored in the child job's "parent" field.
+  # It must include the parent dependency metadata (fpof/cpof/idof/rdof) so
+  # moveToFinished.lua can decrement the parent's pending dependencies and
+  # avoid leaving the parent stuck in waiting-children when a child finishes
+  # or fails.
+  defp build_parent_obj(parent_id, queue_key, job) do
+    job_opts = get_job_opts(job)
+
+    %{"id" => parent_id, "queueKey" => queue_key}
+    |> maybe_add_opt(
+      "fpof",
+      Map.get(job_opts, :fail_parent_on_failure) ||
+        Map.get(job_opts, "fail_parent_on_failure") ||
+        Map.get(job_opts, "failParentOnFailure") ||
+        Map.get(job_opts, :fpof) ||
+        Map.get(job_opts, "fpof"),
+      nil
+    )
+    |> maybe_add_opt(
+      "cpof",
+      Map.get(job_opts, :continue_parent_on_failure) ||
+        Map.get(job_opts, "continue_parent_on_failure") ||
+        Map.get(job_opts, "continueParentOnFailure") ||
+        Map.get(job_opts, :cpof) ||
+        Map.get(job_opts, "cpof"),
+      nil
+    )
+    |> maybe_add_opt(
+      "idof",
+      Map.get(job_opts, :ignore_dependency_on_failure) ||
+        Map.get(job_opts, "ignore_dependency_on_failure") ||
+        Map.get(job_opts, "ignoreDependencyOnFailure") ||
+        Map.get(job_opts, :idof) ||
+        Map.get(job_opts, "idof"),
+      nil
+    )
+    |> maybe_add_opt(
+      "rdof",
+      Map.get(job_opts, :remove_dependency_on_failure) ||
+        Map.get(job_opts, "remove_dependency_on_failure") ||
+        Map.get(job_opts, "removeDependencyOnFailure") ||
+        Map.get(job_opts, :rdof) ||
+        Map.get(job_opts, "rdof"),
+      nil
+    )
+  end
 
   defp build_parent_key(parent) when is_map(parent) do
     queue_key = Map.get(parent, :queue_key) || Map.get(parent, "queueKey") || ""
@@ -2013,7 +2136,7 @@ defmodule BullMQ.Scripts do
       %{}
       |> maybe_add_opt("del", Map.get(job_opts, :delay) || Map.get(job_opts, "delay") || delay, 0)
       |> maybe_add_opt(
-        "pri",
+        "priority",
         Map.get(job_opts, :priority) || Map.get(job_opts, "priority") || priority,
         0
       )

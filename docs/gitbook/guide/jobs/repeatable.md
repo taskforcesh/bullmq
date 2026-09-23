@@ -1,14 +1,14 @@
 # Repeatable
 
 {% hint style="danger" %}
-Note: from BullMQ version 5.16.0 and onwards, we have deprecated these APIs in favor of ["Job Schedulers"](../job-schedulers/), which provide a more cohesive and more robust API for handling repeatable jobs.
+Note: these APIs were deprecated from BullMQ version 5.16.0 onwards and have been **removed** in v6 in favor of ["Job Schedulers"](../job-schedulers/), which provide a more cohesive and more robust API for handling repeatable jobs.
+
+The `repeat` option on `Queue.add`/`Queue.addBulk`, the `Repeat` class, and the `getRepeatableJobs`, `removeRepeatable` and `removeRepeatableByKey` methods are no longer available. The examples on this page are kept for historical reference only — use [Job Schedulers](../job-schedulers/) (`upsertJobScheduler`, `getJobSchedulers`, `removeJobScheduler`) instead. If you are upgrading an existing installation, follow the [v5 to v6 migration guide](../migrations/migrate-from-v5-to-v6.md) before deploying v6.
 {% endhint %}
 
-There is a special type of _meta_ job called **repeatable**. These jobs are special in the sense that even though you only add one job to the queue, they will keep repeating according to a predefined schedule.
+In BullMQ v5, repeatable jobs were stored as a repeat configuration plus delayed jobs generated from that configuration. In BullMQ v6 this legacy model is replaced by Job Schedulers, which store scheduler metadata under scheduler keys and enqueue normal delayed jobs for each run.
 
-Adding a job with the `repeat` option set will actually do two things immediately: create a Repeatable Job configuration, and schedule a regular delayed job for the job's first run. This first run will be scheduled "on the hour", that is if you create a job that repeats every 15 minutes at 4:07, the job will first run at 4:15, then 4:30, and so on.
-
-The Repeatable Job configuration is not a job, so it will not show up in methods like `getJobs()`. To manage Repeatable Job configurations, use [`getRepeatableJobs()`](https://api.docs.bullmq.io/classes/v5.Queue.html#getrepeatablejobs) and similar. This also means repeated jobs do **not** participate in evaluating `jobId` uniqueness - that is, a non-repeatable job can have the same `jobId` as a Repeatable Job configuration, and two Repeatable Job configurations can have the same `jobId` as long as they have different repeat options.
+The Repeatable Job configuration is not a job, so it will not show up in methods like `getJobs()`. To manage Repeatable Job configurations, use [`getRepeatableJobs()`](https://docs.bullmq.io/api/classes/v5.Queue.html#getrepeatablejobs) and similar. This also means repeated jobs do **not** participate in evaluating `jobId` uniqueness - that is, a non-repeatable job can have the same `jobId` as a Repeatable Job configuration, and two Repeatable Job configurations can have the same `jobId` as long as they have different repeat options.
 
 Every time a repeatable job is picked up for processing, the next repeatable job is added to the queue with a proper delay. Repeatable jobs are thus nothing more than delayed jobs that are added to the queue according to some settings.
 
@@ -54,7 +54,7 @@ There are some important considerations regarding repeatable jobs:
 
 - Bull is smart enough not to add the same repeatable job if the repeat options are the same.
 - If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
-- Repeatable jobs can be removed using the [`removeRepeatable`](https://api.docs.bullmq.io/classes/v5.Queue.html#removerepeatable) or [`removeRepeatableByKey`](https://api.docs.bullmq.io/classes/v5.Queue.html#removerepeatablebykey) methods.
+- Repeatable jobs can be removed using the [`removeRepeatable`](https://docs.bullmq.io/api/classes/v5.Queue.html#removerepeatable) or [`removeRepeatableByKey`](https://docs.bullmq.io/api/classes/v5.Queue.html#removerepeatablebykey) methods.
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -70,7 +70,7 @@ const isRemoved1 = await myQueue.removeRepeatableByKey(job1.repeatJobKey);
 const isRemoved2 = await queue.removeRepeatable('blue', repeat);
 ```
 
-All repeatable jobs have a repeatable job key that holds some metadata of the repeatable job itself. It is possible to retrieve all the current repeatable jobs in the queue calling [`getRepeatableJobs`](https://api.docs.bullmq.io/classes/v5.Queue.html#getrepeatablejobs):
+All repeatable jobs have a repeatable job key that holds some metadata of the repeatable job itself. It is possible to retrieve all the current repeatable jobs in the queue calling [`getRepeatableJobs`](https://docs.bullmq.io/api/classes/v5.Queue.html#getrepeatablejobs):
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -251,6 +251,6 @@ The code above will not create a new repeatable meta job, it will just update th
 
 ### Read more:
 
-- 💡 [Repeat Strategy API Reference](https://api.docs.bullmq.io/types/v5.RepeatStrategy.html)
-- 💡 [Remove Repeatable Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removerepeatable)
-- 💡 [Remove Repeatable Job by Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removerepeatablebykey)
+- 💡 [Repeat Strategy API Reference](https://docs.bullmq.io/api/types/v5.RepeatStrategy.html)
+- 💡 [Remove Repeatable Job API Reference](https://docs.bullmq.io/api/classes/v5.Queue.html#removerepeatable)
+- 💡 [Remove Repeatable Job by Key API Reference](https://docs.bullmq.io/api/classes/v5.Queue.html#removerepeatablebykey)

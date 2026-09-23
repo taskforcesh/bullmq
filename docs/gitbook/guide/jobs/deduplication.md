@@ -40,7 +40,7 @@ In this example, after adding the house painting job with the deduplicated param
 
 ## Debounce Mode
 
-Debounce Mode can be achieved by delaying a job upon creation while providing a matching TTL as well as having extend and replace options set as true. Debounce is achieved because if another job with the same deduplication ID is added during this delay (and TTL period) it will replace the previous job with the new one, as well as reseting the TTL, thus ensuring that only the most recent job is kept. This mechanism avoids flooding the queue with duplicates while maintaining the latest job's data.
+Debounce Mode can be achieved by delaying a job upon creation while providing a matching TTL as well as having extend and replace options set as true. Debounce is achieved because if another job with the same deduplication ID is added during this delay (and TTL period) it will replace the previous job with the new one, as well as resetting the TTL, thus ensuring that only the most recent job is kept. This mechanism avoids flooding the queue with duplicates while maintaining the latest job's data.
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -190,7 +190,7 @@ When the active job is retried (e.g., due to `attempts` configuration), the stor
 
 ## Read more:
 
-- 💡 [Add Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#add)
-- 💡 [Queue Remove Deduplication Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removededuplicationkey)
-- 💡 [Job Remove Deduplication Key API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#removededuplicationkey)
+- 💡 [Add Job API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#add)
+- 💡 [Queue Remove Deduplication Key API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#removededuplicationkey)
+- 💡 [Job Remove Deduplication Key API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#removededuplicationkey)
 - 💡 [Deduplication Patterns](../../patterns/deduplication.md)

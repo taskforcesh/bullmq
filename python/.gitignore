@@ -1,5 +1,7 @@
 __pycache__
 bullmq/commands
+bullmq/postgres/commands
+bullmq/postgres/migrations
 build
 bullmq.egg-info
 dist

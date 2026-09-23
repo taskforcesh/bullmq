@@ -46,6 +46,55 @@ const worker = new Worker(
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using System.Text.Json;
+using BullMQ;
+
+const int StepInitial = 0;
+const int StepSecond = 1;
+const int StepFinish = 2;
+
+var worker = new Worker(
+  "queueName",
+  async (job, _) =>
+  {
+    var step = job.Data is JsonElement data &&
+           data.TryGetProperty("step", out var rawStep)
+      ? rawStep.GetInt32()
+      : StepInitial;
+
+    while (step != StepFinish)
+    {
+      switch (step)
+      {
+        case StepInitial:
+          await doInitialStepStuff();
+          await job.UpdateDataAsync(new { step = StepSecond });
+          step = StepSecond;
+          break;
+
+        case StepSecond:
+          await doSecondStepStuff();
+          await job.UpdateDataAsync(new { step = StepFinish });
+          return StepFinish;
+
+        default:
+          throw new Exception("invalid step");
+      }
+    }
+
+    return null;
+  },
+  new WorkerOptions
+  {
+    Connection = connection,
+  });
+```
+
+{% endtab %}
+
 {% tab title="Python" %}
 
 ```python
@@ -76,6 +125,47 @@ worker = Worker("queueName", process, {"connection": connection})
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Worker, WorkerOptions, Job};
+use bullmq::worker::{CancellationToken, ProcessorFn};
+use std::sync::Arc;
+
+#[derive(Clone, Copy, PartialEq)]
+enum Step {
+    Initial = 0,
+    Second = 1,
+    Finish = 2,
+}
+
+let processor: ProcessorFn = Arc::new(|mut job: Job, _token: CancellationToken| {
+    Box::pin(async move {
+        let mut step = job.data()["step"].as_i64().unwrap_or(Step::Initial as i64);
+        while step != Step::Finish as i64 {
+            match step {
+                s if s == Step::Initial as i64 => {
+                    do_initial_step_stuff().await;
+                    job.update_data(serde_json::json!({ "step": Step::Second as i64 })).await?;
+                    step = Step::Second as i64;
+                }
+                s if s == Step::Second as i64 => {
+                    do_second_step_stuff().await;
+                    job.update_data(serde_json::json!({ "step": Step::Finish as i64 })).await?;
+                    return Ok(serde_json::json!(Step::Finish as i64));
+                }
+                _ => return Err(bullmq::Error::Unrecoverable("invalid step".to_string())),
+            }
+        }
+        Ok(serde_json::Value::Null)
+    })
+});
+
+let worker = Worker::new("queueName", processor, WorkerOptions::default()).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 By saving the next step value every time we complete the previous step (here, saving it in the job's data), we can ensure that if the job errors and retries, it does so starting from the correct step.
@@ -84,7 +174,10 @@ By saving the next step value every time we complete the previous step (here, sa
 
 There are situations when it is useful to delay a job when it is being processed.
 
-This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the `moveToDelayed` method to work, we need to pass said token so that it can unlock without error. Finally, we need to exit from the processor by throwing a special error (`DelayedError`) that will signal to the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
+This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the TypeScript `moveToDelayed` method to work, we need to pass said token so that it can unlock without error. In .NET, `job.MoveToDelayedAsync` uses the job's token automatically when no token is provided. Finally, we need to exit from the processor by throwing a special error (`DelayedError` in TypeScript or `DelayedException` in .NET) that will signal to the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 import { DelayedError, Worker } from 'bullmq';
@@ -125,6 +218,59 @@ const worker = new Worker(
   { connection },
 );
 ```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+using System.Text.Json;
+using BullMQ;
+
+const int StepInitial = 0;
+const int StepSecond = 1;
+const int StepFinish = 2;
+
+var worker = new Worker(
+  "queueName",
+  async (job, _) =>
+  {
+    var step = job.Data is JsonElement data &&
+           data.TryGetProperty("step", out var rawStep)
+      ? rawStep.GetInt32()
+      : StepInitial;
+
+    while (step != StepFinish)
+    {
+      switch (step)
+      {
+        case StepInitial:
+          await doInitialStepStuff();
+          await job.UpdateDataAsync(new { step = StepSecond });
+          await job.MoveToDelayedAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 200);
+          throw new DelayedException();
+
+        case StepSecond:
+          await doSecondStepStuff();
+          await job.UpdateDataAsync(new { step = StepFinish });
+          return StepFinish;
+
+        default:
+          throw new Exception("invalid step");
+      }
+    }
+
+    return null;
+  },
+  new WorkerOptions
+  {
+    Connection = connection,
+  });
+```
+
+{% endtab %}
+{% endtabs %}
 
 ## Waiting Children
 
@@ -267,6 +413,76 @@ worker = Worker("parentQueueName", process, {"connection": connection})
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Worker, WorkerOptions, Job, JobOptions};
+use bullmq::worker::{CancellationToken, ProcessorFn};
+use bullmq::options::ParentOpts;
+use std::sync::Arc;
+
+#[derive(Clone, Copy, PartialEq)]
+enum Step {
+    Initial = 0,
+    Second = 1,
+    Third = 2,
+    Finish = 3,
+}
+
+// `children_queue` is a `Queue` captured by the processor.
+let processor: ProcessorFn = Arc::new(move |mut job: Job, _token: CancellationToken| {
+    let children_queue = children_queue.clone();
+    Box::pin(async move {
+        let mut step = job.data()["step"].as_i64().unwrap_or(Step::Initial as i64);
+        while step != Step::Finish as i64 {
+            match step {
+                s if s == Step::Initial as i64 => {
+                    do_initial_step_stuff().await;
+                    children_queue.add("child-1", serde_json::json!({ "foo": "bar" }), Some(JobOptions {
+                        parent: Some(ParentOpts {
+                            id: job.id().to_string(),
+                            queue: job.queue_qualified_name().unwrap(),
+                            wait_children: None,
+                        }),
+                        ..Default::default()
+                    })).await?;
+                    job.update_data(serde_json::json!({ "step": Step::Second as i64 })).await?;
+                    step = Step::Second as i64;
+                }
+                s if s == Step::Second as i64 => {
+                    do_second_step_stuff().await;
+                    children_queue.add("child-2", serde_json::json!({ "foo": "bar" }), Some(JobOptions {
+                        parent: Some(ParentOpts {
+                            id: job.id().to_string(),
+                            queue: job.queue_qualified_name().unwrap(),
+                            wait_children: None,
+                        }),
+                        ..Default::default()
+                    })).await?;
+                    job.update_data(serde_json::json!({ "step": Step::Third as i64 })).await?;
+                    step = Step::Third as i64;
+                }
+                s if s == Step::Third as i64 => {
+                    let should_wait = job.move_to_waiting_children(None).await?;
+                    if !should_wait {
+                        job.update_data(serde_json::json!({ "step": Step::Finish as i64 })).await?;
+                        return Ok(serde_json::json!(Step::Finish as i64));
+                    } else {
+                        return Err(bullmq::Error::WaitingChildren);
+                    }
+                }
+                _ => return Err(bullmq::Error::Unrecoverable("invalid step".to_string())),
+            }
+        }
+        Ok(serde_json::Value::Null)
+    })
+});
+
+let worker = Worker::new("parentQueueName", processor, WorkerOptions::default()).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="info" %}
@@ -364,5 +580,5 @@ Manually moving jobs using special errors does **not** increment the attemptsMad
 
 ## Read more:
 
-- 💡 [Move To Delayed API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#movetodelayed)
-- 💡 [Move To Waiting Children API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#movetowaitingchildren)
+- 💡 [Move To Delayed API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#movetodelayed)
+- 💡 [Move To Waiting Children API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#movetowaitingchildren)

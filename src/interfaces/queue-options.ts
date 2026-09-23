@@ -24,11 +24,6 @@ export interface QueueBaseOptions {
   blockingConnection?: boolean;
 
   /**
-   * Prefix for all queue keys.
-   */
-  prefix?: string;
-
-  /**
    * Avoid version validation to be greater or equal than v5.0.0.
    * @defaultValue false
    */
@@ -51,9 +46,28 @@ export interface QueueBaseOptions {
 }
 
 /**
+ * Options honored only by the Redis backend. The key `prefix` namespaces all of
+ * a queue's Redis keys, so BullMQ data can coexist with other keys in a shared
+ * keyspace. It is intentionally NOT part of {@link QueueBaseOptions}, because it
+ * is a Redis-specific concept: other backends namespace differently (e.g. the
+ * PostgreSQL backend uses a schema) and ignore it.
+ */
+export interface KeyPrefixOptions {
+  /**
+   * Prefix for all queue keys (Redis backend only). Defaults to `bull`.
+   */
+  prefix?: string;
+}
+
+/**
+ * @deprecated Use KeyPrefixOptions instead.
+ */
+export type RedisKeyPrefixOptions = KeyPrefixOptions;
+
+/**
  * Options for the Queue class.
  */
-export interface QueueOptions extends QueueBaseOptions {
+export interface QueueOptions extends QueueBaseOptions, KeyPrefixOptions {
   defaultJobOptions?: DefaultJobOptions;
 
   /**
@@ -90,7 +104,7 @@ export interface QueueOptions extends QueueBaseOptions {
 /**
  * Options for the Repeat class.
  */
-export interface RepeatBaseOptions extends QueueBaseOptions {
+export interface RepeatBaseOptions extends QueueBaseOptions, KeyPrefixOptions {
   settings?: AdvancedRepeatOptions;
 }
 
@@ -98,7 +112,7 @@ export interface RepeatBaseOptions extends QueueBaseOptions {
  * Options for QueueEvents
  */
 export interface QueueEventsOptions
-  extends Omit<QueueBaseOptions, 'telemetry'> {
+  extends Omit<QueueBaseOptions, 'telemetry'>, KeyPrefixOptions {
   /**
    * Condition to start listening to events at instance creation.
    */
@@ -119,4 +133,11 @@ export interface QueueEventsOptions
 /**
  * Options for QueueEventsProducer
  */
-export type QueueEventsProducerOptions = Omit<QueueBaseOptions, 'telemetry'>;
+export type QueueEventsProducerOptions = Omit<QueueBaseOptions, 'telemetry'> &
+  KeyPrefixOptions;
+
+/**
+ * Options for the FlowProducer class.
+ */
+export interface FlowProducerOptions
+  extends QueueBaseOptions, KeyPrefixOptions {}

@@ -92,6 +92,29 @@ defmodule BullMQ.QueueGettersTest do
 
       assert length(jobs) == 3
     end
+
+    test "skips jobs whose hash was removed while the id stays in the list and preserves order",
+         %{conn: conn, queue_name: queue_name, prefix: prefix} do
+      {:ok, _job1} = Queue.add(queue_name, "job1", %{foo: 1}, connection: conn, prefix: prefix)
+      {:ok, job2} = Queue.add(queue_name, "job2", %{foo: 2}, connection: conn, prefix: prefix)
+      {:ok, _job3} = Queue.add(queue_name, "job3", %{foo: 3}, connection: conn, prefix: prefix)
+
+      # Capture the order before removing any hash.
+      {:ok, before} = Queue.get_waiting(queue_name, connection: conn, prefix: prefix)
+      expected_ids = before |> Enum.map(& &1.id) |> Enum.reject(&(&1 == job2.id))
+
+      # Delete the middle job's hash while its id remains in the wait list. This
+      # mirrors a job removed after its id was read but before the hash was loaded.
+      {:ok, _} =
+        RedisConnection.command(conn, ["DEL", "#{prefix}:#{queue_name}:#{job2.id}"])
+
+      {:ok, jobs} = Queue.get_waiting(queue_name, connection: conn, prefix: prefix)
+
+      job_ids = Enum.map(jobs, & &1.id)
+      refute job2.id in job_ids
+      # The remaining jobs keep their original relative order.
+      assert job_ids == expected_ids
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -250,6 +273,104 @@ defmodule BullMQ.QueueGettersTest do
 
       {:ok, count} = Queue.get_prioritized_count(queue_name, connection: conn, prefix: prefix)
       assert count == 3
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Tests for get_counts_per_priority/3
+  # ---------------------------------------------------------------------------
+
+  describe "get_counts_per_priority/3" do
+    test "returns zero counts when no jobs exist", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      {:ok, counts} =
+        Queue.get_counts_per_priority(queue_name, [0, 1, 2, 3],
+          connection: conn,
+          prefix: prefix
+        )
+
+      assert counts == %{0 => 0, 1 => 0, 2 => 0, 3 => 0}
+    end
+
+    test "returns correct counts per priority", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      # Add 42 jobs distributed across priorities 0-3 (mirrors the Node.js test)
+      for i <- 0..41 do
+        Queue.add(queue_name, "job#{i}", %{index: i},
+          connection: conn,
+          prefix: prefix,
+          priority: rem(i, 4)
+        )
+      end
+
+      {:ok, counts} =
+        Queue.get_counts_per_priority(queue_name, [0, 1, 2, 3],
+          connection: conn,
+          prefix: prefix
+        )
+
+      assert counts == %{0 => 11, 1 => 11, 2 => 10, 3 => 10}
+    end
+
+    test "priority 0 counts jobs in the wait list", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      Queue.add(queue_name, "job1", %{}, connection: conn, prefix: prefix)
+      Queue.add(queue_name, "job2", %{}, connection: conn, prefix: prefix)
+
+      {:ok, counts} =
+        Queue.get_counts_per_priority(queue_name, [0], connection: conn, prefix: prefix)
+
+      assert counts == %{0 => 2}
+    end
+
+    test "deduplicates repeated priority values", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      Queue.add(queue_name, "job1", %{}, connection: conn, prefix: prefix, priority: 1)
+      Queue.add(queue_name, "job2", %{}, connection: conn, prefix: prefix, priority: 1)
+
+      {:ok, counts} =
+        Queue.get_counts_per_priority(queue_name, [1, 1, 2], connection: conn, prefix: prefix)
+
+      # Duplicates are collapsed — only one entry per unique priority
+      assert counts == %{1 => 2, 2 => 0}
+    end
+
+    test "returns correct counts when queue is paused", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      :ok = Queue.pause(queue_name, connection: conn, prefix: prefix)
+
+      for i <- 0..41 do
+        Queue.add(queue_name, "job#{i}", %{index: i},
+          connection: conn,
+          prefix: prefix,
+          priority: rem(i, 4)
+        )
+      end
+
+      {:ok, counts} =
+        Queue.get_counts_per_priority(queue_name, [0, 1, 2, 3],
+          connection: conn,
+          prefix: prefix
+        )
+
+      assert counts == %{0 => 11, 1 => 11, 2 => 10, 3 => 10}
+
+      :ok = Queue.resume(queue_name, connection: conn, prefix: prefix)
     end
   end
 
@@ -541,7 +662,8 @@ defmodule BullMQ.QueueGettersTest do
       Process.sleep(50)
 
       state = :sys.get_state(worker)
-      blocking_conn = state.blocking_conn
+      # The backend owns the dedicated blocking connection.
+      blocking_conn = state.backend.blocking_conn
 
       expected = "#{prefix}:#{queue_name}:w:worker_reconnect_test"
 

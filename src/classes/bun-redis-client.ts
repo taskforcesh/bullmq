@@ -1,0 +1,1477 @@
+import { createHash } from 'crypto';
+import { EventEmitter } from 'events';
+import { Readable } from 'stream';
+import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
+import { ConnectionClosedError } from './errors/connection-closed-error';
+
+/**
+ * Adapter that wraps Bun's built-in `RedisClient` so that it conforms to
+ * {@link IRedisClient}.
+ *
+ * Bun's Redis client has a fundamentally different API from ioredis/node-redis:
+ *   - No EventEmitter: uses `onconnect`/`onclose` callbacks instead
+ *   - `close()` instead of `quit()`/`disconnect()` – doesn't throw errors
+ *     into pending promises (they resolve to undefined or reject cleanly)
+ *   - `send(command, args)` for raw commands (EVALSHA, SCAN, XREAD, etc.)
+ *   - `duplicate()` is async (returns a Promise<RedisClient>)
+ *   - MULTI/EXEC only via raw `send()` commands
+ *   - Hash commands use arrays: hmset(key, [k,v,...]), hmget(key, [fields])
+ *
+ * Usage:
+ * ```ts
+ * import { RedisClient } from 'bun';
+ * import { createBunRedisClient } from 'bullmq';
+ *
+ * const raw = new RedisClient('redis://localhost:6379');
+ * const client = createBunRedisClient(raw);
+ * await client.connect();
+ * ```
+ */
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+interface LuaScript {
+  sha: string;
+  lua: string;
+  numberOfKeys: number;
+}
+
+function normalizeScriptArgs(args: any[]): any[] {
+  return args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+}
+
+/**
+ * Returns true when the error is one that Bun's Redis client throws because
+ * the underlying TCP connection has been closed or is in the process of being
+ * closed (either intentionally via disconnect()/quit() or unexpectedly).
+ */
+function isBunConnectionClosedError(err: any): boolean {
+  const msg: string = err?.message ?? '';
+  return (
+    msg === 'Socket closed unexpectedly' ||
+    msg.startsWith('Connection closed') ||
+    msg === 'Connection is closed.' ||
+    msg === 'Connection has failed'
+  );
+}
+
+function normalizeStringCollection(reply: any): string[] {
+  if (reply == null) {
+    return [];
+  }
+  if (Array.isArray(reply)) {
+    return reply.map(String);
+  }
+  if (reply instanceof Set) {
+    return Array.from(reply, item => String(item));
+  }
+  return [];
+}
+
+export type RedisCommandArgument = string | Buffer;
+
+export interface BunRedisRawClient {
+  connected: boolean;
+  url?: string;
+  // Bun's RedisClient types these callbacks as nullable (`... | null`) and
+  // passes a bound `this`, so we accept `((...args: any[]) => void) | null`
+  // to stay assignable from Bun's actual `RedisClient` type. Using a stricter
+  // signature (e.g. `(() => void) | undefined`) breaks the
+  // `TClient extends BunRedisRawClient` constraint under `strictNullChecks`.
+  onconnect?: ((...args: any[]) => void) | null;
+  onclose?: ((...args: any[]) => void) | null;
+  onerror?: ((...args: any[]) => void) | null;
+
+  connect(): Promise<void>;
+  close(): void;
+  // Bun's native `duplicate()` creates a new client to the *same* server with
+  // the same options. It is async (returns a Promise) and is the only reliable
+  // way to clone the connection target, since Bun's RedisClient exposes no
+  // public connection info (no `url`/host/port/options). Optional so exotic
+  // custom raw clients that don't implement it still satisfy the constraint;
+  // the adapter falls back to URL-based reconstruction when it is absent.
+  duplicate?(): Promise<this>;
+  send<T = any>(command: string, args: RedisCommandArgument[]): Promise<T>;
+  get(key: string): Promise<string | null | undefined>;
+  smembers(key: string): Promise<unknown[] | null | undefined>;
+  incr(key: string): Promise<number>;
+}
+
+type BunRedisClientConstructor<TClient extends BunRedisRawClient> = new (
+  url?: string,
+) => TClient;
+
+export function createBunRedisClient<TClient extends BunRedisRawClient>(
+  client: TClient,
+  opts?: { lazyConnect?: boolean },
+): IRedisClient {
+  return new BunRedisAdapter(client, opts);
+}
+
+/**
+ * Full wrapper for Bun's RedisClient.
+ *
+ * Key design decisions vs node-redis adapter:
+ * 1. No error noise on close: Bun's close() cleanly terminates pending
+ *    commands without throwing DisconnectsClientError.
+ * 2. EventEmitter bridging: Bun uses `onconnect`/`onclose` callbacks;
+ *    we bridge those into standard EventEmitter events.
+ * 3. Raw command execution: Bun's `send()` is the universal escape hatch
+ *    for commands without convenience methods.
+ */
+class BunRedisAdapter<TClient extends BunRedisRawClient>
+  extends EventEmitter
+  implements IRedisClient
+{
+  private scripts = new Map<string, LuaScript>();
+  // Tracks which script SHAs have been loaded server-side on the current
+  // raw connection. Cleared on (re)connect since SCRIPT cache is per-server
+  // and is also lost across our internal raw-client swap.
+  private loadedScriptShas = new Set<string>();
+  private statusOverride: string | undefined;
+  private hasConnected = false;
+  private closed = false;
+  private closing = false;
+  private connecting?: Promise<void>;
+  private connectionName: string | undefined;
+  // Factory that lazily creates the raw client on first connect. Used by
+  // `duplicate()`, whose IRedisClient contract is synchronous while Bun's
+  // native `duplicate()` (the only way to preserve the connection target) is
+  // async. The duplicate adapter is created immediately with a `rawFactory`
+  // and resolves its raw client when it connects.
+  private rawFactory?: () => Promise<TClient>;
+  // In-flight `rawFactory()` so concurrent `connect()` / `_ensureRaw()` share
+  // one native client instead of overwriting an unclosed raw (#4706).
+  private materializing?: Promise<TClient>;
+  // Auto-reconnect state
+  private reconnecting = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectDelay = 20000; // cap at 20s (matches ioredis default)
+  private ready = false;
+  private readying?: Promise<void>;
+
+  get status(): string {
+    if (this.statusOverride) {
+      return this.statusOverride;
+    }
+    if (this.closed) {
+      return 'end';
+    }
+    // `raw` may not exist yet on a duplicate whose raw client is created
+    // lazily (via `rawFactory`) on first connect.
+    if (this.ready) {
+      return 'ready';
+    }
+    if (this.raw?.connected) {
+      return 'connect';
+    }
+    return this.hasConnected ? 'end' : 'wait';
+  }
+  set status(val: string) {
+    if (val === 'end') {
+      this.closing = true;
+      this.closed = true;
+      // Do not call raw.close() here – disconnect()/quit() handle closing.
+    }
+    this.statusOverride = val;
+  }
+
+  readonly isCluster = false;
+
+  get options(): Record<string, any> {
+    return {};
+  }
+  set options(_val: Record<string, any>) {
+    // no-op
+  }
+
+  constructor(
+    private raw: TClient,
+    opts?: {
+      lazyConnect?: boolean;
+      rawFactory?: () => Promise<TClient>;
+    },
+  ) {
+    super();
+
+    this.rawFactory = opts?.rawFactory;
+
+    // When a `rawFactory` is provided the raw client is created lazily on the
+    // first `connect()`; callbacks are wired up there once it exists.
+    if (this.raw) {
+      this._setupCallbacks();
+    }
+
+    // ioredis auto-connects by default. Mimic that behavior unless
+    // lazyConnect is set.
+    if (!opts?.lazyConnect) {
+      this.connect().catch(() => {
+        // Connection errors will be emitted via the 'error' event.
+      });
+    }
+  }
+
+  /**
+   * Wire up Bun's callback-style events into EventEmitter and auto-reconnect.
+   */
+  private _setupCallbacks(): void {
+    // Bridge Bun's callback-style events into EventEmitter.
+    // When connectionName is set (via duplicate()), delay the 'ready'
+    // event until CLIENT SETNAME completes so callers waiting for 'ready'
+    // see the name already applied.
+    this.raw.onconnect = () => {
+      this._handleConnected();
+    };
+    this.raw.onclose = (error?: Error) => {
+      this.ready = false;
+      if (this.closing) {
+        // User-initiated close – no reconnect
+        this.closed = true;
+        this.emit('close');
+        this.emit('end');
+        return;
+      }
+
+      // Unexpected close – attempt auto-reconnect
+      this.closed = true;
+      this.emit('close');
+
+      if (error) {
+        this.emit('error', error);
+      }
+
+      this._scheduleReconnect();
+    };
+  }
+
+  private _handleConnected(): Promise<void> {
+    this.hasConnected = true;
+    this.ready = false;
+    this.closed = false;
+    this.closing = false;
+    this.reconnecting = false;
+    this.reconnectAttempts = 0;
+    this.statusOverride = undefined;
+    // The server-side SCRIPT cache is gone for this (possibly new) raw
+    // connection. Force re-loading on next use.
+    this.loadedScriptShas.clear();
+
+    const markReady = () => {
+      this.ready = true;
+      this.emit('ready');
+    };
+
+    const readying = this.connectionName
+      ? this.clientSetName(this.connectionName).then(markReady, markReady)
+      : (markReady(), Promise.resolve());
+
+    this.readying = readying.finally(() => {
+      if (this.readying === readying) {
+        this.readying = undefined;
+      }
+    });
+
+    return this.readying;
+  }
+
+  /**
+   * Schedule a reconnection attempt with exponential backoff.
+   */
+  private _scheduleReconnect(): void {
+    if (this.closing || this.reconnecting) {
+      return;
+    }
+    this.reconnecting = true;
+    this.reconnectAttempts++;
+
+    // Exponential backoff: min(e^attempts, 20000) ms, floored at 1000ms
+    const delay = Math.max(
+      Math.min(Math.exp(this.reconnectAttempts) * 100, this.maxReconnectDelay),
+      1000,
+    );
+
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+
+      if (this.closing) {
+        this.reconnecting = false;
+        return;
+      }
+
+      try {
+        // Create a fresh raw client aimed at the *same* server. Bun's native
+        // `duplicate()` preserves the connection target and options; the old
+        // `new BunRedisClient(this.raw.url)` produced a client pointed at Bun's
+        // default target because `url` is always undefined (#4582). If the raw
+        // client was never created (a duplicate reconnecting before its first
+        // connect), fall back to its lazy factory.
+        const newRaw = this.raw
+          ? await this._duplicateRaw(this.raw)
+          : await this.rawFactory!();
+        this.rawFactory = undefined;
+
+        // Swap the raw client reference
+        this.raw = newRaw;
+        this.closed = false;
+        this.connecting = undefined;
+
+        // Re-wire callbacks on the new raw client
+        this._setupCallbacks();
+
+        // Connect – onconnect callback will emit 'ready' and reset state
+        await newRaw.connect();
+      } catch (_err) {
+        // Reconnect failed – schedule another attempt
+        this.reconnecting = false;
+        if (!this.closing) {
+          this._scheduleReconnect();
+        }
+      }
+    }, delay);
+  }
+
+  // ---------------------------------------------------------------
+  // Connection lifecycle
+  // ---------------------------------------------------------------
+
+  async connect(): Promise<void> {
+    // A duplicate created with a `rawFactory` builds its raw client lazily on
+    // the first connect (Bun's native `duplicate()` is async). Concurrent
+    // connect()/_ensureRaw() share one in-flight materialization so we don't
+    // create two native clients and overwrite an unclosed raw.
+    if (!this.raw && (this.rawFactory || this.materializing)) {
+      await this._materializeRaw();
+    }
+
+    const replaceRaw =
+      this.hasConnected && (this.closed || !this.raw.connected);
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnecting = false;
+
+    if (this.raw.connected && !replaceRaw) {
+      this.hasConnected = true;
+      this.closed = false;
+      this.closing = false;
+      this.statusOverride = undefined;
+      if (!this.ready) {
+        await (this.readying ?? this._handleConnected());
+      }
+      return;
+    }
+
+    if (!this.connecting) {
+      this.closed = false;
+      this.closing = false;
+      this.statusOverride = undefined;
+
+      // If the raw client was previously closed, Bun doesn't support
+      // reconnecting on the same instance. Create a fresh raw client aimed at
+      // the same server via Bun's native `duplicate()` (see #4582).
+      if (replaceRaw) {
+        this.raw = await this._duplicateRaw(this.raw);
+        this._setupCallbacks();
+      }
+
+      this.connecting = this.raw
+        .connect()
+        .then(() => {
+          this.hasConnected = true;
+          this.closed = false;
+          this.closing = false;
+          this.statusOverride = undefined;
+        })
+        .finally(() => {
+          this.connecting = undefined;
+        });
+    }
+
+    await this.connecting;
+    await this.readying;
+
+    // Bun may report the socket as connected before this adapter transitions
+    // to ready (for example while applying CLIENT SETNAME on duplicates).
+    // Keep connect() aligned with ioredis semantics by waiting until the
+    // adapter is either ready or closed.
+    if (!this.ready && !this.closed && !this.closing && this.raw?.connected) {
+      await new Promise<void>(resolve => {
+        const cleanup = () => {
+          this.off('ready', onDone);
+          this.off('close', onDone);
+          this.off('end', onDone);
+        };
+        const onDone = () => {
+          cleanup();
+          resolve();
+        };
+        this.on('ready', onDone);
+        this.on('close', onDone);
+        this.on('end', onDone);
+
+        if (this.ready || this.closed || this.closing || !this.raw?.connected) {
+          onDone();
+        }
+      });
+    }
+  }
+
+  private _closeRaw(): void {
+    // Cancel any pending reconnect
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnecting = false;
+
+    // A duplicate closed before it ever connected has no raw client yet.
+    this.rawFactory = undefined;
+    const raw = this.raw;
+    if (!raw) {
+      return;
+    }
+    raw.onconnect = () => {};
+    raw.onclose = () => {};
+    raw.onerror = () => {};
+    if (raw.connected) {
+      // Defer close so that Bun's native error is raised outside the
+      // calling test's synchronous scope, preventing it from being
+      // attributed to the test as an unhandled error.
+      setImmediate(() => {
+        try {
+          if (raw.connected) {
+            raw.close();
+          }
+        } catch (_err) {
+          // swallow
+        }
+      });
+    }
+  }
+
+  disconnect(reconnect?: boolean): void {
+    if (this.closed && !reconnect) {
+      return;
+    }
+
+    if (reconnect) {
+      // Close the current raw connection and schedule a reconnect.
+      // Don't set closing=true so the reconnect logic is allowed to fire.
+      this.closed = true;
+      this.statusOverride = undefined;
+
+      const raw = this.raw;
+      if (raw) {
+        raw.onclose = () => {};
+        if (raw.connected) {
+          setImmediate(() => {
+            try {
+              if (raw.connected) {
+                raw.close();
+              }
+            } catch (_err) {
+              // swallow
+            }
+          });
+        }
+      }
+
+      this.emit('close');
+      this._scheduleReconnect();
+    } else {
+      this.closing = true;
+      this.closed = true;
+      this.statusOverride = 'end';
+      this._closeRaw();
+      this.emit('close');
+      this.emit('end');
+    }
+  }
+
+  async quit(): Promise<string> {
+    if (this.closed) {
+      setImmediate(() => {
+        this.emit('end');
+        this.emit('close');
+      });
+      return 'OK';
+    }
+    this.closing = true;
+    this.closed = true;
+    this.statusOverride = 'end';
+    this._closeRaw();
+    // Emit on next tick so callers can register listeners after await quit()
+    setImmediate(() => {
+      this.emit('end');
+      this.emit('close');
+    });
+    return 'OK';
+  }
+
+  /**
+   * Create a fresh raw client aimed at the *same* Redis server as `src`.
+   *
+   * Bun's `RedisClient` exposes no public connection info (no `url`, host,
+   * port or options), so the target cannot be reconstructed from the instance.
+   * Its native `duplicate()` is the only reliable way to clone the target and
+   * options; we fall back to URL-based reconstruction for exotic raw clients
+   * that don't implement it. See #4582.
+   */
+  private async _duplicateRaw(src: TClient): Promise<TClient> {
+    if (typeof src.duplicate === 'function') {
+      return await src.duplicate();
+    }
+    const Ctor = src.constructor as BunRedisClientConstructor<TClient>;
+    return new Ctor(src.url);
+  }
+
+  /**
+   * Materialize a lazily-created raw client (duplicate `rawFactory`).
+   * Concurrent callers share the in-flight promise so the factory runs once.
+   */
+  private _materializeRaw(): Promise<TClient> {
+    if (this.raw) {
+      return Promise.resolve(this.raw);
+    }
+    if (this.materializing) {
+      return this.materializing;
+    }
+    const factory = this.rawFactory;
+    if (!factory) {
+      return Promise.resolve(this.raw);
+    }
+
+    const materializing = factory()
+      .then(raw => {
+        this.raw = raw;
+        this.rawFactory = undefined;
+        this._setupCallbacks();
+        return raw;
+      })
+      .finally(() => {
+        if (this.materializing === materializing) {
+          this.materializing = undefined;
+        }
+      });
+    this.materializing = materializing;
+    return materializing;
+  }
+
+  /**
+   * Return the raw client, materializing it first when this adapter is a
+   * lazily-initialized duplicate (created via `duplicate()` with a
+   * `rawFactory`). Command paths that touch `this.raw` directly use this so a
+   * duplicate can be used immediately without an explicit `connect()`.
+   */
+  async _ensureRaw(): Promise<TClient> {
+    if (!this.raw) {
+      await this.connect();
+    }
+    return this.raw;
+  }
+
+  duplicate(...args: any[]): IRedisClient {
+    // Bun's duplicate() is async, but IRedisClient.duplicate() is sync. The
+    // duplicate adapter is therefore created immediately with a `rawFactory`
+    // that clones the connection target lazily (via Bun's native duplicate)
+    // on first connect. Rebuilding from `this.raw.url` is not possible because
+    // Bun never exposes the URL, which previously sent duplicates to the
+    // wrong (default) server (#4582).
+    //
+    // Do not close over `this.raw`: a duplicate may not have materialized its
+    // raw client yet, so nested `duplicate().duplicate()` would capture
+    // undefined and throw in `_duplicateRaw` (#4706). Resolve the parent raw
+    // lazily, matching reconnect's fallback to `rawFactory`.
+    const adapter = new BunRedisAdapter<TClient>(
+      undefined as unknown as TClient,
+      {
+        rawFactory: async () => this._duplicateRaw(await this._ensureRaw()),
+      },
+    );
+
+    // Copy registered scripts to the duplicate
+    for (const [name, script] of this.scripts) {
+      adapter.scripts.set(name, script);
+      (adapter as any)[name] = (...a: any[]) => adapter.runCommand(name, a);
+    }
+
+    // Handle connectionName option (ioredis calls CLIENT SETNAME automatically).
+    // Setting connectionName ensures the onconnect handler applies CLIENT
+    // SETNAME before emitting 'ready'.
+    const opts = args[0];
+    if (opts && typeof opts === 'object' && opts.connectionName) {
+      adapter.connectionName = opts.connectionName;
+    }
+    return adapter;
+  }
+
+  // ---------------------------------------------------------------
+  // Lua script engine
+  // ---------------------------------------------------------------
+
+  defineCommand(
+    name: string,
+    definition: { numberOfKeys: number; lua: string },
+  ): void {
+    const sha = createHash('sha1').update(definition.lua).digest('hex');
+    this.scripts.set(name, {
+      sha,
+      lua: definition.lua,
+      numberOfKeys: definition.numberOfKeys,
+    });
+    (this as any)[name] = (...args: any[]) => this.runCommand(name, args);
+
+    // Note: We intentionally skip SCRIPT LOAD here. The first EVALSHA call
+    // will get a NOSCRIPT error and fall back to EVAL, which also loads the
+    // script for subsequent calls. This avoids fire-and-forget sendCommand
+    // calls that can trigger spurious unhandled rejection reports in Bun.
+  }
+
+  async runCommand(name: string, args: any[]): Promise<any> {
+    const script = this.scripts.get(name);
+    if (!script) {
+      throw new Error(`BullMQ: unknown command "${name}"`);
+    }
+
+    const commandArgs = normalizeScriptArgs(args);
+    const { sha, lua, numberOfKeys } = script;
+    const keys = commandArgs.slice(0, numberOfKeys).map(String);
+    const argv = commandArgs.slice(numberOfKeys).map((a: any) => {
+      if (Buffer.isBuffer(a)) {
+        return a;
+      }
+      if (a === undefined || a === null) {
+        return '';
+      }
+      return String(a);
+    });
+
+    // Build EVALSHA args: sha numkeys key... arg...
+    const evalArgs = [sha, String(keys.length), ...keys, ...argv];
+
+    const execute = async () => {
+      try {
+        const result = await this.sendCommand('EVALSHA', evalArgs);
+        this.loadedScriptShas.add(sha);
+        return result;
+      } catch (err: any) {
+        if (err?.message?.includes?.('NOSCRIPT')) {
+          const evalLuaArgs = [lua, String(keys.length), ...keys, ...argv];
+          const result = await this.sendCommand('EVAL', evalLuaArgs);
+          this.loadedScriptShas.add(sha);
+          return result;
+        }
+        throw err;
+      }
+    };
+
+    return execute();
+  }
+
+  /**
+   * Ensure the given scripts are present in the server-side SCRIPT cache so
+   * that subsequent EVALSHA calls (e.g. inside a MULTI/EXEC) won't fail with
+   * NOSCRIPT. Each script is SCRIPT LOAD'd at most once per connection.
+   */
+  async ensureScriptsLoaded(scripts: LuaScript[]): Promise<void> {
+    const toLoad: LuaScript[] = [];
+    const seen = new Set<string>();
+    for (const s of scripts) {
+      if (this.loadedScriptShas.has(s.sha) || seen.has(s.sha)) {
+        continue;
+      }
+      seen.add(s.sha);
+      toLoad.push(s);
+    }
+    if (toLoad.length === 0) {
+      return;
+    }
+    await Promise.all(
+      toLoad.map(async s => {
+        await this.sendCommand('SCRIPT', ['LOAD', s.lua]);
+        this.loadedScriptShas.add(s.sha);
+      }),
+    );
+  }
+
+  sendCommand<T = any>(
+    command: string,
+    args: RedisCommandArgument[],
+  ): Promise<T> {
+    // If the connection is already closing/closed, return a rejected promise.
+    if (this.closing || this.closed) {
+      return Promise.reject(new ConnectionClosedError('Connection is closed'));
+    }
+
+    // A duplicate created via `duplicate()` builds its raw client lazily on the
+    // first `connect()` (Bun's native `duplicate()` is async). Materialize it
+    // here so commands issued before an explicit `connect()` don't throw on an
+    // undefined `raw` — matching other adapters where duplicates connect
+    // implicitly on first use.
+    if (!this.raw) {
+      return this.connect().then(() => this.sendCommand<T>(command, args));
+    }
+
+    // Send directly to the underlying Bun client. Redis protocol guarantees
+    // responses arrive in the same order as requests on a single connection,
+    // so concurrent send() calls are safe and enable implicit pipelining
+    // (multiple commands written to the socket before any response is read).
+    // MULTI/EXEC transactions don't go through this path — they are issued
+    // as a synchronous burst of raw `send()` calls in
+    // `BunRedisTransaction.exec()`, which guarantees the MULTI…EXEC frames
+    // are written contiguously without any other command interleaving.
+    return (this.raw.send<T>(command, args) as Promise<T>).catch((err: any) => {
+      if (isBunConnectionClosedError(err)) {
+        // During an intentional teardown (quit()/disconnect()) resolve to
+        // null instead of rejecting. Bun's close() abruptly rejects every
+        // in-flight command, so without this a shared client shut down at app
+        // exit floods dozens of unhandled ConnectionClosedError rejections.
+        // This mirrors the node-redis adapter, which swallows connection-closed
+        // errors while destroying. Unexpected drops still reject so BullMQ can
+        // react (reconnect / retry).
+        if (this.closing || this.closed) {
+          return null as unknown as T;
+        }
+        return Promise.reject<T>(new ConnectionClosedError(err.message, err));
+      }
+      throw err;
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // Pipeline / Transaction
+  // ---------------------------------------------------------------
+
+  multi(): IRedisTransaction {
+    return new BunRedisTransaction(this.scripts, true, this);
+  }
+
+  pipeline(): IRedisTransaction {
+    return new BunRedisTransaction(this.scripts, false, this);
+  }
+
+  // ---------------------------------------------------------------
+  // Hash commands
+  // ---------------------------------------------------------------
+
+  async hgetall(key: string): Promise<Record<string, string>> {
+    const result = await this.sendCommand('HGETALL', [key]);
+    if (!result || (Array.isArray(result) && result.length === 0)) {
+      return {};
+    }
+    // RESP3 returns a map, RESP2 returns flat array [field, value, ...]
+    if (Array.isArray(result)) {
+      const obj: Record<string, string> = {};
+      for (let i = 0; i < result.length; i += 2) {
+        obj[String(result[i])] = String(result[i + 1]);
+      }
+      return obj;
+    }
+    // If it's already an object (RESP3 map)
+    return result;
+  }
+
+  async hget(key: string, field: string): Promise<string | null> {
+    const result = await this.sendCommand('HGET', [key, field]);
+    return result ?? null;
+  }
+
+  async hmget(key: string, ...fields: string[]): Promise<(string | null)[]> {
+    const result = await this.sendCommand('HMGET', [key, ...fields]);
+    return (result || []).map((v: any) => v ?? null);
+  }
+
+  async hset(
+    key: string,
+    dataOrField: Record<string, string | number> | string,
+    ...rest: any[]
+  ): Promise<number> {
+    let args: string[];
+    if (typeof dataOrField === 'object') {
+      args = [key];
+      for (const [k, v] of Object.entries(dataOrField)) {
+        args.push(k, String(v));
+      }
+    } else {
+      args = [key, dataOrField, String(rest[0])];
+      for (let i = 1; i < rest.length; i += 2) {
+        args.push(String(rest[i]), String(rest[i + 1]));
+      }
+    }
+    return await this.sendCommand('HSET', args);
+  }
+
+  async hdel(key: string, ...fields: string[]): Promise<number> {
+    return await this.sendCommand('HDEL', [key, ...fields]);
+  }
+
+  async hexists(key: string, field: string): Promise<number> {
+    const result = await this.sendCommand('HEXISTS', [key, field]);
+    // Bun returns boolean for some commands; normalize to 0/1
+    return result === true || result === 1 ? 1 : 0;
+  }
+
+  // ---------------------------------------------------------------
+  // String commands
+  // ---------------------------------------------------------------
+
+  async get(key: string): Promise<string | null> {
+    const result = await this.sendCommand('GET', [key]);
+    return result ?? null;
+  }
+
+  async set(
+    key: string,
+    value: string | number,
+    options?: { PX?: number; EX?: number },
+  ): Promise<string | null> {
+    const args = [key, String(value)];
+    if (options?.PX != null) {
+      args.push('PX', String(options.PX));
+    } else if (options?.EX != null) {
+      args.push('EX', String(options.EX));
+    }
+    return await this.sendCommand('SET', args);
+  }
+
+  async del(...keys: string[]): Promise<number> {
+    if (keys.length === 0) {
+      return 0;
+    }
+    return await this.sendCommand('DEL', keys);
+  }
+
+  // ---------------------------------------------------------------
+  // Sorted set commands
+  // ---------------------------------------------------------------
+
+  async zrange(
+    key: string,
+    start: number,
+    end: number,
+    options?: { WITHSCORES?: boolean },
+  ): Promise<string[]> {
+    const args = [key, String(start), String(end)];
+    if (options?.WITHSCORES) {
+      args.push('WITHSCORES');
+    }
+    const result = await this.sendCommand('ZRANGE', args);
+    if (!result) {
+      return [];
+    }
+    // Bun returns WITHSCORES as [[member, score], ...] instead of flat [member, score, ...]
+    if (options?.WITHSCORES && result.length > 0 && Array.isArray(result[0])) {
+      return result.flatMap((pair: any) => [String(pair[0]), String(pair[1])]);
+    }
+    return result.map(String);
+  }
+
+  async zrevrange(
+    key: string,
+    start: number,
+    end: number,
+    options?: { WITHSCORES?: boolean },
+  ): Promise<string[]> {
+    const args = [key, String(start), String(end)];
+    if (options?.WITHSCORES) {
+      args.push('WITHSCORES');
+    }
+    // ZREVRANGE is deprecated; use ZRANGE REV
+    args.push('REV');
+    const result = await this.sendCommand('ZRANGE', args);
+    if (!result) {
+      return [];
+    }
+    // Bun returns WITHSCORES as [[member, score], ...] instead of flat [member, score, ...]
+    if (options?.WITHSCORES && result.length > 0 && Array.isArray(result[0])) {
+      return result.flatMap((pair: any) => [String(pair[0]), String(pair[1])]);
+    }
+    return result.map(String);
+  }
+
+  async zcard(key: string): Promise<number> {
+    return await this.sendCommand('ZCARD', [key]);
+  }
+
+  async zscore(key: string, member: string): Promise<string | null> {
+    const score = await this.sendCommand('ZSCORE', [key, member]);
+    return score != null ? String(score) : null;
+  }
+
+  // ---------------------------------------------------------------
+  // List commands
+  // ---------------------------------------------------------------
+
+  async lrange(key: string, start: number, end: number): Promise<string[]> {
+    const result = await this.sendCommand('LRANGE', [
+      key,
+      String(start),
+      String(end),
+    ]);
+    return (result || []).map(String);
+  }
+
+  async llen(key: string): Promise<number> {
+    return await this.sendCommand('LLEN', [key]);
+  }
+
+  async ltrim(key: string, start: number, end: number): Promise<string> {
+    await this.sendCommand('LTRIM', [key, String(start), String(end)]);
+    return 'OK';
+  }
+
+  async lpos(key: string, value: string): Promise<number | null> {
+    const result = await this.sendCommand('LPOS', [key, value]);
+    return result ?? null;
+  }
+
+  // ---------------------------------------------------------------
+  // Set commands
+  // ---------------------------------------------------------------
+
+  async smembers(key: string): Promise<string[]> {
+    const result = await this.sendCommand('SMEMBERS', [key]);
+    return normalizeStringCollection(result);
+  }
+
+  // ---------------------------------------------------------------
+  // Stream commands
+  // ---------------------------------------------------------------
+
+  async xadd(
+    key: string,
+    id: string,
+    fields: Record<string, string | number>,
+    options?: { MAXLEN?: number; approximate?: boolean },
+  ): Promise<string> {
+    const args: string[] = [key];
+    if (options?.MAXLEN != null) {
+      args.push('MAXLEN');
+      if (options.approximate !== false) {
+        args.push('~');
+      }
+      args.push(String(options.MAXLEN));
+    }
+    args.push(id);
+    for (const [k, v] of Object.entries(fields)) {
+      args.push(k, String(v));
+    }
+    return await (await this._ensureRaw()).send('XADD', args);
+  }
+
+  async xread(
+    streams: { key: string; id: string }[],
+    options?: { BLOCK?: number; COUNT?: number },
+  ): Promise<any> {
+    const args: string[] = [];
+    if (options?.COUNT != null) {
+      args.push('COUNT', String(options.COUNT));
+    }
+    if (options?.BLOCK != null) {
+      args.push('BLOCK', String(options.BLOCK));
+    }
+    args.push('STREAMS');
+    for (const s of streams) {
+      args.push(s.key);
+    }
+    for (const s of streams) {
+      args.push(s.id);
+    }
+
+    let result: any;
+    try {
+      result = await this.sendCommand('XREAD', args);
+    } catch (err: any) {
+      if (this.closing) {
+        return null;
+      }
+      throw err;
+    }
+    if (!result) {
+      return null;
+    }
+
+    // Normalize to ioredis format: [[streamName, [[id, [field, value, …]], …]], …]
+    // Bun returns a map/object: { streamName: [[id, [field, value, ...]], ...], ... }
+    if (Array.isArray(result)) {
+      // RESP2 nested array format
+      return result.map((stream: any) => {
+        const streamName = String(stream[0]);
+        const entries = (stream[1] || []).map((entry: any) => {
+          const entryId = String(entry[0]);
+          const fields = (entry[1] || []).map(String);
+          return [entryId, fields];
+        });
+        return [streamName, entries];
+      });
+    }
+
+    // Bun returns an object keyed by stream name
+    return Object.entries(result).map(
+      ([streamName, rawEntries]: [string, any]) => {
+        const entries = (rawEntries || []).map((entry: any) => {
+          const entryId = String(entry[0]);
+          const fields = (entry[1] || []).map(String);
+          return [entryId, fields];
+        });
+        return [streamName, entries];
+      },
+    );
+  }
+
+  async xtrim(
+    key: string,
+    strategy: 'MAXLEN',
+    threshold: number,
+    options?: { approximate?: boolean },
+  ): Promise<number> {
+    const args: string[] = [key, strategy];
+    if (options?.approximate !== false) {
+      args.push('~');
+    }
+    args.push(String(threshold));
+    return await this.sendCommand('XTRIM', args);
+  }
+
+  // ---------------------------------------------------------------
+  // Blocking commands
+  // ---------------------------------------------------------------
+
+  async bzpopmin(
+    key: string,
+    timeout: number,
+  ): Promise<[key: string, member: string, score: string] | null> {
+    let result: any;
+    try {
+      result = await this.sendCommand('BZPOPMIN', [key, String(timeout)]);
+    } catch (err: any) {
+      if (this.closing) {
+        return null;
+      }
+      throw err;
+    }
+    if (!result || result.length === 0) {
+      return null;
+    }
+    return [String(result[0]), String(result[1]), String(result[2])];
+  }
+
+  // ---------------------------------------------------------------
+  // Server / admin commands
+  // ---------------------------------------------------------------
+
+  async info(): Promise<string> {
+    return await this.sendCommand('INFO', []);
+  }
+
+  async clientSetName(name: string): Promise<any> {
+    return await this.sendCommand('CLIENT', ['SETNAME', name]);
+  }
+
+  async clientList(): Promise<string> {
+    return await this.sendCommand('CLIENT', ['LIST']);
+  }
+
+  // ---------------------------------------------------------------
+  // Key scanning
+  // ---------------------------------------------------------------
+
+  async scan(
+    cursor: string | number,
+    options: { MATCH?: string; COUNT?: number },
+  ): Promise<[string, string[]]> {
+    const args: string[] = [String(cursor)];
+    if (options?.MATCH) {
+      args.push('MATCH', options.MATCH);
+    }
+    if (options?.COUNT) {
+      args.push('COUNT', String(options.COUNT));
+    }
+    const result = await this.sendCommand('SCAN', args);
+    // SCAN returns [cursor, [key, key, ...]]
+    const keys = result[1];
+    return [String(result[0]), Array.isArray(keys) ? keys.map(String) : []];
+  }
+
+  scanStream(options: { match: string; count?: number }): Readable {
+    const adapter = this;
+    let cursor = '0';
+    let started = false;
+
+    const readable = new Readable({
+      objectMode: true,
+      async read() {
+        if (started && cursor === '0') {
+          readable.push(null); // EOF
+          return;
+        }
+        started = true;
+        try {
+          // Loop until we have keys to push or reach end of scan
+          while (true) {
+            const [nextCursor, keys] = await adapter.scan(cursor, {
+              MATCH: options.match,
+              COUNT: options.count,
+            });
+            cursor = nextCursor;
+            if (keys.length > 0) {
+              readable.push(keys);
+              if (cursor === '0') {
+                readable.push(null); // EOF
+              }
+              return;
+            }
+            if (cursor === '0') {
+              readable.push(null); // EOF
+              return;
+            }
+            // No keys but scan not complete — continue scanning
+          }
+        } catch (err) {
+          readable.destroy(err as Error);
+        }
+      },
+    });
+    return readable;
+  }
+
+  // ---------------------------------------------------------------
+  // Extra Redis commands used by BullMQ internals
+  // ---------------------------------------------------------------
+
+  async keys(pattern: string): Promise<string[]> {
+    const result = await this.sendCommand('KEYS', [pattern]);
+    return (result || []).map(String);
+  }
+
+  async exists(...keys: string[]): Promise<number> {
+    if (keys.length === 0) {
+      return 0;
+    }
+    const result = await this.sendCommand('EXISTS', keys);
+    // Bun may return boolean for single key
+    if (typeof result === 'boolean') {
+      return result ? 1 : 0;
+    }
+    return result;
+  }
+
+  async zadd(key: string, ...args: any[]): Promise<number> {
+    // ioredis format: zadd(key, score, member, score, member, ...)
+    const cmdArgs = [key];
+    for (let i = 0; i < args.length; i += 2) {
+      cmdArgs.push(String(args[i]), String(args[i + 1]));
+    }
+    return await this.sendCommand('ZADD', cmdArgs);
+  }
+
+  async zrem(key: string, ...members: string[]): Promise<number> {
+    return await this.sendCommand('ZREM', [key, ...members]);
+  }
+
+  async xlen(key: string): Promise<number> {
+    return await this.sendCommand('XLEN', [key]);
+  }
+
+  async xrevrange(
+    key: string,
+    end: string,
+    start: string,
+    ...rest: any[]
+  ): Promise<any> {
+    const args: string[] = [key, end, start];
+    if (rest[0] === 'COUNT') {
+      args.push('COUNT', String(rest[1]));
+    }
+    const result = await this.sendCommand('XREVRANGE', args);
+    if (!result) {
+      return [];
+    }
+    // Normalize to ioredis format: [[id, [field, value, …]], …]
+    return result.map((msg: any) => [
+      String(msg[0]),
+      (msg[1] || []).map(String),
+    ]);
+  }
+
+  async sadd(key: string, ...members: (string | number)[]): Promise<number> {
+    return await this.sendCommand('SADD', [key, ...members.map(String)]);
+  }
+
+  async scard(key: string): Promise<number> {
+    return await this.sendCommand('SCARD', [key]);
+  }
+
+  async lpush(key: string, ...values: string[]): Promise<number> {
+    return await this.sendCommand('LPUSH', [key, ...values]);
+  }
+
+  async rpop(key: string): Promise<string | null> {
+    const result = await this.sendCommand('RPOP', [key]);
+    return result ?? null;
+  }
+
+  async incr(key: string): Promise<number> {
+    return await this.sendCommand('INCR', [key]);
+  }
+
+  async incrby(key: string, increment: number): Promise<number> {
+    return await this.sendCommand('INCRBY', [key, String(increment)]);
+  }
+
+  async flushall(): Promise<string> {
+    return await this.sendCommand('FLUSHALL', []);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Transaction / Pipeline wrapper
+//
+// Bun doesn't have a native MULTI object. We buffer commands and execute
+// them within a MULTI/EXEC block using send().
+// ---------------------------------------------------------------------------
+
+class BunRedisTransaction implements IRedisTransaction {
+  private commands: { cmd: string; args: (string | Buffer)[] }[] = [];
+  private transformers: ((val: any) => any)[] = [];
+  // Scripts that need to be SCRIPT LOAD'd before exec() so the EVALSHA
+  // calls queued in this transaction won't NOSCRIPT.
+  private scriptsToLoad: LuaScript[] = [];
+
+  constructor(
+    private readonly scripts: Map<string, LuaScript>,
+    private readonly transactional: boolean,
+    private readonly adapter: BunRedisAdapter<any>,
+  ) {}
+
+  private addCommand(
+    cmd: string,
+    args: (string | Buffer)[],
+    transformer?: (v: any) => any,
+  ): void {
+    this.commands.push({ cmd, args });
+    this.transformers.push(transformer || ((v: any) => v));
+  }
+
+  hgetall(key: string): this {
+    this.addCommand('HGETALL', [key], (val: any) => {
+      if (!val || (Array.isArray(val) && val.length === 0)) {
+        return {};
+      }
+      if (Array.isArray(val)) {
+        const obj: Record<string, string> = {};
+        for (let i = 0; i < val.length; i += 2) {
+          obj[String(val[i])] = String(val[i + 1]);
+        }
+        return obj;
+      }
+      return val;
+    });
+    return this;
+  }
+
+  hset(key: string, data: Record<string, string | number>): this {
+    const args = [key];
+    for (const [k, v] of Object.entries(data)) {
+      args.push(k, String(v));
+    }
+    this.addCommand('HSET', args);
+    return this;
+  }
+
+  hscan(
+    key: string,
+    cursor: string | number,
+    options?: { COUNT?: number },
+  ): this {
+    const args: string[] = [key, String(cursor)];
+    if (options?.COUNT != null) {
+      args.push('COUNT', String(options.COUNT));
+    }
+    this.addCommand('HSCAN', args, (val: any) => {
+      // Normalize to ioredis format: [cursor, [field, value, field, value, ...]]
+      if (!val) {
+        return ['0', []];
+      }
+      if (Array.isArray(val)) {
+        return [String(val[0]), normalizeStringCollection(val[1])];
+      }
+      return ['0', []];
+    });
+    return this;
+  }
+
+  smembers(key: string): this {
+    this.addCommand('SMEMBERS', [key], (val: any) =>
+      normalizeStringCollection(val),
+    );
+    return this;
+  }
+
+  sscan(
+    key: string,
+    cursor: string | number,
+    options?: { COUNT?: number },
+  ): this {
+    const args: string[] = [key, String(cursor)];
+    if (options?.COUNT != null) {
+      args.push('COUNT', String(options.COUNT));
+    }
+    this.addCommand('SSCAN', args, (val: any) => {
+      // Normalize to ioredis format: [cursor, [member, member, ...]]
+      if (!val) {
+        return ['0', []];
+      }
+      if (Array.isArray(val)) {
+        return [String(val[0]), normalizeStringCollection(val[1])];
+      }
+      return ['0', []];
+    });
+    return this;
+  }
+
+  zrange(key: string, start: number, end: number): this {
+    this.addCommand('ZRANGE', [key, String(start), String(end)], (val: any) =>
+      Array.isArray(val) ? val.map(String) : [],
+    );
+    return this;
+  }
+
+  lrange(key: string, start: number, end: number): this {
+    this.addCommand('LRANGE', [key, String(start), String(end)], (val: any) =>
+      Array.isArray(val) ? val.map(String) : [],
+    );
+    return this;
+  }
+
+  llen(key: string): this {
+    this.addCommand('LLEN', [key]);
+    return this;
+  }
+
+  del(...keys: string[]): this {
+    if (keys.length > 0) {
+      this.addCommand('DEL', keys);
+    }
+    return this;
+  }
+
+  runCommand(name: string, args: any[]): this {
+    const script = this.scripts.get(name);
+    if (!script) {
+      throw new Error(`BullMQ: unknown command "${name}" in transaction`);
+    }
+    const commandArgs = normalizeScriptArgs(args);
+    const { sha, numberOfKeys } = script;
+    const cmdKeys = commandArgs.slice(0, numberOfKeys).map(String);
+    const argv = commandArgs.slice(numberOfKeys).map((a: any) => {
+      if (Buffer.isBuffer(a)) {
+        return a;
+      }
+      if (a === undefined || a === null) {
+        return '';
+      }
+      return String(a);
+    });
+    // Use EVALSHA for performance. The script is loaded server-side
+    // via SCRIPT LOAD in exec() before any commands are sent.
+    this.scriptsToLoad.push(script);
+    this.addCommand('EVALSHA', [
+      sha,
+      String(cmdKeys.length),
+      ...cmdKeys,
+      ...argv,
+    ]);
+    return this;
+  }
+
+  async exec(): Promise<[Error | null, any][] | null> {
+    if (this.commands.length === 0) {
+      return [];
+    }
+
+    // Make sure any Lua scripts referenced via EVALSHA are loaded on the
+    // server before we send EVALSHA inside the pipeline / MULTI block.
+    if (this.scriptsToLoad.length > 0) {
+      await this.adapter.ensureScriptsLoaded(this.scriptsToLoad);
+    }
+
+    if (!this.transactional) {
+      // Fire all commands concurrently for implicit pipelining (like ioredis).
+      // This ensures all commands are written to the socket together, preventing
+      // other operations from interleaving between pipeline commands.
+      const settled = await Promise.allSettled(
+        this.commands.map(({ cmd, args }) =>
+          this.adapter.sendCommand(cmd, args),
+        ),
+      );
+      return settled.map((result, i) => {
+        if (result.status === 'rejected') {
+          return [result.reason, null] as [Error, null];
+        }
+        const transformer = this.transformers[i];
+        const value = transformer ? transformer(result.value) : result.value;
+        return [null, value] as [null, any];
+      });
+    }
+
+    // Execute as a pipelined MULTI/EXEC block. Redis supports multiple
+    // MULTI/EXEC blocks pipelined on the same connection — each MULTI starts
+    // a new transaction context and EXEC commits it, responses arrive in
+    // order. We fire MULTI + all commands + EXEC synchronously (no await
+    // between them) so they're written to the socket buffer as one contiguous
+    // burst with no opportunity for interleaving from other async contexts.
+    //
+    // The MULTI and per-command `send()` calls are intentionally fire-and-
+    // forget for performance, but their returned promises must still have a
+    // rejection handler attached to avoid Bun emitting "unhandled promise
+    // rejection" warnings if the connection drops or Redis returns an error
+    // reply before we reach EXEC. The actual failure is reported through the
+    // awaited EXEC promise (which Redis rejects in the same situations), or
+    // bubbles up via the surrounding `try/catch`.
+    const swallow = (_: unknown) => {
+      /* error surfaces via EXEC or the outer try/catch */
+    };
+    // Materialize the raw client (a lazily-initialized duplicate may not have
+    // one yet) so the MULTI…EXEC frames can be written as a contiguous burst.
+    const raw = await this.adapter._ensureRaw();
+    try {
+      // Fire MULTI without awaiting — no round-trip needed before commands.
+      raw.send('MULTI', []).catch(swallow);
+
+      // Fire all queued commands synchronously (no awaits).
+      for (const { cmd, args } of this.commands) {
+        raw.send(cmd, args).catch(swallow);
+      }
+
+      // EXEC is the only await — it returns the array of results.
+      const results = await raw.send('EXEC', []);
+
+      if (!results) {
+        return null;
+      }
+
+      // Normalize to ioredis format: [Error | null, value][]
+      return results.map((result: any, i: number) => {
+        if (result instanceof Error) {
+          return [result, null];
+        }
+        const transformer = this.transformers[i];
+        const value = transformer ? transformer(result) : result;
+        return [null, value];
+      });
+    } catch (err) {
+      // Try to discard the MULTI state on error
+      try {
+        await raw.send('DISCARD', []);
+      } catch {
+        // ignore
+      }
+      throw err;
+    }
+  }
+}

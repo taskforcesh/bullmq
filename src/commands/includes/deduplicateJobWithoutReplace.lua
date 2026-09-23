@@ -1,6 +1,7 @@
 --[[
   Function to deduplicate a job.
 ]]
+--- @include "recoverStaleDeduplicationKey"
 --- @include "setDeduplicationKey"
 --- @include "storeDeduplicatedNextJob"
 
@@ -9,25 +10,28 @@ local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, 
     parentKey, parentData, parentDependenciesKey, repeatJobKey)
     local ttl = deduplicationOpts['ttl']
     local deduplicationKeyExists
+
     if ttl and ttl > 0 then
         if deduplicationOpts['extend'] then
-            local currentDebounceJobId = rcall('GET', deduplicationKey)
-            if currentDebounceJobId then
-                if storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
+            local currentDeduplicatedJobId = rcall('GET', deduplicationKey)
+            if currentDeduplicatedJobId then
+                if recoverStaleDeduplicationKey(deduplicationKey, prefix, currentDeduplicatedJobId,
+                    jobId, deduplicationId, deduplicationOpts) then
+                    return
+                end
+                if storeDeduplicatedNextJob(deduplicationOpts, currentDeduplicatedJobId, prefix,
                     deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
                     parentKey, parentData, parentDependenciesKey, repeatJobKey) then
-                    return currentDebounceJobId
+                    return currentDeduplicatedJobId
                 end
                 if deduplicationOpts['keepLastIfActive'] then
-                    rcall('SET', deduplicationKey, currentDebounceJobId)
+                    rcall('SET', deduplicationKey, currentDeduplicatedJobId)
                 else
-                    setDeduplicationKey(deduplicationKey, currentDebounceJobId, deduplicationOpts)
+                    setDeduplicationKey(deduplicationKey, currentDeduplicatedJobId, deduplicationOpts)
                 end
-                rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "debounced",
-                    "jobId", currentDebounceJobId, "debounceId", deduplicationId)
                 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "deduplicated", "jobId",
-                    currentDebounceJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
-                return currentDebounceJobId
+                    currentDeduplicatedJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
+                return currentDeduplicatedJobId
             else
                 if deduplicationOpts['keepLastIfActive'] then
                     rcall('SET', deduplicationKey, jobId)
@@ -48,19 +52,21 @@ local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, 
     end
 
     if deduplicationKeyExists then
-        local currentDebounceJobId = rcall('GET', deduplicationKey)
+        local currentDeduplicatedJobId = rcall('GET', deduplicationKey)
 
-        if storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
-            deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
-            parentKey, parentData, parentDependenciesKey, repeatJobKey) then
-            return currentDebounceJobId
+        if recoverStaleDeduplicationKey(deduplicationKey, prefix, currentDeduplicatedJobId,
+            jobId, deduplicationId, deduplicationOpts) then
+            return
         end
 
-        -- TODO remove debounced event in next breaking change
-        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "debounced", "jobId",
-            currentDebounceJobId, "debounceId", deduplicationId)
+        if storeDeduplicatedNextJob(deduplicationOpts, currentDeduplicatedJobId, prefix,
+            deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
+            parentKey, parentData, parentDependenciesKey, repeatJobKey) then
+            return currentDeduplicatedJobId
+        end
+
         rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "deduplicated", "jobId",
-            currentDebounceJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
-        return currentDebounceJobId
+            currentDeduplicatedJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
+        return currentDeduplicatedJobId
     end
 end

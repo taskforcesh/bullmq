@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -10,18 +9,34 @@ import {
 } from 'vitest';
 
 import { Queue, QueueEvents, Worker, Job } from '../src/classes';
-import { removeAllQueueData, delay, randomUUID } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
+import { IRedisClient } from '../src/interfaces';
+
+/**
+ * Backend-agnostic qualified queue name. Derives the qualifier (the `bull:`
+ * prefix on Redis, or nothing on PostgreSQL) from a reference queue whose
+ * `qualifiedName` is known, so parent key references hold on any backend.
+ */
+const qualify = (
+  ref: { qualifiedName: string; name: string },
+  queueName: string,
+): string =>
+  `${ref.qualifiedName.slice(
+    0,
+    ref.qualifiedName.length - ref.name.length,
+  )}${queueName}`;
 
 describe('bulk jobs', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -31,7 +46,7 @@ describe('bulk jobs', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async () => {
@@ -92,7 +107,7 @@ describe('bulk jobs', () => {
         opts: {
           parent: {
             id: parent.id!,
-            queue: `${prefix}:${parentQueueName}`,
+            queue: `${qualify(queue, parentQueueName)}`,
           },
         },
       },
@@ -102,7 +117,7 @@ describe('bulk jobs', () => {
         opts: {
           parent: {
             id: parent.id!,
-            queue: `${prefix}:${parentQueueName}`,
+            queue: `${qualify(queue, parentQueueName)}`,
           },
         },
       },
@@ -123,7 +138,7 @@ describe('bulk jobs', () => {
     await childrenWorker.close();
     await parentWorker.close();
     await parentQueue.close();
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await cleanupQueue(parentQueueName);
   });
 
   it('should keep workers busy', { timeout: 10_000 }, async () => {

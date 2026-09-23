@@ -168,6 +168,7 @@ Traces include various attributes for filtering and debugging:
 | Drain Delay      | `bullmq.queue.drain.delay`      | Whether to delay drain      |
 | Grace Period     | `bullmq.queue.grace`            | Grace period for clean op   |
 | Clean Limit      | `bullmq.queue.clean.limit`      | Maximum jobs to clean       |
+| Clean Count      | `bullmq.queue.clean.count`      | Number of jobs cleaned      |
 | Rate Limit       | `bullmq.queue.rate.limit`       | Rate limit settings         |
 | Queue Options    | `bullmq.queue.options`          | Serialized queue options    |
 | Event Max Length | `bullmq.queue.event.max.length` | Maximum event stream length |

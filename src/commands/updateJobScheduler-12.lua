@@ -92,14 +92,7 @@ if prevMillis then
 
             rcall("INCR", KEYS[8])
 
-            -- TODO: remove this workaround in next breaking change,
-            -- all job-schedulers must save job data
-            local templateData = schedulerAttributes[2] or ARGV[3]
-
-            if templateData and templateData ~= '{}' then
-                rcall("HSET", schedulerKey, "data", templateData)
-            end
-
+            local templateData = schedulerAttributes[2]
             local delay = nextMillis - now
 
             -- Fast Clamp delay to minimum of 0
@@ -112,11 +105,6 @@ if prevMillis then
             addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, jobOpts, waitKey, pausedKey, KEYS[12], metaKey,
                 prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey, schedulerAttributes[1], maxEvents, ARGV[5],
                 templateData or '{}', jobSchedulerId, delay)
-
-            -- TODO: remove this workaround in next breaking change
-            if KEYS[11] ~= "" then
-                rcall("HSET", KEYS[11], "nrjid", nextDelayedJobId)
-            end
 
             return nextDelayedJobId .. "" -- convert to string
         else

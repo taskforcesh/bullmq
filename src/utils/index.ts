@@ -1,23 +1,29 @@
-import { Cluster, Redis } from 'ioredis';
+import { EventEmitter } from 'events';
 import { AbortController } from '../classes/abort-controller';
-import { randomBytes, randomUUID as cryptoRandomUUID } from 'crypto';
+export { randomUUID } from 'crypto';
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
+import {
+  ConnectionClosedError,
+  CONNECTION_CLOSED_ERROR_MSG,
+} from '../classes/errors/connection-closed-error';
 import {
   ChildMessage,
   ContextManager,
+  IRedisClient,
   ParentOptions,
-  RedisClient,
   Span,
   Tracer,
 } from '../interfaces';
-import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { DatabaseType } from '../types';
+
+type RedisLikeClient = {
+  connect(...args: any[]): any;
+  disconnect(...args: any[]): any;
+  duplicate(...args: any[]): any;
+};
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -92,8 +98,29 @@ export function delay(
   });
 }
 
-export function increaseMaxListeners(
+/**
+ * Forwards 'error' events from a connection to its owning emitter, but only
+ * when a consumer is listening. Emitting 'error' on an EventEmitter with no
+ * listeners throws, which would turn a transient connection error (e.g. a
+ * failed init handshake before the consumer attached its listener) into an
+ * unhandled rejection.
+ *
+ * @param emitter - The owner emitter (Queue, Worker, FlowProducer, ...).
+ * @param connection - The connection whose 'error' events should be forwarded.
+ */
+export function forwardConnectionError(
   emitter: EventEmitter,
+  connection: EventEmitter,
+): void {
+  connection.on('error', (error: Error) => {
+    if (emitter.listenerCount('error') > 0) {
+      emitter.emit('error', error);
+    }
+  });
+}
+
+export function increaseMaxListeners(
+  emitter: { getMaxListeners(): number; setMaxListeners(n: number): any },
   count: number,
 ): void {
   const maxListeners = emitter.getMaxListeners();
@@ -126,10 +153,11 @@ export const optsDecodeMap = {
 
 export const optsEncodeMap = {
   ...invertObject(optsDecodeMap),
-  /*/ Legacy for backwards compatibility */ debounce: 'de', // TODO: remove in next breaking change
 } as const;
 
-export function isRedisInstance(obj: any): obj is Redis | Cluster {
+export function isRedisInstance(
+  obj: any,
+): obj is IRedisClient | RedisLikeClient {
   if (!obj) {
     return false;
   }
@@ -137,26 +165,47 @@ export function isRedisInstance(obj: any): obj is Redis | Cluster {
   return redisApi.every(name => typeof obj[name] === 'function');
 }
 
-export function isRedisCluster(obj: unknown): obj is Cluster {
-  return isRedisInstance(obj) && (<Cluster>obj).isCluster;
+export function isRedisCluster(
+  obj: unknown,
+): obj is IRedisClient & { isCluster: true } {
+  return isRedisInstance(obj) && !!(obj as any).isCluster;
 }
 
 export function decreaseMaxListeners(
-  emitter: EventEmitter,
+  emitter: { getMaxListeners(): number; setMaxListeners(n: number): any },
   count: number,
 ): void {
   increaseMaxListeners(emitter, -count);
 }
 
+type RemoveAllQueueDataPipeline = {
+  del(...keys: string[]): any;
+  exec(): Promise<any>;
+};
+
+type RemoveAllQueueDataClient = {
+  scanStream(options: { match: string; count?: number }): {
+    on(event: 'data', listener: (keys: string[]) => void): any;
+    on(event: 'end', listener: () => void): any;
+    on(event: 'error', listener: (error: Error) => void): any;
+  };
+  pipeline(): RemoveAllQueueDataPipeline;
+  quit(): Promise<any>;
+
+  // Optional to keep compatibility with raw ioredis Redis instances.
+  isCluster?: boolean;
+};
+
 export async function removeAllQueueData(
-  client: RedisClient,
+  client: RemoveAllQueueDataClient,
   queueName: string,
   prefix = process.env.BULLMQ_TEST_PREFIX || 'bull',
 ): Promise<void | boolean> {
-  if (client instanceof Cluster) {
-    // todo compat with cluster ?
+  if (client.isCluster) {
+    // scanStream is not cluster-safe across all key slots.
+    // Applies to adapter clients and raw ioredis Cluster clients alike.
     // @see https://github.com/luin/ioredis/issues/175
-    return Promise.resolve(false);
+    return false;
   }
   const pattern = `${prefix}:${queueName}:*`;
   const pendingOperations: Promise<any>[] = [];
@@ -209,6 +258,9 @@ export const DELAY_TIME_5 = 5000;
 export const DELAY_TIME_1 = 100;
 
 export function isNotConnectionError(error: Error): boolean {
+  if (error instanceof ConnectionClosedError) {
+    return false;
+  }
   const { code, message: errorMessage } = error as any;
   return (
     errorMessage !== CONNECTION_CLOSED_ERROR_MSG &&
@@ -414,28 +466,4 @@ export async function trace<T>(
       span.end();
     }
   }
-}
-
-/**
- * randomUUID helper to generate a UUID v4 using native crypto dependency.
- */
-export function randomUUID() {
-  if (typeof cryptoRandomUUID === 'function') {
-    return cryptoRandomUUID();
-  }
-
-  const bytes = randomBytes(16);
-
-  // Set version to 4 (bits 4-7 of the 7th byte)
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  // Set variant to RFC 4122 (bits 6-7 of the 9th byte)
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-
-  return [
-    bytes.toString('hex', 0, 4),
-    bytes.toString('hex', 4, 6),
-    bytes.toString('hex', 6, 8),
-    bytes.toString('hex', 8, 10),
-    bytes.toString('hex', 10, 16),
-  ].join('-');
 }
