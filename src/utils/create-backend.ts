@@ -43,7 +43,8 @@ const createBlockingConnection = (
 
 /**
  * The default ({@link RedisConnection}-based) implementation of
- * {@link BackendFactory}. The returned backend owns its connection(s); the
+ * {@link BackendFactory}. The backend owns connections it creates, including
+ * duplicates, but leaves caller-owned clients open. The
  * high-level classes (Queue, Worker, FlowProducer, …) depend only on
  * {@link IQueueBackend} and never touch a Redis client directly.
  *
@@ -65,7 +66,7 @@ export const createRedisBackend: BackendFactory<RedisQueueBackend> = (
       : opts.connection;
 
   const connection = new RedisConnection(mainConnectionOpts, {
-    shared: isRedisInstance(mainConnectionOpts),
+    shared: !blocking && isRedisInstance(opts.connection),
     blocking,
     skipVersionCheck: opts.skipVersionCheck,
     skipWaitingForReady: opts.skipWaitingForReady,
