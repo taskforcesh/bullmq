@@ -126,7 +126,7 @@ describe('Telemetry', () => {
   class MockContextManager<Context = any> implements ContextManager<Context> {
     private activeContext: Context = {} as Context;
 
-    with<A extends (...args: any[]) => any>(
+    with<A extends(...args: any[]) => any>(
       context: Context,
       fn: A,
     ): ReturnType<A> {
@@ -682,6 +682,7 @@ describe('Telemetry', () => {
         expect(span.parent).toBeUndefined();
       }
     });
+
     it('should not parent stalled check spans to the resume span', async () => {
       const storage = new AsyncLocalStorage<any>();
       const contextManager: ContextManager = {
