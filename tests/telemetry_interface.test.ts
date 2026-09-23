@@ -126,7 +126,7 @@ describe('Telemetry', () => {
   class MockContextManager<Context = any> implements ContextManager<Context> {
     private activeContext: Context = {} as Context;
 
-    with<A extends (...args: any[]) => any>(
+    with<A extends(...args: any[]) => any>(
       context: Context,
       fn: A,
     ): ReturnType<A> {
@@ -432,7 +432,7 @@ describe('Telemetry', () => {
       // what allows the leak to happen in the real implementation.
       private activeContext: any = {};
 
-      with<A extends (...args: any[]) => any>(
+      with<A extends(...args: any[]) => any>(
         context: any,
         fn: A,
       ): ReturnType<A> {
@@ -462,56 +462,58 @@ describe('Telemetry', () => {
       contextManager: ContextManager = new RootCapableContextManager();
     }
 
-    it('does not let recurring moveStalledJobsToWait spans inherit the resume span after a pause(true)/resume cycle', async () => {
-      const rootTelemetry = new RootCapableTelemetry();
-      const contextManager =
-        rootTelemetry.contextManager as RootCapableContextManager;
+    describe('Worker.pause/resume with recurring stalled checker', () => {
+      it('does not let recurring moveStalledJobsToWait spans inherit the resume span', async () => {
+        const rootTelemetry = new RootCapableTelemetry();
+        const contextManager =
+          rootTelemetry.contextManager as RootCapableContextManager;
 
-      const worker = new Worker(queueName, async () => 'done', {
-        connection,
-        prefix,
-        telemetry: rootTelemetry,
-        stalledInterval: 50,
-        skipLockRenewal: true,
-      });
+        const worker = new Worker(queueName, async () => 'done', {
+          connection,
+          prefix,
+          telemetry: rootTelemetry,
+          stalledInterval: 50,
+          skipLockRenewal: true,
+        });
 
-      const withSpy = sinon.spy(contextManager, 'with');
+        const withSpy = sinon.spy(contextManager, 'with');
 
-      try {
-        await worker.waitUntilReady();
+        try {
+          await worker.waitUntilReady();
 
-        // Mirrors pause(doNotWaitActive=true): stops the stalled checker
-        // without waiting for active jobs to finish.
-        await worker.pause(true);
+          // Mirrors pause(doNotWaitActive=true): stops the stalled checker
+          // without waiting for active jobs to finish.
+          await worker.pause(true);
 
-        // The worker is still "running" (only paused), so resume() takes the
-        // restart-the-stalled-checker branch instead of calling run() again.
-        await worker.resume();
+          // The worker is still "running" (only paused), so resume() takes the
+          // restart-the-stalled-checker branch instead of calling run() again.
+          await worker.resume();
 
-        // Let the checker run through a few ticks.
-        await new Promise(resolve => setTimeout(resolve, 220));
+          // Let the checker run through a few ticks.
+          await new Promise(resolve => setTimeout(resolve, 220));
 
-        const spans = withSpy
-          .getCalls()
-          .map(call => call.args[0]?.getSpan?.())
-          .filter(Boolean) as RootCapableSpan[];
+          const spans = withSpy
+            .getCalls()
+            .map(call => call.args[0]?.getSpan?.())
+            .filter(Boolean) as RootCapableSpan[];
 
-        const resumeSpan = spans.find(
-          span => span.name === `resume ${queueName}`,
-        );
-        const stalledCheckSpans = spans.filter(
-          span => span.name === `moveStalledJobsToWait ${queueName}`,
-        );
+          const resumeSpan = spans.find(
+            span => span.name === `resume ${queueName}`,
+          );
+          const stalledCheckSpans = spans.filter(
+            span => span.name === `moveStalledJobsToWait ${queueName}`,
+          );
 
-        expect(resumeSpan).toBeDefined();
-        expect(stalledCheckSpans.length).toBeGreaterThanOrEqual(2);
+          expect(resumeSpan).toBeDefined();
+          expect(stalledCheckSpans.length).toBeGreaterThanOrEqual(2);
 
-        for (const span of stalledCheckSpans) {
-          expect(span.traceId).not.toBe(resumeSpan!.traceId);
+          for (const span of stalledCheckSpans) {
+            expect(span.traceId).not.toBe(resumeSpan!.traceId);
+          }
+        } finally {
+          await worker.close();
         }
-      } finally {
-        await worker.close();
-      }
+      });
     });
   });
 
