@@ -23,6 +23,7 @@ import {
   Span,
   SpanOptions,
   Attributes,
+  AttributeValue,
   Exception,
   Time,
   Meter,
@@ -125,7 +126,7 @@ describe('Telemetry', () => {
   class MockContextManager<Context = any> implements ContextManager<Context> {
     private activeContext: Context = {} as Context;
 
-    with<A extends(...args: any[]) => any>(
+    with<A extends (...args: any[]) => any>(
       context: Context,
       fn: A,
     ): ReturnType<A> {
@@ -379,6 +380,137 @@ describe('Telemetry', () => {
       } finally {
         JobScheduler.prototype.createNextJob = originalCreateNextJob;
         recordExceptionSpy.restore();
+      }
+    });
+  });
+
+  describe('Worker stalled checker telemetry context', () => {
+    // `MockContextManager` above has no `root()`, so it only exercises the
+    // fallback path (no detach) and cannot catch a stalled checker that keeps
+    // extending whatever trace happened to be active when it was (re)started.
+    // These classes add a `root()` implementation and thread a `traceId`
+    // through contexts the way a real tracer would: a span reuses the
+    // traceId already present on its parent context, or mints a new one if
+    // there isn't one. `root()` returns a context with no traceId, so the
+    // next span created under it starts a brand new trace.
+    class RootCapableSpan implements Span {
+      attributes: Attributes = {};
+      readonly traceId: string = randomUUID();
+
+      constructor(public name: string) {}
+
+      setSpanOnContext(ctx: any): any {
+        const traceId = ctx?.traceId ?? this.traceId;
+        return { ...ctx, traceId, getSpan: () => this };
+      }
+
+      addEvent(): void {}
+
+      setAttribute(key: string, value: AttributeValue): void {
+        this.attributes[key] = value;
+      }
+
+      setAttributes(attributes: Attributes): void {
+        this.attributes = { ...this.attributes, ...attributes };
+      }
+
+      recordException(): void {}
+
+      end(): void {}
+    }
+
+    class RootCapableTracer implements Tracer {
+      startSpan(name: string): Span {
+        return new RootCapableSpan(name);
+      }
+    }
+
+    class RootCapableContextManager implements ContextManager {
+      // Mimics an `AsyncLocalStorage`-backed context manager: `with()` never
+      // restores the previous context once it returns, so anything scheduled
+      // afterwards keeps observing whatever was last set. This is exactly
+      // what allows the leak to happen in the real implementation.
+      private activeContext: any = {};
+
+      with<A extends (...args: any[]) => any>(
+        context: any,
+        fn: A,
+      ): ReturnType<A> {
+        this.activeContext = context;
+        return fn();
+      }
+
+      active(): any {
+        return this.activeContext;
+      }
+
+      root(): any {
+        return {};
+      }
+
+      getMetadata(): string {
+        return '';
+      }
+
+      fromMetadata(activeContext: any): any {
+        return activeContext;
+      }
+    }
+
+    class RootCapableTelemetry implements Telemetry {
+      tracer: Tracer = new RootCapableTracer();
+      contextManager: ContextManager = new RootCapableContextManager();
+    }
+
+    it('does not let recurring moveStalledJobsToWait spans inherit the resume span after a pause(true)/resume cycle', async () => {
+      const rootTelemetry = new RootCapableTelemetry();
+      const contextManager =
+        rootTelemetry.contextManager as RootCapableContextManager;
+
+      const worker = new Worker(queueName, async () => 'done', {
+        connection,
+        prefix,
+        telemetry: rootTelemetry,
+        stalledInterval: 50,
+        skipLockRenewal: true,
+      });
+
+      const withSpy = sinon.spy(contextManager, 'with');
+
+      try {
+        await worker.waitUntilReady();
+
+        // Mirrors pause(doNotWaitActive=true): stops the stalled checker
+        // without waiting for active jobs to finish.
+        await worker.pause(true);
+
+        // The worker is still "running" (only paused), so resume() takes the
+        // restart-the-stalled-checker branch instead of calling run() again.
+        await worker.resume();
+
+        // Let the checker run through a few ticks.
+        await new Promise(resolve => setTimeout(resolve, 220));
+
+        const spans = withSpy
+          .getCalls()
+          .map(call => call.args[0]?.getSpan?.())
+          .filter(Boolean) as RootCapableSpan[];
+
+        const resumeSpan = spans.find(
+          span => span.name === `resume ${queueName}`,
+        );
+        const stalledCheckSpans = spans.filter(
+          span => span.name === `moveStalledJobsToWait ${queueName}`,
+        );
+
+        expect(resumeSpan).toBeDefined();
+        expect(stalledCheckSpans.length).toBeGreaterThanOrEqual(2);
+
+        for (const span of stalledCheckSpans) {
+          expect(span.traceId).not.toBe(resumeSpan!.traceId);
+        }
+      } finally {
+        await worker.close();
       }
     });
   });
