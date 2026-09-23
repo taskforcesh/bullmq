@@ -54,6 +54,7 @@ local jobOpts = cmsgpack.unpack(ARGV[6])
 --- @include "includes/removeJob"
 --- @include "includes/storeJobScheduler"
 --- @include "includes/getJobSchedulerEveryNextMillis"
+--- @include "includes/isJobSchedulerUnchanged"
 
 -- If we are overriding a repeatable job we must delete the delayed job for
 -- the next iteration.
@@ -115,6 +116,26 @@ local function removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, wai
     end
 
     return false
+end
+
+-- Re-registering a scheduler with the definition it already holds has nothing
+-- to update, so the iteration it already produced is left alone. Removing it
+-- here would drop a scheduled run that is never retried, re-run or reported:
+-- an iteration already promoted to wait/paused/prioritized is work a worker is
+-- about to pick up, and processes that re-register their schedulers on every
+-- boot hit this on every restart.
+if prevMillis and isJobSchedulerUnchanged(schedulerKey, schedulerOpts, templateData, templateOpts) then
+    local unchangedJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
+    local unchangedJobKey = schedulerKey .. ":" .. prevMillis
+
+    if rcall("EXISTS", unchangedJobKey) == 1 then
+        local unchangedDelay = prevMillis - now
+        if unchangedDelay < 0 then
+            unchangedDelay = 0
+        end
+
+        return {unchangedJobId .. "", unchangedDelay}
+    end
 end
 
 local removedPrevJob = false
