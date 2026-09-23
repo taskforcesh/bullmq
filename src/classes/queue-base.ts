@@ -51,7 +51,13 @@ export class QueueBase<
   constructor(
     name: string,
     opts: QueueBaseOptions<NoInfer<ConnectionOptionsType>>,
-    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+    hasBlockingConnection?: boolean,
+  );
+  constructor(
+    name: string,
+    opts: QueueBaseOptions<NoInfer<ConnectionOptionsType>>,
+    backendFactory?: undefined,
     hasBlockingConnection?: boolean,
   );
   constructor(

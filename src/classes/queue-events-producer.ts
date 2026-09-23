@@ -18,7 +18,12 @@ export class QueueEventsProducer<
   constructor(
     name: string,
     opts: QueueEventsProducerOptions<NoInfer<ConnectionOptionsType>>,
-    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    opts: QueueEventsProducerOptions<NoInfer<ConnectionOptionsType>>,
+    backendFactory?: undefined,
   );
   constructor(
     name: string,

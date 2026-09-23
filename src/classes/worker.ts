@@ -239,7 +239,18 @@ export class Worker<
       | Processor<DataType, ResultType, NameType, ProgressType>
       | undefined,
     opts: WorkerOptions<NoInfer<ConnectionOptionsType>>,
-    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    processor:
+      | string
+      | URL
+      | null
+      | Processor<DataType, ResultType, NameType, ProgressType>
+      | undefined,
+    opts: WorkerOptions<NoInfer<ConnectionOptionsType>>,
+    backendFactory?: undefined,
   );
   constructor(
     name: string,
@@ -878,7 +889,7 @@ export class Worker<
   }
 
   protected getBlockTimeout(blockUntil: number): number {
-    const opts: WorkerOptions = <WorkerOptions>this.opts;
+    const opts = this.opts;
 
     // when there are delayed jobs
     if (blockUntil) {

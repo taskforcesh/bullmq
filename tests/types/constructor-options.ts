@@ -160,6 +160,33 @@ new FlowProducer(redisOpts);
 new Worker('tasks', undefined, redisOpts);
 new JobScheduler('tasks', redisOpts);
 
+declare const maybeFactory:
+  BackendFactory<CustomBackend, CustomConnection> | undefined;
+// @ts-expect-error A possibly-undefined factory may fall back to Redis.
+new QueueBase('tasks', opts, maybeFactory);
+// @ts-expect-error A possibly-undefined factory may fall back to Redis.
+new QueueGetters('tasks', opts, maybeFactory);
+// @ts-expect-error A possibly-undefined factory may fall back to Redis.
+new Queue('tasks', opts, maybeFactory);
+// @ts-expect-error A possibly-undefined factory may fall back to Redis.
+new QueueEvents('tasks', opts, maybeFactory);
+// @ts-expect-error A possibly-undefined factory may fall back to Redis.
+new QueueEventsProducer('tasks', opts, maybeFactory);
+// @ts-expect-error A possibly-undefined factory may fall back to Redis.
+new FlowProducer(opts, maybeFactory);
+// @ts-expect-error A possibly-undefined factory may fall back to Redis.
+new Worker('tasks', undefined, opts, maybeFactory);
+// @ts-expect-error A possibly-undefined factory may fall back to Redis.
+new JobScheduler('tasks', opts, maybeFactory);
+
+new QueueBase('tasks', redisOpts, undefined, true);
+new JobScheduler('tasks', redisOpts, undefined);
+new Worker('tasks', undefined, redisOpts, undefined);
+// Explicit type arguments without a factory select the registered default.
+new QueueBase<CustomBackend, CustomConnection>('tasks', opts);
+new JobScheduler<CustomBackend, CustomConnection>('tasks', opts, undefined);
+new FlowProducer<CustomBackend, CustomConnection>(opts);
+
 declare const falsyFactory: BackendFactory<CustomBackend, false | 0 | ''>;
 new Worker('tasks', undefined, { connection: false }, falsyFactory);
 new Worker('tasks', undefined, { connection: 0 }, falsyFactory);

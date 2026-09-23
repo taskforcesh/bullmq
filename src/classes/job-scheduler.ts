@@ -104,6 +104,16 @@ export class JobScheduler<
   constructor(
     name: string,
     opts: RepeatBaseOptions<NoInfer<ConnectionOptionsType>>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    opts: RepeatBaseOptions<NoInfer<ConnectionOptionsType>>,
+    backendFactory?: undefined,
+  );
+  constructor(
+    name: string,
+    opts: RepeatBaseOptions<ConnectionOptionsType>,
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
     super(name, opts, backendFactory);

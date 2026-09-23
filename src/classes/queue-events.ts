@@ -270,7 +270,12 @@ export class QueueEvents<
   constructor(
     name: string,
     opts: QueueEventsOptions<NoInfer<ConnectionOptionsType>>,
-    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    opts: QueueEventsOptions<NoInfer<ConnectionOptionsType>>,
+    backendFactory?: undefined,
   );
   constructor(
     name: string,

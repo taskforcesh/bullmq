@@ -120,7 +120,11 @@ export class FlowProducer<
 
   constructor(
     opts: FlowProducerOptions<NoInfer<ConnectionOptionsType>>,
-    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    opts: FlowProducerOptions<NoInfer<ConnectionOptionsType>>,
+    backendFactory?: undefined,
   );
   constructor(
     ...args: DefaultQueueOptions<
