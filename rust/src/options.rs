@@ -82,6 +82,53 @@ impl std::fmt::Debug for TlsCerts {
     }
 }
 
+/// Automatic reconnection behaviour for Redis connections.
+///
+/// Every connection opened by this crate is managed: when the underlying
+/// socket dies (network blip, Redis restart, failover) the in-flight command
+/// fails with an I/O error and a reconnection is started in the background
+/// using an exponential backoff. Subsequent commands transparently use the
+/// re-established connection, so a `Worker`/`Queue`/`QueueEvents` recovers on
+/// its own without the process being restarted.
+///
+/// Currently crate-internal and always used with its default values; exposing
+/// these knobs publicly requires adding a field to
+/// [`RedisConnectionOptions`], which is a semver-major change.
+#[derive(Clone, Debug)]
+pub(crate) struct ReconnectOptions {
+    /// Number of reconnection attempts per reconnect cycle.
+    ///
+    /// When a cycle is exhausted the connection stays in a failed state, but
+    /// the next command triggers a fresh cycle — recovery is never abandoned
+    /// permanently.
+    pub max_retries: usize,
+    /// Delay before the first reconnection attempt. Subsequent attempts grow
+    /// exponentially (with jitter) up to [`max_delay`](Self::max_delay).
+    pub min_delay: Duration,
+    /// Upper bound for the exponential backoff between reconnection attempts.
+    pub max_delay: Duration,
+    /// Timeout for establishing a single connection. `None` disables it.
+    pub connection_timeout: Option<Duration>,
+    /// Timeout applied to non-blocking command responses. `None` disables it.
+    ///
+    /// Blocking connections (worker `BZPOPMIN`, `QueueEvents` `XREAD`) always
+    /// run without a response timeout regardless of this setting, since they
+    /// are expected to block for their full duration.
+    pub response_timeout: Option<Duration>,
+}
+
+impl Default for ReconnectOptions {
+    fn default() -> Self {
+        Self {
+            max_retries: 10,
+            min_delay: Duration::from_millis(100),
+            max_delay: Duration::from_secs(5),
+            connection_timeout: Some(Duration::from_secs(10)),
+            response_timeout: Some(Duration::from_secs(10)),
+        }
+    }
+}
+
 /// Options for connecting to Redis.
 #[derive(Clone)]
 pub struct RedisConnectionOptions {
@@ -149,6 +196,80 @@ impl Default for RedisConnectionOptions {
 }
 
 impl RedisConnectionOptions {
+    /// Create default Redis connection options.
+    ///
+    /// ```
+    /// use bullmq::options::RedisConnectionOptions;
+    ///
+    /// let opts = RedisConnectionOptions::new()
+    ///     .host("127.0.0.1")
+    ///     .port(6380)
+    ///     .db(2);
+    /// assert_eq!(opts.host.as_deref(), Some("127.0.0.1"));
+    /// assert_eq!(opts.port, Some(6380));
+    /// assert_eq!(opts.db, Some(2));
+    /// ```
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the Redis connection URL (used when [`host`](Self::host) is not set).
+    pub fn url(mut self, url: impl Into<String>) -> Self {
+        self.url = url.into();
+        self
+    }
+
+    /// Set the maximum number of connections in the pool.
+    pub fn max_connections(mut self, max_connections: usize) -> Self {
+        self.max_connections = max_connections;
+        self
+    }
+
+    /// Set the Redis host. When set, the connection URL is built from the
+    /// typed fields instead of [`url`](Self::url).
+    pub fn host(mut self, host: impl Into<String>) -> Self {
+        self.host = Some(host.into());
+        self
+    }
+
+    /// Set the Redis port (defaults to `6379` when [`host`](Self::host) is set).
+    pub fn port(mut self, port: u16) -> Self {
+        self.port = Some(port);
+        self
+    }
+
+    /// Set the username for ACL authentication.
+    pub fn username(mut self, username: impl Into<String>) -> Self {
+        self.username = Some(username.into());
+        self
+    }
+
+    /// Set the password for authentication.
+    pub fn password(mut self, password: impl Into<String>) -> Self {
+        self.password = Some(password.into());
+        self
+    }
+
+    /// Set the database index to select.
+    pub fn db(mut self, db: u8) -> Self {
+        self.db = Some(db);
+        self
+    }
+
+    /// Connect over TLS (uses the `rediss://` scheme).
+    pub fn tls(mut self, tls: bool) -> Self {
+        self.tls = tls;
+        self
+    }
+
+    /// Set custom TLS certificates (root CA and/or client certificate for mTLS).
+    ///
+    /// This implies a TLS (`rediss://`) connection.
+    pub fn tls_certs(mut self, certs: TlsCerts) -> Self {
+        self.tls_certs = Some(certs);
+        self
+    }
+
     /// Build the effective connection URL.
     ///
     /// When [`host`](Self::host) is set, a URL is constructed from the typed

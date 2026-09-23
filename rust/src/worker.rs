@@ -600,7 +600,7 @@ impl Worker {
         }
 
         let conn = RedisConnection::new(&opts.connection).await?;
-        let blocking_conn = BlockingRedisConnection::new(conn.client()).await?;
+        let blocking_conn = BlockingRedisConnection::new(&conn).await?;
         let keys = QueueKeys::new(queue_name, Some(&opts.prefix));
 
         // Register the blocking connection's client name so that
@@ -983,6 +983,12 @@ impl Worker {
                 }
                 Err(e) => {
                     drop(slot_guard);
+                    // The connection auto-reconnects in the background, so keep
+                    // looping: once it is re-established the next fetch
+                    // succeeds. Log as well as emit the event, otherwise a
+                    // worker with no `WorkerEvent` subscriber looks like it
+                    // stopped for no reason.
+                    warn!(error = %e, "failed to fetch job, retrying");
                     let _ = ctx.event_tx.send(WorkerEvent::Error(e.to_string()));
                     tokio::time::sleep(Duration::from_millis(ctx.opts.run_retry_delay)).await;
                 }
@@ -1003,10 +1009,14 @@ impl Worker {
         // BZPOPMIN takes a timeout in (fractional) seconds. Guard against a zero
         // timeout, which Redis interprets as "block forever".
         let timeout_secs = (timeout_ms.max(1) as f64) / 1000.0;
-        if let Err(_e) = blocking_conn.bzpopmin(&ctx.marker_key, timeout_secs).await {
+        if let Err(e) = blocking_conn.bzpopmin(&ctx.marker_key, timeout_secs).await {
             // Transient error (e.g. connection reset): back off briefly before
-            // the driver loops and retries, unless we are shutting down.
+            // the driver loops and retries, unless we are shutting down. The
+            // blocking connection reconnects in the background, so the retry
+            // lands on a healthy socket.
             if !ctx.closing.load(Ordering::Relaxed) {
+                warn!(error = %e, "blocking wait failed, retrying");
+                let _ = ctx.event_tx.send(WorkerEvent::Error(e.to_string()));
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
         }

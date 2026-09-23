@@ -36,7 +36,7 @@ use redis::streams::{StreamReadOptions, StreamReadReply};
 use redis::AsyncCommands;
 use tokio::sync::{mpsc, Mutex};
 use tokio::task::JoinHandle;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::error::Error;
 use crate::keys::{validate_prefix, validate_queue_name, QueueKeys};
@@ -516,10 +516,41 @@ impl QueueEvents {
             .clone()
             .unwrap_or_else(|| "$".to_string());
         let read_opts = StreamReadOptions::default().block(opts.blocking_timeout as usize);
+        // The dedicated connection runs without a response timeout so `XREAD
+        // BLOCK` can block for its full duration. Guard it with a watchdog so a
+        // half-open socket (a network blip that never delivers a FIN/RST) can't
+        // wedge the listener forever.
+        let watchdog =
+            Duration::from_millis(opts.blocking_timeout).saturating_add(Duration::from_secs(1));
 
         while !closing.load(Ordering::Relaxed) {
-            let reply: Result<Option<StreamReadReply>, _> =
-                redis_conn.xread_options(&[&key], &[&id], &read_opts).await;
+            let reply: Result<Option<StreamReadReply>, _> = match tokio::time::timeout(
+                watchdog,
+                redis_conn.xread_options(&[&key], &[&id], &read_opts),
+            )
+            .await
+            {
+                Ok(reply) => reply,
+                Err(_) => {
+                    // Stuck connection: `ConnectionManager` only reconnects on
+                    // errors it observes, and a half-open socket never surfaces
+                    // one. Rebuild it explicitly.
+                    warn!(queue = %key, "queue events read exceeded its watchdog, reconnecting");
+                    match conn.dedicated_connection().await {
+                        Ok(c) => redis_conn = c,
+                        Err(e) => {
+                            let _ = tx.send(QueueEventEntry {
+                                id: String::new(),
+                                event: QueueEvent::Error {
+                                    message: e.to_string(),
+                                },
+                            });
+                            tokio::time::sleep(Duration::from_millis(100)).await;
+                        }
+                    }
+                    continue;
+                }
+            };
 
             match reply {
                 Ok(Some(reply)) => {

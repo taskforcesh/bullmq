@@ -140,6 +140,86 @@ async fn test_idle_worker_picks_up_new_job_quickly() {
     cleanup_queue(&queue).await;
 }
 
+/// Regression test: a worker must recover on its own after its Redis
+/// connections are dropped (network blip, Redis restart, failover).
+///
+/// Previously every connection was a bare `MultiplexedConnection`, which
+/// redis-rs never reconnects. Once the socket died the worker silently stopped
+/// fetching jobs — no error, no recovery — until the process was restarted.
+/// `CLIENT KILL` simulates the dropped socket deterministically.
+#[tokio::test]
+async fn test_worker_recovers_after_connection_is_killed() {
+    let name = test_queue_name();
+    let conn_opts = test_connection();
+
+    let queue_opts = QueueOptions {
+        connection: conn_opts.clone(),
+        ..Default::default()
+    };
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
+
+    let (tx, mut rx) = mpsc::channel::<String>(8);
+    let processor: ProcessorFn = Arc::new(move |job: Job, _token: CancellationToken| {
+        let tx = tx.clone();
+        Box::pin(async move {
+            tx.send(job.name().to_string()).await.unwrap();
+            Ok(serde_json::json!({"processed": true}))
+        })
+    });
+
+    let worker_opts = WorkerOptions {
+        connection: conn_opts.clone(),
+        autorun: true,
+        ..Default::default()
+    };
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
+
+    queue.add("before", serde_json::json!({})).await.unwrap();
+    let first = tokio::time::timeout(Duration::from_secs(10), rx.recv())
+        .await
+        .expect("timeout waiting for the first job")
+        .expect("channel closed");
+    assert_eq!(first, "before");
+
+    // Kill every client connection, as a Redis restart would. The killer's own
+    // connection is spared via SKIPME so the command can report a result.
+    let client = redis::Client::open(conn_opts.effective_url()).unwrap();
+    let mut killer = client.get_multiplexed_async_connection().await.unwrap();
+    let killed: i64 = redis::cmd("CLIENT")
+        .arg("KILL")
+        .arg("TYPE")
+        .arg("normal")
+        .arg("SKIPME")
+        .arg("yes")
+        .query_async(&mut killer)
+        .await
+        .unwrap();
+    assert!(killed > 0, "expected CLIENT KILL to drop some connections");
+
+    // The worker must reconnect by itself and keep processing.
+    tokio::time::timeout(Duration::from_secs(20), async {
+        loop {
+            if queue.connection().ping().await.is_ok() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("queue did not reconnect");
+    queue.add("after", serde_json::json!({})).await.unwrap();
+    let second = tokio::time::timeout(Duration::from_secs(20), rx.recv())
+        .await
+        .expect("worker did not recover after its connection was killed")
+        .expect("channel closed");
+    assert_eq!(second, "after");
+
+    worker.close(5000).await.unwrap();
+    cleanup_queue(&queue).await;
+}
+
 /// Stress test for the marker -> `BZPOPMIN` wake-up path.
 ///
 /// This drives many idle -> add -> process cycles, varying the delay between the
