@@ -5318,6 +5318,122 @@ async fn should_reject_colon_in_flow_queue_names() {
     flow.close().await;
 }
 
+#[tokio::test]
+async fn flow_add_rejects_invalid_custom_job_ids() {
+    let prefix = "bf-test";
+    let flow = test_flow_producer(prefix).await;
+
+    let result = flow
+        .add(FlowJob {
+            name: "root-job".to_string(),
+            queue_name: test_queue_name(),
+            data: serde_json::json!({}),
+            opts: Some(JobOptions {
+                job_id: Some("100".to_string()),
+                ..Default::default()
+            }),
+            prefix: None,
+            children: None,
+        })
+        .await;
+    let err = result.unwrap_err();
+    assert!(
+        err.to_string().contains("Custom Id cannot be integers"),
+        "got: {}",
+        err
+    );
+
+    let result = flow
+        .add(FlowJob {
+            name: "root-job".to_string(),
+            queue_name: test_queue_name(),
+            data: serde_json::json!({}),
+            opts: None,
+            prefix: None,
+            children: Some(vec![FlowJob {
+                name: "child-job".to_string(),
+                queue_name: test_queue_name(),
+                data: serde_json::json!({}),
+                opts: Some(JobOptions {
+                    job_id: Some("42".to_string()),
+                    ..Default::default()
+                }),
+                prefix: None,
+                children: None,
+            }]),
+        })
+        .await;
+    let err = result.unwrap_err();
+    assert!(
+        err.to_string().contains("Custom Id cannot be integers"),
+        "got: {}",
+        err
+    );
+
+    flow.close().await;
+}
+
+#[tokio::test]
+async fn get_flow_returns_children_with_legacy_repeat_job_ids() {
+    // Legacy repeatable ids (`repeat:<schedulerId>:<millis>`) are the one custom
+    // id shape allowed to contain `:`. Prefixes and queue names never do, so the
+    // child key `{prefix}:{queue}:repeat:sched:1` must be split from the left or
+    // the child resolves to the wrong queue and is silently dropped.
+    let prefix = "bf-test";
+    let parent_queue_name = test_queue_name();
+    let child_queue_name = test_queue_name();
+    let parent_queue = test_queue_with_prefix(&parent_queue_name, prefix).await;
+    let child_queue = test_queue_with_prefix(&child_queue_name, prefix).await;
+
+    let child_job_id = "repeat:scheduler-id:1700000000000";
+    let flow = test_flow_producer(prefix).await;
+    let tree = flow
+        .add(FlowJob {
+            name: "root-job".to_string(),
+            queue_name: parent_queue_name.clone(),
+            data: serde_json::json!({}),
+            opts: None,
+            prefix: None,
+            children: Some(vec![FlowJob {
+                name: "child-job".to_string(),
+                queue_name: child_queue_name.clone(),
+                data: serde_json::json!({ "idx": 0 }),
+                opts: Some(JobOptions {
+                    job_id: Some(child_job_id.to_string()),
+                    ..Default::default()
+                }),
+                prefix: None,
+                children: None,
+            }]),
+        })
+        .await
+        .unwrap();
+
+    let fetched = flow
+        .get_flow(bullmq::GetFlowOptions {
+            id: tree.job.id().to_string(),
+            queue_name: parent_queue_name.clone(),
+            prefix: Some(prefix.to_string()),
+            depth: None,
+            max_children: None,
+        })
+        .await
+        .unwrap();
+
+    let children = fetched
+        .children
+        .as_ref()
+        .expect("child with legacy repeat id should be returned");
+    assert_eq!(children.len(), 1);
+    assert_eq!(children[0].job.id(), child_job_id);
+    assert_eq!(children[0].job.name(), "child-job");
+    assert_eq!(children[0].job.data(), &serde_json::json!({ "idx": 0 }));
+
+    flow.close().await;
+    cleanup_queue(&parent_queue).await;
+    cleanup_queue(&child_queue).await;
+}
+
 // ─── Remove tests ──────────────────────────────────────────────────────────────
 
 // Node.js: "should remove all children when removing a parent"
