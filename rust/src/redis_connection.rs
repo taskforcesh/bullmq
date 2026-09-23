@@ -1,11 +1,12 @@
 use redis::aio::{ConnectionManager, ConnectionManagerConfig};
 use redis::{Client, ClientTlsConfig, TlsCertificates};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, warn};
 
 use crate::error::Error;
-use crate::options::{redact_url_userinfo, RedisConnectionOptions};
+use crate::options::{redact_url_userinfo, ReconnectOptions, RedisConnectionOptions};
 use crate::scripts::ScriptRegistry;
 
 /// The connection type used throughout the crate.
@@ -55,11 +56,8 @@ fn build_client(opts: &RedisConnectionOptions, url: &str) -> Result<Client, Erro
 /// `response_timeout` is passed explicitly because blocking connections
 /// (`BZPOPMIN`, `XREAD`) must run without one — see
 /// [`BlockingRedisConnection::new`].
-fn manager_config(
-    opts: &RedisConnectionOptions,
-    response_timeout: Option<std::time::Duration>,
-) -> ConnectionManagerConfig {
-    let reconnect = &opts.reconnect;
+fn manager_config(response_timeout: Option<std::time::Duration>) -> ConnectionManagerConfig {
+    let reconnect = ReconnectOptions::default();
     ConnectionManagerConfig::new()
         .set_number_of_retries(reconnect.max_retries)
         .set_min_delay(reconnect.min_delay)
@@ -92,7 +90,7 @@ impl RedisConnection {
         let url = opts.effective_url();
         let client = build_client(opts, &url)?;
         let scripts = ScriptRegistry::new();
-        let config = manager_config(opts, opts.reconnect.response_timeout);
+        let config = manager_config(ReconnectOptions::default().response_timeout);
         let conn = ConnectionManager::new_with_config(client.clone(), config).await?;
 
         let inner = Arc::new(Inner {
@@ -146,7 +144,7 @@ impl RedisConnection {
     /// timeout is disabled because callers use it for commands that block
     /// server-side (`XREAD BLOCK`).
     pub async fn dedicated_connection(&self) -> Result<Conn, Error> {
-        let config = manager_config(&self.inner.opts, None);
+        let config = manager_config(None);
         Ok(ConnectionManager::new_with_config(self.inner.client.clone(), config).await?)
     }
 
@@ -175,8 +173,25 @@ pub struct BlockingRedisConnection {
 
 struct BlockingInner {
     client: Client,
-    opts: RedisConnectionOptions,
     conn: Mutex<Conn>,
+    /// Name registered with `CLIENT SETNAME`, kept so it can be reapplied
+    /// after the managed connection is re-established.
+    client_name: std::sync::Mutex<Option<String>>,
+    /// Set when the underlying socket may have been replaced, meaning the
+    /// stored [`client_name`](BlockingInner::client_name) has to be reapplied
+    /// before the connection is used again.
+    needs_renaming: AtomicBool,
+}
+
+/// Whether a failed `CLIENT SETNAME` is worth retrying once the connection has
+/// recovered. Connection-level failures are transient, whereas an error reply
+/// means the server rejects the command (some managed Redis providers do), so
+/// retrying it on every reconnect would be pointless.
+fn is_transient_connection_error(err: &Error) -> bool {
+    matches!(err, Error::Redis(e) if e.is_io_error()
+        || e.is_connection_dropped()
+        || e.is_connection_refusal()
+        || e.is_timeout())
 }
 
 /// Grace period added on top of a blocking command's own timeout before the
@@ -210,15 +225,15 @@ impl BlockingRedisConnection {
     /// worker, whose stuck-connection watchdog fires at `blockTimeout + 1s`,
     /// deliberately longer than the block rather than shorter.
     pub async fn new(conn: &RedisConnection) -> Result<Self, Error> {
-        let opts = conn.options().clone();
         let client = conn.client().clone();
-        let config = manager_config(&opts, None);
+        let config = manager_config(None);
         let conn = ConnectionManager::new_with_config(client.clone(), config).await?;
         Ok(Self {
             inner: Arc::new(BlockingInner {
                 client,
-                opts,
                 conn: Mutex::new(conn),
+                client_name: std::sync::Mutex::new(None),
+                needs_renaming: AtomicBool::new(false),
             }),
         })
     }
@@ -243,6 +258,11 @@ impl BlockingRedisConnection {
         timeout_secs: f64,
     ) -> Result<Option<(String, String, f64)>, Error> {
         let mut conn = self.inner.conn.lock().await;
+
+        // A reconnect hands us a brand-new, unnamed Redis connection, so
+        // restore the worker's name before blocking on it again.
+        self.reapply_client_name(&mut conn).await;
+
         let watchdog = std::time::Duration::from_secs_f64(timeout_secs.max(0.0))
             .saturating_add(BLOCK_WATCHDOG_GRACE);
 
@@ -251,7 +271,14 @@ impl BlockingRedisConnection {
         let command = cmd.query_async::<Option<(String, String, f64)>>(&mut *conn);
 
         match tokio::time::timeout(watchdog, command).await {
-            Ok(result) => Ok(result?),
+            Ok(Ok(value)) => Ok(value),
+            Ok(Err(err)) => {
+                // The command failed, most likely because the socket died.
+                // `ConnectionManager` reconnects in the background and the
+                // replacement connection is unnamed, so schedule a rename.
+                self.inner.needs_renaming.store(true, Ordering::Release);
+                Err(err.into())
+            }
             Err(_) => {
                 warn!(
                     timeout_secs,
@@ -260,9 +287,13 @@ impl BlockingRedisConnection {
                 // Drop the stuck manager and build a new one. `ConnectionManager`
                 // only reconnects on errors it observes, and a half-open socket
                 // never surfaces one.
-                let config = manager_config(&self.inner.opts, None);
+                let config = manager_config(None);
                 *conn =
                     ConnectionManager::new_with_config(self.inner.client.clone(), config).await?;
+                // The rebuilt connection starts out unnamed; restore the name
+                // immediately so `Queue::get_workers` keeps reporting this worker.
+                self.inner.needs_renaming.store(true, Ordering::Release);
+                self.reapply_client_name(&mut conn).await;
                 Err(Error::Redis(redis::RedisError::from((
                     redis::ErrorKind::Io,
                     "blocking read timed out, connection rebuilt",
@@ -276,20 +307,94 @@ impl BlockingRedisConnection {
     /// Used by workers so that `Queue::get_workers` can discover them via
     /// `CLIENT LIST`. Best-effort: some managed providers (e.g. GCP) reject this
     /// command, so callers typically ignore the error.
+    ///
+    /// The name is remembered and reapplied automatically whenever the managed
+    /// connection is re-established, since a reconnect produces a fresh Redis
+    /// connection whose name is empty.
     pub async fn set_name(&self, name: &str) -> Result<(), Error> {
+        self.store_client_name(name);
+
         let mut conn = self.inner.conn.lock().await;
+        match Self::apply_client_name(&mut conn, name).await {
+            Ok(()) => {
+                self.inner.needs_renaming.store(false, Ordering::Release);
+                Ok(())
+            }
+            Err(err) => {
+                // Only schedule a retry when the failure looks transient; a
+                // rejection by the server will not succeed later either.
+                self.inner
+                    .needs_renaming
+                    .store(is_transient_connection_error(&err), Ordering::Release);
+                Err(err)
+            }
+        }
+    }
+
+    fn store_client_name(&self, name: &str) {
+        let mut stored = self
+            .inner
+            .client_name
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *stored = Some(name.to_string());
+    }
+
+    fn stored_client_name(&self) -> Option<String> {
+        self.inner
+            .client_name
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    async fn apply_client_name(conn: &mut Conn, name: &str) -> Result<(), Error> {
         redis::cmd("CLIENT")
             .arg("SETNAME")
             .arg(name)
-            .query_async::<()>(&mut *conn)
+            .query_async::<()>(conn)
             .await?;
         Ok(())
+    }
+
+    /// Reapply the stored client name when the connection may have been
+    /// re-established.
+    ///
+    /// `ConnectionManager` replaces the underlying socket transparently, and
+    /// the new Redis connection starts with an empty name. Without this, a
+    /// worker that recovered from a Redis restart would silently disappear from
+    /// `Queue::get_workers`, which discovers workers by `CLIENT LIST` name.
+    async fn reapply_client_name(&self, conn: &mut Conn) {
+        if !self.inner.needs_renaming.load(Ordering::Acquire) {
+            return;
+        }
+
+        let Some(name) = self.stored_client_name() else {
+            self.inner.needs_renaming.store(false, Ordering::Release);
+            return;
+        };
+
+        match Self::apply_client_name(conn, &name).await {
+            Ok(()) => {
+                self.inner.needs_renaming.store(false, Ordering::Release);
+                debug!(client_name = %name, "reapplied client name after reconnect");
+            }
+            Err(err) if is_transient_connection_error(&err) => {
+                // Still reconnecting — keep the flag so the next call retries.
+                warn!(error = %err, "could not reapply client name yet, will retry");
+            }
+            Err(err) => {
+                self.inner.needs_renaming.store(false, Ordering::Release);
+                warn!(error = %err, "server rejected CLIENT SETNAME, worker will not be listed");
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::build_client;
+    use super::is_transient_connection_error;
     use crate::error::Error;
     use crate::options::{redact_url_userinfo, RedisConnectionOptions, TlsCerts};
 
@@ -357,5 +462,23 @@ mod tests {
     fn keeps_url_without_userinfo() {
         let input = "redis://localhost:6379/0";
         assert_eq!(redact_url_userinfo(input), input);
+    }
+
+    #[test]
+    fn io_failures_are_transient() {
+        let err = Error::Redis(redis::RedisError::from((
+            redis::ErrorKind::Io,
+            "connection reset",
+        )));
+        assert!(is_transient_connection_error(&err));
+    }
+
+    #[test]
+    fn server_rejections_are_not_transient() {
+        let err = Error::Redis(redis::RedisError::from((
+            redis::ErrorKind::Extension,
+            "unknown command",
+        )));
+        assert!(!is_transient_connection_error(&err));
     }
 }
