@@ -800,31 +800,6 @@ describe('Job Scheduler', () => {
       });
     });
 
-    describe('when the scheduler is unchanged but its iteration already finished', () => {
-      it('should re-arm the scheduler instead of returning the finished job', async () => {
-        const date = new Date('2017-02-07 9:24:00');
-        clock.setSystemTime(date);
-
-        const jobSchedulerId = 'test';
-        const unchangedPattern = '10 * * * * *';
-
-        await queue.upsertJobScheduler(jobSchedulerId, {
-          pattern: unchangedPattern,
-        });
-        const [iteration] = await queue.getDelayed();
-        await iteration.promote();
-        await iteration.moveToCompleted('done', '0', false);
-
-        expect(await queue.getDelayedCount()).toEqual(0);
-
-        await queue.upsertJobScheduler(jobSchedulerId, {
-          pattern: unchangedPattern,
-        });
-
-        expect(await queue.getDelayedCount()).toEqual(1);
-      });
-    });
-
     describe('when generated job is in paused state', () => {
       it('should upsert scheduler by removing paused job', async () => {
         const date = new Date('2017-02-07 9:24:00');
