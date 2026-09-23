@@ -22,6 +22,7 @@ import {
   forwardConnectionError,
   isNotConnectionError,
   randomUUID,
+  withDetachedContext,
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisQueueBackend } from './redis-queue-backend';
@@ -1224,6 +1225,8 @@ export class Worker<
   async resume(): Promise<void> {
     try {
       if (!this.running || this.paused) {
+        let restartStalledChecker = false;
+
         await this.trace<void>(
           SpanKind.INTERNAL,
           'resume',
@@ -1243,11 +1246,17 @@ export class Worker<
             } else {
               // Main loop is still running (pause was called with doNotWaitActive=true).
               // Restart the stalled checker since pause() stopped it.
-              await this.startStalledCheckTimer();
+              restartStalledChecker = true;
             }
             this.emit('resumed');
           },
         );
+
+        // Started outside of the trace above so that the stalled checker loop
+        // does not inherit the (already ended) `resume` span as its parent.
+        if (restartStalledChecker) {
+          await this.startStalledCheckTimer();
+        }
       }
     } catch (error) {
       this.emit('error', error as Error);
@@ -1348,30 +1357,48 @@ export class Worker<
    * @see {@link https://docs.bullmq.io/patterns/manually-fetching-jobs}
    */
   async startStalledCheckTimer(): Promise<void> {
-    if (!this.opts.skipStalledCheck) {
-      if (!this.closing && !this.stalledCheckerRunning) {
-        await this.trace<void>(
-          SpanKind.INTERNAL,
-          'startStalledCheckTimer',
-          this.name,
-          async span => {
-            span?.setAttributes({
-              [TelemetryAttributes.WorkerId]: this.id,
-              [TelemetryAttributes.WorkerName]: this.opts.name,
-            });
-
-            this.stalledCheckerRunning = true;
-            this.stalledChecker()
-              .catch(err => {
-                this.emit('error', <Error>err);
-              })
-              .finally(() => {
-                this.stalledCheckerRunning = false;
-              });
-          },
-        );
-      }
+    if (this.opts.skipStalledCheck) {
+      return;
     }
+
+    if (this.closing || this.stalledCheckerRunning) {
+      return;
+    }
+
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'startStalledCheckTimer',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
+        });
+      },
+    );
+
+    // The trace above is asynchronous, so the worker may have been closed (or
+    // the checker started by a concurrent call) while it was in flight.
+    if (this.closing || this.stalledCheckerRunning) {
+      return;
+    }
+
+    this.stalledCheckerRunning = true;
+
+    // The checker runs until the worker is closed, so it must not inherit the
+    // caller's telemetry context. Context managers backed by AsyncLocalStorage
+    // would otherwise keep every `stalled-check` tick attached to whichever
+    // span was active when the worker started or resumed, growing a single
+    // trace for the whole lifetime of the worker.
+    withDetachedContext(this.opts.telemetry, () =>
+      this.stalledChecker()
+        .catch(err => {
+          this.emit('error', <Error>err);
+        })
+        .finally(() => {
+          this.stalledCheckerRunning = false;
+        }),
+    );
   }
 
   private async stalledChecker() {
