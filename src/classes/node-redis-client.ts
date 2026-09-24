@@ -165,6 +165,11 @@ export interface NodeRedisRawClient {
 
   info(): Promise<string>;
   clientSetName(name: string): Promise<unknown>;
+  subscribe(
+    channel: string,
+    listener?: (message: string, channel: string) => void,
+  ): Promise<number>;
+  unsubscribe(channel: string): Promise<number>;
   sendCommand(args: string[]): Promise<string>;
 
   scan(
@@ -783,6 +788,18 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
 
   async clientList(): Promise<string> {
     return await this.raw.sendCommand(['CLIENT', 'LIST']);
+  }
+
+  async subscribe(channel: string): Promise<number> {
+    return await this.raw.subscribe(
+      channel,
+      (message: string, receivedChannel: string) =>
+        this.emit('message', receivedChannel, message),
+    );
+  }
+
+  async unsubscribe(channel: string): Promise<number> {
+    return await this.raw.unsubscribe(channel);
   }
 
   // ---------------------------------------------------------------

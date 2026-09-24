@@ -205,6 +205,7 @@ export class Worker<
   readonly id: string;
 
   private abortDelayController: AbortController | null = null;
+  private cancellationSubscriptionReady?: Promise<() => Promise<void>>;
   private blockUntil = 0;
   private _concurrency: number;
   private childPool: ChildPool;
@@ -578,6 +579,14 @@ export class Worker<
         return;
       }
 
+      if (this.backend.subscribeToJobCancellations) {
+        this.cancellationSubscriptionReady =
+          this.backend.subscribeToJobCancellations((jobId, reason) => {
+            this.lockManager.cancelJob(jobId, reason);
+          });
+        await this.cancellationSubscriptionReady;
+      }
+
       await this.startStalledCheckTimer();
 
       if (!this.opts.skipLockRenewal) {
@@ -641,7 +650,7 @@ export class Worker<
           ResultType,
           NameType,
           ProgressType
-        >>(() => this._getNextJob(token, { block: true }), {
+        >>(() => this._getNextJob(token, { block: true }, true), {
           delayInMs: this.opts.runRetryDelay,
           onlyEmitError: true,
         });
@@ -722,6 +731,7 @@ export class Worker<
   private async _getNextJob(
     token: string,
     { block = true }: GetNextJobOptions = {},
+    trackJobBeforeProcessing = false,
   ): Promise<Job<DataType, ResultType, NameType, ProgressType> | undefined> {
     if (this.paused) {
       return;
@@ -738,14 +748,22 @@ export class Worker<
         this.blockUntil = await this.waiting;
 
         if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
-          job = await this.moveToActive(token, this.opts.name);
+          job = await this.moveToActive(
+            token,
+            this.opts.name,
+            trackJobBeforeProcessing,
+          );
         }
       } finally {
         this.waiting = null;
       }
     } else {
       if (!this.isRateLimited()) {
-        job = await this.moveToActive(token, this.opts.name);
+        job = await this.moveToActive(
+          token,
+          this.opts.name,
+          trackJobBeforeProcessing,
+        );
       }
     }
 
@@ -788,12 +806,18 @@ export class Worker<
   protected async moveToActive(
     token: string,
     name?: string,
+    trackJobBeforeProcessing = false,
   ): Promise<Job<DataType, ResultType, NameType, ProgressType>> {
     const [jobData, id, rateLimitDelay, delayUntil] =
       await this.backend.moveToActive(token, name);
     this.updateDelays(rateLimitDelay, delayUntil);
 
-    return this.nextJobFromJobData(jobData, id, token);
+    return this.nextJobFromJobData(
+      jobData,
+      id,
+      token,
+      trackJobBeforeProcessing,
+    );
   }
 
   private async waitForJob(blockUntil: number): Promise<number> {
@@ -904,6 +928,7 @@ export class Worker<
     jobData?: JobJson,
     jobId?: string,
     token?: string,
+    trackJobBeforeProcessing = false,
   ): Promise<Job<DataType, ResultType, NameType, ProgressType>> {
     if (!jobData) {
       if (!this.drained) {
@@ -975,8 +1000,15 @@ export class Worker<
         return undefined;
       }
 
+      if (trackJobBeforeProcessing) {
+        this.lockManager.trackJob(
+          job.id,
+          token!,
+          job.processedOn,
+          this.processorAcceptsSignal,
+        );
+      }
       this.emit('active', job, 'waiting');
-
       return job;
     }
   }
@@ -1309,6 +1341,10 @@ export class Worker<
           const asyncCleanups = [
             () => {
               return force || this.whenCurrentJobsFinished(false);
+            },
+            async () => {
+              const cleanup = await this.cancellationSubscriptionReady;
+              await cleanup?.();
             },
             () => this.lockManager.close(),
             () => this.childPool?.clean(),

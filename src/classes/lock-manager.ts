@@ -154,6 +154,16 @@ export class LockManager {
     ts: number,
     shouldCreateController = false,
   ): AbortController | undefined {
+    const tracked = this.trackedJobs.get(jobId);
+    if (tracked) {
+      tracked.token = token;
+      tracked.ts = ts;
+      if (!tracked.abortController && shouldCreateController) {
+        tracked.abortController = new AbortController();
+      }
+      return tracked.abortController;
+    }
+
     const abortController = shouldCreateController
       ? new AbortController()
       : undefined;

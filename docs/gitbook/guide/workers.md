@@ -77,6 +77,29 @@ A stalled job is moved back to the waiting status and will be processed again by
 
 Therefore it is very important to make sure the workers return the control to NodeJS event loop often enough to avoid this kind of problems.
 
+## Cancelling active jobs from a Queue
+
+A queue can request cooperative cancellation of an active job through `Queue.cancelJob`. This is useful when the producer and worker run in separate processes:
+
+```typescript
+const result = await queue.cancelJob(jobId, 'cancelled by user');
+```
+
+The result is one of `accepted`, `unknown`, `waiting`, `prioritized`, `delayed`, `waiting-children`, `completed`, or `failed`. The request is published only when the job is active. It does not remove waiting or delayed jobs and does not move a job to a terminal state. A repeated request is safe.
+
+Cancellation remains cooperative. The worker passes an `AbortSignal` to processors that declare the third processor argument, and the processor must observe it and stop its work:
+
+```typescript
+const worker = new Worker('my-queue', async (job, token, signal) => {
+  const response = await fetch(url, { signal });
+  return response.json();
+});
+```
+
+`accepted` means the request was published, not that the processor stopped; completion can win a race. If the processor ignores the signal, it continues normally. A processor can throw a normal error to follow the configured retry policy, or an `UnrecoverableError` to fail without retrying.
+
+Queue-side cancellation is currently supported by the JavaScript Redis backend with both ioredis and node-redis connections. It is not supported by the Bun Redis client or Valkey Glide adapter. Workers using Bun or Valkey Glide continue to process jobs normally, but they do not receive queue-side cancellation requests. PostgreSQL and the Python, Rust, PHP, .NET, and Elixir ports do not automatically provide this JavaScript API; they must implement equivalent cancellation transport and lifecycle behavior before claiming parity.
+
 ## Sandboxed processors
 
 It is also possible to define workers to run on a separate process, we call this processors for sandboxed, because they run isolated from the rest of the code.
