@@ -1224,6 +1224,7 @@ export class Worker<
   async resume(): Promise<void> {
     try {
       if (!this.running || this.paused) {
+        let restartStalledChecker = false;
         await this.trace<void>(
           SpanKind.INTERNAL,
           'resume',
@@ -1241,13 +1242,19 @@ export class Worker<
                 this.run();
               }
             } else {
-              // Main loop is still running (pause was called with doNotWaitActive=true).
-              // Restart the stalled checker since pause() stopped it.
-              await this.startStalledCheckTimer();
+              restartStalledChecker = true;
             }
-            this.emit('resumed');
           },
         );
+
+        if (restartStalledChecker) {
+          // Main loop is still running (pause was called with doNotWaitActive=true).
+          // Restart the stalled checker since pause() stopped it. This is done
+          // outside of the resume span so that the recurring stalled checks
+          // are not traced as children of it.
+          await this.startStalledCheckTimer();
+        }
+        this.emit('resumed');
       }
     } catch (error) {
       this.emit('error', error as Error);
@@ -1361,15 +1368,18 @@ export class Worker<
             });
 
             this.stalledCheckerRunning = true;
-            this.stalledChecker()
-              .catch(err => {
-                this.emit('error', <Error>err);
-              })
-              .finally(() => {
-                this.stalledCheckerRunning = false;
-              });
           },
         );
+
+        // Start the checker outside of the traced callback so that the
+        // stalled checks are not traced as children of this span.
+        this.stalledChecker()
+          .catch(err => {
+            this.emit('error', <Error>err);
+          })
+          .finally(() => {
+            this.stalledCheckerRunning = false;
+          });
       }
     }
   }
