@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/taskforcesh/bullmq/compare/vrs1.3.0...vrs1.3.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **deps:** update crate thiserror to v2.0.21 [rust] ([#4817](https://github.com/taskforcesh/bullmq/issues/4817)) ([58f8c4c](https://github.com/taskforcesh/bullmq/commit/58f8c4c41dfd8a842095c898665cc9da076a38c4))
+
 # [1.3.0](https://github.com/taskforcesh/bullmq/compare/vrs1.2.10...vrs1.3.0) (2026-09-22)
 
 
