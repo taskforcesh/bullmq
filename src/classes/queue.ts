@@ -23,6 +23,16 @@ import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
 import { randomUUID } from '../utils';
 
+export type JobCancellationResult =
+  | 'accepted'
+  | 'unknown'
+  | 'waiting'
+  | 'prioritized'
+  | 'delayed'
+  | 'waiting-children'
+  | 'completed'
+  | 'failed';
+
 export interface ObliterateOpts {
   /**
    * Use force = true to force obliteration even with active jobs in the queue
@@ -246,6 +256,32 @@ export class Queue<
       await this.queueMetaInitialized;
     }
     return await this.backend.getQueueMetaField('version');
+  }
+
+  /**
+   * Requests cancellation of a job currently being processed by a worker.
+   *
+   * The request is cooperative: the worker processor must observe the abort
+   * signal passed as its third argument. An `accepted` result means that the
+   * request was published; the processor may still complete first. No job is
+   * removed or transitioned by this method.
+   *
+   * @param jobId - The ID of the active job to cancel.
+   * @param reason - Optional reason passed to the worker's abort signal.
+   * @returns The state observed when the request was made, or `accepted`.
+   * @throws Error when the configured backend does not support this operation.
+   */
+  async cancelJob(
+    jobId: string,
+    reason?: string,
+  ): Promise<JobCancellationResult> {
+    if (!this.backend.cancelJob) {
+      throw new Error(
+        'Queue-side job cancellation is not supported by this backend',
+      );
+    }
+
+    return this.backend.cancelJob(jobId, reason);
   }
 
   get jobScheduler(): Promise<JobScheduler> {

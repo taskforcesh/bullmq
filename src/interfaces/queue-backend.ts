@@ -564,6 +564,31 @@ export interface IQueueBackend {
   getState(jobId: string): Promise<JobState | 'unknown'>;
 
   /**
+   * Requests cancellation of an active job and returns the state observed at
+   * the time of the request.
+   */
+  cancelJob?(
+    jobId: string,
+    reason?: string,
+  ): Promise<
+    | 'accepted'
+    | 'unknown'
+    | 'waiting'
+    | 'prioritized'
+    | 'delayed'
+    | 'waiting-children'
+    | 'completed'
+    | 'failed'
+  >;
+
+  /**
+   * Subscribes a worker to queue-side cancellation requests.
+   */
+  subscribeToJobCancellations?(
+    listener: (jobId: string, reason?: string) => void,
+  ): Promise<() => Promise<void>>;
+
+  /**
    * Returns whether a job has finished and (optionally) its result.
    */
   isFinished(

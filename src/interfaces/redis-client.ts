@@ -223,6 +223,9 @@ export interface IRedisClient {
   clientSetName(name: string): Promise<any>;
   clientList(): Promise<string>;
 
+  subscribe?(channel: string): Promise<number>;
+  unsubscribe?(channel: string): Promise<number>;
+
   // ============================================================
   // Key scanning
   // ============================================================

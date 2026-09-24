@@ -1505,6 +1505,88 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     return this.execCommand(client, 'getStateV2', keys.concat([jobId]));
   }
 
+  async cancelJob(
+    jobId: string,
+    reason?: string,
+  ): Promise<
+    | 'accepted'
+    | 'unknown'
+    | 'waiting'
+    | 'prioritized'
+    | 'delayed'
+    | 'waiting-children'
+    | 'completed'
+    | 'failed'
+  > {
+    const client = await this.queue.client;
+    const keys = [
+      'active',
+      'wait',
+      'paused',
+      'delayed',
+      'completed',
+      'failed',
+      'waiting-children',
+      'prioritized',
+      'cancellations',
+    ].map((key: string) => this.queue.toKey(key));
+
+    return this.execCommand(client, 'cancelJob', [
+      ...keys,
+      jobId,
+      reason ?? '',
+    ]);
+  }
+
+  async subscribeToJobCancellations(
+    listener: (jobId: string, reason?: string) => void,
+  ): Promise<() => Promise<void>> {
+    const client = await this.queue.client;
+    const subscriber = client.duplicate();
+    const subscribe = (subscriber as any).subscribe;
+    const unsubscribe = (subscriber as any).unsubscribe;
+    const channel = this.queue.toKey('cancellations');
+
+    if (typeof subscribe !== 'function') {
+      await subscriber.quit();
+      return async () => undefined;
+    }
+
+    const onError = (err: Error) => this.emit('error', err);
+    const onMessage = (receivedChannel: string, message: string) => {
+      if (receivedChannel !== channel) {
+        return;
+      }
+      try {
+        const payload = JSON.parse(message);
+        listener(payload.jobId, payload.reason || undefined);
+      } catch (err) {
+        this.emit('error', err as Error);
+      }
+    };
+
+    subscriber.on('error', onError);
+    subscriber.on('message', onMessage);
+    try {
+      await RedisConnection.waitUntilReady(subscriber);
+      await subscribe.call(subscriber, channel);
+    } catch (err) {
+      subscriber.off('error', onError);
+      subscriber.off('message', onMessage);
+      await subscriber.quit();
+      throw err;
+    }
+
+    return async () => {
+      subscriber.off('error', onError);
+      subscriber.off('message', onMessage);
+      if (typeof unsubscribe === 'function') {
+        await unsubscribe.call(subscriber, channel);
+      }
+      await subscriber.quit();
+    };
+  }
+
   /**
    * Change delay of a delayed job.
    *
