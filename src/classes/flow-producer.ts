@@ -22,6 +22,7 @@ import { Job } from './job';
 import { RedisQueueBackend } from './redis-queue-backend';
 import { KeysMap } from './queue-keys';
 import { ErrorCode, SpanKind, TelemetryAttributes } from '../enums';
+import type { NoInferType } from '../types/no-infer';
 
 /**
  * A single job insert collected while walking a flow tree, ready to be handed
@@ -119,11 +120,11 @@ export class FlowProducer<
   };
 
   constructor(
-    opts: FlowProducerOptions<NoInfer<ConnectionOptionsType>>,
+    opts: FlowProducerOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory: BackendFactory<B, ConnectionOptionsType>,
   );
   constructor(
-    opts: FlowProducerOptions<NoInfer<ConnectionOptionsType>>,
+    opts: FlowProducerOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory?: undefined,
   );
   constructor(

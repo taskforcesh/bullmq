@@ -11,6 +11,7 @@ import { array2obj, QUEUE_EVENT_SUFFIX } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisQueueBackend } from './redis-queue-backend';
 import type { DefaultQueueOptions } from '../types/default-queue-options';
+import type { NoInferType } from '../types/no-infer';
 
 export interface QueueEventsListener<ReturnType = any> extends IoredisListener {
   /**
@@ -269,12 +270,12 @@ export class QueueEvents<
 
   constructor(
     name: string,
-    opts: QueueEventsOptions<NoInfer<ConnectionOptionsType>>,
+    opts: QueueEventsOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory: BackendFactory<B, ConnectionOptionsType>,
   );
   constructor(
     name: string,
-    opts: QueueEventsOptions<NoInfer<ConnectionOptionsType>>,
+    opts: QueueEventsOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory?: undefined,
   );
   constructor(

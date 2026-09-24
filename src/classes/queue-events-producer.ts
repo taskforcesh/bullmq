@@ -7,6 +7,7 @@ import { ConnectionOptions } from '../interfaces/redis-options';
 import { QueueBase } from './queue-base';
 import { RedisQueueBackend } from './redis-queue-backend';
 import type { DefaultQueueOptions } from '../types/default-queue-options';
+import type { NoInferType } from '../types/no-infer';
 
 /**
  * The QueueEventsProducer class is used for publishing custom events.
@@ -17,12 +18,12 @@ export class QueueEventsProducer<
 > extends QueueBase<B, ConnectionOptionsType> {
   constructor(
     name: string,
-    opts: QueueEventsProducerOptions<NoInfer<ConnectionOptionsType>>,
+    opts: QueueEventsProducerOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory: BackendFactory<B, ConnectionOptionsType>,
   );
   constructor(
     name: string,
-    opts: QueueEventsProducerOptions<NoInfer<ConnectionOptionsType>>,
+    opts: QueueEventsProducerOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory?: undefined,
   );
   constructor(

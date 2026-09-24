@@ -264,7 +264,9 @@ type produced by whatever factory you provide (the default being
 `BackendFactory<MyBackend, MyConnectionOptions>` so its connection options are
 checked too.
 
-To specify job types, bind the backend before constructing the queue:
+To specify job types with a custom backend, either list every type argument
+(the backend and connection types come after the job types) or bind the backend with
+`withBackend` and write only the job types:
 
 ```typescript
 import { withBackend } from 'bullmq';
@@ -275,8 +277,9 @@ const queue = new Queue<MyData, MyResult>('myqueue', opts);
 const worker = new Worker<MyData, MyResult>('myqueue', processor, opts);
 ```
 
-The returned constructors use `createMyBackend` automatically, so you don't need
-to pass the factory to each instance.
+The returned constructors extend the regular classes and use `createMyBackend`
+automatically. See [Typed jobs and event results](postgresql.md#typed-jobs-and-event-results)
+for why this is needed and for the explicit type-argument form.
 
 {% hint style="warning" %}
 Building a production-grade backend is substantial work: you must implement the full

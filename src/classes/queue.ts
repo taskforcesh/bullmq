@@ -28,6 +28,7 @@ import type {
   ExtractNameType,
 } from '../types/queue-type';
 import type { DefaultQueueOptions } from '../types/default-queue-options';
+import type { NoInferType } from '../types/no-infer';
 
 export interface ObliterateOpts {
   /**
@@ -161,12 +162,12 @@ export class Queue<
 
   constructor(
     name: string,
-    opts: QueueOptions<NoInfer<ConnectionOptionsType>>,
+    opts: QueueOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory: BackendFactory<B, ConnectionOptionsType>,
   );
   constructor(
     name: string,
-    opts: QueueOptions<NoInfer<ConnectionOptionsType>>,
+    opts: QueueOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory?: undefined,
   );
   constructor(

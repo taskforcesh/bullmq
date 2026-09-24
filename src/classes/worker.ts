@@ -45,6 +45,7 @@ import {
   JobScheduler,
 } from './job-scheduler';
 import { LockManager } from './lock-manager';
+import type { NoInferType } from '../types/no-infer';
 
 // 10 seconds is the maximum time a BZPOPMIN can block, so it is the default
 // ceiling used when a backend does not delegate its own `maximumBlockTimeout`.
@@ -238,7 +239,7 @@ export class Worker<
       | null
       | Processor<DataType, ResultType, NameType, ProgressType>
       | undefined,
-    opts: WorkerOptions<NoInfer<ConnectionOptionsType>>,
+    opts: WorkerOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory: BackendFactory<B, ConnectionOptionsType>,
   );
   constructor(
@@ -249,7 +250,7 @@ export class Worker<
       | null
       | Processor<DataType, ResultType, NameType, ProgressType>
       | undefined,
-    opts: WorkerOptions<NoInfer<ConnectionOptionsType>>,
+    opts: WorkerOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory?: undefined,
   );
   constructor(

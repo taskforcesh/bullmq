@@ -15,6 +15,7 @@ import type { DefaultQueueOptions } from '../types/default-queue-options';
 import { Job } from './job';
 import { KeysMap } from './queue-keys';
 import { SpanKind } from '../enums';
+import type { NoInferType } from '../types/no-infer';
 
 /**
  * Base class for all classes that need to interact with queues.
@@ -50,13 +51,13 @@ export class QueueBase<
    */
   constructor(
     name: string,
-    opts: QueueBaseOptions<NoInfer<ConnectionOptionsType>>,
+    opts: QueueBaseOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory: BackendFactory<B, ConnectionOptionsType>,
     hasBlockingConnection?: boolean,
   );
   constructor(
     name: string,
-    opts: QueueBaseOptions<NoInfer<ConnectionOptionsType>>,
+    opts: QueueBaseOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory?: undefined,
     hasBlockingConnection?: boolean,
   );

@@ -16,6 +16,7 @@ import {
   QueueGetters,
   QueueOptions,
   RedisQueueBackend,
+  RepeatBaseOptions,
   Worker,
   WorkerOptions,
   createPostgresBackend,
@@ -296,3 +297,99 @@ class TypedQueue extends Queue<
     super('tasks', opts, factory);
   }
 }
+
+// Generic subclasses must be able to forward their options and factory.
+class ForwardingQueue<B extends IQueueBackend, C> extends Queue<
+  unknown,
+  unknown,
+  string,
+  unknown,
+  unknown,
+  string,
+  B,
+  C
+> {
+  constructor(o: QueueOptions<C>, f: BackendFactory<B, C>) {
+    super('tasks', o, f);
+  }
+}
+class ForwardingWorker<B extends IQueueBackend, C> extends Worker<
+  unknown,
+  unknown,
+  string,
+  B,
+  number,
+  C
+> {
+  constructor(o: WorkerOptions<C>, f: BackendFactory<B, C>) {
+    super('tasks', null, o, f);
+  }
+}
+class ForwardingQueueEvents<B extends IQueueBackend, C> extends QueueEvents<
+  unknown,
+  B,
+  C
+> {
+  constructor(o: QueueEventsOptions<C>, f: BackendFactory<B, C>) {
+    super('tasks', o, f);
+  }
+}
+class ForwardingProducer<
+  B extends IQueueBackend,
+  C,
+> extends QueueEventsProducer<B, C> {
+  constructor(o: QueueEventsProducerOptions<C>, f: BackendFactory<B, C>) {
+    super('tasks', o, f);
+  }
+}
+class ForwardingFlowProducer<B extends IQueueBackend, C> extends FlowProducer<
+  B,
+  C
+> {
+  constructor(o: FlowProducerOptions<C>, f: BackendFactory<B, C>) {
+    super(o, f);
+  }
+}
+class ForwardingQueueBase<B extends IQueueBackend, C> extends QueueBase<B, C> {
+  constructor(o: QueueBaseOptions<C>, f: BackendFactory<B, C>) {
+    super('tasks', o, f, true);
+  }
+}
+class ForwardingScheduler<B extends IQueueBackend, C> extends JobScheduler<
+  B,
+  C
+> {
+  constructor(o: RepeatBaseOptions<C>, f: BackendFactory<B, C>) {
+    super('tasks', o, f);
+  }
+}
+new ForwardingQueue(opts, factory).getBackend().customOperation();
+void [
+  ForwardingWorker,
+  ForwardingQueueEvents,
+  ForwardingProducer,
+  ForwardingFlowProducer,
+  ForwardingQueueBase,
+  ForwardingScheduler,
+];
+
+// Options keep excess-property checks and contextual typing.
+// @ts-expect-error Unknown options must be rejected with a factory.
+new Queue('tasks', { ...opts, unknownOption: 1 }, factory);
+// @ts-expect-error Unknown options must be rejected without a factory.
+new Queue('tasks', { connection: {}, unknownOption: 1 });
+new Worker(
+  'tasks',
+  null,
+  {
+    ...opts,
+    settings: {
+      backoffStrategy: attempts => {
+        // @ts-expect-error Callback parameters must be contextually typed.
+        attempts.missingProperty;
+        return attempts * 2;
+      },
+    },
+  },
+  factory,
+);

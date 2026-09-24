@@ -19,6 +19,6 @@ export type DefaultQueueOptions<
   Extra extends unknown[] = [],
 > = true extends Equal<B, DefaultBackend> | Equal<B, RedisQueueBackend>
   ? Equal<C, ConnectionOptions> extends true
-    ? [opts?: Options, backendFactory?: undefined, ...Extra]
+    ? [opts?: Options, backendFactory?: undefined, ...extra: Extra]
     : [opts: never]
   : [opts: never];

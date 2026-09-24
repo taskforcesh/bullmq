@@ -55,30 +55,85 @@ const worker = new Worker(
 
 ### Typed jobs and event results
 
-When supplying explicit job types, bind the backend first with `withBackend`.
-TypeScript cannot infer trailing class type arguments once you specify leading
-ones such as `Queue<MyData>`.
+The backend and connection type parameters come after the job type parameters.
+TypeScript infers them from the factory only when you don't pass any type
+arguments. Once you write `Queue<MyData, MyResult>`, the remaining parameters
+use their Redis defaults, so the PostgreSQL factory and connection are rejected:
+
+```typescript
+type MyData = { value: number };
+type MyResult = number;
+
+// Error: the backend defaults to RedisQueueBackend
+new Queue<MyData, MyResult>('my-queue', opts, createPostgresBackend);
+```
+
+To keep job types, list every type argument explicitly. Each class puts the
+backend at a different position:
+
+```typescript
+import {
+  JobProgress,
+  Queue,
+  QueueEvents,
+  Worker,
+  createPostgresBackend,
+  PostgresConnectionOptions,
+  PostgresQueueBackend,
+} from 'bullmq';
+
+const queue = new Queue<
+  MyData,
+  MyResult,
+  string,
+  MyData,
+  MyResult,
+  string,
+  PostgresQueueBackend,
+  PostgresConnectionOptions
+>('my-queue', opts, createPostgresBackend);
+
+const worker = new Worker<
+  MyData,
+  MyResult,
+  string,
+  PostgresQueueBackend,
+  JobProgress,
+  PostgresConnectionOptions
+>('my-queue', async job => job.data.value * 2, opts, createPostgresBackend);
+
+const events = new QueueEvents<
+  MyResult,
+  PostgresQueueBackend,
+  PostgresConnectionOptions
+>('my-queue', opts, createPostgresBackend);
+```
+
+`withBackend` does the same thing more concisely. It returns `Queue`, `Worker`,
+`QueueEvents`, `QueueEventsProducer`, and `FlowProducer` constructors with the
+backend and connection types already set, which use the factory automatically.
+You only write the job type arguments:
 
 ```typescript
 import { createPostgresBackend, withBackend } from 'bullmq';
 
 const { Queue, Worker, QueueEvents } = withBackend(createPostgresBackend);
-const opts = { connection: 'postgres://localhost:5432/mydb' };
 
-const queue = new Queue<{ value: number }, number>('my-queue', opts);
-const worker = new Worker<{ value: number }, number>(
+const queue = new Queue<MyData, MyResult>('my-queue', opts);
+const worker = new Worker<MyData, MyResult>(
   'my-queue',
   async job => job.data.value * 2,
   opts,
 );
-const events = new QueueEvents<number>('my-queue', opts);
+const events = new QueueEvents<MyResult>('my-queue', opts);
 ```
 
-The bound constructors require connection options and preserve the concrete
-PostgreSQL backend type. The helper also provides `FlowProducer` and
-`QueueEventsProducer`; it does not change the process-wide default backend.
+The returned classes extend the regular ones, so `instanceof Queue` still holds.
+Connection options are required. `withBackend` does not change the process-wide
+default backend.
 
-Without `withBackend`, the factory argument positions are:
+If you don't need job types, skip both and pass the factory as shown in
+[Getting started](#getting-started). The factory argument positions are:
 
 | Class          | Constructor                                                |
 | -------------- | ---------------------------------------------------------- |

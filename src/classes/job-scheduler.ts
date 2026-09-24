@@ -17,6 +17,7 @@ import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { array2obj } from '../utils';
+import type { NoInferType } from '../types/no-infer';
 
 export const LEGACY_REPEATABLE_JOBS_MIGRATION_URL =
   'https://docs.bullmq.io/guide/migrations/migrate-from-v5-to-v6';
@@ -103,12 +104,12 @@ export class JobScheduler<
 
   constructor(
     name: string,
-    opts: RepeatBaseOptions<NoInfer<ConnectionOptionsType>>,
+    opts: RepeatBaseOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory: BackendFactory<B, ConnectionOptionsType>,
   );
   constructor(
     name: string,
-    opts: RepeatBaseOptions<NoInfer<ConnectionOptionsType>>,
+    opts: RepeatBaseOptions<NoInferType<ConnectionOptionsType>>,
     backendFactory?: undefined,
   );
   constructor(
