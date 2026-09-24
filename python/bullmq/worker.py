@@ -651,7 +651,7 @@ class Worker(EventEmitter):
         if not self.paused:
             self.paused = True
             self.resume_event.clear()
-            if self.waiting:
+            if self.waiting and not self.waiting.done():
                 self.waiting.cancel()
             if not do_not_wait_active and len(self.processing) > 0:
                 # Ensure in-flight jobs finish before 'paused' is emitted, even if
