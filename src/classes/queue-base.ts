@@ -10,7 +10,6 @@ import {
 
 import { delay, DELAY_TIME_5, isNotConnectionError, trace } from '../utils';
 import { getDefaultBackendFactory } from '../utils/create-backend';
-import { validateConnectionOptions } from '../utils/validate-connection-options';
 import type { DefaultQueueOptions } from '../types/default-queue-options';
 import { Job } from './job';
 import { KeysMap } from './queue-keys';
@@ -79,12 +78,14 @@ export class QueueBase<
   ) {
     super();
 
-    validateConnectionOptions(opts, backendFactory !== undefined);
     this.name = name;
     this.backendFactory =
       backendFactory ?? getDefaultBackendFactory<B, ConnectionOptionsType>();
     this.hasBlockingConnection = hasBlockingConnection;
-    this.opts = Object.assign({ connection: {} }, opts);
+    this.opts = Object.assign(
+      opts === undefined ? { connection: {} } : {},
+      opts,
+    );
 
     if (!name) {
       throw new Error('Queue name must be provided');

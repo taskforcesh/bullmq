@@ -11,7 +11,6 @@ import {
   QueueGetters,
   Worker,
   setDefaultBackendFactory,
-  withBackend,
 } from '../src';
 
 const constructors = [
@@ -51,59 +50,50 @@ describe('backend constructor connection options', () => {
     );
 
     it.each([
-      undefined,
-      null,
-      {},
-      { connection: undefined },
-      { connection: null },
+      [undefined, {}],
+      [null, undefined],
+      [{}, undefined],
+      [{ connection: undefined }, undefined],
+      [{ connection: null }, null],
     ])(
-      'rejects missing connection options (%j) before calling an explicit factory',
-      opts => {
-        const factory = vi.fn(
-          (_name: string, _opts: QueueBaseOptions<{ endpoint: string }>) => {
-            throw new Error('Factory should not be called');
-          },
-        );
+      'forwards missing connection options (%j) to an explicit factory',
+      (opts, expected) => {
+        const reachedFactory = new Error('Factory reached');
+        const factory = vi.fn((_name: string, _opts: QueueBaseOptions) => {
+          throw reachedFactory;
+        });
+        if (Constructor === Worker) {
+          expect(() =>
+            Reflect.construct(Constructor, [...prefix, opts, factory]),
+          ).toThrow('Worker requires a connection');
+          expect(factory).not.toHaveBeenCalled();
+          return;
+        }
         expect(() =>
           Reflect.construct(Constructor, [...prefix, opts, factory]),
-        ).toThrow(
-          /Connection options are required|Worker requires a connection/,
-        );
-        expect(factory).not.toHaveBeenCalled();
+        ).toThrow(reachedFactory);
+        expect(factory.mock.calls[0][1].connection).toEqual(expected);
       },
     );
 
-    it('rejects missing options with a process-wide custom backend', () => {
-      const factory = vi.fn(() => {
-        throw new Error('Factory should not be called');
+    it('uses a process-wide custom backend when options are omitted', () => {
+      const reachedFactory = new Error('Factory reached');
+      const factory = vi.fn((_name: string, _opts: QueueBaseOptions) => {
+        throw reachedFactory;
       });
       setDefaultBackendFactory(factory);
+      if (Constructor === Worker) {
+        expect(() => Reflect.construct(Constructor, prefix)).toThrow(
+          'Worker requires a connection',
+        );
+        expect(factory).not.toHaveBeenCalled();
+        return;
+      }
       expect(() => Reflect.construct(Constructor, prefix)).toThrow(
-        /Connection options are required|Worker requires a connection/,
+        reachedFactory,
       );
-      expect(factory).not.toHaveBeenCalled();
+      expect(factory.mock.calls[0][1].connection).toEqual({});
     });
-  });
-
-  it('rejects missing options for backend-bound constructors at runtime', () => {
-    const factory = vi.fn(
-      (_name: string, _opts: QueueBaseOptions<{ endpoint: string }>) => {
-        throw new Error('Factory should not be called');
-      },
-    );
-    const bound = withBackend(factory);
-    for (const { Constructor, prefix } of [
-      { Constructor: bound.Queue, prefix: ['tasks'] },
-      { Constructor: bound.Worker, prefix: ['tasks', undefined] },
-      { Constructor: bound.QueueEvents, prefix: ['tasks'] },
-      { Constructor: bound.QueueEventsProducer, prefix: ['tasks'] },
-      { Constructor: bound.FlowProducer, prefix: [] },
-    ]) {
-      expect(() => Reflect.construct(Constructor, prefix)).toThrow(
-        /Connection options are required|Worker requires a connection/,
-      );
-    }
-    expect(factory).not.toHaveBeenCalled();
   });
 
   it('preserves no-options Redis constructors', async () => {

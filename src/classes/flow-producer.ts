@@ -16,7 +16,6 @@ import {
 import { ConnectionOptions } from '../interfaces/redis-options';
 import { getParentKey, randomUUID, trace } from '../utils';
 import { getDefaultBackendFactory } from '../utils/create-backend';
-import { validateConnectionOptions } from '../utils/validate-connection-options';
 import type { DefaultQueueOptions } from '../types/default-queue-options';
 import { Job } from './job';
 import { RedisQueueBackend } from './redis-queue-backend';
@@ -141,8 +140,10 @@ export class FlowProducer<
   ) {
     super();
 
-    validateConnectionOptions(opts, backendFactory !== undefined);
-    this.opts = Object.assign({ connection: {} }, opts);
+    this.opts = Object.assign(
+      opts === undefined ? { connection: {} } : {},
+      opts,
+    );
 
     // The flow producer is not bound to a single queue: each flow entry carries
     // its own queue identity, so the backend is created with an empty name.
