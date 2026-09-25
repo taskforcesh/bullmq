@@ -1,3 +1,10 @@
+## [6.3.9](https://github.com/taskforcesh/bullmq/compare/v6.3.8...v6.3.9) (2026-09-25)
+
+
+### Bug Fixes
+
+* **connection:** infer backend-specific connection options instead of hiding mismatches with casts ([#4796](https://github.com/taskforcesh/bullmq/issues/4796)) ([10dc93c](https://github.com/taskforcesh/bullmq/commit/10dc93c59790cfffb117624311ca3983172955a8))
+
 ## [6.3.8](https://github.com/taskforcesh/bullmq/compare/v6.3.7...v6.3.8) (2026-09-18)
 
 
