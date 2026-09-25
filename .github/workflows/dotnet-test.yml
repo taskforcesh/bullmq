@@ -30,7 +30,9 @@ jobs:
             dotnet:
               - 'dotnet/**'
               - 'src/commands/**'
-              - 'src/postgres/**'
+              # SQL is shared across runtimes; PostgreSQL TypeScript is Node-only.
+              - 'src/postgres/commands/**/*.sql'
+              - 'src/postgres/migrations/**/*.sql'
               - 'scripts/**'
               - 'package.json'
               - 'yarn.lock'

@@ -10,10 +10,11 @@ import {
   IQueueBackend,
   JobJson,
   LockManagerWorkerContext,
-  MinimalQueue,
   Span,
   WorkerOptions,
 } from '../interfaces';
+import { ConnectionOptions } from '../interfaces/redis-options';
+import type { DefaultQueueOptions } from '../types/default-queue-options';
 import { JobProgress, JobSchedulerJobOptions } from '../types';
 import { Processor } from '../types/processor';
 import {
@@ -44,6 +45,7 @@ import {
   JobScheduler,
 } from './job-scheduler';
 import { LockManager } from './lock-manager';
+import type { NoInferType } from '../types/no-infer';
 
 // 10 seconds is the maximum time a BZPOPMIN can block, so it is the default
 // ceiling used when a backend does not delegate its own `maximumBlockTimeout`.
@@ -200,8 +202,9 @@ export class Worker<
   NameType extends string = string,
   B extends IQueueBackend = RedisQueueBackend,
   ProgressType extends JobProgress = JobProgress,
-> extends QueueBase<B> {
-  declare readonly opts: WorkerOptions;
+  ConnectionOptionsType = ConnectionOptions,
+> extends QueueBase<B, ConnectionOptionsType> {
+  declare readonly opts: WorkerOptions<ConnectionOptionsType>;
   readonly id: string;
 
   private abortDelayController: AbortController | null = null;
@@ -217,7 +220,7 @@ export class Worker<
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
 
-  protected _jobScheduler: JobScheduler;
+  protected _jobScheduler: JobScheduler<B, ConnectionOptionsType>;
 
   protected paused: boolean;
   protected processFn: Processor<DataType, ResultType, NameType, ProgressType>;
@@ -230,14 +233,54 @@ export class Worker<
 
   constructor(
     name: string,
+    processor:
+      | string
+      | URL
+      | null
+      | Processor<DataType, ResultType, NameType, ProgressType>
+      | undefined,
+    opts: WorkerOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    processor:
+      | string
+      | URL
+      | null
+      | Processor<DataType, ResultType, NameType, ProgressType>
+      | undefined,
+    opts: WorkerOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory?: undefined,
+  );
+  constructor(
+    name: string,
     processor?:
       | string
       | URL
       | null
       | Processor<DataType, ResultType, NameType, ProgressType>,
-    opts?: WorkerOptions,
-    backendFactory?: BackendFactory<B>,
+    ...args: DefaultQueueOptions<
+      B,
+      ConnectionOptionsType,
+      RedisQueueBackend,
+      WorkerOptions
+    >
+  );
+  constructor(
+    name: string,
+    processor?:
+      | string
+      | URL
+      | null
+      | Processor<DataType, ResultType, NameType, ProgressType>,
+    opts?: WorkerOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
+    if (!opts || opts.connection === undefined || opts.connection === null) {
+      throw new Error('Worker requires a connection');
+    }
+
     super(
       name,
       {
@@ -254,10 +297,6 @@ export class Worker<
       },
       backendFactory,
     );
-
-    if (!opts || !opts.connection) {
-      throw new Error('Worker requires a connection');
-    }
 
     if (
       typeof this.opts.maxStalledCount !== 'number' ||
@@ -492,7 +531,7 @@ export class Worker<
     data: JobJson,
     jobId: string,
   ): Job<DataType, ResultType, NameType, ProgressType> {
-    return this.Job.fromJSON(this as MinimalQueue, data, jobId) as Job<
+    return this.Job.fromJSON(this, data, jobId) as Job<
       DataType,
       ResultType,
       NameType,
@@ -547,19 +586,21 @@ export class Worker<
     return this._concurrency;
   }
 
-  get jobScheduler(): Promise<JobScheduler> {
-    return new Promise<JobScheduler>(async resolve => {
-      if (!this._jobScheduler) {
-        // Share the worker's backend (same queue) with the scheduler.
-        this._jobScheduler = new JobScheduler(
-          this.name,
-          this.opts,
-          () => this.backend,
-        );
-        this._jobScheduler.on('error', this.emit.bind(this, 'error'));
-      }
-      resolve(this._jobScheduler);
-    });
+  get jobScheduler(): Promise<JobScheduler<B, ConnectionOptionsType>> {
+    return new Promise<JobScheduler<B, ConnectionOptionsType>>(
+      async resolve => {
+        if (!this._jobScheduler) {
+          // Share the worker's backend (same queue) with the scheduler.
+          this._jobScheduler = new JobScheduler<B, ConnectionOptionsType>(
+            this.name,
+            this.opts,
+            () => this.backend,
+          );
+          this._jobScheduler.on('error', this.emit.bind(this, 'error'));
+        }
+        resolve(this._jobScheduler);
+      },
+    );
   }
 
   async run() {
@@ -849,7 +890,7 @@ export class Worker<
   }
 
   protected getBlockTimeout(blockUntil: number): number {
-    const opts: WorkerOptions = <WorkerOptions>this.opts;
+    const opts = this.opts;
 
     // when there are delayed jobs
     if (blockUntil) {

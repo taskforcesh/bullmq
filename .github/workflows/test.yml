@@ -110,6 +110,9 @@ jobs:
         run: yarn lint
       - if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
         run: yarn build
+      - name: Check public API types
+        if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
+        run: yarn test:types
       - if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
         run: yarn test:smoke
 

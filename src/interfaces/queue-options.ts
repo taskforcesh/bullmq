@@ -9,13 +9,16 @@ export enum ClientType {
 }
 
 /**
- * Base Queue options
+ * Base Queue options.
+ *
+ * @typeParam ConnectionOptionsType - Connection options accepted by the backend.
+ * Defaults to Redis {@link ConnectionOptions}.
  */
-export interface QueueBaseOptions {
+export interface QueueBaseOptions<ConnectionOptionsType = ConnectionOptions> {
   /**
-   * Options for connecting to a Redis instance.
+   * Options for connecting to the backend datastore (Redis by default).
    */
-  connection: ConnectionOptions;
+  connection: ConnectionOptionsType;
 
   /**
    * Denotes commands should retry indefinitely.
@@ -67,7 +70,8 @@ export type RedisKeyPrefixOptions = KeyPrefixOptions;
 /**
  * Options for the Queue class.
  */
-export interface QueueOptions extends QueueBaseOptions, KeyPrefixOptions {
+export interface QueueOptions<ConnectionOptionsType = ConnectionOptions>
+  extends QueueBaseOptions<ConnectionOptionsType>, KeyPrefixOptions {
   defaultJobOptions?: DefaultJobOptions;
 
   /**
@@ -104,15 +108,18 @@ export interface QueueOptions extends QueueBaseOptions, KeyPrefixOptions {
 /**
  * Options for the Repeat class.
  */
-export interface RepeatBaseOptions extends QueueBaseOptions, KeyPrefixOptions {
+export interface RepeatBaseOptions<ConnectionOptionsType = ConnectionOptions>
+  extends QueueBaseOptions<ConnectionOptionsType>, KeyPrefixOptions {
   settings?: AdvancedRepeatOptions;
 }
 
 /**
  * Options for QueueEvents
  */
-export interface QueueEventsOptions
-  extends Omit<QueueBaseOptions, 'telemetry'>, KeyPrefixOptions {
+export interface QueueEventsOptions<ConnectionOptionsType = ConnectionOptions>
+  extends
+    Omit<QueueBaseOptions<ConnectionOptionsType>, 'telemetry'>,
+    KeyPrefixOptions {
   /**
    * Condition to start listening to events at instance creation.
    */
@@ -133,11 +140,13 @@ export interface QueueEventsOptions
 /**
  * Options for QueueEventsProducer
  */
-export type QueueEventsProducerOptions = Omit<QueueBaseOptions, 'telemetry'> &
+export type QueueEventsProducerOptions<
+  ConnectionOptionsType = ConnectionOptions,
+> = Omit<QueueBaseOptions<ConnectionOptionsType>, 'telemetry'> &
   KeyPrefixOptions;
 
 /**
  * Options for the FlowProducer class.
  */
-export interface FlowProducerOptions
-  extends QueueBaseOptions, KeyPrefixOptions {}
+export interface FlowProducerOptions<ConnectionOptionsType = ConnectionOptions>
+  extends QueueBaseOptions<ConnectionOptionsType>, KeyPrefixOptions {}
