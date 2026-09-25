@@ -89,6 +89,47 @@ async fn test_emits_added_event() {
 }
 
 #[tokio::test]
+async fn test_idle_queue_emits_no_spurious_error_events() {
+    let name = test_queue_name();
+    let queue = Queue::with_options(
+        &name,
+        QueueOptions {
+            connection: test_connection(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    // blocking_timeout is deliberately larger than redis-rs's 500ms default
+    // response timeout: the dedicated stream connection must let XREAD BLOCK
+    // run to completion instead of timing out client-side.
+    let events = QueueEvents::with_options(
+        &name,
+        QueueEventsOptions {
+            connection: test_connection(),
+            last_event_id: Some("0".to_string()),
+            blocking_timeout: 2000,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    // No jobs are added, so the queue stays idle across several 500ms windows.
+    tokio::time::sleep(Duration::from_millis(2500)).await;
+
+    while let Some(entry) = events.try_next_event().await {
+        if let QueueEvent::Error { message } = entry.event {
+            panic!("idle queue emitted a spurious error event: {message}");
+        }
+    }
+
+    events.close().await;
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
 async fn test_emits_waiting_event() {
     let name = test_queue_name();
     let queue = Queue::with_options(

@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/taskforcesh/bullmq/compare/vrs1.3.1...vrs1.3.2) (2026-09-25)
+
+
+### Bug Fixes
+
+* **connection:** disable timeout option [rust] ([#4805](https://github.com/taskforcesh/bullmq/issues/4805)) fixes [#4743](https://github.com/taskforcesh/bullmq/issues/4743) ([604e627](https://github.com/taskforcesh/bullmq/commit/604e6272a1984917e6c598bfcf86d492474c6232))
+
 ## [1.3.1](https://github.com/taskforcesh/bullmq/compare/vrs1.3.0...vrs1.3.1) (2026-09-24)
 
 

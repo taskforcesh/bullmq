@@ -104,8 +104,21 @@ impl RedisConnection {
     }
 
     /// Create a new dedicated connection (e.g., for blocking operations).
+    ///
+    /// The connection is created with its response timeout **disabled**.
+    /// redis-rs applies a 500ms default response timeout to every multiplexed
+    /// connection, which is shorter than the block durations used by callers
+    /// (e.g. `QueueEvents`' `XREAD BLOCK`). With the default timeout the client
+    /// would abandon every blocking call after 500ms and surface a spurious
+    /// "timed out" error on an otherwise healthy, idle queue. See the note on
+    /// [`BlockingRedisConnection::new`] for the equivalent worker-side issue.
     pub async fn dedicated_connection(&self) -> Result<MultiplexedConnection, Error> {
-        Ok(self.inner.client.get_multiplexed_async_connection().await?)
+        let config = AsyncConnectionConfig::new().set_response_timeout(None);
+        Ok(self
+            .inner
+            .client
+            .get_multiplexed_async_connection_with_config(&config)
+            .await?)
     }
 
     /// Ping the server to verify connectivity.

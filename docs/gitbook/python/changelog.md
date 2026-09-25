@@ -1,3 +1,10 @@
+## [3.2.7](https://github.com/taskforcesh/bullmq/compare/vpy3.2.6...vpy3.2.7) (2026-09-25)
+
+
+### Bug Fixes
+
+* **worker:** eliminate close and pause latency on idle queue [python] ([#4670](https://github.com/taskforcesh/bullmq/issues/4670)) fixes [#4597](https://github.com/taskforcesh/bullmq/issues/4597) ([3b404f6](https://github.com/taskforcesh/bullmq/commit/3b404f648898884530b25900f81aa5ea38209b8c))
+
 ## [3.2.6](https://github.com/taskforcesh/bullmq/compare/vpy3.2.5...vpy3.2.6) (2026-09-21)
 
 
