@@ -33,3 +33,22 @@ apiVersions/v6.json
 temp
 docs/gitbook/api
 package-lock.json
+
+# Java build artifacts
+java/target/
+java/build/
+java/out/
+java/.gradle/
+
+# Java IDE files
+.java/.idea/
+java/*.iml
+java/.settings/
+java/.classpath
+java/.project
+
+# Java log files
+java/*.log
+
+# Java coverage reports
+java/coverage/
