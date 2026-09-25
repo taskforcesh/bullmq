@@ -11,22 +11,20 @@
 <li><a href="../modules/v6.html">v6</a></li>
 <li><a href="" aria-current="page">createPostgresBackend</a></li></ul>
 <h1>Variable createPostgresBackend<code class="tsd-tag">Const</code></h1></div>
-<div class="tsd-signature"><span class="tsd-kind-variable">createPostgresBackend</span><span class="tsd-signature-symbol">:</span> <a href="../types/v6.BackendFactory.html" class="tsd-signature-type tsd-kind-type-alias">BackendFactory</a><span class="tsd-signature-symbol">&lt;</span><a href="../classes/v6.PostgresQueueBackend.html" class="tsd-signature-type tsd-kind-class">PostgresQueueBackend</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+<div class="tsd-signature"><span class="tsd-kind-variable">createPostgresBackend</span><span class="tsd-signature-symbol">:</span> <a href="../types/v6.BackendFactory.html" class="tsd-signature-type tsd-kind-type-alias">BackendFactory</a><span class="tsd-signature-symbol">&lt;</span><br/>    <a href="../classes/v6.PostgresQueueBackend.html" class="tsd-signature-type tsd-kind-class">PostgresQueueBackend</a><span class="tsd-signature-symbol">,</span><br/>    <a href="../types/v6.PostgresConnectionOptions.html" class="tsd-signature-type tsd-kind-type-alias">PostgresConnectionOptions</a><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
 <div class="tsd-comment tsd-typography"><p><a href="../types/v6.BackendFactory.html" class="tsd-kind-type-alias">BackendFactory</a> that builds a <a href="../classes/v6.PostgresQueueBackend.html" class="tsd-kind-class">PostgresQueueBackend</a>.</p>
 <p>The returned backend owns its <a href="../classes/v6.PostgresConnection.html" class="tsd-kind-class">PostgresConnection</a> (a <code>pg.Pool</code> plus a
 dedicated <code>LISTEN</code> client); the high-level classes depend only on
 <code>IQueueBackend</code> and never touch a <code>pg</code> client directly.</p>
-<p>The <code>opts.connection</code> value is forwarded to <a href="../classes/v6.PostgresConnection.html" class="tsd-kind-class">PostgresConnection</a> and may
-be a connection string, a node-postgres pool config (optionally carrying a
-<code>schema</code>), or an already-built <code>pg.Pool</code> instance. <code>pg</code> is lazily required
-only when a config/string is passed, so Redis-only users never need it
-installed.</p>
+<p>Accepts a connection string, pool config (optionally carrying a <code>schema</code>),
+or an existing <code>pg.Pool</code>. The <code>pg</code> driver is loaded lazily for config/string
+connections; Redis-only users do not need it installed.</p>
 <p>Inject this into the queue classes (or set it as the process-wide default via
 <code>setDefaultBackendFactory(createPostgresBackend)</code>) to back BullMQ with
 PostgreSQL.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/736262fd07ec08e497f254181b7f3bbdb7b269c7/src/postgres/create-postgres-backend.ts#L25">postgres/create-postgres-backend.ts:25</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/10dc93c59790cfffb117624311ca3983172955a8/src/postgres/create-postgres-backend.ts#L23">postgres/create-postgres-backend.ts:23</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

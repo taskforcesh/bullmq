@@ -13,14 +13,15 @@
 <h1>Variable createRedisBackend<code class="tsd-tag">Const</code></h1></div>
 <div class="tsd-signature"><span class="tsd-kind-variable">createRedisBackend</span><span class="tsd-signature-symbol">:</span> <a href="../types/v6.BackendFactory.html" class="tsd-signature-type tsd-kind-type-alias">BackendFactory</a><span class="tsd-signature-symbol">&lt;</span><a href="../classes/v6.RedisQueueBackend.html" class="tsd-signature-type tsd-kind-class">RedisQueueBackend</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
 <div class="tsd-comment tsd-typography"><p>The default (<a href="../classes/v6.RedisConnection.html" class="tsd-kind-class">RedisConnection</a>-based) implementation of
-<a href="../types/v6.BackendFactory.html" class="tsd-kind-type-alias">BackendFactory</a>. The returned backend owns its connection(s); the
+<a href="../types/v6.BackendFactory.html" class="tsd-kind-type-alias">BackendFactory</a>. The backend owns connections it creates, including
+duplicates, but leaves caller-owned clients open. The
 high-level classes (Queue, Worker, FlowProducer, …) depend only on
 <a href="../interfaces/v6.IQueueBackend.html" class="tsd-kind-interface">IQueueBackend</a> and never touch a Redis client directly.</p>
 <p>Other datastores can provide their own <a href="../types/v6.BackendFactory.html" class="tsd-kind-type-alias">BackendFactory</a> and inject it
 into the queue classes.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/736262fd07ec08e497f254181b7f3bbdb7b269c7/src/utils/create-backend.ts#L52">utils/create-backend.ts:52</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/10dc93c59790cfffb117624311ca3983172955a8/src/utils/create-backend.ts#L72">utils/create-backend.ts:72</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

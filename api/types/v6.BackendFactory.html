@@ -10,33 +10,33 @@
 <ul class="tsd-breadcrumb" aria-label="Breadcrumb">
 <li><a href="../modules/v6.html">v6</a></li>
 <li><a href="" aria-current="page">BackendFactory</a></li></ul>
-<h1>Type Alias BackendFactory&lt;B&gt;</h1></div>
-<div class="tsd-signature"><span class="tsd-kind-type-alias">BackendFactory</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">name</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">opts</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/v6.QueueBaseOptions.html" class="tsd-signature-type tsd-kind-interface">QueueBaseOptions</a><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">blocking</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">withBlockingConnection</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span> <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span> <span class="tsd-signature-symbol">=&gt;</span> <a class="tsd-signature-type tsd-kind-type-parameter" href="#b">B</a></div>
+<h1>Type Alias BackendFactory&lt;B, ConnectionOptionsType&gt;</h1></div>
+<div class="tsd-signature"><span class="tsd-kind-type-alias">BackendFactory</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">name</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">opts</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/v6.QueueBaseOptions.html" class="tsd-signature-type tsd-kind-interface">QueueBaseOptions</a><span class="tsd-signature-symbol">&lt;</span><a class="tsd-signature-type tsd-kind-type-parameter" href="#connectionoptionstype">ConnectionOptionsType</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">blocking</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">withBlockingConnection</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span> <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span> <span class="tsd-signature-symbol">=&gt;</span> <a class="tsd-signature-type tsd-kind-type-parameter" href="#b">B</a></div>
 <div class="tsd-comment tsd-typography"><p>Factory that builds an <a href="../interfaces/v6.IQueueBackend.html" class="tsd-kind-interface">IQueueBackend</a> for a given queue. Injected into
 the queue classes so they depend only on the abstraction, never on a concrete
 datastore/connection. The default factory is the Redis one
 (<code>createRedisBackend</code>).</p>
-<p>The factory is generic over the concrete backend type <code>B</code> it produces, so a
-caller (or class) parameterized on <code>B</code> keeps the concrete typing end-to-end
-(e.g. <code>getBackend()</code> returning the concrete adapter instead of the bare
-interface).</p>
+<p>Constructors infer the backend and connection types from this factory.
+Use <a href="../functions/v6.withBackend.html" class="tsd-kind-function">withBackend</a> when also specifying job or event-result type arguments.
+Without a factory or explicit types, constructors retain their Redis defaults.</p>
 </div>
 <section class="tsd-panel">
 <h4>Type Parameters</h4>
 <ul class="tsd-type-parameter-list">
-<li><span id="b"><span class="tsd-kind-type-parameter">B</span> <span class="tsd-signature-keyword">extends</span> <a href="../interfaces/v6.IQueueBackend.html" class="tsd-signature-type tsd-kind-interface">IQueueBackend</a> = <a href="../interfaces/v6.IQueueBackend.html" class="tsd-signature-type tsd-kind-interface">IQueueBackend</a></span></li></ul></section>
+<li><span id="b"><span class="tsd-kind-type-parameter">B</span> <span class="tsd-signature-keyword">extends</span> <a href="../interfaces/v6.IQueueBackend.html" class="tsd-signature-type tsd-kind-interface">IQueueBackend</a> = <a href="../interfaces/v6.IQueueBackend.html" class="tsd-signature-type tsd-kind-interface">IQueueBackend</a></span></li>
+<li><span id="connectionoptionstype"><span class="tsd-kind-type-parameter">ConnectionOptionsType</span> = <a href="v6.ConnectionOptions.html" class="tsd-signature-type tsd-kind-type-alias">ConnectionOptions</a></span></li></ul></section>
 <div class="tsd-type-declaration">
 <h4>Type Declaration</h4>
 <ul class="tsd-parameters">
 <li class="tsd-parameter-signature">
 <ul class="tsd-signatures">
-<li class="tsd-signature" id="__type"><span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">name</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">opts</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/v6.QueueBaseOptions.html" class="tsd-signature-type tsd-kind-interface">QueueBaseOptions</a><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">blocking</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">withBlockingConnection</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span> <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <a class="tsd-signature-type tsd-kind-type-parameter" href="#b">B</a></li>
+<li class="tsd-signature" id="__type"><span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">name</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">opts</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/v6.QueueBaseOptions.html" class="tsd-signature-type tsd-kind-interface">QueueBaseOptions</a><span class="tsd-signature-symbol">&lt;</span><a class="tsd-signature-type tsd-kind-type-parameter" href="#connectionoptionstype">ConnectionOptionsType</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">blocking</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">withBlockingConnection</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span> <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <a class="tsd-signature-type tsd-kind-type-parameter" href="#b">B</a></li>
 <li class="tsd-description">
 <div class="tsd-parameters">
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li><span><span class="tsd-kind-parameter">name</span>: <span class="tsd-signature-type">string</span></span></li>
-<li><span><span class="tsd-kind-parameter">opts</span>: <a href="../interfaces/v6.QueueBaseOptions.html" class="tsd-signature-type tsd-kind-interface">QueueBaseOptions</a></span></li>
+<li><span><span class="tsd-kind-parameter">opts</span>: <a href="../interfaces/v6.QueueBaseOptions.html" class="tsd-signature-type tsd-kind-interface">QueueBaseOptions</a><span class="tsd-signature-symbol">&lt;</span><a class="tsd-signature-type tsd-kind-type-parameter" href="#connectionoptionstype">ConnectionOptionsType</a><span class="tsd-signature-symbol">&gt;</span></span></li>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">options</span>: <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">blocking</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">withBlockingConnection</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span> <span class="tsd-signature-symbol">}</span></span>
 <ul class="tsd-parameters">
 <li class="tsd-parameter">
@@ -49,7 +49,7 @@ interface).</p>
 </div></li></ul></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a class="tsd-signature-type tsd-kind-type-parameter" href="#b">B</a></h4></li></ul></li></ul></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/736262fd07ec08e497f254181b7f3bbdb7b269c7/src/interfaces/queue-backend.ts#L794">interfaces/queue-backend.ts:794</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/10dc93c59790cfffb117624311ca3983172955a8/src/interfaces/queue-backend.ts#L794">interfaces/queue-backend.ts:794</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

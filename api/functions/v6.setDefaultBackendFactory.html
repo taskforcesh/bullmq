@@ -14,21 +14,28 @@
 <section class="tsd-panel">
 <ul class="tsd-signatures">
 <li class="">
-<div class="tsd-signature tsd-anchor-link" id="setdefaultbackendfactory"><span class="tsd-kind-call-signature">setDefaultBackendFactory</span><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">factory</span><span class="tsd-signature-symbol">?:</span> <a href="../types/v6.BackendFactory.html" class="tsd-signature-type tsd-kind-type-alias">BackendFactory</a><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/v6.IQueueBackend.html" class="tsd-signature-type tsd-kind-interface">IQueueBackend</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">void</span><a href="#setdefaultbackendfactory" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
+<div class="tsd-signature tsd-anchor-link" id="setdefaultbackendfactory"><span class="tsd-kind-call-signature">setDefaultBackendFactory</span><span class="tsd-signature-symbol">&lt;</span><br/>    <a class="tsd-signature-type tsd-kind-type-parameter" href="#setdefaultbackendfactoryb">B</a> <span class="tsd-signature-keyword">extends</span> <a href="../interfaces/v6.IQueueBackend.html" class="tsd-signature-type tsd-kind-interface">IQueueBackend</a> <span class="tsd-signature-symbol">=</span> <a href="../interfaces/v6.IQueueBackend.html" class="tsd-signature-type tsd-kind-interface">IQueueBackend</a><span class="tsd-signature-symbol">,</span><br/>    <a class="tsd-signature-type tsd-kind-type-parameter" href="#setdefaultbackendfactoryc">C</a> <span class="tsd-signature-symbol">=</span> <a href="../types/v6.ConnectionOptions.html" class="tsd-signature-type tsd-kind-type-alias">ConnectionOptions</a><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">factory</span><span class="tsd-signature-symbol">?:</span> <a href="../types/v6.BackendFactory.html" class="tsd-signature-type tsd-kind-type-alias">BackendFactory</a><span class="tsd-signature-symbol">&lt;</span><a class="tsd-signature-type tsd-kind-type-parameter" href="#setdefaultbackendfactoryb">B</a><span class="tsd-signature-symbol">,</span> <a class="tsd-signature-type tsd-kind-type-parameter" href="#setdefaultbackendfactoryc">C</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">void</span><a href="#setdefaultbackendfactory" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
 <div class="tsd-description">
 <div class="tsd-comment tsd-typography"><p>Overrides the process-wide default <a href="../types/v6.BackendFactory.html" class="tsd-kind-type-alias">BackendFactory</a>. Useful to point
 every Queue/Worker/FlowProducer at a different datastore (e.g. the PostgreSQL
 backend) without threading a factory through every constructor — notably so
 the existing test suite can run unchanged against another backend.</p>
 <p>Pass no argument (or <code>undefined</code>) to reset back to the Redis backend.</p>
+<p>Registration changes runtime behavior, not constructor type defaults.
+Use <a href="v6.withBackend.html" class="tsd-kind-function">withBackend</a> to retain the factory's types.</p>
 </div>
+<section class="tsd-panel">
+<h4>Type Parameters</h4>
+<ul class="tsd-type-parameter-list">
+<li><span id="setdefaultbackendfactoryb"><span class="tsd-kind-type-parameter">B</span> <span class="tsd-signature-keyword">extends</span> <a href="../interfaces/v6.IQueueBackend.html" class="tsd-signature-type tsd-kind-interface">IQueueBackend</a> = <a href="../interfaces/v6.IQueueBackend.html" class="tsd-signature-type tsd-kind-interface">IQueueBackend</a></span></li>
+<li><span id="setdefaultbackendfactoryc"><span class="tsd-kind-type-parameter">C</span> = <a href="../types/v6.ConnectionOptions.html" class="tsd-signature-type tsd-kind-type-alias">ConnectionOptions</a></span></li></ul></section>
 <div class="tsd-parameters">
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
-<li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">factory</span>: <a href="../types/v6.BackendFactory.html" class="tsd-signature-type tsd-kind-type-alias">BackendFactory</a><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/v6.IQueueBackend.html" class="tsd-signature-type tsd-kind-interface">IQueueBackend</a><span class="tsd-signature-symbol">&gt;</span></span></li></ul></div>
+<li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">factory</span>: <a href="../types/v6.BackendFactory.html" class="tsd-signature-type tsd-kind-type-alias">BackendFactory</a><span class="tsd-signature-symbol">&lt;</span><a class="tsd-signature-type tsd-kind-type-parameter" href="#setdefaultbackendfactoryb">B</a><span class="tsd-signature-symbol">,</span> <a class="tsd-signature-type tsd-kind-type-parameter" href="#setdefaultbackendfactoryc">C</a><span class="tsd-signature-symbol">&gt;</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/736262fd07ec08e497f254181b7f3bbdb7b269c7/src/utils/create-backend.ts#L99">utils/create-backend.ts:99</a></li></ul></aside></div></li></ul></section></div>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/10dc93c59790cfffb117624311ca3983172955a8/src/utils/create-backend.ts#L127">utils/create-backend.ts:127</a></li></ul></aside></div></li></ul></section></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
