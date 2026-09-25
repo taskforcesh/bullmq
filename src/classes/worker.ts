@@ -1365,25 +1365,35 @@ export class Worker<
       return;
     }
 
-    await this.trace<void>(
-      SpanKind.INTERNAL,
-      'startStalledCheckTimer',
-      this.name,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.WorkerId]: this.id,
-          [TelemetryAttributes.WorkerName]: this.opts.name,
-        });
-      },
-    );
+    // Reserve the slot synchronously (before the first await) so that two
+    // concurrent callers (e.g. the automatic `run()` startup racing a manual
+    // `startStalledCheckTimer()` call) cannot both observe
+    // `stalledCheckerRunning` as false and each start their own checker loop.
+    this.stalledCheckerRunning = true;
 
-    // The trace above is asynchronous, so the worker may have been closed (or
-    // the checker started by a concurrent call) while it was in flight.
-    if (this.closing || this.stalledCheckerRunning) {
-      return;
+    try {
+      await this.trace<void>(
+        SpanKind.INTERNAL,
+        'startStalledCheckTimer',
+        this.name,
+        async span => {
+          span?.setAttributes({
+            [TelemetryAttributes.WorkerId]: this.id,
+            [TelemetryAttributes.WorkerName]: this.opts.name,
+          });
+        },
+      );
+    } catch (err) {
+      this.stalledCheckerRunning = false;
+      throw err;
     }
 
-    this.stalledCheckerRunning = true;
+    // The trace above is asynchronous, so the worker may have been closed
+    // while it was in flight.
+    if (this.closing) {
+      this.stalledCheckerRunning = false;
+      return;
+    }
 
     // The checker runs until the worker is closed, so it must not inherit the
     // caller's telemetry context. Context managers backed by AsyncLocalStorage

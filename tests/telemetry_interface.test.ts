@@ -507,12 +507,12 @@ describe('Telemetry', () => {
           expect(resumeSpan).toBeDefined();
           expect(stalledCheckSpans.length).toBeGreaterThanOrEqual(2);
 
-for (const span of stalledCheckSpans) {
-  expect(span.traceId).not.toBe(resumeSpan!.traceId);
-}
-expect(new Set(stalledCheckSpans.map(span => span.traceId)).size).toBe(
-  stalledCheckSpans.length,
-);
+          for (const span of stalledCheckSpans) {
+            expect(span.traceId).not.toBe(resumeSpan!.traceId);
+          }
+          expect(
+            new Set(stalledCheckSpans.map(span => span.traceId)).size,
+          ).toBe(stalledCheckSpans.length);
         } finally {
           await worker.close();
         }
