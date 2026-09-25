@@ -393,15 +393,27 @@ describe('Telemetry', () => {
     // traceId already present on its parent context, or mints a new one if
     // there isn't one. `root()` returns a context with no traceId, so the
     // next span created under it starts a brand new trace.
+    //
+    // Crucially, the traceId must be captured once, at span-creation time,
+    // from whatever context was active then (mirroring how a real OTel
+    // tracer implicitly reads the ambient AsyncLocalStorage context). If
+    // `setSpanOnContext` were instead left to compute the traceId lazily from
+    // whatever context it is later called with, every span would silently
+    // adopt its *own* context's traceId, and the regression this test guards
+    // against (recurring spans inheriting a stale parent) could never fail.
     class RootCapableSpan implements Span {
       attributes: Attributes = {};
-      readonly traceId: string = randomUUID();
+      readonly traceId: string;
 
-      constructor(public name: string) {}
+      constructor(
+        public name: string,
+        parentTraceId: string | undefined,
+      ) {
+        this.traceId = parentTraceId ?? randomUUID();
+      }
 
       setSpanOnContext(ctx: any): any {
-        const traceId = ctx?.traceId ?? this.traceId;
-        return { ...ctx, traceId, getSpan: () => this };
+        return { ...ctx, traceId: this.traceId, getSpan: () => this };
       }
 
       addEvent(): void {}
@@ -420,8 +432,17 @@ describe('Telemetry', () => {
     }
 
     class RootCapableTracer implements Tracer {
-      startSpan(name: string): Span {
-        return new RootCapableSpan(name);
+      constructor(private contextManager: RootCapableContextManager) {}
+
+      startSpan(name: string, options?: SpanOptions, context?: any): Span {
+        // A real OTel tracer reads the ambient (AsyncLocalStorage) context
+        // when no explicit context is passed, which is exactly the mechanism
+        // that causes the leak this test targets. Mirror that here instead
+        // of trusting an explicit `context` argument, since `trace()` in
+        // utils/index.ts only ever passes one when propagating an inbound
+        // job's metadata.
+        const parentContext = context ?? this.contextManager.active();
+        return new RootCapableSpan(name, parentContext?.traceId);
       }
     }
 
@@ -458,8 +479,10 @@ describe('Telemetry', () => {
     }
 
     class RootCapableTelemetry implements Telemetry {
-      tracer: Tracer = new RootCapableTracer();
       contextManager: ContextManager = new RootCapableContextManager();
+      tracer: Tracer = new RootCapableTracer(
+        this.contextManager as RootCapableContextManager,
+      );
     }
 
     describe('Worker.pause/resume with recurring stalled checker', () => {
