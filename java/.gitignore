@@ -1,0 +1,18 @@
+# Java build artifacts
+target/
+build/
+out/
+.gradle/
+
+# Java IDE files
+..idea/
+*.iml
+.settings/
+.classpath
+.project
+
+# Java log files
+*.log
+
+# Java coverage reports
+coverage/
