@@ -1652,6 +1652,15 @@ export class PostgresQueueBackend
     return rows.map(r => Number(r.cnt));
   }
 
+  async getOldestJobTimestamp(): Promise<number | null> {
+    const { rows } = await this.run<{ oldest: string | null }>(
+      'get_oldest_job_timestamp',
+      [this.queueName],
+    );
+    const oldest = rows[0]?.oldest;
+    return oldest === null || oldest === undefined ? null : Number(oldest);
+  }
+
   async getRanges(
     types: JobType[],
     start = 0,
