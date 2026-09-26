@@ -72,6 +72,9 @@ func (q *Queue) AddBulk(ctx context.Context, specs []JobSpec) ([]*Job, error) {
 
 func (q *Queue) addJob(ctx context.Context, spec JobSpec) (*Job, error) {
 	opts := mergeJobOptions(spec.Opts, q.defaultJobOptions)
+	if opts.JobID == "0" || strings.HasPrefix(opts.JobID, "0:") {
+		return nil, configError("job ID cannot be '0' or start with '0:'")
+	}
 
 	payload, err := json.Marshal(spec.Data)
 	if err != nil {
