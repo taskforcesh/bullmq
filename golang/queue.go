@@ -651,7 +651,7 @@ func (q *Queue) GlobalConcurrency(ctx context.Context) (int64, error) {
 // SetGlobalRateLimit throttles every worker of this queue to at most max jobs
 // per duration.
 func (q *Queue) SetGlobalRateLimit(ctx context.Context, max int64, duration time.Duration) error {
-return q.c.rdb.HSet(ctx, q.c.keys.Meta(),
+	return q.c.rdb.HSet(ctx, q.c.keys.Meta(),
 		"max", max,
 		"duration", duration.Milliseconds()).Err()
 }
