@@ -216,6 +216,7 @@ export class Worker<
 
   private stalledCheckerRunning = false;
   private stalledCheckStopper?: () => void;
+  private stalledCheckerPromise?: Promise<void>;
   private waiting: Promise<number> | null = null;
 
   protected _jobScheduler: JobScheduler;
@@ -1212,6 +1213,14 @@ export class Worker<
             await this.whenCurrentJobsFinished();
           }
           this.stalledCheckStopper?.();
+          // Wait for the stalled checker loop to actually observe `paused`
+          // and exit before returning. Otherwise `resume()` could race with
+          // the still-running old loop: it would see `stalledCheckerRunning`
+          // as true and skip starting a fresh, detached loop, leaving the old
+          // one (which never re-detaches its telemetry context) to keep
+          // ticking under whatever context `pause`/`resume` happen to leave
+          // active.
+          await this.stalledCheckerPromise;
           this.emit('paused');
         }
       },
@@ -1395,25 +1404,34 @@ export class Worker<
       return;
     }
 
-    // The checker runs until the worker is closed, so it must not inherit the
-    // caller's telemetry context. Context managers backed by AsyncLocalStorage
-    // would otherwise keep every `stalled-check` tick attached to whichever
-    // span was active when the worker started or resumed, growing a single
-    // trace for the whole lifetime of the worker.
-    withDetachedContext(this.opts.telemetry, () =>
-      this.stalledChecker()
-        .catch(err => {
-          this.emit('error', <Error>err);
-        })
-        .finally(() => {
-          this.stalledCheckerRunning = false;
-        }),
-    );
+    this.stalledCheckerPromise = this.stalledChecker()
+      .catch(err => {
+        this.emit('error', <Error>err);
+      })
+      .finally(() => {
+        this.stalledCheckerRunning = false;
+      });
   }
 
   private async stalledChecker() {
     while (!(this.closing || this.paused)) {
-      await this.checkConnectionError(() => this.moveStalledJobsToWait());
+      // Each tick must not inherit whatever telemetry context happens to be
+      // ambient (e.g. a `pause`/`resume` span). Context managers backed by
+      // AsyncLocalStorage would otherwise keep every `stalled-check` tick
+      // attached to whichever span was active at the time, either growing a
+      // single trace for the whole lifetime of the worker or leaking into an
+      // unrelated foreground operation's trace.
+      await withDetachedContext(this.opts.telemetry, () =>
+        this.checkConnectionError(() => this.moveStalledJobsToWait()),
+      );
+
+      // Some context managers (e.g. ones backed by AsyncLocalStorage) keep
+      // the tick's context ambient for anything scheduled afterwards, since
+      // it was never restored when `withDetachedContext` returned above.
+      // Reset back to a neutral root context so a subsequent foreground
+      // operation (like `pause`/`resume`) does not inadvertently inherit this
+      // tick's trace either.
+      withDetachedContext(this.opts.telemetry, () => undefined);
 
       await new Promise<void>(resolve => {
         const timeout = setTimeout(resolve, this.opts.stalledInterval);
