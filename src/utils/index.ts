@@ -467,3 +467,32 @@ export async function trace<T>(
     }
   }
 }
+
+/**
+ * Runs a callback detached from the currently active telemetry context.
+ *
+ * Context managers backed by `AsyncLocalStorage` (the default for
+ * OpenTelemetry) bind the active context to every async continuation created
+ * inside a span callback. Starting a never ending loop from within such a
+ * callback would therefore keep every iteration parented to that single span,
+ * so the resulting trace would grow for as long as the process lives.
+ *
+ * Running the loop under a root context instead makes each iteration start its
+ * own trace. When the context manager does not support root contexts the
+ * callback is executed as is.
+ *
+ * @param telemetry - telemetry configuration. If undefined, the callback is executed as is.
+ * @param callback - code to run outside of the active context
+ * @returns the result of the callback
+ */
+export function withDetachedContext<T>(
+  telemetry: { contextManager: ContextManager } | undefined,
+  callback: () => T,
+): T {
+  const contextManager = telemetry?.contextManager;
+  if (!contextManager?.root) {
+    return callback();
+  }
+
+  return contextManager.with(contextManager.root(), callback);
+}
