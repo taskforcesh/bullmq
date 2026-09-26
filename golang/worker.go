@@ -385,7 +385,16 @@ func (w *Worker) processJob(ctx context.Context, job *Job) {
 
 	w.emit(Event{Type: EventActive, Job: job})
 
-	result, err := w.safeProcess(jobCtx, job)
+	var result any
+	var err error
+	if job.DeferredFailure != "" {
+		// The stalled-check script found this job exceeded MaxStalledCount and
+		// stored the reason in "defa" instead of failing it outright, so it
+		// must be failed unrecoverably here rather than handed to the processor.
+		err = &UnrecoverableError{Message: job.DeferredFailure}
+	} else {
+		result, err = w.safeProcess(jobCtx, job)
+	}
 
 	// The processor took ownership of the job's next state.
 	if errors.Is(err, ErrDelayed) || errors.Is(err, ErrWaitingChildren) {
@@ -405,7 +414,10 @@ func (w *Worker) processJob(ctx context.Context, job *Job) {
 	}
 
 	if cerr := w.moveToCompleted(finishCtx, job, result); cerr != nil {
-		w.emitError(cerr)
+		if ferr := w.moveToFailed(finishCtx, job, cerr); ferr != nil {
+			w.emitError(ferr)
+		}
+		w.emit(Event{Type: EventFailed, Job: job, Err: cerr})
 		return
 	}
 	w.emit(Event{Type: EventCompleted, Job: job, Result: result})
@@ -424,7 +436,7 @@ func (w *Worker) safeProcess(ctx context.Context, job *Job) (result any, err err
 func (w *Worker) moveToCompleted(ctx context.Context, job *Job, result any) error {
 	raw, err := json.Marshal(result)
 	if err != nil {
-		raw = []byte("null")
+		return err
 	}
 	_, err = w.moveToFinished(ctx, job, "completed", "returnvalue", string(raw))
 	if err == nil {
@@ -708,6 +720,11 @@ func (w *Worker) Close() error {
 		if w.ran.Load() {
 			<-w.done
 		}
+		// Consume runOnce so a Run call racing with Close never starts against
+		// the resources we are about to close; it will observe ErrWorkerClosed
+		// instead. This must happen after signalling stop so that a Run which
+		// already started can still observe ctx cancellation and exit.
+		w.runOnce.Do(func() {})
 		if w.blockingOwned {
 			w.closeErr = w.blocking.Close()
 		}
