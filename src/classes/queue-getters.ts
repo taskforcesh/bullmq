@@ -28,6 +28,17 @@ function escapePrometheusLabelValue(value: string): string {
 }
 
 /**
+ * Max number of jobs fetched through the atomic `getJobs` Lua script
+ * (ids + hashes in a single script execution) per call. Larger or
+ * unbounded ranges fall back to the ids-only path with pipelined
+ * hydration so a single call cannot monopolize the Redis execution
+ * thread (see #4608).
+ */
+// ponytail: per-call (not per-type) ceiling; multi-type calls split the
+// budget across types. Raise the limit or page per type if needed.
+const GET_JOBS_ATOMIC_LIMIT = 1000;
+
+/**
  * Provides different getters for different aspects of a queue.
  */
 export class QueueGetters<
@@ -499,24 +510,31 @@ export class QueueGetters<
     const backend = this.getBackend();
 
     if (backend instanceof RedisQueueBackend) {
-      const jobDataByType = await backend.getJobs(
-        currentTypes,
-        start,
-        end,
-        asc,
-      );
-      const seen = new Set<string>();
+      const rangeSize = end - start + 1;
+      const isUnbounded = start < 0 || end < 0;
 
-      jobIds = jobDataByType.reduce<string[]>((ids, jobData) => {
-        for (const [jobId] of jobData || []) {
-          if (!seen.has(jobId)) {
-            seen.add(jobId);
-            ids.push(jobId);
+      if (!isUnbounded && rangeSize <= GET_JOBS_ATOMIC_LIMIT) {
+        const jobDataByType = await backend.getJobs(
+          currentTypes,
+          start,
+          end,
+          asc,
+        );
+        const seen = new Set<string>();
+
+        jobIds = jobDataByType.reduce<string[]>((ids, jobData) => {
+          for (const [jobId] of jobData || []) {
+            if (!seen.has(jobId)) {
+              seen.add(jobId);
+              ids.push(jobId);
+            }
           }
-        }
 
-        return ids;
-      }, []);
+          return ids;
+        }, []);
+      } else {
+        jobIds = await this.getRanges(currentTypes, start, end, asc);
+      }
     } else {
       jobIds = await this.getRanges(currentTypes, start, end, asc);
     }
