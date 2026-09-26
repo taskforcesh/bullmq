@@ -641,10 +641,16 @@ func (w *Worker) lockRenewalLoop(ctx context.Context) {
 				if ctx.Err() != nil {
 					return
 				}
-				// The lock is gone: another worker owns the job now, so stop
-				// processing it locally.
-				a.cancel()
-				w.emit(Event{Type: EventStalled, Job: a.job})
+				if errors.Is(err, ErrJobLockNotExist) {
+					// The lock is gone: another worker owns the job now, so
+					// stop processing it locally.
+					a.cancel()
+					w.emit(Event{Type: EventStalled, Job: a.job})
+				} else {
+					// Transient error (e.g. network blip): keep the job
+					// running and just report it.
+					w.emitError(err)
+				}
 			}
 		}
 	}

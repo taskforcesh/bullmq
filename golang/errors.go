@@ -35,6 +35,8 @@ var (
 
 	// ErrWorkerClosed is returned when an operation is attempted on a closed worker.
 	ErrWorkerClosed = errors.New("bullmq: worker is closed")
+	// ErrQueueEventsClosed is returned when Run is called more than once on a QueueEvents.
+	ErrQueueEventsClosed = errors.New("bullmq: queue events is closed")
 	// ErrNoContext is returned when a Job was built without a live Redis context.
 	ErrNoContext = errors.New("bullmq: job has no redis context")
 	// ErrDelayed is returned by a processor that has moved its job to the delayed set.
