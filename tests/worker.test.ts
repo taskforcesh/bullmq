@@ -1143,6 +1143,33 @@ describe('workers', () => {
         expect(result).toBe('closed');
       },
     );
+
+    it('does not retry connection errors indefinitely while the worker is closing', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      worker['closing'] = true;
+
+      await expect(
+        Promise.race([
+          worker['retryIfFailed'](
+            () => Promise.reject(new Error('Connection is closed.')),
+            {
+              delayInMs: 1,
+            },
+          ),
+          delay(200).then(() => {
+            throw new Error('retry loop did not exit while closing');
+          }),
+        ]),
+      ).rejects.toThrow('Connection is closed.');
+
+      await worker.close();
+    });
   });
 
   describe('when waiting for a job', () => {
