@@ -418,7 +418,7 @@ func (j *Job) moveToDelayed(ctx context.Context, delay time.Duration, skipAttemp
 	if err := c.runScriptStatus(ctx, "moveToDelayed", []string{
 		c.keys.Marker(), c.keys.Active(), c.keys.Prioritized(), c.keys.Delayed(),
 		c.keys.Job(j.ID), c.keys.Events(), c.keys.Meta(), c.keys.Stalled(),
-		c.keys.Wait(), c.keys.Limiter(), c.keys.Paused(), c.keys.PC(),
+		c.keys.Wait(), c.keys.Limiter(), c.keys.PC(),
 	},
 		c.keys.KeyPrefix(), nowMillis(), j.ID, token, ms,
 		boolToStr(skipAttempt),
