@@ -42,6 +42,10 @@ type Job struct {
 	FinishedOn int64
 	// FailedReason is the error message of the last failure.
 	FailedReason string
+	// DeferredFailure is set by the stalled-check script when the job
+	// exceeded MaxStalledCount; when non-empty the job must be failed
+	// unrecoverably instead of being handed to the processor.
+	DeferredFailure string
 	// Stacktrace holds the recorded failure traces.
 	Stacktrace []string
 	// ReturnValue is the JSON encoded value returned by the processor.
@@ -105,6 +109,7 @@ func jobFromHash(c *client, id string, fields map[string]string) *Job {
 	j.ProcessedBy = fields["pb"]
 	j.RepeatJobKey = fields["rjk"]
 	j.FailedReason = fields["failedReason"]
+	j.DeferredFailure = fields["defa"]
 	j.Timestamp = parseInt(fields["timestamp"])
 	j.AttemptsMade = parseInt(fields["atm"])
 	j.AttemptsStarted = parseInt(fields["ats"])
