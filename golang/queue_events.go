@@ -87,7 +87,7 @@ func (qe *QueueEvents) Run(ctx context.Context) error {
 		err = qe.run(ctx)
 	})
 	if !started {
-		return ErrWorkerClosed
+		return ErrQueueEventsClosed
 	}
 	return err
 }
