@@ -1459,7 +1459,7 @@ export class Worker<
     },
   ): Promise<T> {
     let retry = 0;
-    const maxRetries = opts.maxRetries || Infinity;
+    const maxRetries = opts.maxRetries ?? Infinity;
 
     do {
       try {
@@ -1479,6 +1479,13 @@ export class Worker<
             throw err;
           }
         } else {
+          if (this.closing || this.closed) {
+            if (opts.onlyEmitError) {
+              return;
+            }
+            throw err;
+          }
+
           if (opts.delayInMs && !this.closing && !this.closed) {
             await this.delay(opts.delayInMs, this.abortDelayController);
           }
