@@ -57,10 +57,10 @@ func (q *Queue) Add(ctx context.Context, name string, data any, opts *JobOptions
 	return q.addJob(ctx, JobSpec{Name: name, Data: data, Opts: opts})
 }
 
-// AddBulk inserts several jobs atomically: every add* command is queued on a
-// single Redis transaction (MULTI/EXEC) and sent in one round trip, so a
-// serialization error or a failure partway through never leaves the batch
-// partially inserted the way a per-job round trip would.
+// AddBulk submits all add* commands through one Redis transaction and returns
+// their results in one round trip. Redis does not roll back earlier scripts
+// when a later script returns an application-level error, so a failed batch
+// may contain jobs that were inserted before the failing command.
 func (q *Queue) AddBulk(ctx context.Context, specs []JobSpec) ([]*Job, error) {
 	if len(specs) == 0 {
 		return nil, nil
