@@ -144,7 +144,7 @@ func (p preparedJob) toJob(res any, q *Queue) (*Job, error) {
 func (q *Queue) prepareJob(spec JobSpec) (preparedJob, error) {
 	opts := mergeJobOptions(spec.Opts, q.defaultJobOptions)
 	if opts.JobID == "0" || strings.HasPrefix(opts.JobID, "0:") {
-		return nil, configError("job ID cannot be '0' or start with '0:'")
+		return preparedJob{}, configError("job ID cannot be '0' or start with '0:'")
 	}
 
 	payload, err := json.Marshal(spec.Data)
