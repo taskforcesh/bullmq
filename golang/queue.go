@@ -466,13 +466,14 @@ func (q *Queue) Obliterate(ctx context.Context, force bool, count int64) error {
 // cleanableStates are the states accepted by Clean, matching the key
 // suffixes cleanJobsInSet is allowed to operate on.
 var cleanableStates = map[JobState]bool{
-	StateWaiting:     true,
-	StateActive:      true,
-	StatePrioritized: true,
-	StateDelayed:     true,
-	StateCompleted:   true,
-	StateFailed:      true,
-	"paused":         true,
+	JobState("wait"):  true,
+	StateWaiting:      true,
+	StateActive:       true,
+	StatePrioritized:  true,
+	StateDelayed:      true,
+	StateCompleted:    true,
+	StateFailed:       true,
+	"paused":          true,
 }
 
 // Clean removes finished (or waiting/delayed) jobs older than grace.
