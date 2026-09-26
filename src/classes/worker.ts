@@ -1431,7 +1431,7 @@ export class Worker<
       // Reset back to a neutral root context so a subsequent foreground
       // operation (like `pause`/`resume`) does not inadvertently inherit this
       // tick's trace either.
-      withDetachedContext(this.opts.telemetry, () => undefined);
+      withDetachedContext(this.opts.telemetry, (): void => undefined);
 
       await new Promise<void>(resolve => {
         const timeout = setTimeout(resolve, this.opts.stalledInterval);
