@@ -42,21 +42,24 @@ defmodule BullMQ.Backends.Postgres.Connection do
 
     case Supervisor.start_link(__MODULE__, opts, name: sup_name(name)) do
       {:ok, pid} ->
-        unless Keyword.get(opts, :skip_migrations, false) do
-          schema = Keyword.get(opts, :schema, Migrator.default_schema())
-
-          case Migrator.run_migrations(pool_name(name), schema,
-                 skip_version_check: Keyword.get(opts, :skip_version_check, false)
-               ) do
-            {:ok, _version} -> :ok
-            {:error, reason} -> raise "BullMQ.Postgres migration failed: #{inspect(reason)}"
-          end
-        end
-
+        maybe_run_migrations(name, opts)
         {:ok, pid}
 
       error ->
         error
+    end
+  end
+
+  defp maybe_run_migrations(name, opts) do
+    unless Keyword.get(opts, :skip_migrations, false) do
+      schema = Keyword.get(opts, :schema, Migrator.default_schema())
+
+      case Migrator.run_migrations(pool_name(name), schema,
+             skip_version_check: Keyword.get(opts, :skip_version_check, false)
+           ) do
+        {:ok, _version} -> :ok
+        {:error, reason} -> raise "BullMQ.Postgres migration failed: #{inspect(reason)}"
+      end
     end
   end
 
@@ -151,23 +154,23 @@ defmodule BullMQ.Backends.Postgres.Connection do
   defp resolve_ssl(opts, url) do
     case Keyword.fetch(opts, :ssl) do
       {:ok, ssl} ->
-        case sslmode_from_url(url) do
-          mode when mode in ["verify-ca", "verify-full"] ->
-            unless Keyword.keyword?(ssl) and Keyword.get(ssl, :verify) == :verify_peer do
-              raise ArgumentError,
-                    "sslmode=#{mode} requires explicit :ssl options with verify: :verify_peer"
-            end
-
-            ssl
-
-          _ ->
-            ssl
-        end
+        mode = sslmode_from_url(url)
+        validate_ssl_for_mode(ssl, mode)
+        ssl
 
       :error ->
         ssl_from_url(url)
     end
   end
+
+  defp validate_ssl_for_mode(ssl, mode) when mode in ["verify-ca", "verify-full"] do
+    unless Keyword.keyword?(ssl) and Keyword.get(ssl, :verify) == :verify_peer do
+      raise ArgumentError,
+            "sslmode=#{mode} requires explicit :ssl options with verify: :verify_peer"
+    end
+  end
+
+  defp validate_ssl_for_mode(_ssl, _mode), do: :ok
 
   defp ssl_from_url(nil), do: nil
 
@@ -198,32 +201,26 @@ defmodule BullMQ.Backends.Postgres.Connection do
 
   defp parse_url(url) do
     uri = URI.parse(url)
-
-    {username, password} =
-      case uri.userinfo do
-        nil ->
-          {nil, nil}
-
-        info ->
-          case String.split(info, ":", parts: 2) do
-            [u, p] -> {u, p}
-            [u] -> {u, nil}
-          end
-      end
-
-    database =
-      case uri.path do
-        nil -> nil
-        "/" <> db -> db
-        _ -> nil
-      end
+    {username, password} = parse_userinfo(uri.userinfo)
 
     [
       hostname: uri.host || "localhost",
       port: uri.port || 5432,
-      database: database,
+      database: parse_database(uri.path),
       username: username,
       password: password
     ]
   end
+
+  defp parse_userinfo(nil), do: {nil, nil}
+
+  defp parse_userinfo(info) do
+    case String.split(info, ":", parts: 2) do
+      [u, p] -> {u, p}
+      [u] -> {u, nil}
+    end
+  end
+
+  defp parse_database("/" <> db), do: db
+  defp parse_database(_), do: nil
 end

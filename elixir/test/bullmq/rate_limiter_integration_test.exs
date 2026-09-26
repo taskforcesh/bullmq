@@ -16,7 +16,7 @@ defmodule BullMQ.RateLimiterIntegrationTest do
   @moduletag :integration
   @moduletag :rate_limiter
 
-  alias BullMQ.{Queue, Worker, QueueEvents, Scripts, Keys}
+  alias BullMQ.{Keys, Queue, QueueEvents, Scripts, Worker}
 
   @redis_url BullMQ.TestHelper.redis_url()
   @test_prefix BullMQ.TestHelper.test_prefix()
