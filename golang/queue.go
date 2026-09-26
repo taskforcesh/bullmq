@@ -57,20 +57,91 @@ func (q *Queue) Add(ctx context.Context, name string, data any, opts *JobOptions
 	return q.addJob(ctx, JobSpec{Name: name, Data: data, Opts: opts})
 }
 
-// AddBulk inserts several jobs, one round trip per job.
+// AddBulk inserts several jobs atomically: every add* command is queued on a
+// single Redis transaction (MULTI/EXEC) and sent in one round trip, so a
+// serialization error or a failure partway through never leaves the batch
+// partially inserted the way a per-job round trip would.
 func (q *Queue) AddBulk(ctx context.Context, specs []JobSpec) ([]*Job, error) {
-	jobs := make([]*Job, 0, len(specs))
-	for _, spec := range specs {
-		job, err := q.addJob(ctx, spec)
+	if len(specs) == 0 {
+		return nil, nil
+	}
+
+	prepared := make([]preparedJob, len(specs))
+	for i, spec := range specs {
+		p, err := q.prepareJob(spec)
 		if err != nil {
-			return jobs, err
+			return nil, err
 		}
-		jobs = append(jobs, job)
+		prepared[i] = p
+	}
+
+	cmds := make([]*redis.Cmd, len(prepared))
+	_, err := q.c.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		for i, p := range prepared {
+			s, err := getScript(p.scriptName)
+			if err != nil {
+				return err
+			}
+			cmds[i] = s.run(ctx, pipe, p.keys, p.argv1, string(p.payload), packJobOptions(p.opts))
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	jobs := make([]*Job, len(prepared))
+	for i, p := range prepared {
+		res, err := cmds[i].Result()
+		if err != nil && err != redis.Nil {
+			return nil, err
+		}
+		job, err := p.toJob(res, q)
+		if err != nil {
+			return nil, err
+		}
+		jobs[i] = job
 	}
 	return jobs, nil
 }
 
-func (q *Queue) addJob(ctx context.Context, spec JobSpec) (*Job, error) {
+// preparedJob holds everything needed to queue an add* command on a pipeline
+// and to turn its reply into a *Job once the pipeline has executed.
+type preparedJob struct {
+	spec       JobSpec
+	opts       *JobOptions
+	payload    []byte
+	timestamp  int64
+	scriptName string
+	keys       []string
+	argv1      []byte
+}
+
+// toJob validates the reply of the add* command and builds the resulting Job.
+func (p preparedJob) toJob(res any, q *Queue) (*Job, error) {
+	if code, ok := asInt64(res); ok && code < 0 {
+		return nil, scriptError(p.scriptName, code)
+	}
+	jobID, ok := asString(res)
+	if !ok {
+		return nil, configError("unexpected reply from %s", p.scriptName)
+	}
+	return &Job{
+		ID:        jobID,
+		Name:      p.spec.Name,
+		Data:      p.payload,
+		Opts:      p.opts,
+		Timestamp: p.timestamp,
+		Delay:     p.opts.Delay,
+		Priority:  p.opts.Priority,
+		QueueName: q.Name(),
+		c:         q.c,
+	}, nil
+}
+
+// prepareJob validates and serializes a JobSpec, computing the script name,
+// keys and packed arguments needed to add the job without touching Redis.
+func (q *Queue) prepareJob(spec JobSpec) (preparedJob, error) {
 	opts := mergeJobOptions(spec.Opts, q.defaultJobOptions)
 	if opts.JobID == "0" || strings.HasPrefix(opts.JobID, "0:") {
 		return nil, configError("job ID cannot be '0' or start with '0:'")
@@ -78,10 +149,10 @@ func (q *Queue) addJob(ctx context.Context, spec JobSpec) (*Job, error) {
 
 	payload, err := json.Marshal(spec.Data)
 	if err != nil {
-		return nil, err
+		return preparedJob{}, err
 	}
 	if opts.SizeLimit > 0 && int64(len(payload)) > opts.SizeLimit {
-		return nil, configError("job data exceeds sizeLimit of %d bytes (was %d)",
+		return preparedJob{}, configError("job data exceeds sizeLimit of %d bytes (was %d)",
 			opts.SizeLimit, len(payload))
 	}
 
@@ -117,33 +188,32 @@ func (q *Queue) addJob(ctx context.Context, spec JobSpec) (*Job, error) {
 
 	argv1, err := q.packAddArgs(opts, spec.Name, timestamp)
 	if err != nil {
-		return nil, err
+		return preparedJob{}, err
 	}
 
-	res, err := q.c.runScript(ctx, scriptName, keys,
-		argv1, string(payload), packJobOptions(opts))
+	return preparedJob{
+		spec:       spec,
+		opts:       opts,
+		payload:    payload,
+		timestamp:  timestamp,
+		scriptName: scriptName,
+		keys:       keys,
+		argv1:      argv1,
+	}, nil
+}
+
+func (q *Queue) addJob(ctx context.Context, spec JobSpec) (*Job, error) {
+	p, err := q.prepareJob(spec)
 	if err != nil {
 		return nil, err
 	}
-	if code, ok := asInt64(res); ok && code < 0 {
-		return nil, scriptError(scriptName, code)
-	}
-	jobID, ok := asString(res)
-	if !ok {
-		return nil, configError("unexpected reply from %s", scriptName)
-	}
 
-	return &Job{
-		ID:        jobID,
-		Name:      spec.Name,
-		Data:      payload,
-		Opts:      opts,
-		Timestamp: timestamp,
-		Delay:     opts.Delay,
-		Priority:  opts.Priority,
-		QueueName: q.Name(),
-		c:         q.c,
-	}, nil
+	res, err := q.c.runScript(ctx, p.scriptName, p.keys,
+		p.argv1, string(p.payload), packJobOptions(p.opts))
+	if err != nil {
+		return nil, err
+	}
+	return p.toJob(res, q)
 }
 
 // packAddArgs builds ARGV[1] of the add* commands: a msgpack array of
@@ -393,11 +463,26 @@ func (q *Queue) Obliterate(ctx context.Context, force bool, count int64) error {
 	}
 }
 
+// cleanableStates are the states accepted by Clean, matching the key
+// suffixes cleanJobsInSet is allowed to operate on.
+var cleanableStates = map[JobState]bool{
+	StateWaiting:     true,
+	StateActive:      true,
+	StatePrioritized: true,
+	StateDelayed:     true,
+	StateCompleted:   true,
+	StateFailed:      true,
+	"paused":         true,
+}
+
 // Clean removes finished (or waiting/delayed) jobs older than grace.
 //
 // state must be one of wait, active, paused, prioritized, delayed, completed or
 // failed. A limit of 0 means unlimited. It returns the removed job ids.
 func (q *Queue) Clean(ctx context.Context, grace time.Duration, limit int64, state JobState) ([]string, error) {
+	if !cleanableStates[state] {
+		return nil, configError("clean state must be one of wait, active, paused, prioritized, delayed, completed or failed, got %q", state)
+	}
 	name := string(state)
 	if state == StateWaiting {
 		name = "wait"
