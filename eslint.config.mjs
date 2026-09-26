@@ -22,6 +22,8 @@ export default defineConfig([
   globalIgnores([
     '**/.DS_Store',
     '**/node_modules',
+    // Generated at build time by scripts/generateSqlScripts.js (inlined SQL).
+    'src/postgres/sql-scripts.ts',
     'dist',
     'elixir',
     'php/vendor',
