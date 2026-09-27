@@ -168,6 +168,7 @@ describe('Telemetry', () => {
     name: string;
     options: SpanOptions | undefined;
     exception: ExtendedException | undefined;
+    ended: boolean = false;
 
     constructor(name: string, options?: SpanOptions) {
       this.name = name;
@@ -193,7 +194,9 @@ describe('Telemetry', () => {
       this.exception = exception;
     }
 
-    end(): void {}
+    end(): void {
+      this.ended = true;
+    }
   }
 
   let telemetryClient: MockTelemetry;
@@ -625,6 +628,89 @@ describe('Telemetry', () => {
       addEventSpy.restore();
       startSpanSpy.restore();
       moveToFailedStub.restore();
+      await worker.close();
+    });
+  });
+
+  describe('Worker.startStalledCheckTimer', () => {
+    it('should trace startStalledCheckTimer and execute stalledChecker outside the trace callback', async () => {
+      const worker = new Worker(queueName, null, {
+        autorun: false,
+        connection,
+        telemetry: telemetryClient,
+        name: 'testWorker',
+        prefix,
+      });
+
+      const startSpanSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+      let traceSpanEndedBeforeStalledChecker = false;
+
+      const originalStalledChecker = (worker as any).stalledChecker;
+      (worker as any).stalledChecker = async function () {
+        const spanInstance = startSpanSpy.returnValues.find(
+          span => (span as MockSpan).name === 'startStalledCheckTimer',
+        ) as MockSpan;
+
+        traceSpanEndedBeforeStalledChecker = spanInstance?.ended ?? false;
+        return originalStalledChecker.call(this);
+      };
+
+      await worker.startStalledCheckTimer();
+
+      expect(startSpanSpy.called).toBe(true);
+      const span = startSpanSpy.returnValues.find(
+        span => (span as MockSpan).name === 'startStalledCheckTimer',
+      ) as MockSpan;
+      expect(span).toBeDefined();
+      expect(span.attributes[TelemetryAttributes.WorkerId]).toBe(worker.id);
+      expect(span.attributes[TelemetryAttributes.WorkerName]).toBe('testWorker');
+      expect(traceSpanEndedBeforeStalledChecker).toBe(true);
+
+      startSpanSpy.restore();
+      await worker.close();
+    });
+  });
+
+  describe('Worker.resume', () => {
+    it('should trace resume and run worker outside the trace callback', async () => {
+      const worker = new Worker(
+        queueName,
+        async () => 'some result',
+        {
+          autorun: false,
+          connection,
+          telemetry: telemetryClient,
+          name: 'testWorker',
+          prefix,
+        },
+      );
+
+      await worker.pause();
+
+      const startSpanSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+      let traceSpanEndedBeforeRun = false;
+
+      const originalRun = worker.run;
+      worker.run = async function () {
+        const spanInstance = startSpanSpy.returnValues.find(
+          span => (span as MockSpan).name === 'resume',
+        ) as MockSpan;
+
+        traceSpanEndedBeforeRun = spanInstance?.ended ?? false;
+        return originalRun.call(this);
+      };
+
+      await worker.resume();
+
+      const span = startSpanSpy.returnValues.find(
+        span => (span as MockSpan).name === 'resume',
+      ) as MockSpan;
+      expect(span).toBeDefined();
+      expect(span.attributes[TelemetryAttributes.WorkerId]).toBe(worker.id);
+      expect(span.attributes[TelemetryAttributes.WorkerName]).toBe('testWorker');
+      expect(traceSpanEndedBeforeRun).toBe(true);
+
+      startSpanSpy.restore();
       await worker.close();
     });
   });

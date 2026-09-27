@@ -1276,19 +1276,19 @@ export class Worker<
             });
 
             this.paused = false;
-
-            if (!this.running) {
-              if (this.processFn) {
-                this.run();
-              }
-            } else {
-              // Main loop is still running (pause was called with doNotWaitActive=true).
-              // Restart the stalled checker since pause() stopped it.
-              await this.startStalledCheckTimer();
-            }
             this.emit('resumed');
           },
         );
+
+        if (!this.running) {
+          if (this.processFn) {
+            this.run();
+          }
+        } else {
+          // Main loop is still running (pause was called with doNotWaitActive=true).
+          // Restart the stalled checker since pause() stopped it.
+          await this.startStalledCheckTimer();
+        }
       }
     } catch (error) {
       this.emit('error', error as Error);
@@ -1391,26 +1391,28 @@ export class Worker<
   async startStalledCheckTimer(): Promise<void> {
     if (!this.opts.skipStalledCheck) {
       if (!this.closing && !this.stalledCheckerRunning) {
-        await this.trace<void>(
-          SpanKind.INTERNAL,
-          'startStalledCheckTimer',
-          this.name,
-          async span => {
-            span?.setAttributes({
-              [TelemetryAttributes.WorkerId]: this.id,
-              [TelemetryAttributes.WorkerName]: this.opts.name,
-            });
-
-            this.stalledCheckerRunning = true;
-            this.stalledChecker()
-              .catch(err => {
-                this.emit('error', <Error>err);
-              })
-              .finally(() => {
-                this.stalledCheckerRunning = false;
+        this.stalledCheckerRunning = true;
+        try {
+          await this.trace<void>(
+            SpanKind.INTERNAL,
+            'startStalledCheckTimer',
+            this.name,
+            async span => {
+              span?.setAttributes({
+                [TelemetryAttributes.WorkerId]: this.id,
+                [TelemetryAttributes.WorkerName]: this.opts.name,
               });
-          },
-        );
+            },
+          );
+        } finally {
+          this.stalledChecker()
+            .catch(err => {
+              this.emit('error', <Error>err);
+            })
+            .finally(() => {
+              this.stalledCheckerRunning = false;
+            });
+        }
       }
     }
   }
