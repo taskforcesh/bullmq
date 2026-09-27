@@ -1472,6 +1472,10 @@ export class Worker<
       // Reset back to a neutral root context so a subsequent foreground
       // operation (like `pause`/`resume`) does not inadvertently inherit this
       // tick's trace either.
+      if (this.closing || this.paused) {
+        break;
+      }
+
       withDetachedContext(this.opts.telemetry, (): void => undefined);
 
       await new Promise<void>(resolve => {
