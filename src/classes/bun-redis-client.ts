@@ -420,20 +420,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     }
   }
 
-  private _closeRaw(): void {
-    // Cancel any pending reconnect
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    this.reconnecting = false;
-
-    // A duplicate closed before it ever connected has no raw client yet.
-    this.rawFactory = undefined;
-    const raw = this.raw;
-    if (!raw) {
-      return;
-    }
+  private _closeRawClient(raw: TClient): void {
     raw.onconnect = () => {};
     raw.onclose = () => {};
     raw.onerror = () => {};
@@ -450,6 +437,22 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
           // swallow
         }
       });
+    }
+  }
+
+  private _closeRaw(): void {
+    // Cancel any pending reconnect
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnecting = false;
+
+    // A duplicate closed before it ever connected has no raw client yet.
+    this.rawFactory = undefined;
+    const raw = this.raw;
+    if (raw) {
+      this._closeRawClient(raw);
     }
   }
 
@@ -547,6 +550,14 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
 
     const materializing = factory()
       .then(raw => {
+        // disconnect()/quit() cannot cancel the factory promise itself. If it
+        // resolved after final shutdown started, discard the late client before
+        // it can be wired up or open a socket after close() has resolved.
+        if (this.closing || this.closed) {
+          this._closeRawClient(raw);
+          return raw;
+        }
+
         this.raw = raw;
         this.rawFactory = undefined;
         this._setupCallbacks();
