@@ -527,9 +527,25 @@ describe('Telemetry', () => {
           // detach correctly.
           withSpy.resetHistory();
 
+          // Run resume() under an ambient parent context with a concrete
+          // (non-root) traceId, mimicking a caller who invokes resume() from
+          // inside an active trace (e.g. an HTTP request handler span). If
+          // withDetachedContext() were removed/regressed, the checker's
+          // recurring spans would inherit this ambientTraceId - the same way
+          // they would inherit the resume span's traceId - instead of each
+          // starting a fresh trace. Asserting only against the resume span's
+          // traceId is not enough: with an empty ambient context (the
+          // previous behavior of this test), the resume span itself gets a
+          // fresh random traceId, so the checker spans would differ from it
+          // "by accident" even without detachment. Anchoring everything to a
+          // known ambientTraceId closes that gap.
+          const ambientTraceId = randomUUID();
+
           // The worker is still "running" (only paused), so resume() takes the
           // restart-the-stalled-checker branch instead of calling run() again.
-          await worker.resume();
+          await contextManager.with({ traceId: ambientTraceId }, () =>
+            worker.resume(),
+          );
 
           // Let the checker run through a few ticks.
           await new Promise(resolve => setTimeout(resolve, 220));
@@ -547,10 +563,14 @@ describe('Telemetry', () => {
           );
 
           expect(resumeSpan).toBeDefined();
+          // Confirms resume() actually ran under the non-root ambient context,
+          // otherwise the assertions below would be vacuous.
+          expect(resumeSpan!.traceId).toBe(ambientTraceId);
           expect(stalledCheckSpans.length).toBeGreaterThanOrEqual(2);
 
           for (const span of stalledCheckSpans) {
             expect(span.traceId).not.toBe(resumeSpan!.traceId);
+            expect(span.traceId).not.toBe(ambientTraceId);
           }
           expect(
             new Set(stalledCheckSpans.map(span => span.traceId)).size,
