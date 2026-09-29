@@ -1,3 +1,10 @@
+## [3.2.8](https://github.com/taskforcesh/bullmq/compare/vpy3.2.7...vpy3.2.8) (2026-09-29)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpack to v1.2.3 [python] ([#4842](https://github.com/taskforcesh/bullmq/issues/4842)) ([d1a43ab](https://github.com/taskforcesh/bullmq/commit/d1a43ab7aa50200cbb7c48b098d2be8690550617))
+
 ## [3.2.7](https://github.com/taskforcesh/bullmq/compare/vpy3.2.6...vpy3.2.7) (2026-09-25)
 
 
