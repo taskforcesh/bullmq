@@ -225,6 +225,7 @@ export class Worker<
   protected paused: boolean;
   protected processFn: Processor<DataType, ResultType, NameType, ProgressType>;
   protected running = false;
+  protected resuming: Promise<void> | null = null;
   protected mainLoopRunning: Promise<void> | null = null;
 
   static RateLimitError(): Error {
@@ -1263,35 +1264,47 @@ export class Worker<
    * Resumes processing of this worker (if paused).
    */
   async resume(): Promise<void> {
-    try {
-      if (!this.running || this.paused) {
-        await this.trace<void>(
-          SpanKind.INTERNAL,
-          'resume',
-          this.name,
-          async span => {
-            span?.setAttributes({
-              [TelemetryAttributes.WorkerId]: this.id,
-              [TelemetryAttributes.WorkerName]: this.opts.name,
-            });
+    if (this.resuming) {
+      return this.resuming;
+    }
 
-            this.paused = false;
-            this.emit('resumed');
-          },
-        );
+    if (!this.running || this.paused) {
+      this.resuming = (async () => {
+        try {
+          const wasRunning = this.running;
+          this.paused = false;
 
-        if (!this.running) {
-          if (this.processFn) {
-            this.run();
+          await this.trace<void>(
+            SpanKind.INTERNAL,
+            'resume',
+            this.name,
+            async span => {
+              span?.setAttributes({
+                [TelemetryAttributes.WorkerId]: this.id,
+                [TelemetryAttributes.WorkerName]: this.opts.name,
+              });
+
+              this.emit('resumed');
+            },
+          );
+
+          if (!wasRunning) {
+            if (this.processFn) {
+              this.run();
+            }
+          } else {
+            // Main loop is still running (pause was called with doNotWaitActive=true).
+            // Restart the stalled checker since pause() stopped it.
+            await this.startStalledCheckTimer();
           }
-        } else {
-          // Main loop is still running (pause was called with doNotWaitActive=true).
-          // Restart the stalled checker since pause() stopped it.
-          await this.startStalledCheckTimer();
+        } catch (error) {
+          this.emit('error', error as Error);
+        } finally {
+          this.resuming = null;
         }
-      }
-    } catch (error) {
-      this.emit('error', error as Error);
+      })();
+
+      return this.resuming;
     }
   }
 
