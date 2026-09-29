@@ -390,14 +390,13 @@ describe('Telemetry', () => {
   });
 
   describe('Worker stalled checker telemetry context', () => {
-    // `MockContextManager` above has no `root()`, so it only exercises the
-    // fallback path (no detach) and cannot catch a stalled checker that keeps
-    // extending whatever trace happened to be active when it was (re)started.
-    // These classes add a `root()` implementation and thread a `traceId`
-    // through contexts the way a real tracer would: a span reuses the
-    // traceId already present on its parent context, or mints a new one if
-    // there isn't one. `root()` returns a context with no traceId, so the
-    // next span created under it starts a brand new trace.
+    // `MockContextManager` above never restores the previous context in `with()`,
+    // so it cannot model the AsyncLocalStorage behavior behind this regression.
+    // These classes use AsyncLocalStorage and thread a `traceId` through
+    // contexts the way a real tracer would: a span reuses the `traceId`
+    // already present on its parent context, or mints a new one if there is
+    // none. `root()` returns a context with no traceId, so the next span
+    // created under it starts a brand new trace.
     //
     // Crucially, the traceId must be captured once, at span-creation time,
     // from whatever context was active then (mirroring how a real OTel
