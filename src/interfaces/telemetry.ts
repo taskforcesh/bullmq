@@ -169,10 +169,13 @@ export interface ContextManager<Context = any> {
    * would keep every iteration of the loop attached to that original span,
    * producing a single trace that grows for the lifetime of the process.
    *
-   * Optional: when not implemented, background loops simply keep the ambient
-   * context.
+   * Required: every `ContextManager` implementation must provide this so
+   * background loops are guaranteed to detach correctly. Adapters built
+   * against an older version of this interface (where `root` did not exist)
+   * must be upgraded; `withDetachedContext` deliberately throws rather than
+   * silently keeping the leaking behavior when this method is missing.
    */
-  root?(): Context;
+  root(): Context;
 
   /**
    * Returns a serialized version of the current context. The metadata

@@ -7,6 +7,7 @@ import {
   it,
   expect,
 } from 'vitest';
+import { AsyncLocalStorage } from 'async_hooks';
 
 import {
   FlowProducer,
@@ -136,6 +137,10 @@ describe('Telemetry', () => {
 
     active(): Context {
       return this.activeContext;
+    }
+
+    root(): Context {
+      return {} as Context;
     }
 
     getMetadata(context: Context): string {
@@ -447,22 +452,28 @@ describe('Telemetry', () => {
     }
 
     class RootCapableContextManager implements ContextManager {
-      // Mimics an `AsyncLocalStorage`-backed context manager: `with()` never
-      // restores the previous context once it returns, so anything scheduled
-      // afterwards keeps observing whatever was last set. This is exactly
-      // what allows the leak to happen in the real implementation.
-      private activeContext: any = {};
+      // Backed by a real `AsyncLocalStorage`, matching how OTel's own context
+      // manager behaves: `with()`/`run()` restores the previously active
+      // store once the callback returns, but any async continuation
+      // (promise, timer, etc.) *created inside* the callback keeps observing
+      // the store that was active at its creation time, even after `with()`
+      // has returned. This is the actual mechanism that can leak a span into
+      // a long-lived background loop if the loop is not explicitly detached
+      // with `root()` - and, unlike a naive mock that never restores the
+      // outer context, it does NOT cause unrelated *foreground* calls (e.g.
+      // two sibling `pause()`/`resume()` invocations) to contaminate each
+      // other once each of their `with()` calls returns.
+      private storage = new AsyncLocalStorage<any>();
 
       with<A extends(...args: any[]) => any>(
         context: any,
         fn: A,
       ): ReturnType<A> {
-        this.activeContext = context;
-        return fn();
+        return this.storage.run(context, fn);
       }
 
       active(): any {
-        return this.activeContext;
+        return this.storage.getStore() ?? {};
       }
 
       root(): any {

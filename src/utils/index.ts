@@ -478,8 +478,11 @@ export async function trace<T>(
  * so the resulting trace would grow for as long as the process lives.
  *
  * Running the loop under a root context instead makes each iteration start its
- * own trace. When the context manager does not support root contexts the
- * callback is executed as is.
+ * own trace. `root()` is a required `ContextManager` capability: if a
+ * telemetry adapter does not implement it, we deliberately throw instead of
+ * silently falling back to the leaking behavior this function exists to fix.
+ * An adapter missing `root()` was built against an older version of the
+ * `ContextManager` interface and must be upgraded alongside this change.
  *
  * @param telemetry - telemetry configuration. If undefined, the callback is executed as is.
  * @param callback - code to run outside of the active context
@@ -490,8 +493,18 @@ export function withDetachedContext<T>(
   callback: () => T,
 ): T {
   const contextManager = telemetry?.contextManager;
-  if (!contextManager?.root) {
+  if (!contextManager) {
     return callback();
+  }
+
+  if (typeof contextManager.root !== 'function') {
+    throw new Error(
+      'The configured telemetry ContextManager does not implement root(), ' +
+        'which is required to safely detach long-lived background loops ' +
+        '(such as the stalled jobs checker) from the caller context. Upgrade ' +
+        'your telemetry adapter to a version that implements ' +
+        'ContextManager#root().',
+    );
   }
 
   return contextManager.with(contextManager.root(), callback);

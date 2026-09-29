@@ -1241,11 +1241,17 @@ export class Worker<
    * Pauses the processing of this queue only for this worker.
    */
   async pause(doNotWaitActive?: boolean): Promise<void> {
-    // Detached so this span never inherits the ambient context left behind by
-    // an in-flight stalled-checker tick (pause() does not await that loop, so
-    // it can run concurrently with one; see `stalledChecker()`).
-    await withDetachedContext(this.opts.telemetry, () =>
-      this.trace<void>(SpanKind.INTERNAL, 'pause', this.name, async span => {
+    // Kept in the caller's active context (not detached): a correctly
+    // implemented AsyncLocalStorage-based context manager isolates concurrent
+    // async chains, so a background stalled-checker tick (which detaches its
+    // own context; see `stalledChecker()`) cannot overwrite this span's
+    // context. Staying attached lets applications correlate `pause` with the
+    // request or operation that initiated it.
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'pause',
+      this.name,
+      async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerName]: this.opts.name,
@@ -1268,7 +1274,7 @@ export class Worker<
           this.stalledCheckStopper?.();
           this.emit('paused');
         }
-      }),
+      },
     );
   }
 
@@ -1281,34 +1287,32 @@ export class Worker<
       if (!this.running || this.paused) {
         let restartStalledChecker = false;
 
-        // Detached for the same reason as `pause()`: a stalled-checker tick
-        // may still be in flight (or have just finished without anyone
-        // awaiting it) and must not leak its trace into this span.
-        await withDetachedContext(this.opts.telemetry, () =>
-          this.trace<void>(
-            SpanKind.INTERNAL,
-            'resume',
-            this.name,
-            async span => {
-              span?.setAttributes({
-                [TelemetryAttributes.WorkerId]: this.id,
-                [TelemetryAttributes.WorkerName]: this.opts.name,
-              });
+        // Kept in the caller's active context for the same reason as
+        // `pause()`: only the background stalled-checker loop needs to
+        // detach its own context, so it cannot leak into this span.
+        await this.trace<void>(
+          SpanKind.INTERNAL,
+          'resume',
+          this.name,
+          async span => {
+            span?.setAttributes({
+              [TelemetryAttributes.WorkerId]: this.id,
+              [TelemetryAttributes.WorkerName]: this.opts.name,
+            });
 
-              this.paused = false;
+            this.paused = false;
 
-              if (!this.running) {
-                if (this.processFn) {
-                  this.run();
-                }
-              } else {
-                // Main loop is still running (pause was called with doNotWaitActive=true).
-                // Restart the stalled checker since pause() stopped it.
-                restartStalledChecker = true;
+            if (!this.running) {
+              if (this.processFn) {
+                this.run();
               }
-              this.emit('resumed');
-            },
-          ),
+            } else {
+              // Main loop is still running (pause was called with doNotWaitActive=true).
+              // Restart the stalled checker since pause() stopped it.
+              restartStalledChecker = true;
+            }
+            this.emit('resumed');
+          },
         );
 
         // Started outside of the trace above so that the stalled checker loop
@@ -1441,6 +1445,11 @@ export class Worker<
     // reached from `resume()`), never in `pause()` itself, so `pause(true)`
     // still returns without waiting on any in-flight Redis call.
     const previousStalledCheckerPromise = this.stalledCheckerPromise;
+
+    // Wake up the previous loop's pending interval timer (if any) so it can
+    // observe the new generation and exit promptly, instead of us blocking
+    // here for up to the remainder of its `stalledInterval` wait.
+    this.stalledCheckStopper?.();
 
     await this.trace<void>(
       SpanKind.INTERNAL,
