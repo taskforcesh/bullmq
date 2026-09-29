@@ -1438,17 +1438,20 @@ export class Worker<
 
     // Capture whatever loop (if any) is still winding down. Bumping the
     // generation above only makes it stop at its next checkpoint; it does
-    // not cancel an in-flight `moveStalledJobsToWait` call. We must wait for
-    // it to fully finish before starting a new loop below, otherwise both
-    // loops could run concurrently and scan for stalled jobs at the same
-    // time. Note this is only awaited here (in `startStalledCheckTimer`,
-    // reached from `resume()`), never in `pause()` itself, so `pause(true)`
-    // still returns without waiting on any in-flight Redis call.
+    // not cancel an in-flight `moveStalledJobsToWait` call, so we must let it
+    // fully finish before starting a new loop, otherwise both loops could run
+    // concurrently and scan for stalled jobs at the same time. This is
+    // chained below rather than awaited here in the public call path: an
+    // in-flight Redis call can be stuck behind `checkConnectionError`'s retry
+    // delay (or a slow reconnect) well after the worker has been paused, and
+    // callers such as `resume()` must return promptly instead of blocking on
+    // it, exactly like the previous "reuse the still-running checker"
+    // behavior used to.
     const previousStalledCheckerPromise = this.stalledCheckerPromise;
 
     // Wake up the previous loop's pending interval timer (if any) so it can
-    // observe the new generation and exit promptly, instead of us blocking
-    // here for up to the remainder of its `stalledInterval` wait.
+    // observe the new generation and exit promptly, instead of leaving it to
+    // wait out the remainder of its `stalledInterval` wait.
     this.stalledCheckStopper?.();
 
     await this.trace<void>(
@@ -1470,23 +1473,31 @@ export class Worker<
       return;
     }
 
-    // Wait for the previous loop to fully exit (its errors are already
-    // handled by its own `.catch` below, so swallow them here) before
-    // launching a new one, guaranteeing the two never scan concurrently.
-    await previousStalledCheckerPromise?.catch((): void => undefined);
+    // Chain the new loop to start only once the previous one has fully
+    // exited (its errors are already handled by its own `.catch` below, so
+    // swallow them here), guaranteeing the two never scan concurrently -
+    // without awaiting that settlement from this public method, so
+    // `startStalledCheckTimer()`/`resume()` return promptly regardless of how
+    // long the previous loop's in-flight Redis call takes to settle.
+    this.stalledCheckerPromise = (
+      previousStalledCheckerPromise?.catch((): void => undefined) ??
+      Promise.resolve()
+    )
+      .then(() => {
+        // The wait above can take a while (e.g. a connection error retry
+        // delay), during which the worker may have closed or yet another
+        // caller may have claimed a newer generation.
+        if (this.closing || generation !== this.stalledCheckerGeneration) {
+          return;
+        }
 
-    // The wait above can take a while (e.g. a connection error retry delay),
-    // during which the worker may have closed or yet another caller may have
-    // claimed a newer generation.
-    if (this.closing || generation !== this.stalledCheckerGeneration) {
-      return;
-    }
-
-    this.stalledCheckerPromise = withDetachedContext(this.opts.telemetry, () =>
-      this.stalledChecker(generation),
-    ).catch(err => {
-      this.emit('error', <Error>err);
-    });
+        return withDetachedContext(this.opts.telemetry, () =>
+          this.stalledChecker(generation),
+        );
+      })
+      .catch(err => {
+        this.emit('error', <Error>err);
+      });
   }
 
   private async stalledChecker(generation: number) {
