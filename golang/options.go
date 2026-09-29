@@ -47,23 +47,28 @@ type JobOptions struct {
 	// per-job value of 0 can be told apart from "not set", letting it override
 	// a non-zero queue default back to 0.
 	Delay *int64 `json:"delay,omitempty"`
-	// Priority; lower values are processed first. 0 means unprioritized.
-	Priority int64 `json:"priority,omitempty"`
+	// Priority; lower values are processed first. 0 means unprioritized. A
+	// pointer so a per-job value of 0 can be told apart from "not set",
+	// letting it override a non-zero queue default back to 0.
+	Priority *int64 `json:"priority,omitempty"`
 	// LIFO pushes the job to the front of the wait list. A pointer so an
 	// explicit `false` can override a queue default of `true`.
 	LIFO *bool `json:"lifo,omitempty"`
-	// Attempts is the total number of times the job may be tried.
-	Attempts int64 `json:"attempts,omitempty"`
+	// Attempts is the total number of times the job may be tried. A pointer
+	// so a per-job value of 0 can override a non-zero queue default.
+	Attempts *int64 `json:"attempts,omitempty"`
 	// Backoff configures the delay between retries.
 	Backoff *Backoff `json:"backoff,omitempty"`
 	// RemoveOnComplete controls automatic removal of completed jobs.
 	RemoveOnComplete *RemoveOnFinish `json:"removeOnComplete,omitempty"`
 	// RemoveOnFail controls automatic removal of failed jobs.
 	RemoveOnFail *RemoveOnFinish `json:"removeOnFail,omitempty"`
-	// KeepLogs limits how many log rows are retained per job.
-	KeepLogs int64 `json:"kl,omitempty"`
-	// SizeLimit rejects jobs whose serialized data exceeds this many bytes.
-	SizeLimit int64 `json:"sizeLimit,omitempty"`
+	// KeepLogs limits how many log rows are retained per job. A pointer so a
+	// per-job value of 0 can override a non-zero queue default.
+	KeepLogs *int64 `json:"kl,omitempty"`
+	// SizeLimit rejects jobs whose serialized data exceeds this many bytes. A
+	// pointer so a per-job value of 0 can override a non-zero queue default.
+	SizeLimit *int64 `json:"sizeLimit,omitempty"`
 	// Timestamp is the creation time in Unix milliseconds. Defaults to now.
 	Timestamp int64 `json:"timestamp,omitempty"`
 
@@ -72,15 +77,19 @@ type JobOptions struct {
 	// Deduplication prevents duplicates while the key is alive.
 	Deduplication *DeduplicationOptions `json:"de,omitempty"`
 
-	// FailParentOnFailure fails the parent when this job fails.
-	FailParentOnFailure bool `json:"fpof,omitempty"`
-	// ContinueParentOnFailure unblocks the parent when this job fails.
-	ContinueParentOnFailure bool `json:"cpof,omitempty"`
+	// FailParentOnFailure fails the parent when this job fails. A pointer so
+	// an explicit `false` can override a queue default of `true`.
+	FailParentOnFailure *bool `json:"fpof,omitempty"`
+	// ContinueParentOnFailure unblocks the parent when this job fails. A
+	// pointer so an explicit `false` can override a queue default of `true`.
+	ContinueParentOnFailure *bool `json:"cpof,omitempty"`
 	// IgnoreDependencyOnFailure removes this job from the parent's
-	// dependencies when it fails, without failing the parent.
-	IgnoreDependencyOnFailure bool `json:"idof,omitempty"`
-	// RemoveDependencyOnFailure removes the dependency when this job fails.
-	RemoveDependencyOnFailure bool `json:"rdof,omitempty"`
+	// dependencies when it fails, without failing the parent. A pointer so
+	// an explicit `false` can override a queue default of `true`.
+	IgnoreDependencyOnFailure *bool `json:"idof,omitempty"`
+	// RemoveDependencyOnFailure removes the dependency when this job fails. A
+	// pointer so an explicit `false` can override a queue default of `true`.
+	RemoveDependencyOnFailure *bool `json:"rdof,omitempty"`
 }
 
 // RedisOptions describes how to reach the Redis server.
@@ -219,6 +228,66 @@ func (opts *JobOptions) isLIFO() bool {
 	return opts != nil && opts.LIFO != nil && *opts.LIFO
 }
 
+// priorityVal returns the configured priority, or 0 if opts is nil or
+// Priority was never set.
+func (opts *JobOptions) priorityVal() int64 {
+	if opts == nil || opts.Priority == nil {
+		return 0
+	}
+	return *opts.Priority
+}
+
+// attemptsVal returns the configured attempts, or 0 if opts is nil or
+// Attempts was never set.
+func (opts *JobOptions) attemptsVal() int64 {
+	if opts == nil || opts.Attempts == nil {
+		return 0
+	}
+	return *opts.Attempts
+}
+
+// keepLogsVal returns the configured KeepLogs, or 0 if opts is nil or
+// KeepLogs was never set.
+func (opts *JobOptions) keepLogsVal() int64 {
+	if opts == nil || opts.KeepLogs == nil {
+		return 0
+	}
+	return *opts.KeepLogs
+}
+
+// sizeLimitVal returns the configured SizeLimit, or 0 if opts is nil or
+// SizeLimit was never set.
+func (opts *JobOptions) sizeLimitVal() int64 {
+	if opts == nil || opts.SizeLimit == nil {
+		return 0
+	}
+	return *opts.SizeLimit
+}
+
+// failParentOnFailureVal reports whether the parent should be failed when
+// this job fails, treating an unset value as false.
+func (opts *JobOptions) failParentOnFailureVal() bool {
+	return opts != nil && opts.FailParentOnFailure != nil && *opts.FailParentOnFailure
+}
+
+// continueParentOnFailureVal reports whether the parent should be unblocked
+// when this job fails, treating an unset value as false.
+func (opts *JobOptions) continueParentOnFailureVal() bool {
+	return opts != nil && opts.ContinueParentOnFailure != nil && *opts.ContinueParentOnFailure
+}
+
+// ignoreDependencyOnFailureVal reports whether this job should be removed
+// from the parent's dependencies on failure, treating an unset value as false.
+func (opts *JobOptions) ignoreDependencyOnFailureVal() bool {
+	return opts != nil && opts.IgnoreDependencyOnFailure != nil && *opts.IgnoreDependencyOnFailure
+}
+
+// removeDependencyOnFailureVal reports whether the dependency should be
+// removed when this job fails, treating an unset value as false.
+func (opts *JobOptions) removeDependencyOnFailureVal() bool {
+	return opts != nil && opts.RemoveDependencyOnFailure != nil && *opts.RemoveDependencyOnFailure
+}
+
 // mergeJobOptions returns opts with any unset field filled in from defaults.
 func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 	if defaults == nil {
@@ -241,19 +310,20 @@ func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 	if opts.JobID != "" {
 		merged.JobID = opts.JobID
 	}
-	// Delay and LIFO are pointers specifically so a per-job value that is
-	// present but zero/false can still override a non-zero/true queue
-	// default; only a nil pointer (option omitted) falls back to the default.
+	// Delay, Priority, LIFO, Attempts, KeepLogs and SizeLimit are pointers
+	// specifically so a per-job value that is present but zero/false can
+	// still override a non-zero/true queue default; only a nil pointer
+	// (option omitted) falls back to the default.
 	if opts.Delay != nil {
 		merged.Delay = opts.Delay
 	}
-	if opts.Priority != 0 {
+	if opts.Priority != nil {
 		merged.Priority = opts.Priority
 	}
 	if opts.LIFO != nil {
 		merged.LIFO = opts.LIFO
 	}
-	if opts.Attempts != 0 {
+	if opts.Attempts != nil {
 		merged.Attempts = opts.Attempts
 	}
 	if opts.Backoff != nil {
@@ -265,10 +335,10 @@ func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 	if opts.RemoveOnFail != nil {
 		merged.RemoveOnFail = opts.RemoveOnFail
 	}
-	if opts.KeepLogs != 0 {
+	if opts.KeepLogs != nil {
 		merged.KeepLogs = opts.KeepLogs
 	}
-	if opts.SizeLimit != 0 {
+	if opts.SizeLimit != nil {
 		merged.SizeLimit = opts.SizeLimit
 	}
 	if opts.Timestamp != 0 {
@@ -280,9 +350,20 @@ func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 	if opts.Deduplication != nil {
 		merged.Deduplication = opts.Deduplication
 	}
-	merged.FailParentOnFailure = merged.FailParentOnFailure || opts.FailParentOnFailure
-	merged.ContinueParentOnFailure = merged.ContinueParentOnFailure || opts.ContinueParentOnFailure
-	merged.IgnoreDependencyOnFailure = merged.IgnoreDependencyOnFailure || opts.IgnoreDependencyOnFailure
-	merged.RemoveDependencyOnFailure = merged.RemoveDependencyOnFailure || opts.RemoveDependencyOnFailure
+	// The four dependency-on-failure flags are pointers so a per-job value
+	// of `false` can override a queue default of `true`; only a nil pointer
+	// (option omitted) falls back to the default.
+	if opts.FailParentOnFailure != nil {
+		merged.FailParentOnFailure = opts.FailParentOnFailure
+	}
+	if opts.ContinueParentOnFailure != nil {
+		merged.ContinueParentOnFailure = opts.ContinueParentOnFailure
+	}
+	if opts.IgnoreDependencyOnFailure != nil {
+		merged.IgnoreDependencyOnFailure = opts.IgnoreDependencyOnFailure
+	}
+	if opts.RemoveDependencyOnFailure != nil {
+		merged.RemoveDependencyOnFailure = opts.RemoveDependencyOnFailure
+	}
 	return &merged
 }

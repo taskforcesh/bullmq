@@ -200,7 +200,7 @@ func TestWorkerRetriesFailedJobs(t *testing.T) {
 	runWorker(t, w)
 
 	job, err := q.Add(ctx, "flaky", nil, &bullmq.JobOptions{
-		Attempts: 3,
+		Attempts: bullmq.Int64(3),
 		Backoff:  &bullmq.Backoff{Type: bullmq.BackoffFixed, Delay: 10},
 	})
 	if err != nil {
@@ -239,7 +239,7 @@ func TestWorkerFailsAfterExhaustingAttempts(t *testing.T) {
 	}, nil)
 	runWorker(t, w)
 
-	job, err := q.Add(ctx, "doomed", nil, &bullmq.JobOptions{Attempts: 2})
+	job, err := q.Add(ctx, "doomed", nil, &bullmq.JobOptions{Attempts: bullmq.Int64(2)})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestWorkerDoesNotRetryUnrecoverableErrors(t *testing.T) {
 	}, nil)
 	runWorker(t, w)
 
-	job, err := q.Add(ctx, "unrecoverable", nil, &bullmq.JobOptions{Attempts: 5})
+	job, err := q.Add(ctx, "unrecoverable", nil, &bullmq.JobOptions{Attempts: bullmq.Int64(5)})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -339,6 +339,53 @@ func TestWorkerEmitsEvents(t *testing.T) {
 		defer mu.Unlock()
 		return seen[bullmq.EventActive] > 0 && seen[bullmq.EventCompleted] > 0
 	})
+}
+
+func TestWorkerEmitsProgressEvent(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q := newTestQueue(t, nil)
+
+	w := newTestWorker(t, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
+		if err := job.UpdateProgress(ctx, bullmq.NumberProgress(42)); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}, nil)
+
+	var mu sync.Mutex
+	var progress []any
+	go func() {
+		for ev := range w.Events() {
+			if ev.Type == bullmq.EventProgress {
+				mu.Lock()
+				progress = append(progress, ev.Result)
+				mu.Unlock()
+			}
+		}
+	}()
+	runWorker(t, w)
+
+	if _, err := q.Add(ctx, "progressed", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	waitFor(t, 10*time.Second, "the progress event", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(progress) > 0
+	})
+
+	mu.Lock()
+	defer mu.Unlock()
+	prog, ok := progress[0].(bullmq.Progress)
+	if !ok {
+		t.Fatalf("Result = %T, want bullmq.Progress", progress[0])
+	}
+	n, ok := prog.Number()
+	if !ok || n != 42 {
+		t.Errorf("Progress = %v, %v, want 42, true", n, ok)
+	}
 }
 
 func TestWorkerRemoveOnComplete(t *testing.T) {
@@ -507,7 +554,7 @@ func TestWorkerRecoversStalledJobs(t *testing.T) {
 	t.Cleanup(cancelStalling)
 	go func() { _ = stalling.Run(stallingCtx) }()
 
-	if _, err := q.Add(ctx, "stalls", nil, &bullmq.JobOptions{Attempts: 3}); err != nil {
+	if _, err := q.Add(ctx, "stalls", nil, &bullmq.JobOptions{Attempts: bullmq.Int64(3)}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	select {
@@ -531,6 +578,66 @@ func TestWorkerRecoversStalledJobs(t *testing.T) {
 	case <-recovered:
 	case <-time.After(30 * time.Second):
 		t.Fatal("the stalled job was never recovered")
+	}
+}
+
+func TestWorkerCloseKeepsRenewingLocksOfInFlightJobs(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q := newTestQueue(t, nil)
+
+	// The processor sleeps well past LockDuration; if lock renewal stops as
+	// soon as Close is called (rather than once the job actually finishes),
+	// the lock expires and a stalled-check could hand the job to another
+	// worker while this processor is still running.
+	started := make(chan struct{})
+	var invocations atomic.Int64
+	release := make(chan struct{})
+
+	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		invocations.Add(1)
+		close(started)
+		<-release
+		return nil, nil
+	}, &bullmq.WorkerOptions{
+		LockDuration:    500 * time.Millisecond,
+		LockRenewTime:   150 * time.Millisecond,
+		StalledInterval: 200 * time.Millisecond,
+	})
+
+	runCtx, cancelRun := context.WithCancel(context.Background())
+	defer cancelRun()
+	go func() { _ = w.Run(runCtx) }()
+
+	if _, err := q.Add(ctx, "long-running", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the job was never picked up")
+	}
+
+	closeDone := make(chan error, 1)
+	go func() { closeDone <- w.Close() }()
+
+	// Give lock renewal and any stalled check several opportunities to run
+	// while the processor is still sleeping, well beyond LockDuration.
+	time.Sleep(2 * time.Second)
+	close(release)
+
+	select {
+	case err := <-closeDone:
+		if err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Close did not return")
+	}
+
+	if got := invocations.Load(); got != 1 {
+		t.Errorf("the processor ran %d times, want 1 (the job must not have been picked up again)", got)
 	}
 }
 

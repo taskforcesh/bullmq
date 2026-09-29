@@ -68,6 +68,7 @@ type Job struct {
 	QueueName string
 
 	c            *client
+	worker       *Worker
 	token        string
 	lockDuration time.Duration
 	discarded    bool
@@ -172,7 +173,9 @@ func (j *Job) ctx() (*client, error) {
 	return j.c, nil
 }
 
-// UpdateProgress stores a new progress value and emits a `progress` event.
+// UpdateProgress stores a new progress value and emits a `progress` event on
+// the owning Worker, mirroring how a per-job update is observed through
+// Worker.Events.
 func (j *Job) UpdateProgress(ctx context.Context, progress Progress) error {
 	c, err := j.ctx()
 	if err != nil {
@@ -185,6 +188,9 @@ func (j *Job) UpdateProgress(ctx context.Context, progress Progress) error {
 		return err
 	}
 	j.Progress = progress
+	if j.worker != nil {
+		j.worker.emit(Event{Type: EventProgress, Job: j, Result: progress})
+	}
 	return nil
 }
 
@@ -213,8 +219,8 @@ func (j *Job) Log(ctx context.Context, message string) (int64, error) {
 		return 0, err
 	}
 	keepLogs := ""
-	if j.Opts != nil && j.Opts.KeepLogs > 0 {
-		keepLogs = strconv.FormatInt(j.Opts.KeepLogs, 10)
+	if j.Opts != nil && j.Opts.keepLogsVal() > 0 {
+		keepLogs = strconv.FormatInt(j.Opts.keepLogsVal(), 10)
 	}
 	res, err := c.runScript(ctx, "addLog",
 		[]string{c.keys.Job(j.ID), c.keys.JobLogs(j.ID)},

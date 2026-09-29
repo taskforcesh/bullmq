@@ -70,7 +70,7 @@ func TestQueueAddPersistsJobOptions(t *testing.T) {
 
 	_, err := q.Add(ctx, "opts", nil, &bullmq.JobOptions{
 		JobID:            "opts-1",
-		Attempts:         4,
+		Attempts:         bullmq.Int64(4),
 		Backoff:          &bullmq.Backoff{Type: bullmq.BackoffExponential, Delay: 250},
 		RemoveOnComplete: bullmq.KeepCount(10),
 		LIFO:             bullmq.Bool(true),
@@ -83,8 +83,8 @@ func TestQueueAddPersistsJobOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Job: %v", err)
 	}
-	if stored.Opts.Attempts != 4 {
-		t.Errorf("Attempts = %d, want 4", stored.Opts.Attempts)
+	if stored.Opts.Attempts == nil || *stored.Opts.Attempts != 4 {
+		t.Errorf("Attempts = %v, want 4", stored.Opts.Attempts)
 	}
 	if stored.Opts.Backoff == nil || stored.Opts.Backoff.Type != bullmq.BackoffExponential {
 		t.Errorf("Backoff = %+v, want exponential", stored.Opts.Backoff)
@@ -105,7 +105,7 @@ func TestQueueDefaultJobOptionsAreApplied(t *testing.T) {
 	requireRedis(t)
 	ctx := testContext(t)
 	q := newTestQueue(t, &bullmq.QueueOptions{
-		DefaultJobOptions: &bullmq.JobOptions{Attempts: 7},
+		DefaultJobOptions: &bullmq.JobOptions{Attempts: bullmq.Int64(7)},
 	})
 
 	job, err := q.Add(ctx, "defaults", nil, nil)
@@ -116,8 +116,8 @@ func TestQueueDefaultJobOptionsAreApplied(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Job: %v", err)
 	}
-	if stored.Opts.Attempts != 7 {
-		t.Errorf("Attempts = %d, want 7", stored.Opts.Attempts)
+	if stored.Opts.Attempts == nil || *stored.Opts.Attempts != 7 {
+		t.Errorf("Attempts = %v, want 7", stored.Opts.Attempts)
 	}
 }
 
@@ -170,7 +170,7 @@ func TestQueueAddPrioritizedJob(t *testing.T) {
 	ctx := testContext(t)
 	q := newTestQueue(t, nil)
 
-	job, err := q.Add(ctx, "urgent", nil, &bullmq.JobOptions{Priority: 1})
+	job, err := q.Add(ctx, "urgent", nil, &bullmq.JobOptions{Priority: bullmq.Int64(1)})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestQueueSizeLimitIsEnforced(t *testing.T) {
 	ctx := testContext(t)
 	q := newTestQueue(t, nil)
 
-	_, err := q.Add(ctx, "big", "a very long payload indeed", &bullmq.JobOptions{SizeLimit: 4})
+	_, err := q.Add(ctx, "big", "a very long payload indeed", &bullmq.JobOptions{SizeLimit: bullmq.Int64(4)})
 	if err == nil {
 		t.Fatal("Add should have rejected an oversized payload")
 	}
@@ -289,7 +289,7 @@ func TestQueueCount(t *testing.T) {
 	if _, err := q.Add(ctx, "b", nil, &bullmq.JobOptions{Delay: bullmq.Int64(60_000)}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := q.Add(ctx, "c", nil, &bullmq.JobOptions{Priority: 2}); err != nil {
+	if _, err := q.Add(ctx, "c", nil, &bullmq.JobOptions{Priority: bullmq.Int64(2)}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 

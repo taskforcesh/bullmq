@@ -44,7 +44,8 @@ type Event struct {
 	Type EventType
 	// Job is the job the event refers to; nil for EventDrained and EventError.
 	Job *Job
-	// Result is the processor return value for EventCompleted.
+	// Result is the processor return value for EventCompleted, or the new
+	// Progress value for EventProgress.
 	Result any
 	// Err carries the failure for EventFailed and EventError.
 	Err error
@@ -175,9 +176,9 @@ func (w *Worker) run(ctx context.Context) error {
 		w.emitError(fmt.Errorf("bullmq: unable to set client name: %w", e))
 	}
 
-	// loopCtx drives the fetch loop and the background stalled-check/lock-renewal
-	// loops: it is cancelled both when the caller's ctx is cancelled and when
-	// Close is called (via w.stop), so those loops always stop promptly.
+	// loopCtx drives the fetch loop and the background stalled-check loop: it
+	// is cancelled both when the caller's ctx is cancelled and when Close is
+	// called (via w.stop), so those loops always stop promptly.
 	//
 	// ctx (the parameter) is what already-dispatched jobs run under. Close must
 	// wait for in-flight jobs to finish rather than cancel them, so it is only
@@ -193,6 +194,15 @@ func (w *Worker) run(ctx context.Context) error {
 		}
 	}()
 
+	// renewCtx drives lock renewal. It must stay alive for as long as
+	// in-flight jobs are processing, even after Close cancels loopCtx, or a
+	// long-running job could lose its lock (and be picked up by another
+	// worker) before its processor returns. It is only cancelled by the
+	// caller's ctx directly, or explicitly below once fetchLoop has drained
+	// all in-flight jobs.
+	renewCtx, cancelRenew := context.WithCancel(ctx)
+	defer cancelRenew()
+
 	if !w.opts.SkipStalledCheck {
 		w.wg.Add(1)
 		go func() {
@@ -204,11 +214,14 @@ func (w *Worker) run(ctx context.Context) error {
 		w.wg.Add(1)
 		go func() {
 			defer w.wg.Done()
-			w.lockRenewalLoop(loopCtx)
+			w.lockRenewalLoop(renewCtx)
 		}()
 	}
 
+	// fetchLoop only returns once every in-flight job has finished processing
+	// (it waits on that internally), so it is safe to stop lock renewal here.
 	err := w.fetchLoop(loopCtx, ctx)
+	cancelRenew()
 
 	w.wg.Wait()
 	w.emit(Event{Type: EventClosed})
@@ -351,6 +364,7 @@ func (w *Worker) parseFetchResult(res any, token string) (*Job, time.Duration, e
 	job := jobFromHash(w.c, jobID, fields)
 	job.token = token
 	job.lockDuration = w.opts.LockDuration
+	job.worker = w
 	return job, 0, nil
 }
 
@@ -467,7 +481,7 @@ func (w *Worker) moveToFailed(ctx context.Context, job *Job, cause error) error 
 
 	attempts := int64(0)
 	if job.Opts != nil {
-		attempts = job.Opts.Attempts
+		attempts = job.Opts.attemptsVal()
 	}
 	retriesLeft := !job.discarded &&
 		!IsUnrecoverable(cause) &&
@@ -595,7 +609,7 @@ func (w *Worker) packMoveToFinishedOpts(job *Job, target string) []byte {
 	var opts *JobOptions
 	if job.Opts != nil {
 		opts = job.Opts
-		attempts = job.Opts.Attempts
+		attempts = job.Opts.attemptsVal()
 	} else {
 		opts = &JobOptions{}
 	}
@@ -625,13 +639,13 @@ func (w *Worker) packMoveToFinishedOpts(job *Job, target string) []byte {
 	mp.Str("maxMetricsSize")
 	mp.Str(maxMetricsSize)
 	mp.Str("fpof")
-	mp.Bool(opts.FailParentOnFailure)
+	mp.Bool(opts.failParentOnFailureVal())
 	mp.Str("cpof")
-	mp.Bool(opts.ContinueParentOnFailure)
+	mp.Bool(opts.continueParentOnFailureVal())
 	mp.Str("idof")
-	mp.Bool(opts.IgnoreDependencyOnFailure)
+	mp.Bool(opts.ignoreDependencyOnFailureVal())
 	mp.Str("rdof")
-	mp.Bool(opts.RemoveDependencyOnFailure)
+	mp.Bool(opts.removeDependencyOnFailureVal())
 	if w.opts.Name != "" {
 		mp.Str("name")
 		mp.Str(w.opts.Name)
