@@ -18,6 +18,11 @@ type Queue struct {
 	defaultJobOptions *JobOptions
 }
 
+// getJobsMaxBackfillIterations bounds how many forward-backfill iterations the
+// `getJobs` Lua command performs for a bounded range, matching the other
+// BullMQ ports.
+const getJobsMaxBackfillIterations = 5
+
 // NewQueue creates a queue named name.
 func NewQueue(name string, opts *QueueOptions) (*Queue, error) {
 	if opts == nil {
@@ -132,7 +137,7 @@ func (p preparedJob) toJob(res any, q *Queue) (*Job, error) {
 		Data:      p.payload,
 		Opts:      p.opts,
 		Timestamp: p.timestamp,
-		Delay:     p.opts.Delay,
+		Delay:     p.opts.delayMs(),
 		Priority:  p.opts.Priority,
 		QueueName: q.Name(),
 		c:         q.c,
@@ -164,7 +169,7 @@ func (q *Queue) prepareJob(spec JobSpec) (preparedJob, error) {
 	var scriptName string
 	var keys []string
 	switch {
-	case opts.Delay > 0:
+	case opts.delayMs() > 0:
 		scriptName = "addDelayedJob"
 		keys = []string{
 			q.c.keys.Marker(), q.c.keys.Meta(), q.c.keys.ID(),
@@ -285,8 +290,8 @@ func packJobOptions(opts *JobOptions) []byte {
 	}
 	var entries []entry
 
-	if opts.Delay > 0 {
-		entries = append(entries, entry{"delay", func(w *msgpackWriter) { w.Uint(uint64(opts.Delay)) }})
+	if delay := opts.delayMs(); delay > 0 {
+		entries = append(entries, entry{"delay", func(w *msgpackWriter) { w.Uint(uint64(delay)) }})
 	}
 	if opts.Priority > 0 {
 		entries = append(entries, entry{"priority", func(w *msgpackWriter) { w.Uint(uint64(opts.Priority)) }})
@@ -294,7 +299,7 @@ func packJobOptions(opts *JobOptions) []byte {
 	if opts.Attempts > 0 {
 		entries = append(entries, entry{"attempts", func(w *msgpackWriter) { w.Uint(uint64(opts.Attempts)) }})
 	}
-	if opts.LIFO {
+	if opts.isLIFO() {
 		entries = append(entries, entry{"lifo", func(w *msgpackWriter) { w.Bool(true) }})
 	}
 	if opts.KeepLogs > 0 {
@@ -598,19 +603,39 @@ func (q *Queue) JobIDs(ctx context.Context, state JobState, start, end int64, as
 }
 
 // Jobs returns the jobs in the requested state.
+//
+// It uses the shared `getJobs` command, which reads ids and job hashes in the
+// same script, instead of `JobIDs` plus one `Job` lookup per id: besides
+// saving N round trips for a range of N jobs, it avoids the race where a
+// job's hash is removed after its id is read but before it would otherwise
+// have been fetched individually.
 func (q *Queue) Jobs(ctx context.Context, state JobState, start, end int64, asc bool) ([]*Job, error) {
-	ids, err := q.JobIDs(ctx, state, start, end, asc)
+	res, err := q.c.runScript(ctx, "getJobs", []string{q.c.keys.KeyPrefix()},
+		start, end, boolToStr(asc), getJobsMaxBackfillIterations, luaStateName(state))
 	if err != nil {
 		return nil, err
 	}
-	jobs := make([]*Job, 0, len(ids))
-	for _, id := range ids {
-		job, err := q.Job(ctx, id)
-		if err != nil {
-			return nil, err
+	groups, _ := res.([]any)
+	jobs := make([]*Job, 0)
+	for _, group := range groups {
+		entries, ok := group.([]any)
+		if !ok {
+			continue
 		}
-		if job != nil {
-			jobs = append(jobs, job)
+		for _, entry := range entries {
+			pair, ok := entry.([]any)
+			if !ok || len(pair) != 2 {
+				continue
+			}
+			jobID, ok := asString(pair[0])
+			if !ok {
+				continue
+			}
+			fields := flatToMap(pair[1])
+			if len(fields) == 0 {
+				continue
+			}
+			jobs = append(jobs, jobFromHash(q.c, jobID, fields))
 		}
 	}
 	return jobs, nil
@@ -681,10 +706,25 @@ func (q *Queue) Metrics(ctx context.Context, state JobState, start, end int64) (
 	arr, _ := res.([]any)
 	m := &Metrics{}
 	if len(arr) > 0 {
-		meta := flatToMap(arr[0])
-		m.Count = parseInt(meta["count"])
-		m.PrevCount = parseInt(meta["prevCount"])
-		m.PrevTS = parseInt(meta["prevTS"])
+		// HMGET replies positionally (count, prevTS, prevCount), not as
+		// field/value pairs, so it must be decoded by index rather than
+		// passed through flatToMap.
+		meta, _ := arr[0].([]any)
+		if len(meta) > 0 {
+			if s, ok := asString(meta[0]); ok {
+				m.Count = parseInt(s)
+			}
+		}
+		if len(meta) > 1 {
+			if s, ok := asString(meta[1]); ok {
+				m.PrevTS = parseInt(s)
+			}
+		}
+		if len(meta) > 2 {
+			if s, ok := asString(meta[2]); ok {
+				m.PrevCount = parseInt(s)
+			}
+		}
 	}
 	if len(arr) > 1 {
 		points, _ := arr[1].([]any)

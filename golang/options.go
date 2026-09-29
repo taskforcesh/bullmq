@@ -6,6 +6,14 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// Int64 returns a pointer to n, for use with pointer-typed JobOptions fields
+// such as Delay.
+func Int64(n int64) *int64 { return &n }
+
+// Bool returns a pointer to b, for use with pointer-typed JobOptions fields
+// such as LIFO.
+func Bool(b bool) *bool { return &b }
+
 // ParentOptions links a job to a parent job, possibly in another queue.
 type ParentOptions struct {
 	// ID is the parent job id.
@@ -35,12 +43,15 @@ type DeduplicationOptions struct {
 type JobOptions struct {
 	// JobID overrides the automatically generated job id.
 	JobID string `json:"jobId,omitempty"`
-	// Delay in milliseconds before the job becomes available.
-	Delay int64 `json:"delay,omitempty"`
+	// Delay in milliseconds before the job becomes available. A pointer so a
+	// per-job value of 0 can be told apart from "not set", letting it override
+	// a non-zero queue default back to 0.
+	Delay *int64 `json:"delay,omitempty"`
 	// Priority; lower values are processed first. 0 means unprioritized.
 	Priority int64 `json:"priority,omitempty"`
-	// LIFO pushes the job to the front of the wait list.
-	LIFO bool `json:"lifo,omitempty"`
+	// LIFO pushes the job to the front of the wait list. A pointer so an
+	// explicit `false` can override a queue default of `true`.
+	LIFO *bool `json:"lifo,omitempty"`
 	// Attempts is the total number of times the job may be tried.
 	Attempts int64 `json:"attempts,omitempty"`
 	// Backoff configures the delay between retries.
@@ -193,6 +204,21 @@ type QueueEventsOptions struct {
 	BufferSize int
 }
 
+// delayMs returns the configured delay in milliseconds, or 0 if opts is nil
+// or Delay was never set.
+func (opts *JobOptions) delayMs() int64 {
+	if opts == nil || opts.Delay == nil {
+		return 0
+	}
+	return *opts.Delay
+}
+
+// isLIFO reports whether the job should be pushed to the front of the wait
+// list, treating an unset LIFO as false.
+func (opts *JobOptions) isLIFO() bool {
+	return opts != nil && opts.LIFO != nil && *opts.LIFO
+}
+
 // mergeJobOptions returns opts with any unset field filled in from defaults.
 func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 	if defaults == nil {
@@ -215,14 +241,17 @@ func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 	if opts.JobID != "" {
 		merged.JobID = opts.JobID
 	}
-	if opts.Delay != 0 {
+	// Delay and LIFO are pointers specifically so a per-job value that is
+	// present but zero/false can still override a non-zero/true queue
+	// default; only a nil pointer (option omitted) falls back to the default.
+	if opts.Delay != nil {
 		merged.Delay = opts.Delay
 	}
 	if opts.Priority != 0 {
 		merged.Priority = opts.Priority
 	}
-	if opts.LIFO {
-		merged.LIFO = true
+	if opts.LIFO != nil {
+		merged.LIFO = opts.LIFO
 	}
 	if opts.Attempts != 0 {
 		merged.Attempts = opts.Attempts

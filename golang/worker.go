@@ -175,13 +175,21 @@ func (w *Worker) run(ctx context.Context) error {
 		w.emitError(fmt.Errorf("bullmq: unable to set client name: %w", e))
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	// loopCtx drives the fetch loop and the background stalled-check/lock-renewal
+	// loops: it is cancelled both when the caller's ctx is cancelled and when
+	// Close is called (via w.stop), so those loops always stop promptly.
+	//
+	// ctx (the parameter) is what already-dispatched jobs run under. Close must
+	// wait for in-flight jobs to finish rather than cancel them, so it is only
+	// cancelled by the caller's ctx, never by w.stop; see fetchLoop, which
+	// passes ctx (not loopCtx) to processJob.
+	loopCtx, cancelLoop := context.WithCancel(ctx)
+	defer cancelLoop()
 	go func() {
 		select {
 		case <-w.stop:
-			cancel()
-		case <-ctx.Done():
+			cancelLoop()
+		case <-loopCtx.Done():
 		}
 	}()
 
@@ -189,18 +197,18 @@ func (w *Worker) run(ctx context.Context) error {
 		w.wg.Add(1)
 		go func() {
 			defer w.wg.Done()
-			w.stalledCheckLoop(ctx)
+			w.stalledCheckLoop(loopCtx)
 		}()
 	}
 	if !w.opts.SkipLockRenewal {
 		w.wg.Add(1)
 		go func() {
 			defer w.wg.Done()
-			w.lockRenewalLoop(ctx)
+			w.lockRenewalLoop(loopCtx)
 		}()
 	}
 
-	err := w.fetchLoop(ctx)
+	err := w.fetchLoop(loopCtx, ctx)
 
 	w.wg.Wait()
 	w.emit(Event{Type: EventClosed})
@@ -209,7 +217,12 @@ func (w *Worker) run(ctx context.Context) error {
 
 // fetchLoop is the single driver that moves jobs to active and dispatches them
 // to processing goroutines, keeping at most Concurrency jobs in flight.
-func (w *Worker) fetchLoop(ctx context.Context) error {
+//
+// loopCtx controls fetching: it is cancelled by Close so the loop stops
+// pulling new jobs. jobCtx is handed to processJob for already-dispatched
+// jobs; it is only cancelled by the caller (never by Close), so a graceful
+// shutdown drains in-flight jobs instead of cancelling them.
+func (w *Worker) fetchLoop(loopCtx, jobCtx context.Context) error {
 	slots := make(chan struct{}, w.opts.Concurrency)
 	for range w.opts.Concurrency {
 		slots <- struct{}{}
@@ -221,28 +234,28 @@ func (w *Worker) fetchLoop(ctx context.Context) error {
 
 	for {
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-loopCtx.Done():
+			return loopCtx.Err()
 		case <-slots:
 		}
 
 		if w.IsPaused() {
 			slots <- struct{}{}
-			if !sleepCtx(ctx, 100*time.Millisecond) {
-				return ctx.Err()
+			if !sleepCtx(loopCtx, 100*time.Millisecond) {
+				return loopCtx.Err()
 			}
 			continue
 		}
 
-		job, waitFor, err := w.moveToActive(ctx)
+		job, waitFor, err := w.moveToActive(loopCtx)
 		if err != nil {
 			slots <- struct{}{}
-			if ctx.Err() != nil {
-				return ctx.Err()
+			if loopCtx.Err() != nil {
+				return loopCtx.Err()
 			}
 			w.emitError(err)
-			if !sleepCtx(ctx, 5*time.Second) {
-				return ctx.Err()
+			if !sleepCtx(loopCtx, 5*time.Second) {
+				return loopCtx.Err()
 			}
 			continue
 		}
@@ -253,8 +266,8 @@ func (w *Worker) fetchLoop(ctx context.Context) error {
 				drained = true
 				w.emit(Event{Type: EventDrained})
 			}
-			if !w.waitForJob(ctx, waitFor) {
-				return ctx.Err()
+			if !w.waitForJob(loopCtx, waitFor) {
+				return loopCtx.Err()
 			}
 			continue
 		}
@@ -264,7 +277,7 @@ func (w *Worker) fetchLoop(ctx context.Context) error {
 		go func(job *Job) {
 			defer processing.Done()
 			defer func() { slots <- struct{}{} }()
-			w.processJob(ctx, job)
+			w.processJob(jobCtx, job)
 		}(job)
 	}
 }
@@ -478,7 +491,7 @@ func (w *Worker) retryJob(ctx context.Context, job *Job, delay time.Duration) er
 		return job.moveToDelayed(ctx, delay, false)
 	}
 	pushCmd := "LPUSH"
-	if job.Opts != nil && job.Opts.LIFO {
+	if job.Opts.isLIFO() {
 		pushCmd = "RPUSH"
 	}
 	k := w.c.keys

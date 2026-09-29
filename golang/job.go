@@ -120,7 +120,7 @@ func jobFromHash(c *client, id string, fields map[string]string) *Job {
 	if raw, ok := fields["delay"]; ok && raw != "" {
 		j.Delay = parseInt(raw)
 	} else {
-		j.Delay = j.Opts.Delay
+		j.Delay = j.Opts.delayMs()
 	}
 	return j
 }
@@ -338,7 +338,7 @@ func (j *Job) Retry(ctx context.Context, state JobState) error {
 		return configError("retry state must be %q or %q", StateCompleted, StateFailed)
 	}
 	pushCmd := "LPUSH"
-	if j.Opts != nil && j.Opts.LIFO {
+	if j.Opts.isLIFO() {
 		pushCmd = "RPUSH"
 	}
 	propVal := "returnvalue"

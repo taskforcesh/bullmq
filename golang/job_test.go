@@ -145,7 +145,7 @@ func TestJobPromote(t *testing.T) {
 	ctx := testContext(t)
 	q := newTestQueue(t, nil)
 
-	job, err := q.Add(ctx, "delayed", nil, &bullmq.JobOptions{Delay: 600_000})
+	job, err := q.Add(ctx, "delayed", nil, &bullmq.JobOptions{Delay: bullmq.Int64(600_000)})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestJobChangeDelay(t *testing.T) {
 	ctx := testContext(t)
 	q := newTestQueue(t, nil)
 
-	job, err := q.Add(ctx, "delayed", nil, &bullmq.JobOptions{Delay: 600_000})
+	job, err := q.Add(ctx, "delayed", nil, &bullmq.JobOptions{Delay: bullmq.Int64(600_000)})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
