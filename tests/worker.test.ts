@@ -1152,7 +1152,11 @@ describe('workers', () => {
       });
       await worker.waitUntilReady();
 
-      worker['closing'] = true;
+      // Start a real (non-forced) close without awaiting it yet. `close()`
+      // synchronously assigns `this.closing` to the in-flight promise before
+      // awaiting anything inside it, so `retryIfFailed` observes the same
+      // truthy `closing` state a real shutdown would produce.
+      const closePromise = worker.close();
 
       await expect(
         Promise.race([
@@ -1168,7 +1172,7 @@ describe('workers', () => {
         ]),
       ).rejects.toThrow('Connection is closed.');
 
-      await worker.close();
+      await closePromise;
     });
   });
 
