@@ -55,7 +55,7 @@ func TestPackJobOptionsOnlyIncludesSetFields(t *testing.T) {
 		t.Fatalf("empty options should encode as an empty map, got % x", empty)
 	}
 
-	opts := &JobOptions{Attempts: 3, Delay: 1000, LIFO: true}
+	opts := &JobOptions{Attempts: 3, Delay: Int64(1000), LIFO: Bool(true)}
 	packed := packJobOptions(opts)
 	if packed[0] != 0x83 {
 		t.Fatalf("expected a 3 entry map header, got %#x", packed[0])
@@ -139,6 +139,26 @@ func TestMergeJobOptions(t *testing.T) {
 	}
 	if inherited.JobID != "" {
 		t.Errorf("JobID = %q, the job id must never be inherited", inherited.JobID)
+	}
+}
+
+func TestMergeJobOptionsOverridesDefaultsBackToZero(t *testing.T) {
+	defaults := &JobOptions{Delay: Int64(1000), LIFO: Bool(true)}
+
+	merged := mergeJobOptions(&JobOptions{Delay: Int64(0), LIFO: Bool(false)}, defaults)
+	if merged.delayMs() != 0 {
+		t.Errorf("Delay = %d, want 0 (explicit override should win over default)", merged.delayMs())
+	}
+	if merged.isLIFO() {
+		t.Error("LIFO = true, want false (explicit override should win over default)")
+	}
+
+	inherited := mergeJobOptions(&JobOptions{}, defaults)
+	if inherited.delayMs() != 1000 {
+		t.Errorf("Delay = %d, want 1000 (omitted option should inherit default)", inherited.delayMs())
+	}
+	if !inherited.isLIFO() {
+		t.Error("LIFO = false, want true (omitted option should inherit default)")
 	}
 }
 

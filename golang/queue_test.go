@@ -73,7 +73,7 @@ func TestQueueAddPersistsJobOptions(t *testing.T) {
 		Attempts:         4,
 		Backoff:          &bullmq.Backoff{Type: bullmq.BackoffExponential, Delay: 250},
 		RemoveOnComplete: bullmq.KeepCount(10),
-		LIFO:             true,
+		LIFO:             bullmq.Bool(true),
 	})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
@@ -92,7 +92,7 @@ func TestQueueAddPersistsJobOptions(t *testing.T) {
 	if stored.Opts.Backoff.Delay != 250 {
 		t.Errorf("Backoff.Delay = %d, want 250", stored.Opts.Backoff.Delay)
 	}
-	if !stored.Opts.LIFO {
+	if stored.Opts.LIFO == nil || !*stored.Opts.LIFO {
 		t.Error("LIFO should have been persisted")
 	}
 	if stored.Opts.RemoveOnComplete == nil || stored.Opts.RemoveOnComplete.Count == nil ||
@@ -152,7 +152,7 @@ func TestQueueAddDelayedJob(t *testing.T) {
 	ctx := testContext(t)
 	q := newTestQueue(t, nil)
 
-	job, err := q.Add(ctx, "later", nil, &bullmq.JobOptions{Delay: 60_000})
+	job, err := q.Add(ctx, "later", nil, &bullmq.JobOptions{Delay: bullmq.Int64(60_000)})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestQueueCount(t *testing.T) {
 	if _, err := q.Add(ctx, "a", nil, nil); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := q.Add(ctx, "b", nil, &bullmq.JobOptions{Delay: 60_000}); err != nil {
+	if _, err := q.Add(ctx, "b", nil, &bullmq.JobOptions{Delay: bullmq.Int64(60_000)}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	if _, err := q.Add(ctx, "c", nil, &bullmq.JobOptions{Priority: 2}); err != nil {
@@ -424,7 +424,7 @@ func TestQueuePromoteJobs(t *testing.T) {
 	ctx := testContext(t)
 	q := newTestQueue(t, nil)
 
-	job, err := q.Add(ctx, "delayed", nil, &bullmq.JobOptions{Delay: 600_000})
+	job, err := q.Add(ctx, "delayed", nil, &bullmq.JobOptions{Delay: bullmq.Int64(600_000)})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}

@@ -63,6 +63,38 @@ func TestWorkerProcessesJobs(t *testing.T) {
 	}
 }
 
+func TestWorkerCollectsCompletedMetrics(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q := newTestQueue(t, nil)
+
+	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		return nil, nil
+	}, &bullmq.WorkerOptions{Metrics: &bullmq.MetricsOptions{MaxDataPoints: 10}})
+	runWorker(t, w)
+
+	job, err := q.Add(ctx, "hello", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	waitFor(t, 10*time.Second, "the job to be completed", func() bool {
+		state, err := q.JobState(ctx, job.ID)
+		return err == nil && state == bullmq.StateCompleted
+	})
+
+	metrics, err := q.Metrics(ctx, bullmq.StateCompleted, 0, -1)
+	if err != nil {
+		t.Fatalf("Metrics: %v", err)
+	}
+	// The data list only gains a point once a one-minute boundary has passed
+	// since the first recorded job, so with a single job in the same minute
+	// only Count (and the initialized PrevTS) are observable here.
+	if metrics.Count != 1 {
+		t.Errorf("Count = %d, want 1", metrics.Count)
+	}
+}
+
 func TestWorkerProcessesJobsInOrder(t *testing.T) {
 	requireRedis(t)
 	ctx := testContext(t)
@@ -407,7 +439,7 @@ func TestWorkerProcessesDelayedJobs(t *testing.T) {
 	runWorker(t, w)
 
 	start := time.Now()
-	if _, err := q.Add(ctx, "later", nil, &bullmq.JobOptions{Delay: 400}); err != nil {
+	if _, err := q.Add(ctx, "later", nil, &bullmq.JobOptions{Delay: bullmq.Int64(400)}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 
