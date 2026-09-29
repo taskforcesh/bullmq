@@ -1432,6 +1432,16 @@ export class Worker<
     // the latest generation value proceeds past the check below.
     const generation = ++this.stalledCheckerGeneration;
 
+    // Capture whatever loop (if any) is still winding down. Bumping the
+    // generation above only makes it stop at its next checkpoint; it does
+    // not cancel an in-flight `moveStalledJobsToWait` call. We must wait for
+    // it to fully finish before starting a new loop below, otherwise both
+    // loops could run concurrently and scan for stalled jobs at the same
+    // time. Note this is only awaited here (in `startStalledCheckTimer`,
+    // reached from `resume()`), never in `pause()` itself, so `pause(true)`
+    // still returns without waiting on any in-flight Redis call.
+    const previousStalledCheckerPromise = this.stalledCheckerPromise;
+
     await this.trace<void>(
       SpanKind.INTERNAL,
       'startStalledCheckTimer',
@@ -1447,6 +1457,18 @@ export class Worker<
     // The trace above is asynchronous, so the worker may have been closed, or
     // another call may have claimed a newer generation, while it was in
     // flight.
+    if (this.closing || generation !== this.stalledCheckerGeneration) {
+      return;
+    }
+
+    // Wait for the previous loop to fully exit (its errors are already
+    // handled by its own `.catch` below, so swallow them here) before
+    // launching a new one, guaranteeing the two never scan concurrently.
+    await previousStalledCheckerPromise?.catch((): void => undefined);
+
+    // The wait above can take a while (e.g. a connection error retry delay),
+    // during which the worker may have closed or yet another caller may have
+    // claimed a newer generation.
     if (this.closing || generation !== this.stalledCheckerGeneration) {
       return;
     }
