@@ -702,8 +702,7 @@ func (w *Worker) checkStalledJobs(ctx context.Context) error {
 	if !ok || len(arr) == 0 {
 		return nil
 	}
-	stalled, _ := arr[0].([]any)
-	for _, v := range stalled {
+	for _, v := range arr {
 		if id, ok := asString(v); ok {
 			w.emit(Event{Type: EventStalled, Job: &Job{ID: id, c: w.c, QueueName: w.c.keys.Name()}})
 		}

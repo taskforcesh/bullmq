@@ -157,9 +157,23 @@ func (qe *QueueEvents) run(ctx context.Context) error {
 // Close stops the listener and releases the connection when it owns it.
 func (qe *QueueEvents) Close() error {
 	qe.stopped.Do(func() { close(qe.stop) })
-	select {
-	case <-qe.done:
-	case <-time.After(qe.opts.BlockingTimeout + time.Second):
+
+	// Claim the runOnce slot in case Run was never called. If we win the
+	// race, Run has not started (and never will), so we must close done
+	// and events ourselves. If Run already claimed it, it owns those
+	// closes via its deferred cleanup and we just wait for it below.
+	closedHere := false
+	qe.runOnce.Do(func() {
+		closedHere = true
+		close(qe.done)
+		close(qe.events)
+	})
+
+	if !closedHere {
+		select {
+		case <-qe.done:
+		case <-time.After(qe.opts.BlockingTimeout + time.Second):
+		}
 	}
 	return qe.c.close()
 }
