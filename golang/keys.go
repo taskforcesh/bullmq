@@ -45,8 +45,8 @@ func resolveParentQueueKey(prefix, queue string) (string, error) {
 	if prefix == "" {
 		prefix = DefaultPrefix
 	}
-	if rest, ok := strings.CutPrefix(queue, prefix+":"); ok {
-		if err := validateQueueName(rest); err != nil {
+	if i := strings.LastIndex(queue, ":"); i > 0 && i < len(queue)-1 {
+		if err := validateQueueName(queue[i+1:]); err != nil {
 			return "", err
 		}
 		return queue, nil
