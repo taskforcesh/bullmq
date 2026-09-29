@@ -217,9 +217,13 @@ export class Worker<
   protected lockManager: LockManager;
   private processorAcceptsSignal = false;
 
-  private stalledCheckerRunning = false;
   private stalledCheckStopper?: () => void;
   private stalledCheckerPromise?: Promise<void>;
+  // Bumped whenever the currently running stalled-checker loop should be
+  // abandoned (e.g. by `pause()`). The loop compares its own captured value
+  // against the live counter on every iteration and exits as soon as they
+  // diverge, without anyone having to await it.
+  private stalledCheckerGeneration = 0;
   private waiting: Promise<number> | null = null;
 
   protected _jobScheduler: JobScheduler<B, ConnectionOptionsType>;
@@ -1237,11 +1241,11 @@ export class Worker<
    * Pauses the processing of this queue only for this worker.
    */
   async pause(doNotWaitActive?: boolean): Promise<void> {
-    await this.trace<void>(
-      SpanKind.INTERNAL,
-      'pause',
-      this.name,
-      async span => {
+    // Detached so this span never inherits the ambient context left behind by
+    // an in-flight stalled-checker tick (pause() does not await that loop, so
+    // it can run concurrently with one; see `stalledChecker()`).
+    await withDetachedContext(this.opts.telemetry, () =>
+      this.trace<void>(SpanKind.INTERNAL, 'pause', this.name, async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerName]: this.opts.name,
@@ -1253,18 +1257,18 @@ export class Worker<
           if (!doNotWaitActive) {
             await this.whenCurrentJobsFinished();
           }
+          // Invalidate the currently running stalled-checker loop and cancel
+          // its pending timer. This is intentionally fire-and-forget: the
+          // loop may be in the middle of an in-flight Redis call (which, on
+          // a connection error, retries with its own delay), so awaiting it
+          // here could block `pause()` for an unbounded amount of time. The
+          // loop itself checks the generation on every iteration and will
+          // exit on its own as soon as it next has a chance to.
+          this.stalledCheckerGeneration++;
           this.stalledCheckStopper?.();
-          // Wait for the stalled checker loop to actually observe `paused`
-          // and exit before returning. Otherwise `resume()` could race with
-          // the still-running old loop: it would see `stalledCheckerRunning`
-          // as true and skip starting a fresh, detached loop, leaving the old
-          // one (which never re-detaches its telemetry context) to keep
-          // ticking under whatever context `pause`/`resume` happen to leave
-          // active.
-          await this.stalledCheckerPromise;
           this.emit('paused');
         }
-      },
+      }),
     );
   }
 
@@ -1277,29 +1281,34 @@ export class Worker<
       if (!this.running || this.paused) {
         let restartStalledChecker = false;
 
-        await this.trace<void>(
-          SpanKind.INTERNAL,
-          'resume',
-          this.name,
-          async span => {
-            span?.setAttributes({
-              [TelemetryAttributes.WorkerId]: this.id,
-              [TelemetryAttributes.WorkerName]: this.opts.name,
-            });
+        // Detached for the same reason as `pause()`: a stalled-checker tick
+        // may still be in flight (or have just finished without anyone
+        // awaiting it) and must not leak its trace into this span.
+        await withDetachedContext(this.opts.telemetry, () =>
+          this.trace<void>(
+            SpanKind.INTERNAL,
+            'resume',
+            this.name,
+            async span => {
+              span?.setAttributes({
+                [TelemetryAttributes.WorkerId]: this.id,
+                [TelemetryAttributes.WorkerName]: this.opts.name,
+              });
 
-            this.paused = false;
+              this.paused = false;
 
-            if (!this.running) {
-              if (this.processFn) {
-                this.run();
+              if (!this.running) {
+                if (this.processFn) {
+                  this.run();
+                }
+              } else {
+                // Main loop is still running (pause was called with doNotWaitActive=true).
+                // Restart the stalled checker since pause() stopped it.
+                restartStalledChecker = true;
               }
-            } else {
-              // Main loop is still running (pause was called with doNotWaitActive=true).
-              // Restart the stalled checker since pause() stopped it.
-              restartStalledChecker = true;
-            }
-            this.emit('resumed');
-          },
+              this.emit('resumed');
+            },
+          ),
         );
 
         // Started outside of the trace above so that the stalled checker loop
@@ -1411,51 +1420,47 @@ export class Worker<
       return;
     }
 
-    if (this.closing || this.stalledCheckerRunning) {
-      return;
-    }
-
-    // Reserve the slot synchronously (before the first await) so that two
-    // concurrent callers (e.g. the automatic `run()` startup racing a manual
-    // `startStalledCheckTimer()` call) cannot both observe
-    // `stalledCheckerRunning` as false and each start their own checker loop.
-    this.stalledCheckerRunning = true;
-
-    try {
-      await this.trace<void>(
-        SpanKind.INTERNAL,
-        'startStalledCheckTimer',
-        this.name,
-        async span => {
-          span?.setAttributes({
-            [TelemetryAttributes.WorkerId]: this.id,
-            [TelemetryAttributes.WorkerName]: this.opts.name,
-          });
-        },
-      );
-    } catch (err) {
-      this.stalledCheckerRunning = false;
-      throw err;
-    }
-
-    // The trace above is asynchronous, so the worker may have been closed
-    // while it was in flight.
     if (this.closing) {
-      this.stalledCheckerRunning = false;
       return;
     }
 
-    this.stalledCheckerPromise = this.stalledChecker()
-      .catch(err => {
-        this.emit('error', <Error>err);
-      })
-      .finally(() => {
-        this.stalledCheckerRunning = false;
-      });
+    // Claim a new generation for this loop synchronously (before the first
+    // await), so that two concurrent callers (e.g. the automatic `run()`
+    // startup racing a manual `startStalledCheckTimer()` call, or `resume()`
+    // racing a not-yet-finished old loop that `pause()` just invalidated)
+    // cannot both end up owning a checker loop: only the call that captures
+    // the latest generation value proceeds past the check below.
+    const generation = ++this.stalledCheckerGeneration;
+
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'startStalledCheckTimer',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
+        });
+      },
+    );
+
+    // The trace above is asynchronous, so the worker may have been closed, or
+    // another call may have claimed a newer generation, while it was in
+    // flight.
+    if (this.closing || generation !== this.stalledCheckerGeneration) {
+      return;
+    }
+
+    this.stalledCheckerPromise = this.stalledChecker(generation).catch(err => {
+      this.emit('error', <Error>err);
+    });
   }
 
-  private async stalledChecker() {
-    while (!(this.closing || this.paused)) {
+  private async stalledChecker(generation: number) {
+    while (
+      !(this.closing || this.paused) &&
+      generation === this.stalledCheckerGeneration
+    ) {
       // Each tick must not inherit whatever telemetry context happens to be
       // ambient (e.g. a `pause`/`resume` span). Context managers backed by
       // AsyncLocalStorage would otherwise keep every `stalled-check` tick
@@ -1472,7 +1477,11 @@ export class Worker<
       // Reset back to a neutral root context so a subsequent foreground
       // operation (like `pause`/`resume`) does not inadvertently inherit this
       // tick's trace either.
-      if (this.closing || this.paused) {
+      if (
+        this.closing ||
+        this.paused ||
+        generation !== this.stalledCheckerGeneration
+      ) {
         break;
       }
 
