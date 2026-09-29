@@ -138,7 +138,7 @@ func (p preparedJob) toJob(res any, q *Queue) (*Job, error) {
 		Opts:      p.opts,
 		Timestamp: p.timestamp,
 		Delay:     p.opts.delayMs(),
-		Priority:  p.opts.Priority,
+		Priority:  p.opts.priorityVal(),
 		QueueName: q.Name(),
 		c:         q.c,
 	}, nil
@@ -156,9 +156,9 @@ func (q *Queue) prepareJob(spec JobSpec) (preparedJob, error) {
 	if err != nil {
 		return preparedJob{}, err
 	}
-	if opts.SizeLimit > 0 && int64(len(payload)) > opts.SizeLimit {
+	if opts.sizeLimitVal() > 0 && int64(len(payload)) > opts.sizeLimitVal() {
 		return preparedJob{}, configError("job data exceeds sizeLimit of %d bytes (was %d)",
-			opts.SizeLimit, len(payload))
+			opts.sizeLimitVal(), len(payload))
 	}
 
 	timestamp := opts.Timestamp
@@ -175,7 +175,7 @@ func (q *Queue) prepareJob(spec JobSpec) (preparedJob, error) {
 			q.c.keys.Marker(), q.c.keys.Meta(), q.c.keys.ID(),
 			q.c.keys.Delayed(), q.c.keys.Completed(), q.c.keys.Events(),
 		}
-	case opts.Priority > 0:
+	case opts.priorityVal() > 0:
 		scriptName = "addPrioritizedJob"
 		keys = []string{
 			q.c.keys.Marker(), q.c.keys.Meta(), q.c.keys.ID(),
@@ -242,10 +242,10 @@ func (q *Queue) packAddArgs(opts *JobOptions, name string, timestamp int64) ([]b
 		w.Str(parentKey + ":dependencies")
 
 		flags := map[string]bool{
-			"fpof": opts.FailParentOnFailure,
-			"idof": opts.IgnoreDependencyOnFailure,
-			"rdof": opts.RemoveDependencyOnFailure,
-			"cpof": opts.ContinueParentOnFailure,
+			"fpof": opts.failParentOnFailureVal(),
+			"idof": opts.ignoreDependencyOnFailureVal(),
+			"rdof": opts.removeDependencyOnFailureVal(),
+			"cpof": opts.continueParentOnFailureVal(),
 		}
 		n := 2
 		for _, v := range flags {
@@ -293,20 +293,20 @@ func packJobOptions(opts *JobOptions) []byte {
 	if delay := opts.delayMs(); delay > 0 {
 		entries = append(entries, entry{"delay", func(w *msgpackWriter) { w.Uint(uint64(delay)) }})
 	}
-	if opts.Priority > 0 {
-		entries = append(entries, entry{"priority", func(w *msgpackWriter) { w.Uint(uint64(opts.Priority)) }})
+	if opts.priorityVal() > 0 {
+		entries = append(entries, entry{"priority", func(w *msgpackWriter) { w.Uint(uint64(opts.priorityVal())) }})
 	}
-	if opts.Attempts > 0 {
-		entries = append(entries, entry{"attempts", func(w *msgpackWriter) { w.Uint(uint64(opts.Attempts)) }})
+	if opts.attemptsVal() > 0 {
+		entries = append(entries, entry{"attempts", func(w *msgpackWriter) { w.Uint(uint64(opts.attemptsVal())) }})
 	}
 	if opts.isLIFO() {
 		entries = append(entries, entry{"lifo", func(w *msgpackWriter) { w.Bool(true) }})
 	}
-	if opts.KeepLogs > 0 {
-		entries = append(entries, entry{"kl", func(w *msgpackWriter) { w.Uint(uint64(opts.KeepLogs)) }})
+	if opts.keepLogsVal() > 0 {
+		entries = append(entries, entry{"kl", func(w *msgpackWriter) { w.Uint(uint64(opts.keepLogsVal())) }})
 	}
-	if opts.SizeLimit > 0 {
-		entries = append(entries, entry{"sizeLimit", func(w *msgpackWriter) { w.Uint(uint64(opts.SizeLimit)) }})
+	if opts.sizeLimitVal() > 0 {
+		entries = append(entries, entry{"sizeLimit", func(w *msgpackWriter) { w.Uint(uint64(opts.sizeLimitVal())) }})
 	}
 	if opts.RemoveOnComplete != nil {
 		roc := opts.RemoveOnComplete
@@ -321,10 +321,10 @@ func packJobOptions(opts *JobOptions) []byte {
 		entries = append(entries, entry{"backoff", func(w *msgpackWriter) { b.writeMsgpack(w) }})
 	}
 	for key, enabled := range map[string]bool{
-		"fpof": opts.FailParentOnFailure,
-		"cpof": opts.ContinueParentOnFailure,
-		"idof": opts.IgnoreDependencyOnFailure,
-		"rdof": opts.RemoveDependencyOnFailure,
+		"fpof": opts.failParentOnFailureVal(),
+		"cpof": opts.continueParentOnFailureVal(),
+		"idof": opts.ignoreDependencyOnFailureVal(),
+		"rdof": opts.removeDependencyOnFailureVal(),
 	} {
 		if enabled {
 			entries = append(entries, entry{key, func(w *msgpackWriter) { w.Bool(true) }})
@@ -743,12 +743,13 @@ func (q *Queue) Workers(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	prefix := q.c.keys.ClientName("")
+	unnamed := q.c.keys.ClientName("")
+	namedPrefix := q.c.keys.ClientName(":w:")
 	var names []string
 	for _, line := range strings.Split(raw, "\n") {
 		for _, field := range strings.Fields(line) {
 			name, ok := strings.CutPrefix(field, "name=")
-			if ok && strings.HasPrefix(name, prefix) {
+			if ok && (name == unnamed || strings.HasPrefix(name, namedPrefix)) {
 				names = append(names, name)
 			}
 		}

@@ -111,8 +111,8 @@ down gracefully; in-flight jobs are allowed to finish first.
 queue.Add(ctx, "report", data, &bullmq.JobOptions{
 	JobID:            "daily-report",              // idempotency key
 	Delay:            bullmq.Int64(60_000),         // milliseconds
-	Priority:         1,                           // lower runs first
-	Attempts:         5,
+	Priority:         bullmq.Int64(1),              // lower runs first
+	Attempts:         bullmq.Int64(5),
 	Backoff:          &bullmq.Backoff{Type: bullmq.BackoffExponential, Delay: 1000},
 	RemoveOnComplete: bullmq.KeepCount(100),
 	RemoveOnFail:     bullmq.KeepAge(24 * 60 * 60),

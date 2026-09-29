@@ -55,7 +55,7 @@ func TestPackJobOptionsOnlyIncludesSetFields(t *testing.T) {
 		t.Fatalf("empty options should encode as an empty map, got % x", empty)
 	}
 
-	opts := &JobOptions{Attempts: 3, Delay: Int64(1000), LIFO: Bool(true)}
+	opts := &JobOptions{Attempts: Int64(3), Delay: Int64(1000), LIFO: Bool(true)}
 	packed := packJobOptions(opts)
 	if packed[0] != 0x83 {
 		t.Fatalf("expected a 3 entry map header, got %#x", packed[0])
@@ -120,11 +120,11 @@ func TestProgressEncoding(t *testing.T) {
 }
 
 func TestMergeJobOptions(t *testing.T) {
-	defaults := &JobOptions{Attempts: 5, RemoveOnComplete: RemoveAll(), JobID: "ignored"}
-	merged := mergeJobOptions(&JobOptions{Attempts: 2, JobID: "custom"}, defaults)
+	defaults := &JobOptions{Attempts: Int64(5), RemoveOnComplete: RemoveAll(), JobID: "ignored"}
+	merged := mergeJobOptions(&JobOptions{Attempts: Int64(2), JobID: "custom"}, defaults)
 
-	if merged.Attempts != 2 {
-		t.Errorf("Attempts = %d, want 2", merged.Attempts)
+	if merged.attemptsVal() != 2 {
+		t.Errorf("Attempts = %d, want 2", merged.attemptsVal())
 	}
 	if merged.RemoveOnComplete == nil {
 		t.Error("RemoveOnComplete should be inherited from the defaults")
@@ -134,8 +134,8 @@ func TestMergeJobOptions(t *testing.T) {
 	}
 
 	inherited := mergeJobOptions(nil, defaults)
-	if inherited.Attempts != 5 {
-		t.Errorf("Attempts = %d, want 5", inherited.Attempts)
+	if inherited.attemptsVal() != 5 {
+		t.Errorf("Attempts = %d, want 5", inherited.attemptsVal())
 	}
 	if inherited.JobID != "" {
 		t.Errorf("JobID = %q, the job id must never be inherited", inherited.JobID)
@@ -143,14 +143,28 @@ func TestMergeJobOptions(t *testing.T) {
 }
 
 func TestMergeJobOptionsOverridesDefaultsBackToZero(t *testing.T) {
-	defaults := &JobOptions{Delay: Int64(1000), LIFO: Bool(true)}
+	defaults := &JobOptions{Delay: Int64(1000), LIFO: Bool(true), Priority: Int64(1), Attempts: Int64(5), KeepLogs: Int64(10), SizeLimit: Int64(2048)}
 
-	merged := mergeJobOptions(&JobOptions{Delay: Int64(0), LIFO: Bool(false)}, defaults)
+	merged := mergeJobOptions(&JobOptions{
+		Delay: Int64(0), LIFO: Bool(false), Priority: Int64(0), Attempts: Int64(0), KeepLogs: Int64(0), SizeLimit: Int64(0),
+	}, defaults)
 	if merged.delayMs() != 0 {
 		t.Errorf("Delay = %d, want 0 (explicit override should win over default)", merged.delayMs())
 	}
 	if merged.isLIFO() {
 		t.Error("LIFO = true, want false (explicit override should win over default)")
+	}
+	if merged.priorityVal() != 0 {
+		t.Errorf("Priority = %d, want 0 (explicit override should win over default)", merged.priorityVal())
+	}
+	if merged.attemptsVal() != 0 {
+		t.Errorf("Attempts = %d, want 0 (explicit override should win over default)", merged.attemptsVal())
+	}
+	if merged.keepLogsVal() != 0 {
+		t.Errorf("KeepLogs = %d, want 0 (explicit override should win over default)", merged.keepLogsVal())
+	}
+	if merged.sizeLimitVal() != 0 {
+		t.Errorf("SizeLimit = %d, want 0 (explicit override should win over default)", merged.sizeLimitVal())
 	}
 
 	inherited := mergeJobOptions(&JobOptions{}, defaults)
@@ -159,6 +173,60 @@ func TestMergeJobOptionsOverridesDefaultsBackToZero(t *testing.T) {
 	}
 	if !inherited.isLIFO() {
 		t.Error("LIFO = false, want true (omitted option should inherit default)")
+	}
+	if inherited.priorityVal() != 1 {
+		t.Errorf("Priority = %d, want 1 (omitted option should inherit default)", inherited.priorityVal())
+	}
+	if inherited.attemptsVal() != 5 {
+		t.Errorf("Attempts = %d, want 5 (omitted option should inherit default)", inherited.attemptsVal())
+	}
+	if inherited.keepLogsVal() != 10 {
+		t.Errorf("KeepLogs = %d, want 10 (omitted option should inherit default)", inherited.keepLogsVal())
+	}
+	if inherited.sizeLimitVal() != 2048 {
+		t.Errorf("SizeLimit = %d, want 2048 (omitted option should inherit default)", inherited.sizeLimitVal())
+	}
+}
+
+func TestMergeJobOptionsOverridesDependencyFlagsBackToFalse(t *testing.T) {
+	defaults := &JobOptions{
+		FailParentOnFailure:       Bool(true),
+		ContinueParentOnFailure:   Bool(true),
+		IgnoreDependencyOnFailure: Bool(true),
+		RemoveDependencyOnFailure: Bool(true),
+	}
+
+	merged := mergeJobOptions(&JobOptions{
+		FailParentOnFailure:       Bool(false),
+		ContinueParentOnFailure:   Bool(false),
+		IgnoreDependencyOnFailure: Bool(false),
+		RemoveDependencyOnFailure: Bool(false),
+	}, defaults)
+	if merged.failParentOnFailureVal() {
+		t.Error("FailParentOnFailure = true, want false (explicit override should win over default)")
+	}
+	if merged.continueParentOnFailureVal() {
+		t.Error("ContinueParentOnFailure = true, want false (explicit override should win over default)")
+	}
+	if merged.ignoreDependencyOnFailureVal() {
+		t.Error("IgnoreDependencyOnFailure = true, want false (explicit override should win over default)")
+	}
+	if merged.removeDependencyOnFailureVal() {
+		t.Error("RemoveDependencyOnFailure = true, want false (explicit override should win over default)")
+	}
+
+	inherited := mergeJobOptions(&JobOptions{}, defaults)
+	if !inherited.failParentOnFailureVal() {
+		t.Error("FailParentOnFailure = false, want true (omitted option should inherit default)")
+	}
+	if !inherited.continueParentOnFailureVal() {
+		t.Error("ContinueParentOnFailure = false, want true (omitted option should inherit default)")
+	}
+	if !inherited.ignoreDependencyOnFailureVal() {
+		t.Error("IgnoreDependencyOnFailure = false, want true (omitted option should inherit default)")
+	}
+	if !inherited.removeDependencyOnFailureVal() {
+		t.Error("RemoveDependencyOnFailure = false, want true (omitted option should inherit default)")
 	}
 }
 
