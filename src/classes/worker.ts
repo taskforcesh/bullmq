@@ -1482,32 +1482,31 @@ export class Worker<
       return;
     }
 
-    this.stalledCheckerPromise = this.stalledChecker(generation).catch(err => {
+    this.stalledCheckerPromise = withDetachedContext(this.opts.telemetry, () =>
+      this.stalledChecker(generation),
+    ).catch(err => {
       this.emit('error', <Error>err);
     });
   }
 
   private async stalledChecker(generation: number) {
+    // The entire loop (including its recurring interval timer) is started
+    // under a detached root context by the caller above. Context managers
+    // backed by `AsyncLocalStorage` associate every continuation created
+    // inside a callback with whatever context was active when that
+    // continuation was created; detaching only the individual Redis call on
+    // each tick would still leave the long-lived `setTimeout` chain (and
+    // therefore every subsequent tick) parented to the caller's ambient span
+    // for the worker's whole lifetime, since a later no-op detached callback
+    // cannot retroactively replace a store that AsyncLocalStorage already
+    // restored to the outer (caller) context once the initial detached call
+    // returned.
     while (
       !(this.closing || this.paused) &&
       generation === this.stalledCheckerGeneration
     ) {
-      // Each tick must not inherit whatever telemetry context happens to be
-      // ambient (e.g. a `pause`/`resume` span). Context managers backed by
-      // AsyncLocalStorage would otherwise keep every `stalled-check` tick
-      // attached to whichever span was active at the time, either growing a
-      // single trace for the whole lifetime of the worker or leaking into an
-      // unrelated foreground operation's trace.
-      await withDetachedContext(this.opts.telemetry, () =>
-        this.checkConnectionError(() => this.moveStalledJobsToWait()),
-      );
+      await this.checkConnectionError(() => this.moveStalledJobsToWait());
 
-      // Some context managers (e.g. ones backed by AsyncLocalStorage) keep
-      // the tick's context ambient for anything scheduled afterwards, since
-      // it was never restored when `withDetachedContext` returned above.
-      // Reset back to a neutral root context so a subsequent foreground
-      // operation (like `pause`/`resume`) does not inadvertently inherit this
-      // tick's trace either.
       if (
         this.closing ||
         this.paused ||
@@ -1515,8 +1514,6 @@ export class Worker<
       ) {
         break;
       }
-
-      withDetachedContext(this.opts.telemetry, (): void => undefined);
 
       await new Promise<void>(resolve => {
         const timeout = setTimeout(resolve, this.opts.stalledInterval);

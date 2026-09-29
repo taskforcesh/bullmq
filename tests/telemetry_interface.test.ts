@@ -518,6 +518,15 @@ describe('Telemetry', () => {
           // without waiting for active jobs to finish.
           await worker.pause(true);
 
+          // Discard any spans recorded before this point (e.g. the automatic
+          // stalled checker started by `run()` before `pause()`), so that
+          // every `moveStalledJobsToWait` span asserted below is one produced
+          // by the checker (re)started from `resume()` - the path this test
+          // targets. Without this reset, pre-pause spans could satisfy the
+          // count/uniqueness assertions even if the resumed checker fails to
+          // detach correctly.
+          withSpy.resetHistory();
+
           // The worker is still "running" (only paused), so resume() takes the
           // restart-the-stalled-checker branch instead of calling run() again.
           await worker.resume();
