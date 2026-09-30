@@ -150,6 +150,20 @@ function wrapRedisInstance(instance: any): IRedisClient {
   return createIORedisClient(instance);
 }
 
+function raceWithClosing<T>(
+  promise: Promise<T>,
+  closing?: Promise<void>,
+): Promise<T> {
+  if (!closing) {
+    return promise;
+  }
+  const closingError = closing.then(() => {
+    throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);
+  });
+  closingError.catch(() => {});
+  return Promise.race([promise, closingError]);
+}
+
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
   static recommendedMinimumVersion = '6.2.0';
@@ -340,19 +354,12 @@ export class RedisConnection extends EventEmitter {
       return;
     }
 
-    const closingPromise = closing?.then(() => {
-      throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);
-    });
-
-    if (client.status === 'wait') {
-      const connecting = client.connect();
-      return closingPromise
-        ? Promise.race([connecting, closingPromise])
-        : connecting;
-    }
-
     if (client.status === 'end') {
       throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);
+    }
+
+    if (client.status === 'wait') {
+      return raceWithClosing(client.connect(), closing);
     }
 
     let handleReady: () => void;
@@ -392,7 +399,7 @@ export class RedisConnection extends EventEmitter {
         client.on('end', handleEnd);
         client.once('error', handleError);
       });
-      await (closingPromise ? Promise.race([ready, closingPromise]) : ready);
+      await raceWithClosing(ready, closing);
     } finally {
       client.removeListener('end', handleEnd);
       client.removeListener('error', handleError);
@@ -459,15 +466,10 @@ export class RedisConnection extends EventEmitter {
     this.loadCommands(this.packageVersion);
 
     if (this._client['status'] !== 'end') {
-      const getVersion = this.getRedisVersionAndType();
-      const versionResult = await (this.closingSignal
-        ? Promise.race([
-            getVersion,
-            this.closingSignal.then(() => {
-              throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);
-            }),
-          ])
-        : getVersion);
+      const versionResult = await raceWithClosing(
+        this.getRedisVersionAndType(),
+        this.closingSignal,
+      );
 
       if (this.closing) {
         throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);

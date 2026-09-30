@@ -562,10 +562,6 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
         this.rawFactory = undefined;
         this._setupCallbacks();
 
-        if (this.closed) {
-          this._closeRawClient(raw);
-        }
-
         return raw;
       })
       .finally(() => {

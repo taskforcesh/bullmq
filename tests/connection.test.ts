@@ -22,6 +22,7 @@ import {
   QueueBase,
   FlowProducer,
   RedisConnection,
+  ConnectionClosedError,
 } from '../src/classes';
 import { randomUUID, removeAllQueueData } from '../src/utils';
 
@@ -465,6 +466,40 @@ describe('RedisConnection', () => {
       ).resolves.toBeUndefined();
       expect(fakeCluster.connect.called).toBe(false);
       expect(fakeCluster.once.called).toBe(false);
+    });
+
+    it('does not leak unhandled rejection when client is already in end status and closed later', async () => {
+      const fakeClient: any = {
+        status: 'end',
+      };
+      let resolveClosing!: () => void;
+      const closingSignal = new Promise<void>(resolve => {
+        resolveClosing = resolve;
+      });
+
+      await expect(
+        RedisConnection.waitUntilReady(fakeClient, closingSignal),
+      ).rejects.toThrow(ConnectionClosedError);
+
+      resolveClosing();
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
+
+    it('does not leak unhandled rejection when client is already ready and closed later', async () => {
+      const fakeClient: any = {
+        status: 'ready',
+      };
+      let resolveClosing!: () => void;
+      const closingSignal = new Promise<void>(resolve => {
+        resolveClosing = resolve;
+      });
+
+      await expect(
+        RedisConnection.waitUntilReady(fakeClient, closingSignal),
+      ).resolves.toBeUndefined();
+
+      resolveClosing();
+      await new Promise(resolve => setTimeout(resolve, 10));
     });
   });
 
