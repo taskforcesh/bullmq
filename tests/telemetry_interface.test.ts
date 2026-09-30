@@ -127,7 +127,7 @@ describe('Telemetry', () => {
   class MockContextManager<Context = any> implements ContextManager<Context> {
     private activeContext: Context = {} as Context;
 
-    with<A extends (...args: any[]) => any>(
+    with<A extends(...args: any[]) => any>(
       context: Context,
       fn: A,
     ): ReturnType<A> {
@@ -464,7 +464,7 @@ describe('Telemetry', () => {
       // other once each of their `with()` calls returns.
       private storage = new AsyncLocalStorage<any>();
 
-      with<A extends (...args: any[]) => any>(
+      with<A extends(...args: any[]) => any>(
         context: any,
         fn: A,
       ): ReturnType<A> {
@@ -580,85 +580,87 @@ describe('Telemetry', () => {
         }
       });
 
-      it('never overlaps moveStalledJobsToWait scans across a restart, and keeps ticking from the latest generation', async () => {
-        const worker = new Worker(queueName, async () => 'done', {
-          connection,
-          prefix,
-          stalledInterval: 50,
-          skipLockRenewal: true,
-        });
-
-        let inFlight = 0;
-        let maxInFlight = 0;
-        let callCount = 0;
-        let releaseFirstCall: () => void;
-        const firstCallBlocked = new Promise<void>(resolve => {
-          releaseFirstCall = resolve;
-        });
-
-        // Capture the real implementation before stubbing it out, so the stub
-        // can still perform an actual (blockable) scan instead of a no-op.
-        const originalMoveStalledJobsToWait = (
-          worker as any
-        ).moveStalledJobsToWait.bind(worker);
-
-        const moveStalledStub = sinon
-          .stub(worker as any, 'moveStalledJobsToWait')
-          .callsFake(async (...args: any[]) => {
-            callCount += 1;
-            inFlight += 1;
-            maxInFlight = Math.max(maxInFlight, inFlight);
-            try {
-              if (callCount === 1) {
-                // Block the very first scan so a restart can be triggered
-                // while it is still in-flight, exercising the branch of
-                // startStalledCheckTimer() that must chain the new loop
-                // behind the still-running old one instead of racing it.
-                await firstCallBlocked;
-              }
-              return await originalMoveStalledJobsToWait(...args);
-            } finally {
-              inFlight -= 1;
-            }
+      describe('when moveStalledJobsToWait scans across a restart', () => {
+        it('never overlaps, and keeps ticking from the latest generation', async () => {
+          const worker = new Worker(queueName, async () => 'done', {
+            connection,
+            prefix,
+            stalledInterval: 50,
+            skipLockRenewal: true,
           });
 
-        try {
-          await worker.waitUntilReady();
+          let inFlight = 0;
+          let maxInFlight = 0;
+          let callCount = 0;
+          let releaseFirstCall: () => void;
+          const firstCallBlocked = new Promise<void>(resolve => {
+            releaseFirstCall = resolve;
+          });
 
-          // Wait until the automatic checker has entered its first (blocked)
-          // scan.
-          await new Promise(resolve => setTimeout(resolve, 20));
-          expect(callCount).toBe(1);
-          expect(inFlight).toBe(1);
+          // Capture the real implementation before stubbing it out, so the stub
+          // can still perform an actual (blockable) scan instead of a no-op.
+          const originalMoveStalledJobsToWait = (
+            worker as any
+          ).moveStalledJobsToWait.bind(worker);
 
-          // Trigger a restart while the previous scan is still blocked. This
-          // bumps stalledCheckerGeneration and, if concurrent calls to
-          // startStalledCheckTimer() lost track of the surviving loop, could
-          // let the new loop start scanning before the old one has finished.
-          const restart = (worker as any).startStalledCheckTimer();
+          const moveStalledStub = sinon
+            .stub(worker as any, 'moveStalledJobsToWait')
+            .callsFake(async (...args: any[]) => {
+              callCount += 1;
+              inFlight += 1;
+              maxInFlight = Math.max(maxInFlight, inFlight);
+              try {
+                if (callCount === 1) {
+                  // Block the very first scan so a restart can be triggered
+                  // while it is still in-flight, exercising the branch of
+                  // startStalledCheckTimer() that must chain the new loop
+                  // behind the still-running old one instead of racing it.
+                  await firstCallBlocked;
+                }
+                return await originalMoveStalledJobsToWait(...args);
+              } finally {
+                inFlight -= 1;
+              }
+            });
 
-          // Give the restart a chance to run its synchronous
-          // generation-claiming logic and async trace() call.
-          await new Promise(resolve => setTimeout(resolve, 20));
+          try {
+            await worker.waitUntilReady();
 
-          // The old scan is still blocked, so no new scan should have started
-          // yet, and there must never be more than one in-flight scan.
-          expect(callCount).toBe(1);
-          expect(maxInFlight).toBe(1);
+            // Wait until the automatic checker has entered its first (blocked)
+            // scan.
+            await new Promise(resolve => setTimeout(resolve, 20));
+            expect(callCount).toBe(1);
+            expect(inFlight).toBe(1);
 
-          // Unblock the first scan and let the restart settle.
-          releaseFirstCall!();
-          await restart;
+            // Trigger a restart while the previous scan is still blocked. This
+            // bumps stalledCheckerGeneration and, if concurrent calls to
+            // startStalledCheckTimer() lost track of the surviving loop, could
+            // let the new loop start scanning before the old one has finished.
+            const restart = (worker as any).startStalledCheckTimer();
 
-          // Let the new (latest-generation) loop tick a few more times.
-          await new Promise(resolve => setTimeout(resolve, 250));
+            // Give the restart a chance to run its synchronous
+            // generation-claiming logic and async trace() call.
+            await new Promise(resolve => setTimeout(resolve, 20));
 
-          expect(callCount).toBeGreaterThanOrEqual(3);
-          expect(maxInFlight).toBe(1);
-        } finally {
-          moveStalledStub.restore();
-          await worker.close();
-        }
+            // The old scan is still blocked, so no new scan should have started
+            // yet, and there must never be more than one in-flight scan.
+            expect(callCount).toBe(1);
+            expect(maxInFlight).toBe(1);
+
+            // Unblock the first scan and let the restart settle.
+            releaseFirstCall!();
+            await restart;
+
+            // Let the new (latest-generation) loop tick a few more times.
+            await new Promise(resolve => setTimeout(resolve, 250));
+
+            expect(callCount).toBeGreaterThanOrEqual(3);
+            expect(maxInFlight).toBe(1);
+          } finally {
+            moveStalledStub.restore();
+            await worker.close();
+          }
+        });
       });
     });
   });
