@@ -1,3 +1,10 @@
+# [3.3.0](https://github.com/taskforcesh/bullmq/compare/vpy3.2.8...vpy3.3.0) (2026-09-30)
+
+
+### Features
+
+* **queue:** support getJob method [python] ([#4848](https://github.com/taskforcesh/bullmq/issues/4848)) ref [#4840](https://github.com/taskforcesh/bullmq/issues/4840) ([38c5bd7](https://github.com/taskforcesh/bullmq/commit/38c5bd7892e0d112b6d8c38218d6cd27f831f016))
+
 ## [3.2.8](https://github.com/taskforcesh/bullmq/compare/vpy3.2.7...vpy3.2.8) (2026-09-29)
 
 
