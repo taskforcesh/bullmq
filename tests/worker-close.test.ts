@@ -96,4 +96,17 @@ describe('Worker close with unreachable Redis', () => {
     expect(getRedisConnection(worker).status).toBe('closed');
     expect(getBlockingRedisConnection(worker).status).toBe('closed');
   });
+
+  it('does not emit ready when closed while Redis is unreachable', async () => {
+    const worker = await createWorkerWithUnreachableRedis();
+    let emittedReady = false;
+    worker.on('ready', () => {
+      emittedReady = true;
+    });
+
+    await expectToCloseWithin(worker);
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(emittedReady).toBe(false);
+  });
 });

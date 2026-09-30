@@ -22,6 +22,7 @@ import {
   QueueBase,
   FlowProducer,
   RedisConnection,
+  ConnectionClosedError,
 } from '../src/classes';
 import { randomUUID, removeAllQueueData } from '../src/utils';
 
@@ -466,6 +467,40 @@ describe('RedisConnection', () => {
       expect(fakeCluster.connect.called).toBe(false);
       expect(fakeCluster.once.called).toBe(false);
     });
+
+    it('does not leak unhandled rejection when client is already in end status and closed later', async () => {
+      const fakeClient: any = {
+        status: 'end',
+      };
+      let resolveClosing!: () => void;
+      const closingSignal = new Promise<void>(resolve => {
+        resolveClosing = resolve;
+      });
+
+      await expect(
+        RedisConnection.waitUntilReady(fakeClient, closingSignal),
+      ).rejects.toThrow(ConnectionClosedError);
+
+      resolveClosing();
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
+
+    it('does not leak unhandled rejection when client is already ready and closed later', async () => {
+      const fakeClient: any = {
+        status: 'ready',
+      };
+      let resolveClosing!: () => void;
+      const closingSignal = new Promise<void>(resolve => {
+        resolveClosing = resolve;
+      });
+
+      await expect(
+        RedisConnection.waitUntilReady(fakeClient, closingSignal),
+      ).resolves.toBeUndefined();
+
+      resolveClosing();
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
   });
 
   describe('reconnect()', () => {
@@ -605,6 +640,45 @@ describe('RedisConnection', () => {
 
       expect(client.disconnect.calledOnce).toBe(true);
       expect(client.quit.called).toBe(false);
+    });
+
+    it('unblocks initialization when Redis hangs during version check (shared client)', async () => {
+      let resolveInfo!: (value: string) => void;
+      const pendingInfoPromise = new Promise<string>(resolve => {
+        resolveInfo = resolve;
+      });
+
+      const client = createMockClusterClient({
+        info: sinon.stub().returns(pendingInfoPromise),
+      });
+
+      const connection = new RedisConnection(client as any, {
+        shared: true,
+        skipWaitingForReady: true,
+      });
+
+      const clientPromise = connection.client;
+
+      await Promise.resolve();
+      expect((client.info as sinon.SinonStub).called).toBe(true);
+
+      await connection.close();
+
+      await expect(
+        Promise.race([
+          clientPromise,
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error('initialization remained pending')),
+              500,
+            ),
+          ),
+        ]),
+      ).rejects.toThrow(ConnectionClosedError);
+
+      expect(connection.status).toBe('closed');
+
+      resolveInfo('redis_version:7.0.0');
     });
   });
 
