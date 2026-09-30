@@ -509,8 +509,8 @@ func (q *Queue) Clean(ctx context.Context, grace time.Duration, limit int64, sta
 	return ids, nil
 }
 
-// RetryJobs moves completed or failed jobs back to the wait list and returns
-// the number of jobs that still remain to be moved.
+// RetryJobs moves completed or failed jobs back to the wait list, looping
+// until every eligible job has been moved.
 func (q *Queue) RetryJobs(ctx context.Context, state JobState, count int64) (int64, error) {
 	if state != StateCompleted && state != StateFailed {
 		return 0, configError("retry state must be %q or %q", StateCompleted, StateFailed)
@@ -518,26 +518,36 @@ func (q *Queue) RetryJobs(ctx context.Context, state JobState, count int64) (int
 	return q.moveJobsToWait(ctx, string(state), count, nowMillis())
 }
 
-// PromoteJobs moves delayed jobs to the wait list right away and returns the
-// number of jobs that still remain to be moved.
+// PromoteJobs moves delayed jobs to the wait list right away, looping until
+// every eligible job has been moved.
 func (q *Queue) PromoteJobs(ctx context.Context, count int64) (int64, error) {
 	return q.moveJobsToWait(ctx, "delayed", count, 1<<53)
 }
 
+// moveJobsToWait repeatedly invokes the moveJobsToWait script until it
+// reports no batch remains. The script returns a cursor (1 when another
+// batch of up to count jobs remains, 0 once complete), not a remaining-count,
+// so a single call would leave jobs behind whenever more than count jobs are
+// eligible; see the reference Queue.retryJobs, which loops the same way.
 func (q *Queue) moveJobsToWait(ctx context.Context, state string, count, timestamp int64) (int64, error) {
 	if count <= 0 {
 		count = 1000
 	}
-	res, err := q.c.runScript(ctx, "moveJobsToWait", []string{
-		q.c.keys.KeyPrefix(), q.c.keys.Events(), q.c.keys.Get(state),
-		q.c.keys.Wait(), q.c.keys.Paused(), q.c.keys.Meta(),
-		q.c.keys.Active(), q.c.keys.Marker(),
-	}, count, timestamp, state)
-	if err != nil {
-		return 0, err
+	var cursor int64
+	for {
+		res, err := q.c.runScript(ctx, "moveJobsToWait", []string{
+			q.c.keys.KeyPrefix(), q.c.keys.Events(), q.c.keys.Get(state),
+			q.c.keys.Wait(), q.c.keys.Paused(), q.c.keys.Meta(),
+			q.c.keys.Active(), q.c.keys.Marker(),
+		}, count, timestamp, state)
+		if err != nil {
+			return 0, err
+		}
+		cursor, _ = asInt64(res)
+		if cursor <= 0 {
+			return cursor, nil
+		}
 	}
-	remaining, _ := asInt64(res)
-	return remaining, nil
 }
 
 // Count returns the number of waiting, delayed and prioritized jobs.

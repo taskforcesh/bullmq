@@ -74,8 +74,10 @@ type Worker struct {
 	mu     sync.Mutex
 	active map[string]*activeJob
 
-	// blocking is a dedicated connection used for BZPOPMIN so that a blocked
-	// read never starves the shared pool.
+	// blocking is a dedicated single-connection client used for BZPOPMIN so
+	// that a blocked read never starves the shared pool, and so CLIENT
+	// SETNAME (set via RedisOptions.buildBlocking's OnConnect hook) reliably
+	// applies to the connection BZPOPMIN actually runs on.
 	blocking      redis.UniversalClient
 	blockingOwned bool
 }
@@ -103,13 +105,14 @@ func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, 
 		return nil, err
 	}
 
-	blocking, blockingOwned := o.Redis.build()
+	id := randomID()
+	blocking, blockingOwned := o.Redis.buildBlocking(c.keys.ClientName(":w:" + id))
 
 	w := &Worker{
 		c:             c,
 		opts:          o,
 		proc:          proc,
-		id:            randomID(),
+		id:            id,
 		events:        make(chan Event, 256),
 		stop:          make(chan struct{}),
 		active:        make(map[string]*activeJob),
@@ -167,9 +170,15 @@ func (w *Worker) Run(ctx context.Context) error {
 }
 
 func (w *Worker) run(ctx context.Context) error {
-	name := w.c.keys.ClientName(":w:" + w.id)
-	if e := w.blocking.Do(ctx, "client", "setname", name).Err(); e != nil {
-		w.emitError(fmt.Errorf("bullmq: unable to set client name: %w", e))
+	if !w.blockingOwned {
+		// A caller-supplied client is (potentially) shared/pooled; naming it
+		// here is best-effort only; see RedisOptions.buildBlocking. Our own
+		// dedicated blocking client is already named via its OnConnect hook,
+		// on the exact connection BZPOPMIN will use.
+		name := w.c.keys.ClientName(":w:" + w.id)
+		if e := w.blocking.Do(ctx, "client", "setname", name).Err(); e != nil {
+			w.emitError(fmt.Errorf("bullmq: unable to set client name: %w", e))
+		}
 	}
 
 	// loopCtx drives the fetch loop and the background stalled-check loop: it
