@@ -553,14 +553,19 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
         // disconnect()/quit() cannot cancel the factory promise itself. If it
         // resolved after final shutdown started, discard the late client before
         // it can be wired up or open a socket after close() has resolved.
-        if (this.closing || this.closed) {
+        if (this.closing) {
           this._closeRawClient(raw);
-          return raw;
+          throw new ConnectionClosedError('Connection is closed');
         }
 
         this.raw = raw;
         this.rawFactory = undefined;
         this._setupCallbacks();
+
+        if (this.closed) {
+          this._closeRawClient(raw);
+        }
+
         return raw;
       })
       .finally(() => {

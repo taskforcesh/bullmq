@@ -285,6 +285,15 @@ export class RedisConnection extends EventEmitter {
 
     this.initializing = this.init();
     this.initializing.catch(err => {
+      if (
+        (this.closing ||
+          this.status === 'closing' ||
+          this.status === 'closed') &&
+        (err instanceof ConnectionClosedError ||
+          err?.name === 'ConnectionClosedError')
+      ) {
+        return;
+      }
       // Only emit if there is an `error` listener attached. `EventEmitter.emit`
       // throws when emitting `error` with no listeners, which would surface as
       // an unhandled rejection — e.g. when the connection is force-closed during
@@ -331,9 +340,15 @@ export class RedisConnection extends EventEmitter {
       return;
     }
 
+    const closingPromise = closing?.then(() => {
+      throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);
+    });
+
     if (client.status === 'wait') {
       const connecting = client.connect();
-      return closing ? Promise.race([connecting, closing]) : connecting;
+      return closingPromise
+        ? Promise.race([connecting, closingPromise])
+        : connecting;
     }
 
     if (client.status === 'end') {
@@ -377,7 +392,7 @@ export class RedisConnection extends EventEmitter {
         client.on('end', handleEnd);
         client.once('error', handleError);
       });
-      await (closing ? Promise.race([ready, closing]) : ready);
+      await (closingPromise ? Promise.race([ready, closingPromise]) : ready);
     } finally {
       client.removeListener('end', handleEnd);
       client.removeListener('error', handleError);
@@ -438,13 +453,26 @@ export class RedisConnection extends EventEmitter {
     }
 
     if (this.closing) {
-      return this._client;
+      throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);
     }
 
     this.loadCommands(this.packageVersion);
 
     if (this._client['status'] !== 'end') {
-      const versionResult = await this.getRedisVersionAndType();
+      const getVersion = this.getRedisVersionAndType();
+      const versionResult = await (this.closingSignal
+        ? Promise.race([
+            getVersion,
+            this.closingSignal.then(() => {
+              throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);
+            }),
+          ])
+        : getVersion);
+
+      if (this.closing) {
+        throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);
+      }
+
       this.version = versionResult.version;
       this.dbType = versionResult.databaseType;
 

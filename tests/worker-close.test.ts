@@ -16,7 +16,14 @@ describe('Worker close with unreachable Redis', () => {
         const connection = getRedisConnection(worker);
         const blockingConnection = getBlockingRedisConnection(worker);
 
-        return [connection.close(true), blockingConnection.close(true)];
+        return [
+          Promise.race([
+            worker.close(true),
+            new Promise(resolve => setTimeout(resolve, 500)),
+          ]),
+          connection.close(true),
+          blockingConnection.close(true),
+        ];
       }),
     );
     workers.length = 0;
@@ -34,7 +41,9 @@ describe('Worker close with unreachable Redis', () => {
     });
   }
 
-  async function createWorkerWithUnreachableRedis(): Promise<Worker> {
+  async function createWorkerWithUnreachableRedis(
+    workerOptions = {},
+  ): Promise<Worker> {
     const port = await getUnusedPort();
     const worker = new Worker('test-unreachable-redis', async () => {}, {
       connection: {
@@ -42,6 +51,8 @@ describe('Worker close with unreachable Redis', () => {
         port,
         maxRetriesPerRequest: 0,
       },
+      skipLockRenewal: true,
+      ...workerOptions,
     });
     worker.on('error', () => {});
     workers.push(worker);
@@ -95,5 +106,18 @@ describe('Worker close with unreachable Redis', () => {
 
     expect(getRedisConnection(worker).status).toBe('closed');
     expect(getBlockingRedisConnection(worker).status).toBe('closed');
+  });
+
+  it('does not emit ready when closed while Redis is unreachable', async () => {
+    const worker = await createWorkerWithUnreachableRedis();
+    let emittedReady = false;
+    worker.on('ready', () => {
+      emittedReady = true;
+    });
+
+    await expectToCloseWithin(worker);
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(emittedReady).toBe(false);
   });
 });
