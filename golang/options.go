@@ -14,6 +14,10 @@ func Int64(n int64) *int64 { return &n }
 // such as LIFO.
 func Bool(b bool) *bool { return &b }
 
+// Int returns a pointer to n, for use with pointer-typed options fields such
+// as WorkerOptions.MaxStalledCount.
+func Int(n int) *int { return &n }
+
 // ParentOptions links a job to a parent job, possibly in another queue.
 type ParentOptions struct {
 	// ID is the parent job id.
@@ -155,7 +159,9 @@ type WorkerOptions struct {
 	// StalledInterval is how often stalled jobs are checked. Defaults to 30s.
 	StalledInterval time.Duration
 	// MaxStalledCount is how many times a job may stall before failing. Defaults to 1.
-	MaxStalledCount int
+	// Use a pointer so an explicit 0 (fail on first stall) is distinguishable
+	// from unset. Negative values are rejected.
+	MaxStalledCount *int
 	// SkipStalledCheck disables the stalled job checker.
 	SkipStalledCheck bool
 	// SkipLockRenewal disables automatic lock renewal.
@@ -177,7 +183,7 @@ type WorkerOptions struct {
 	OnError func(err error)
 }
 
-func (o *WorkerOptions) applyDefaults() {
+func (o *WorkerOptions) applyDefaults() error {
 	if o.Concurrency <= 0 {
 		o.Concurrency = 1
 	}
@@ -190,12 +196,22 @@ func (o *WorkerOptions) applyDefaults() {
 	if o.StalledInterval <= 0 {
 		o.StalledInterval = 30 * time.Second
 	}
-	if o.MaxStalledCount <= 0 {
-		o.MaxStalledCount = 1
+	if o.MaxStalledCount != nil && *o.MaxStalledCount < 0 {
+		return configError("maxStalledCount must be greater or equal than 0")
 	}
 	if o.DrainDelay <= 0 {
 		o.DrainDelay = 5 * time.Second
 	}
+	return nil
+}
+
+// maxStalledCountVal returns the effective MaxStalledCount, defaulting to 1
+// when unset. An explicit 0 is preserved (job fails on its first stall).
+func (o *WorkerOptions) maxStalledCountVal() int {
+	if o.MaxStalledCount == nil {
+		return 1
+	}
+	return *o.MaxStalledCount
 }
 
 // QueueEventsOptions configures a QueueEvents listener.

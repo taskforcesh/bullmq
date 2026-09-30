@@ -94,7 +94,9 @@ func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, 
 		opts = &WorkerOptions{}
 	}
 	o := *opts
-	o.applyDefaults()
+	if err := o.applyDefaults(); err != nil {
+		return nil, err
+	}
 
 	c, err := newClient(queueName, o.Prefix, o.Redis)
 	if err != nil {
@@ -713,7 +715,7 @@ func (w *Worker) checkStalledJobs(ctx context.Context) error {
 		k.Stalled(), k.Wait(), k.Active(), k.StalledCheck(), k.Meta(),
 		k.Paused(), k.Marker(), k.Events(), k.Repeat(),
 	},
-		w.opts.MaxStalledCount,
+		w.opts.maxStalledCountVal(),
 		k.KeyPrefix(),
 		nowMillis(),
 		w.opts.StalledInterval.Milliseconds(),
