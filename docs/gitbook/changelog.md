@@ -1,3 +1,10 @@
+## [6.3.10](https://github.com/taskforcesh/bullmq/compare/v6.3.9...v6.3.10) (2026-09-29)
+
+
+### Bug Fixes
+
+* **worker:** stop infinite connection-error retries during shutdown ([#4833](https://github.com/taskforcesh/bullmq/issues/4833)) ([96e0a96](https://github.com/taskforcesh/bullmq/commit/96e0a96b9f0be7d16eba9c2b6823ba9488101121))
+
 ## [6.3.9](https://github.com/taskforcesh/bullmq/compare/v6.3.8...v6.3.9) (2026-09-25)
 
 
