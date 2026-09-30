@@ -566,3 +566,78 @@ jobs:
           else
             echo "No changes detected after semantic-release"
           fi
+
+      # Go Release
+      - name: Setup Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: '1.25'
+          cache-dependency-path: golang/go.sum
+      - name: Copy Lua scripts for Go
+        if: ${{ contains(env.commitmsg, '[golang]') || contains(env.commitmsg, '(golang)') }}
+        run: yarn copy:lua:golang
+      - name: Install Node dependencies for Go
+        if: ${{ contains(env.commitmsg, '[golang]') || contains(env.commitmsg, '(golang)') }}
+        working-directory: golang
+        run: yarn install --frozen-lockfile --non-interactive
+      - name: Release Go
+        id: semantic_release_golang
+        if: ${{ contains(env.commitmsg, '[golang]') || contains(env.commitmsg, '(golang)') }}
+        working-directory: golang
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+      - name: Create PR with Go release changes
+        if: ${{ success() && steps.semantic_release_golang.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: golang
+        run: |
+          # Check if there are any changes to commit
+          if [[ -n $(git status --porcelain) ]]; then
+            # Get the version from the latest vgo tag
+            VERSION=$(git describe --tags --match 'vgo*' --abbrev=0 | sed 's/^vgo//')
+            BRANCH_NAME="release/vgo${VERSION}"
+
+            echo "Creating PR for Go release version: vgo${VERSION}"
+
+            # Create and switch to new branch
+            git checkout -b $BRANCH_NAME
+
+            # Configure git
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+
+            # Add and commit changes (only add files that exist)
+            git add ../docs/gitbook/golang/changelog.md || true
+
+            # Check if there are actually changes to commit after adding
+            if [[ -n $(git diff --cached --name-only) ]]; then
+              git commit -m "chore(release): vgo${VERSION}"
+
+              # Push the branch
+              git push origin $BRANCH_NAME
+
+              # Create PR using GitHub CLI
+              gh pr create \
+                --title "chore(release): vgo${VERSION}" \
+                --body "Automated release PR for Go version vgo${VERSION}
+
+              This PR contains:
+              - Updated docs/gitbook/golang/changelog.md
+
+              Please review and merge to complete the release process." \
+                --head $BRANCH_NAME \
+                --base master
+
+              echo "Created PR for release vgo${VERSION}"
+              git checkout origin/master
+            else
+              echo "No changes to commit after staging files"
+              git checkout origin/master
+              git branch -D $BRANCH_NAME
+            fi
+          else
+            echo "No changes detected after semantic-release"
+          fi
