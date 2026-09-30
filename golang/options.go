@@ -132,6 +132,37 @@ func (o RedisOptions) build() (redis.UniversalClient, bool) {
 	}), true
 }
 
+// buildBlocking builds a client dedicated to a worker's blocking reads
+// (BZPOPMIN). Unlike build, it forces a single pooled connection and sets
+// go-redis's ClientName option, which issues CLIENT SETNAME on that
+// connection (and any reconnect) before it is returned to the pool, so the
+// name set here is guaranteed to be the same connection BZPOPMIN runs on. A
+// plain CLIENT SETNAME issued once through the pool (as build's client would
+// use) can land on a different pooled connection than the one a later
+// blocking command acquires, leaving the blocking connection unnamed and
+// making Queue.Workers miss or misreport the worker.
+//
+// When o.Client is set the caller supplied their own (possibly shared, possibly
+// pooled) client; it is reused as-is and the name is best-effort only, since a
+// shared client's connections cannot be safely repinned or renamed here.
+func (o RedisOptions) buildBlocking(name string) (redis.UniversalClient, bool) {
+	if o.Client != nil {
+		return o.Client, false
+	}
+	addr := o.Addr
+	if addr == "" {
+		addr = "127.0.0.1:6379"
+	}
+	return redis.NewClient(&redis.Options{
+		Addr:       addr,
+		Username:   o.Username,
+		Password:   o.Password,
+		DB:         o.DB,
+		PoolSize:   1,
+		ClientName: name,
+	}), true
+}
+
 // QueueOptions configures a Queue.
 type QueueOptions struct {
 	// Redis describes the connection to use.
