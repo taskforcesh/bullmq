@@ -203,6 +203,10 @@
             {
               "header": "**/*\\[dotnet\\]*",
               "release": false
+            },
+            {
+              "header": "**/*\\[golang\\]*",
+              "release": false
             }
           ]
         }
@@ -212,7 +216,7 @@
         {
           "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "(\\[python\\]|\\[elixir\\]|\\[php\\]|\\[rust\\]|\\[dotnet\\])"
+            "ignoreCommits": "(\\[python\\]|\\[elixir\\]|\\[php\\]|\\[rust\\]|\\[dotnet\\]|\\[golang\\])"
           }
         }
       ],
