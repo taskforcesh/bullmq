@@ -200,8 +200,7 @@ func (w *Worker) run(ctx context.Context) error {
 	// worker) before its processor returns. It is only cancelled by the
 	// caller's ctx directly, or explicitly below once fetchLoop has drained
 	// all in-flight jobs.
-	renewCtx, cancelRenew := context.WithCancel(ctx)
-	defer cancelRenew()
+	renewCtx, cancelRenew := context.WithCancel(context.WithoutCancel(ctx))
 
 	if !w.opts.SkipStalledCheck {
 		w.wg.Add(1)
