@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import {
   BackendFactory,
+  ConnectionOptions,
   IQueueBackend,
   MinimalQueue,
   QueueBaseOptions,
@@ -9,18 +10,23 @@ import {
 
 import { delay, DELAY_TIME_5, isNotConnectionError, trace } from '../utils';
 import { getDefaultBackendFactory } from '../utils/create-backend';
+import type { DefaultQueueOptions } from '../types/default-queue-options';
 import { Job } from './job';
 import { KeysMap } from './queue-keys';
 import { SpanKind } from '../enums';
+import type { NoInferType } from '../types/no-infer';
 
 /**
  * Base class for all classes that need to interact with queues.
  * This class is normally not used directly, but extended by the other classes.
  *
  */
-export class QueueBase<B extends IQueueBackend = IQueueBackend>
+export class QueueBase<
+  B extends IQueueBackend = IQueueBackend,
+  ConnectionOptionsType = ConnectionOptions,
+>
   extends EventEmitter
-  implements MinimalQueue
+  implements MinimalQueue<ConnectionOptionsType>
 {
   toKey: (type: string) => string;
   keys: KeysMap;
@@ -29,8 +35,10 @@ export class QueueBase<B extends IQueueBackend = IQueueBackend>
   protected closed = false;
   protected hasBlockingConnection = false;
   backend: B;
-  protected readonly backendFactory: BackendFactory<B>;
+  protected readonly backendFactory: BackendFactory<B, ConnectionOptionsType>;
   public readonly qualifiedName: string;
+  public readonly name: string;
+  public opts: QueueBaseOptions<ConnectionOptionsType>;
 
   /**
    *
@@ -41,18 +49,43 @@ export class QueueBase<B extends IQueueBackend = IQueueBackend>
    * datastore or a test mock.
    */
   constructor(
-    public readonly name: string,
-    public opts: QueueBaseOptions = { connection: {} },
-    backendFactory: BackendFactory<B> = getDefaultBackendFactory<B>(),
+    name: string,
+    opts: QueueBaseOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+    hasBlockingConnection?: boolean,
+  );
+  constructor(
+    name: string,
+    opts: QueueBaseOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory?: undefined,
+    hasBlockingConnection?: boolean,
+  );
+  constructor(
+    name: string,
+    ...args: DefaultQueueOptions<
+      B,
+      ConnectionOptionsType,
+      IQueueBackend,
+      QueueBaseOptions,
+      [hasBlockingConnection?: boolean]
+    >
+  );
+  constructor(
+    name: string,
+    opts?: QueueBaseOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
     hasBlockingConnection = false,
   ) {
     super();
 
-    this.backendFactory = backendFactory;
+    this.name = name;
+    this.backendFactory =
+      backendFactory ?? getDefaultBackendFactory<B, ConnectionOptionsType>();
     this.hasBlockingConnection = hasBlockingConnection;
-    this.opts = {
-      ...opts,
-    };
+    this.opts = Object.assign(
+      opts === undefined ? { connection: {} } : {},
+      opts,
+    );
 
     if (!name) {
       throw new Error('Queue name must be provided');

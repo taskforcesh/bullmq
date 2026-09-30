@@ -1,3 +1,31 @@
+# [3.3.0](https://github.com/taskforcesh/bullmq/compare/vpy3.2.8...vpy3.3.0) (2026-09-30)
+
+
+### Features
+
+* **queue:** support getJob method [python] ([#4848](https://github.com/taskforcesh/bullmq/issues/4848)) ref [#4840](https://github.com/taskforcesh/bullmq/issues/4840) ([38c5bd7](https://github.com/taskforcesh/bullmq/commit/38c5bd7892e0d112b6d8c38218d6cd27f831f016))
+
+## [3.2.8](https://github.com/taskforcesh/bullmq/compare/vpy3.2.7...vpy3.2.8) (2026-09-29)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpack to v1.2.3 [python] ([#4842](https://github.com/taskforcesh/bullmq/issues/4842)) ([d1a43ab](https://github.com/taskforcesh/bullmq/commit/d1a43ab7aa50200cbb7c48b098d2be8690550617))
+
+## [3.2.7](https://github.com/taskforcesh/bullmq/compare/vpy3.2.6...vpy3.2.7) (2026-09-25)
+
+
+### Bug Fixes
+
+* **worker:** eliminate close and pause latency on idle queue [python] ([#4670](https://github.com/taskforcesh/bullmq/issues/4670)) fixes [#4597](https://github.com/taskforcesh/bullmq/issues/4597) ([3b404f6](https://github.com/taskforcesh/bullmq/commit/3b404f648898884530b25900f81aa5ea38209b8c))
+
+## [3.2.6](https://github.com/taskforcesh/bullmq/compare/vpy3.2.5...vpy3.2.6) (2026-09-21)
+
+
+### Bug Fixes
+
+* **deps:** update dependency virtualenv to v21.9.0 [python] ([#4798](https://github.com/taskforcesh/bullmq/issues/4798)) ([f8056ed](https://github.com/taskforcesh/bullmq/commit/f8056ed3cafb06a69b8e2306e0d2019f18c6f557))
+
 ## [3.2.5](https://github.com/taskforcesh/bullmq/compare/vpy3.2.4...vpy3.2.5) (2026-09-19)
 
 

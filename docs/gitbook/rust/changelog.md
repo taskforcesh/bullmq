@@ -1,3 +1,31 @@
+## [1.3.3](https://github.com/taskforcesh/bullmq/compare/vrs1.3.2...vrs1.3.3) (2026-09-26)
+
+
+### Bug Fixes
+
+* **deps:** update crate redis to v1.7.1 [rust] ([#4827](https://github.com/taskforcesh/bullmq/issues/4827)) ([b0e0f7e](https://github.com/taskforcesh/bullmq/commit/b0e0f7eab706af91c77d6f53799d1366067ae309))
+
+## [1.3.2](https://github.com/taskforcesh/bullmq/compare/vrs1.3.1...vrs1.3.2) (2026-09-25)
+
+
+### Bug Fixes
+
+* **connection:** disable timeout option [rust] ([#4805](https://github.com/taskforcesh/bullmq/issues/4805)) fixes [#4743](https://github.com/taskforcesh/bullmq/issues/4743) ([604e627](https://github.com/taskforcesh/bullmq/commit/604e6272a1984917e6c598bfcf86d492474c6232))
+
+## [1.3.1](https://github.com/taskforcesh/bullmq/compare/vrs1.3.0...vrs1.3.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **deps:** update crate thiserror to v2.0.21 [rust] ([#4817](https://github.com/taskforcesh/bullmq/issues/4817)) ([58f8c4c](https://github.com/taskforcesh/bullmq/commit/58f8c4c41dfd8a842095c898665cc9da076a38c4))
+
+# [1.3.0](https://github.com/taskforcesh/bullmq/compare/vrs1.2.10...vrs1.3.0) (2026-09-22)
+
+
+### Features
+
+* **queue:** support get_dependencies method [rust] ([#4717](https://github.com/taskforcesh/bullmq/issues/4717)) ([64133c2](https://github.com/taskforcesh/bullmq/commit/64133c2d719eb6a992cd6247fb87328d52048ecd))
+
 ## [1.2.10](https://github.com/taskforcesh/bullmq/compare/vrs1.2.9...vrs1.2.10) (2026-09-18)
 
 

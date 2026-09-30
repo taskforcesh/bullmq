@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'crypto';
-import { createValkeyGlideClient } from '../src/classes/valkey-glide-client';
-import { ConnectionClosedError } from '../src/classes/errors/connection-closed-error';
+import { ConnectionClosedError, createValkeyGlideClient } from '../src/classes';
 
 type GlideArg = string | Buffer;
 type GlideCommandOptions = {

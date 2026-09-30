@@ -39,7 +39,7 @@ use tokio::task::JoinHandle;
 use tracing::debug;
 
 use crate::error::Error;
-use crate::keys::{validate_queue_name, QueueKeys};
+use crate::keys::{validate_prefix, validate_queue_name, QueueKeys};
 use crate::options::{QueueOptions, RedisConnectionOptions};
 use crate::redis_connection::RedisConnection;
 
@@ -384,6 +384,7 @@ impl QueueEvents {
     /// Create a new `QueueEvents` listener with explicit options.
     pub async fn with_options(name: &str, opts: QueueEventsOptions) -> Result<Self, Error> {
         validate_queue_name(name)?;
+        validate_prefix(&opts.prefix)?;
         let conn = RedisConnection::new(&opts.connection).await?;
         Self::build(name, conn, opts).await
     }
@@ -398,6 +399,7 @@ impl QueueEvents {
         opts: QueueEventsOptions,
     ) -> Result<Self, Error> {
         validate_queue_name(name)?;
+        validate_prefix(&opts.prefix)?;
         Self::build(name, conn, opts).await
     }
 

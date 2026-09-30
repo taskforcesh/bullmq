@@ -5,10 +5,10 @@ import {
   IoredisListener,
   IQueueBackend,
   JobSchedulerJson,
-  MinimalQueue,
   QueueOptions,
   RepeatOptions,
 } from '../interfaces';
+import { ConnectionOptions } from '../interfaces/redis-options';
 import {
   FinishedStatus,
   JobsOptions,
@@ -22,6 +22,13 @@ import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
 import { randomUUID } from '../utils';
+import type {
+  ExtractDataType,
+  ExtractResultType,
+  ExtractNameType,
+} from '../types/queue-type';
+import type { DefaultQueueOptions } from '../types/default-queue-options';
+import type { NoInferType } from '../types/no-infer';
 
 export interface ObliterateOpts {
   /**
@@ -104,16 +111,6 @@ type JobBase<T, ResultType, NameType extends string> =
       ? T
       : Job<T, ResultType, NameType>;
 
-// Helper types to extract DataType, ResultType, and NameType
-type ExtractDataType<DataTypeOrJob, Default> =
-  DataTypeOrJob extends Job<infer D, any, any> ? D : Default;
-
-type ExtractResultType<DataTypeOrJob, Default> =
-  DataTypeOrJob extends Job<any, infer R, any> ? R : Default;
-
-type ExtractNameType<DataTypeOrJob, Default extends string> =
-  DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
-
 /**
  * Queue
  *
@@ -148,28 +145,46 @@ export class Queue<
   ResultType = ExtractResultType<DataTypeOrJob, DefaultResultType>,
   NameType extends string = ExtractNameType<DataTypeOrJob, DefaultNameType>,
   B extends IQueueBackend = RedisQueueBackend,
-> extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>, B> {
+  ConnectionOptionsType = ConnectionOptions,
+> extends QueueGetters<
+  JobBase<DataTypeOrJob, ResultType, NameType>,
+  B,
+  ConnectionOptionsType
+> {
   token = randomUUID();
   jobsOpts: BaseJobOptions;
-  declare opts: QueueOptions;
+  declare opts: QueueOptions<ConnectionOptionsType>;
 
   protected libName = 'bullmq';
 
-  protected _jobScheduler?: JobScheduler;
+  protected _jobScheduler?: JobScheduler<B, ConnectionOptionsType>;
   private readonly queueMetaInitialized: Promise<void>;
 
   constructor(
     name: string,
-    opts?: QueueOptions,
-    backendFactory?: BackendFactory<B>,
+    opts: QueueOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    opts: QueueOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory?: undefined,
+  );
+  constructor(
+    name: string,
+    ...args: DefaultQueueOptions<
+      B,
+      ConnectionOptionsType,
+      RedisQueueBackend,
+      QueueOptions
+    >
+  );
+  constructor(
+    name: string,
+    opts?: QueueOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
-    super(
-      name,
-      {
-        ...opts,
-      },
-      backendFactory,
-    );
+    super(name, opts, backendFactory);
 
     this.jobsOpts = opts?.defaultJobOptions ?? {};
 
@@ -248,19 +263,21 @@ export class Queue<
     return await this.backend.getQueueMetaField('version');
   }
 
-  get jobScheduler(): Promise<JobScheduler> {
-    return new Promise<JobScheduler>(async resolve => {
-      if (!this._jobScheduler) {
-        // Share this queue's backend (same queue name/keys) with the scheduler.
-        this._jobScheduler = new JobScheduler(
-          this.name,
-          this.opts,
-          () => this.backend,
-        );
-        this._jobScheduler.on('error', this.emit.bind(this, 'error'));
-      }
-      resolve(this._jobScheduler);
-    });
+  get jobScheduler(): Promise<JobScheduler<B, ConnectionOptionsType>> {
+    return new Promise<JobScheduler<B, ConnectionOptionsType>>(
+      async resolve => {
+        if (!this._jobScheduler) {
+          // Share this queue's backend (same queue name/keys) with the scheduler.
+          this._jobScheduler = new JobScheduler<B, ConnectionOptionsType>(
+            this.name,
+            this.opts,
+            () => this.backend,
+          );
+          this._jobScheduler.on('error', this.emit.bind(this, 'error'));
+        }
+        resolve(this._jobScheduler);
+      },
+    );
   }
 
   /**
@@ -368,7 +385,7 @@ export class Queue<
     };
 
     const job = await this.Job.create<DataType, ResultType, NameType>(
-      this as MinimalQueue,
+      this,
       name,
       data,
       mergedOpts,
@@ -403,7 +420,7 @@ export class Queue<
         }
 
         return await this.Job.createBulk<DataType, ResultType, NameType>(
-          this as MinimalQueue,
+          this,
           jobs.map(job => {
             let telemetry = job.opts?.telemetry;
             if (srcPropagationMetadata) {
