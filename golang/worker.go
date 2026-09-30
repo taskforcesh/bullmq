@@ -66,9 +66,7 @@ type Worker struct {
 	stopOnce  sync.Once
 	closeOnce sync.Once
 	closeErr  error
-	ran       atomic.Bool
 	stop      chan struct{}
-	done      chan struct{}
 	wg        sync.WaitGroup
 
 	paused atomic.Bool
@@ -112,7 +110,6 @@ func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, 
 		id:            randomID(),
 		events:        make(chan Event, 256),
 		stop:          make(chan struct{}),
-		done:          make(chan struct{}),
 		active:        make(map[string]*activeJob),
 		blocking:      blocking,
 		blockingOwned: blockingOwned,
@@ -159,7 +156,6 @@ func (w *Worker) Run(ctx context.Context) error {
 	started := false
 	w.runOnce.Do(func() {
 		started = true
-		w.ran.Store(true)
 		err = w.run(ctx)
 	})
 	if !started {
@@ -169,8 +165,6 @@ func (w *Worker) Run(ctx context.Context) error {
 }
 
 func (w *Worker) run(ctx context.Context) error {
-	defer close(w.done)
-
 	name := w.c.keys.ClientName(":w:" + w.id)
 	if e := w.blocking.Do(ctx, "client", "setname", name).Err(); e != nil {
 		w.emitError(fmt.Errorf("bullmq: unable to set client name: %w", e))
@@ -744,13 +738,14 @@ func (w *Worker) checkStalledJobs(ctx context.Context) error {
 func (w *Worker) Close() error {
 	w.closeOnce.Do(func() {
 		w.stopOnce.Do(func() { close(w.stop) })
-		if w.ran.Load() {
-			<-w.done
-		}
-		// Consume runOnce so a Run call racing with Close never starts against
-		// the resources we are about to close; it will observe ErrWorkerClosed
-		// instead. This must happen after signalling stop so that a Run which
-		// already started can still observe ctx cancellation and exit.
+		// runOnce is shared with Run: sync.Once.Do blocks concurrent callers
+		// until an in-progress call's function returns, and Run's function
+		// spans the entire run() lifecycle. So this call either waits for an
+		// already-running Run to fully stop (its function only returns once
+		// run() does, after the stop signal above has been observed), or, if
+		// Run was never called, claims the once itself so any later Run call
+		// observes it as already closed and never touches the resources
+		// below. Either way, it is safe to close them once this returns.
 		w.runOnce.Do(func() {})
 		if w.blockingOwned {
 			w.closeErr = w.blocking.Close()
