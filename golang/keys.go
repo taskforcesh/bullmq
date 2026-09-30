@@ -40,12 +40,18 @@ func validateQueueName(name string) error {
 }
 
 // resolveParentQueueKey accepts either a bare queue name or an already
-// qualified `{prefix}:{queueName}` key and returns the qualified form.
+// qualified `{prefix}:{queueName}` key and returns the qualified form. A
+// qualified key must use the same prefix as the current queue; a foreign
+// prefix is rejected rather than silently accepted, since it would route the
+// parent link into a different key namespace.
 func resolveParentQueueKey(prefix, queue string) (string, error) {
 	if prefix == "" {
 		prefix = DefaultPrefix
 	}
 	if i := strings.LastIndex(queue, ":"); i > 0 && i < len(queue)-1 {
+		if queue[:i] != prefix {
+			return "", configError("parent queue %q must use the prefix %q", queue, prefix)
+		}
 		if err := validateQueueName(queue[i+1:]); err != nil {
 			return "", err
 		}
