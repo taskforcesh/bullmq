@@ -398,13 +398,15 @@ func (w *Worker) packMoveToActiveOpts(token string) []byte {
 
 // processJob runs the processor and moves the job to its finished state.
 func (w *Worker) processJob(ctx context.Context, job *Job) {
-	jobCtx, cancel := context.WithCancel(ctx)
+	entry := &activeJob{job: job, cancel: cancel}
 	w.mu.Lock()
-	w.active[job.ID] = &activeJob{job: job, cancel: cancel}
+	w.active[job.ID] = entry
 	w.mu.Unlock()
 	defer func() {
 		w.mu.Lock()
-		delete(w.active, job.ID)
+		if current, ok := w.active[job.ID]; ok && current == entry {
+			delete(w.active, job.ID)
+		}
 		w.mu.Unlock()
 		cancel()
 	}()
