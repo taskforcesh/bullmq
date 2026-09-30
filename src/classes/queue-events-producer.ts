@@ -1,27 +1,49 @@
-import { BackendFactory, QueueEventsProducerOptions } from '../interfaces';
+import {
+  BackendFactory,
+  IQueueBackend,
+  QueueEventsProducerOptions,
+} from '../interfaces';
+import { ConnectionOptions } from '../interfaces/redis-options';
 import { QueueBase } from './queue-base';
+import { RedisQueueBackend } from './redis-queue-backend';
+import type { DefaultQueueOptions } from '../types/default-queue-options';
+import type { NoInferType } from '../types/no-infer';
 
 /**
  * The QueueEventsProducer class is used for publishing custom events.
  */
-export class QueueEventsProducer extends QueueBase {
+export class QueueEventsProducer<
+  B extends IQueueBackend = RedisQueueBackend,
+  ConnectionOptionsType = ConnectionOptions,
+> extends QueueBase<B, ConnectionOptionsType> {
   constructor(
     name: string,
-    opts: QueueEventsProducerOptions = {
-      connection: {},
-    },
-    backendFactory?: BackendFactory,
+    opts: QueueEventsProducerOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    opts: QueueEventsProducerOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory?: undefined,
+  );
+  constructor(
+    name: string,
+    ...args: DefaultQueueOptions<
+      B,
+      ConnectionOptionsType,
+      RedisQueueBackend,
+      QueueEventsProducerOptions
+    >
+  );
+  constructor(
+    name: string,
+    opts?: QueueEventsProducerOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
-    super(
-      name,
-      {
-        blockingConnection: false,
-        ...opts,
-      },
-      backendFactory,
-    );
-
-    this.opts = opts;
+    super(name, opts && { blockingConnection: false, ...opts }, backendFactory);
+    if (opts) {
+      this.opts = opts;
+    }
   }
 
   /**

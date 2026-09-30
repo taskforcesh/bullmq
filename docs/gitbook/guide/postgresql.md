@@ -31,25 +31,17 @@ npm install pg
 
 Pass `createPostgresBackend` as the **last constructor argument**, with a
 `connection` that node-postgres understands (a connection string, a pool config,
-or a `pg.Pool`):
+or a `pg.Pool`). TypeScript infers the backend and connection types from the
+factory:
 
 ```typescript
-import {
-  Queue,
-  Worker,
-  PostgresQueueBackend,
-  createPostgresBackend,
-} from 'bullmq';
+import { Queue, Worker, createPostgresBackend } from 'bullmq';
 
 const opts = {
   connection: 'postgres://user:password@localhost:5432/mydb',
 };
 
-const queue = new Queue<any, any, string, PostgresQueueBackend>(
-  'my-queue',
-  opts,
-  createPostgresBackend,
-);
+const queue = new Queue('my-queue', opts, createPostgresBackend);
 
 const worker = new Worker(
   'my-queue',
@@ -61,7 +53,87 @@ const worker = new Worker(
 );
 ```
 
-The argument positions mirror the Redis usage:
+### Typed jobs and event results
+
+The backend and connection type parameters come after the job type parameters.
+TypeScript infers them from the factory only when you don't pass any type
+arguments. Once you write `Queue<MyData, MyResult>`, the remaining parameters
+use their Redis defaults, so the PostgreSQL factory and connection are rejected:
+
+```typescript
+type MyData = { value: number };
+type MyResult = number;
+
+// Error: the backend defaults to RedisQueueBackend
+new Queue<MyData, MyResult>('my-queue', opts, createPostgresBackend);
+```
+
+To keep job types, list every type argument explicitly. Each class puts the
+backend at a different position:
+
+```typescript
+import {
+  JobProgress,
+  Queue,
+  QueueEvents,
+  Worker,
+  createPostgresBackend,
+  PostgresConnectionOptions,
+  PostgresQueueBackend,
+} from 'bullmq';
+
+const queue = new Queue<
+  MyData,
+  MyResult,
+  string,
+  MyData,
+  MyResult,
+  string,
+  PostgresQueueBackend,
+  PostgresConnectionOptions
+>('my-queue', opts, createPostgresBackend);
+
+const worker = new Worker<
+  MyData,
+  MyResult,
+  string,
+  PostgresQueueBackend,
+  JobProgress,
+  PostgresConnectionOptions
+>('my-queue', async job => job.data.value * 2, opts, createPostgresBackend);
+
+const events = new QueueEvents<
+  MyResult,
+  PostgresQueueBackend,
+  PostgresConnectionOptions
+>('my-queue', opts, createPostgresBackend);
+```
+
+`withBackend` does the same thing more concisely. It returns `Queue`, `Worker`,
+`QueueEvents`, `QueueEventsProducer`, and `FlowProducer` constructors with the
+backend and connection types already set, which use the factory automatically.
+You only write the job type arguments:
+
+```typescript
+import { createPostgresBackend, withBackend } from 'bullmq';
+
+const { Queue, Worker, QueueEvents } = withBackend(createPostgresBackend);
+
+const queue = new Queue<MyData, MyResult>('my-queue', opts);
+const worker = new Worker<MyData, MyResult>(
+  'my-queue',
+  async job => job.data.value * 2,
+  opts,
+);
+const events = new QueueEvents<MyResult>('my-queue', opts);
+```
+
+The returned classes extend the regular ones, so `instanceof Queue` still holds.
+Connection options are required. `withBackend` does not change the process-wide
+default backend.
+
+If you don't need job types, skip both and pass the factory as shown in
+[Getting started](#getting-started). The factory argument positions are:
 
 | Class          | Constructor                                                |
 | -------------- | ---------------------------------------------------------- |
@@ -75,7 +147,12 @@ The argument positions mirror the Redis usage:
 If your whole application uses PostgreSQL, register it once as the process-wide
 default backend and drop the per-instance argument:
 
-```typescript
+This JavaScript example changes runtime behavior only. TypeScript cannot infer
+types from a process-wide setting: use `withBackend(createPostgresBackend)` or
+pass `createPostgresBackend` to each constructor to infer PostgreSQL connection
+types.
+
+```javascript
 import { setDefaultBackendFactory, createPostgresBackend, Queue } from 'bullmq';
 
 setDefaultBackendFactory(createPostgresBackend);

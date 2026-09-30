@@ -50,6 +50,24 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job1.id, jobs[1].id)
         await queue.close()
 
+    async def test_get_job(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        job = await queue.add("test-job", {"foo": "bar"}, {})
+        retrieved_job = await queue.getJob(job.id)
+
+        self.assertIsNotNone(retrieved_job)
+        self.assertEqual(retrieved_job.id, job.id)
+        self.assertEqual(retrieved_job.name, "test-job")
+        self.assertEqual(retrieved_job.data, {"foo": "bar"})
+        await queue.close()
+
+    async def test_get_job_not_found(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        retrieved_job = await queue.getJob("non-existing-id")
+
+        self.assertIsNone(retrieved_job)
+        await queue.close()
+
     async def test_get_waiting_returns_jobs_in_ascending_order(self):
         # Exercises getRanges asc=True + lrange path (waiting -> wait -> lrange).
         # Regression test for a bug where list.reverse() returned None and

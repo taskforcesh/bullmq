@@ -1,5 +1,5 @@
 import asyncio
-from typing import Union
+from typing import Optional, Union
 
 from bullmq.event_emitter import EventEmitter
 from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
@@ -424,6 +424,15 @@ class Queue(EventEmitter):
 
     def getWaitingChildren(self, start = 0, end=-1):
         return self.getJobs(['waiting-children'], start, end, True)
+
+    async def getJob(self, job_id: str) -> Optional[Job]:
+        """
+        Get a job by its id.
+
+        @param job_id: The id of the job to retrieve.
+        @return: The Job instance or None if not found.
+        """
+        return await Job.fromId(self, job_id)
 
     async def getJobs(self, types, start=0, end=-1, asc:bool=False):
         current_types = self.sanitizeJobTypes(types)
