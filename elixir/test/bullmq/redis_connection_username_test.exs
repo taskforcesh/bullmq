@@ -15,19 +15,57 @@ defmodule BullMQ.RedisConnectionUsernameTest do
     {:ok, conn: conn_name}
   end
 
-  test "explicit :username option is stored in redis opts and connection still works", %{
-    conn: conn
-  } do
+  test "explicit :username option authenticates as the matching ACL user", %{conn: conn} do
+    acl_username = "bullmq_testuser"
+    acl_password = "bullmq_testpass123"
+
+    {:ok, admin} = Redix.start_link(host: @base_uri.host, port: @base_uri.port)
+
+    {:ok, _} =
+      Redix.command(admin, [
+        "ACL",
+        "SETUSER",
+        acl_username,
+        "on",
+        ">#{acl_password}",
+        "~*",
+        "+@all"
+      ])
+
+    on_exit(fn ->
+      {:ok, admin} = Redix.start_link(host: @base_uri.host, port: @base_uri.port)
+      Redix.command(admin, ["ACL", "DELUSER", acl_username])
+      Redix.stop(admin)
+    end)
+
+    Redix.stop(admin)
+
     {:ok, _pid} =
       RedisConnection.start_link(
         name: conn,
         host: @base_uri.host,
         port: @base_uri.port,
-        username: "testuser"
+        username: acl_username,
+        password: acl_password
       )
 
-    assert RedisConnection.get_redis_opts(conn)[:username] == "testuser"
+    assert RedisConnection.get_redis_opts(conn)[:username] == acl_username
     assert {:ok, "PONG"} = RedisConnection.command(conn, ["PING"])
+
+    wrong_conn = :"username_test_wrong_#{System.unique_integer([:positive])}"
+
+    {:ok, _pid} =
+      RedisConnection.start_link(
+        name: wrong_conn,
+        host: @base_uri.host,
+        port: @base_uri.port,
+        username: acl_username,
+        password: "not-the-right-password"
+      )
+
+    on_exit(fn -> RedisConnection.close(wrong_conn) end)
+
+    assert {:error, _} = RedisConnection.command(wrong_conn, ["PING"])
   end
 
   test "no username defaults to nil", %{conn: conn} do

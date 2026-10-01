@@ -665,8 +665,9 @@ defmodule BullMQ.RedisConnection do
 
         userinfo ->
           case String.split(userinfo, ":", parts: 2) do
-            [user, pass] -> {user, pass}
-            [pass] -> {nil, pass}
+            ["", pass] -> {nil, URI.decode(pass)}
+            [user, pass] -> {URI.decode(user), URI.decode(pass)}
+            [pass] -> {nil, URI.decode(pass)}
           end
       end
 
