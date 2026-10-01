@@ -69,6 +69,7 @@ defmodule BullMQ.RedisConnection do
     * `:url` - Redis URL (e.g., "redis://localhost:6379")
     * `:host` - Redis host (default: "localhost")
     * `:port` - Redis port (default: 6379)
+    * `:username` - Redis username (optional, requires Redis 6+ ACL support)
     * `:password` - Redis password (optional)
     * `:database` - Redis database number (default: 0)
     * `:pool_size` - Number of connections in the pool (default: 10)
@@ -630,6 +631,7 @@ defmodule BullMQ.RedisConnection do
           [
             host: Keyword.get(opts, :host, "localhost"),
             port: Keyword.get(opts, :port, 6379),
+            username: Keyword.get(opts, :username),
             password: Keyword.get(opts, :password),
             database: Keyword.get(opts, :database, 0)
           ]
@@ -648,23 +650,26 @@ defmodule BullMQ.RedisConnection do
     |> Keyword.reject(fn {_k, v} -> is_nil(v) end)
   end
 
-  defp parse_redis_url(url) when is_binary(url) do
+  # Exposed (not `defp`) so it can be unit-tested directly without a live Redis connection.
+  @doc false
+  @spec parse_redis_url(String.t()) :: keyword()
+  def parse_redis_url(url) when is_binary(url) do
     uri = URI.parse(url)
 
     # Parse host and port
     host = uri.host || "localhost"
     port = uri.port || 6379
 
-    # Parse password from userinfo (format: user:password or just password)
-    password =
+    # Parse username/password from userinfo (format: user:password or just password)
+    {username, password} =
       case uri.userinfo do
         nil ->
-          nil
+          {nil, nil}
 
         userinfo ->
           case String.split(userinfo, ":", parts: 2) do
-            [_, pass] -> pass
-            [pass] -> pass
+            [user, pass] -> {user, pass}
+            [pass] -> {nil, pass}
           end
       end
 
@@ -687,10 +692,10 @@ defmodule BullMQ.RedisConnection do
           end
       end
 
-    [host: host, port: port, password: password, database: database]
+    [host: host, port: port, username: username, password: password, database: database]
   end
 
-  defp parse_redis_url(_), do: [host: "localhost", port: 6379]
+  def parse_redis_url(_), do: [host: "localhost", port: 6379]
 
   defp stringify_args(args) do
     Enum.map(args, fn
