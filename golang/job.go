@@ -456,7 +456,12 @@ func (j *Job) moveToDelayed(ctx context.Context, delay time.Duration, skipAttemp
 // MoveToWaitingChildren parks an active parent job until its children finish.
 // It returns true when the job was moved and false when there were no pending
 // dependencies. Processors should return [ErrWaitingChildren] when true.
-func (j *Job) MoveToWaitingChildren(ctx context.Context, childJobID string) (bool, error) {
+//
+// child identifies the job whose completion is being awaited. Its QueueKey
+// must be the fully qualified `{prefix}:{queueName}` key of the queue the
+// child belongs to, which may differ from the parent's own queue. Pass nil
+// if there is no specific child to check for.
+func (j *Job) MoveToWaitingChildren(ctx context.Context, child *ParentKeys) (bool, error) {
 	c, err := j.ctx()
 	if err != nil {
 		return false, err
@@ -466,8 +471,8 @@ func (j *Job) MoveToWaitingChildren(ctx context.Context, childJobID string) (boo
 		token = "0"
 	}
 	childKey := ""
-	if childJobID != "" {
-		childKey = c.keys.Job(childJobID)
+	if child != nil && child.ID != "" {
+		childKey = child.QueueKey + ":" + child.ID
 	}
 	res, err := c.runScript(ctx, "moveToWaitingChildren", []string{
 		c.keys.Active(), c.keys.WaitingChildren(), c.keys.Job(j.ID),
