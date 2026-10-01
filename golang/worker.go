@@ -432,6 +432,22 @@ func (w *Worker) processJob(ctx context.Context, job *Job) {
 
 	w.emit(Event{Type: EventActive, Job: job})
 
+	// The Go port has no JobScheduler: it cannot parse repeat options (cron,
+	// tz, every) or run the addJobScheduler script that materializes the
+	// scheduler's next iteration, unlike the Node and Python workers, which
+	// upsert the scheduler right here before processing (see
+	// src/classes/worker.ts's nextJobFromJobData and
+	// python/bullmq/worker.py's _scheduleNextIteration). Processing the job
+	// itself is still correct and safe, but silently doing so would leave
+	// users unaware that the schedule stops after this iteration, so surface
+	// it as an explicit error instead.
+	if job.RepeatJobKey != "" {
+		w.emitError(fmt.Errorf(
+			"bullmq: job %s was produced by job scheduler %q; the Go worker cannot advance job schedulers, so no further iteration will be scheduled unless a Node.js or Python worker also consumes this queue",
+			job.ID, job.RepeatJobKey,
+		))
+	}
+
 	var result any
 	var err error
 	if job.DeferredFailure != "" {
