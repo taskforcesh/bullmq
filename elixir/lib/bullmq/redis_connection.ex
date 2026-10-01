@@ -650,10 +650,7 @@ defmodule BullMQ.RedisConnection do
     |> Keyword.reject(fn {_k, v} -> is_nil(v) end)
   end
 
-  # Exposed (not `defp`) so it can be unit-tested directly without a live Redis connection.
-  @doc false
-  @spec parse_redis_url(String.t()) :: keyword()
-  def parse_redis_url(url) when is_binary(url) do
+  defp parse_redis_url(url) when is_binary(url) do
     uri = URI.parse(url)
 
     # Parse host and port
@@ -695,7 +692,7 @@ defmodule BullMQ.RedisConnection do
     [host: host, port: port, username: username, password: password, database: database]
   end
 
-  def parse_redis_url(_), do: [host: "localhost", port: 6379]
+  defp parse_redis_url(_), do: [host: "localhost", port: 6379]
 
   defp stringify_args(args) do
     Enum.map(args, fn

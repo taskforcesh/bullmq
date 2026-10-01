@@ -36,4 +36,19 @@ defmodule BullMQ.RedisConnectionUsernameTest do
 
     assert RedisConnection.get_redis_opts(conn)[:username] == nil
   end
+
+  test "username and password are parsed from a redis:// URL", %{conn: conn} do
+    # This test Redis has no ACL user configured, so the pool's background
+    # connections will fail to AUTH and keep retrying - that's expected and
+    # harmless here: start_link/1 stores the parsed opts in persistent_term
+    # during init/1, before any connection attempt completes, so we can
+    # assert on the parse result without a successful live connection.
+    url = "redis://someuser:somepass@#{@base_uri.host}:#{@base_uri.port}"
+
+    {:ok, _pid} = RedisConnection.start_link(name: conn, url: url)
+
+    opts = RedisConnection.get_redis_opts(conn)
+    assert opts[:username] == "someuser"
+    assert opts[:password] == "somepass"
+  end
 end
