@@ -32,6 +32,9 @@ var (
 	ErrJobLockMismatch = errors.New("bullmq: lock is not owned by this client")
 	// ErrJobHasFailedChildren is returned when a parent cannot complete because a child failed.
 	ErrJobHasFailedChildren = errors.New("bullmq: job has failed children")
+	// ErrJobLocked is returned by Job.Remove when the job (or a dependency) is
+	// currently locked by another worker and therefore cannot be removed.
+	ErrJobLocked = errors.New("bullmq: job is locked by another worker")
 
 	// ErrWorkerClosed is returned when an operation is attempted on a closed worker.
 	ErrWorkerClosed = errors.New("bullmq: worker is closed")

@@ -3,6 +3,7 @@ package bullmq
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 )
@@ -283,9 +284,23 @@ func (j *Job) Remove(ctx context.Context, removeChildren bool) error {
 	if err != nil {
 		return err
 	}
-	return c.runScriptStatus(ctx, "removeJob",
+	res, err := c.runScript(ctx, "removeJob",
 		[]string{c.keys.Job(j.ID), c.keys.Repeat()},
 		j.ID, boolToStr(removeChildren), c.keys.KeyPrefix())
+	if err != nil {
+		return err
+	}
+	code, ok := asInt64(res)
+	if !ok {
+		return nil
+	}
+	if code < 0 {
+		return scriptError("removeJob", code)
+	}
+	if code == 0 {
+		return fmt.Errorf("bullmq: job %s could not be removed because it is locked by another worker: %w", j.ID, ErrJobLocked)
+	}
+	return nil
 }
 
 // Promote moves a delayed job to the wait list immediately.
