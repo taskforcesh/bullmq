@@ -60,13 +60,16 @@ func NewQueueEvents(queueName string, opts *QueueEventsOptions) (*QueueEvents, e
 	if err != nil {
 		return nil, err
 	}
+	blocking, blockingOwned := o.Redis.buildBlocking(c.keys.ClientName(":qe"))
 	return &QueueEvents{
-		c:      c,
-		opts:   o,
-		events: make(chan QueueEvent, o.BufferSize),
-		errs:   make(chan error, 8),
-		stop:   make(chan struct{}),
-		done:   make(chan struct{}),
+		c:             c,
+		blocking:      blocking,
+		blockingOwned: blockingOwned,
+		opts:          o,
+		events:        make(chan QueueEvent, o.BufferSize),
+		errs:          make(chan error, 8),
+		stop:          make(chan struct{}),
+		done:          make(chan struct{}),
 	}, nil
 }
 
@@ -113,7 +116,7 @@ func (qe *QueueEvents) run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		streams, err := qe.c.rdb.XRead(ctx, &redis.XReadArgs{
+		streams, err := qe.blocking.XRead(ctx, &redis.XReadArgs{
 			Streams: []string{key, lastID},
 			Block:   qe.opts.BlockingTimeout,
 		}).Result()
@@ -173,6 +176,11 @@ func (qe *QueueEvents) Close() error {
 		select {
 		case <-qe.done:
 		case <-time.After(qe.opts.BlockingTimeout + time.Second):
+		}
+	}
+	if qe.blockingOwned {
+		if err := qe.blocking.Close(); err != nil {
+			return err
 		}
 	}
 	return qe.c.close()
