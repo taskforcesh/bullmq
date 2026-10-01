@@ -539,7 +539,6 @@ func TestWorkerRecoversStalledJobs(t *testing.T) {
 	// its lock, so the job ends up stalled in the active list.
 	stuck := make(chan struct{})
 	hang := make(chan struct{})
-	t.Cleanup(func() { close(hang) })
 
 	stalling := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		close(stuck)
@@ -552,6 +551,11 @@ func TestWorkerRecoversStalledJobs(t *testing.T) {
 	})
 	stallingCtx, cancelStalling := context.WithCancel(context.Background())
 	t.Cleanup(func() {
+		// close(hang) must run before stalling.Close(), since Close waits for
+		// the in-flight processor (blocked on <-hang) to return. Cleanups run
+		// LIFO, so both steps are combined into this single cleanup rather
+		// than registered separately, where the order would be reversed.
+		close(hang)
 		cancelStalling()
 		_ = stalling.Close()
 	})
