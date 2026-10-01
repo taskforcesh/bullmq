@@ -154,12 +154,13 @@ func (o RedisOptions) buildBlocking(name string) (redis.UniversalClient, bool) {
 		addr = "127.0.0.1:6379"
 	}
 	return redis.NewClient(&redis.Options{
-		Addr:       addr,
-		Username:   o.Username,
-		Password:   o.Password,
-		DB:         o.DB,
-		PoolSize:   1,
-		ClientName: name,
+		Addr:        addr,
+		Username:    o.Username,
+		Password:    o.Password,
+		DB:          o.DB,
+		PoolSize:    1,
+		ReadTimeout: -1,
+		ClientName:  name,
 	}), true
 }
 
