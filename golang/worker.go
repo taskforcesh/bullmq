@@ -87,6 +87,19 @@ type activeJob struct {
 	cancel context.CancelFunc
 }
 
+// blockingClientName returns the CLIENT SETNAME value for a worker's blocking
+// connection: the bare queue client name when no explicit WorkerOptions.Name
+// is configured (matching Queue.Workers' "unnamed" check and the other BullMQ
+// ports), or "<clientName>:w:<name>" when one is set. It intentionally does
+// not fall back to the worker's internally generated id, since that would
+// make every worker appear "named" and diverge from the other ports.
+func blockingClientName(c *client, name string) string {
+	if name == "" {
+		return c.keys.ClientName("")
+	}
+	return c.keys.ClientName(":w:" + name)
+}
+
 // NewWorker creates a worker for the given queue. Call Run to start processing.
 func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, error) {
 	if proc == nil {
@@ -106,7 +119,7 @@ func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, 
 	}
 
 	id := randomID()
-	blocking, blockingOwned := o.Redis.buildBlocking(c.keys.ClientName(":w:" + id))
+	blocking, blockingOwned := o.Redis.buildBlocking(blockingClientName(c, o.Name))
 
 	w := &Worker{
 		c:             c,
@@ -175,7 +188,7 @@ func (w *Worker) run(ctx context.Context) error {
 		// here is best-effort only; see RedisOptions.buildBlocking. Our own
 		// dedicated blocking client is already named via its OnConnect hook,
 		// on the exact connection BZPOPMIN will use.
-		name := w.c.keys.ClientName(":w:" + w.id)
+		name := blockingClientName(w.c, w.opts.Name)
 		if e := w.blocking.Do(ctx, "client", "setname", name).Err(); e != nil {
 			w.emitError(fmt.Errorf("bullmq: unable to set client name: %w", e))
 		}
