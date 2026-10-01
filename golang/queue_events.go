@@ -31,14 +31,20 @@ func (e QueueEvent) FailedReason() string { return e.Data["failedReason"] }
 // QueueEvents streams the global events emitted by a queue, allowing a process
 // that does not run the worker to observe job progress.
 type QueueEvents struct {
-	c       *client
-	opts    QueueEventsOptions
-	events  chan QueueEvent
-	errs    chan error
-	stop    chan struct{}
-	done    chan struct{}
-	runOnce sync.Once
-	stopped sync.Once
+	c *client
+	// blocking is a dedicated single-connection client used for XREAD so that
+	// the long poll can never hold the only connection of a shared/pooled
+	// client (qe.c.rdb), starving other Redis commands. See
+	// RedisOptions.buildBlocking.
+	blocking      redis.UniversalClient
+	blockingOwned bool
+	opts          QueueEventsOptions
+	events        chan QueueEvent
+	errs          chan error
+	stop          chan struct{}
+	done          chan struct{}
+	runOnce       sync.Once
+	stopped       sync.Once
 }
 
 // NewQueueEvents creates an event listener for the given queue.
