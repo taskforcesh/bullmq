@@ -597,7 +597,7 @@ jobs:
           # Check if there are any changes to commit
           if [[ -n $(git status --porcelain) ]]; then
             # Get the version from the latest vgo tag
-git fetch --tags origin
+            git fetch --tags origin
             VERSION=$(git describe --tags --match 'vgo*' --abbrev=0 | sed 's/^vgo//')
             BRANCH_NAME="release/vgo${VERSION}"
 
