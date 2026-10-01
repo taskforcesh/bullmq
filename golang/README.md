@@ -95,6 +95,7 @@ worker, err := bullmq.NewWorker("emails",
 if err != nil {
 	log.Fatal(err)
 }
+defer worker.Close()
 
 // Run blocks until ctx is cancelled or Close is called.
 if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
@@ -103,7 +104,10 @@ if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 ```
 
 `Worker.Run` blocks, so cancel its context (or call `Worker.Close`) to shut it
-down gracefully; in-flight jobs are allowed to finish first.
+down gracefully; in-flight jobs are allowed to finish first. Cancelling the
+context only makes `Run` return; it does not release the worker's Redis
+connections, so `Close` must still be called afterwards (as `defer` does
+above) to avoid leaking connections in a long-lived process.
 
 ### Job options
 
