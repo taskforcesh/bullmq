@@ -550,12 +550,12 @@ func TestWorkerRecoversStalledJobs(t *testing.T) {
 		SkipLockRenewal:  true,
 		SkipStalledCheck: true,
 	})
-stallingCtx, cancelStalling := context.WithCancel(context.Background())
-t.Cleanup(func() {
-	cancelStalling()
-	_ = stalling.Close()
-})
-go func() { _ = stalling.Run(stallingCtx) }()
+	stallingCtx, cancelStalling := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		cancelStalling()
+		_ = stalling.Close()
+	})
+	go func() { _ = stalling.Run(stallingCtx) }()
 
 	if _, err := q.Add(ctx, "stalls", nil, &bullmq.JobOptions{Attempts: bullmq.Int64(3)}); err != nil {
 		t.Fatalf("Add: %v", err)
