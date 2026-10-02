@@ -443,7 +443,7 @@ func (w *Worker) processJob(ctx context.Context, job *Job) {
 	// it as an explicit error instead.
 	if job.RepeatJobKey != "" {
 		w.emitError(fmt.Errorf(
-			"bullmq: job %s was produced by job scheduler %q; the Go worker cannot advance job schedulers, so no further iteration will be scheduled unless a Node.js or Python worker also consumes this queue",
+			"bullmq: job %s was produced by job scheduler %q; the Go worker cannot advance job schedulers, so no further iteration will be scheduled unless another scheduler-capable worker also consumes this queue",
 			job.ID, job.RepeatJobKey,
 		))
 	}
