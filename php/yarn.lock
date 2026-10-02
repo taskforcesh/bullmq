@@ -117,10 +117,10 @@
     treeverse "^3.0.0"
     walk-up-path "^4.0.0"
 
-"@npmcli/config@^10.13.0":
-  version "10.13.0"
-  resolved "https://registry.yarnpkg.com/@npmcli/config/-/config-10.13.0.tgz#cb0a2e4f8f523fbed1e4aaa243f9d2996d1cb3f3"
-  integrity sha512-FS1eopTDqQ7EgmkuyC7QrarKr7ZXx1aVrQerER+AT27fsqt4ZvyaH/LeVYUOa2V6UUtokQsPOTfsb+LoqYyphw==
+"@npmcli/config@^10.14.0":
+  version "10.14.0"
+  resolved "https://registry.yarnpkg.com/@npmcli/config/-/config-10.14.0.tgz#8051cb7a34ff4eb7d495f6b01528cd25755a9a3f"
+  integrity sha512-OTl2GIQYzKqtQgkSvB4m1DkvgEZOa4xbNsD4FRQmUUbi6nUzom7ps2ag8U8BZSatz31Cz8rugLF6Ynd4jg653Q==
   dependencies:
     "@npmcli/map-workspaces" "^5.0.0"
     "@npmcli/package-json" "^7.0.0"
@@ -1414,9 +1414,9 @@ init-package-json@^8.2.5:
     validate-npm-package-name "^7.0.0"
 
 ip-address@^10.1.1:
-  version "10.7.2"
-  resolved "https://registry.yarnpkg.com/ip-address/-/ip-address-10.7.2.tgz#5b3b2b7d46c6293861b82dfcd49cc203aa8f2c5c"
-  integrity sha512-7H/2gFSIitxc0hG3nOI1glS8QLo/EHBFFLk8vEUjXY/xu0AdL8jZ9U1IzO2PUm0d2D/ofQcAifb0g6OBkt8U7w==
+  version "10.7.3"
+  resolved "https://registry.yarnpkg.com/ip-address/-/ip-address-10.7.3.tgz#4cb77d274a4e2484a3ea438cfe98dbe0c502e8c5"
+  integrity sha512-A1kdq/tSb5QjvKvAMgIoEvDBIgL7qaqVP/jkvSwYYRZ9iEzvPpopxp2wQfu3SuZRHtpHNxMn8Fs0bS+gf5Xmwg==
 
 is-arrayish@^0.2.1:
   version "0.2.1"
@@ -2060,13 +2060,13 @@ npm-user-validate@^4.0.0:
   integrity sha512-TP+Ziq/qPi/JRdhaEhnaiMkqfMGjhDLoh/oRfW+t5aCuIfJxIUxvwk6Sg/6ZJ069N/Be6gs00r+aZeJTfS9uHQ==
 
 npm@^11.6.2:
-  version "11.20.0"
-  resolved "https://registry.yarnpkg.com/npm/-/npm-11.20.0.tgz#6326d796fe2eff2cc0427e21940443df812a729a"
-  integrity sha512-dF3EDFwbYN+N5RUip+ZYDe0NeURK5BgqKOcvT1iNtUYhTMTl0FwWhBuXrS7KtXyduqyTMS5aaQaregnHDAxNgw==
+  version "11.21.0"
+  resolved "https://registry.yarnpkg.com/npm/-/npm-11.21.0.tgz#7184c24ba6c6d8c1419ed1c4a187377bc05b254c"
+  integrity sha512-Zov8KhamNneiLdELtj5YALtNmJW4L4fCLTzjfpzXG2w6MSHcf0UxgdlK5uloCuksWT+7mGUU7wi79cO6RqivPg==
   dependencies:
     "@isaacs/string-locale-compare" "^1.1.0"
     "@npmcli/arborist" "^9.9.2"
-    "@npmcli/config" "^10.13.0"
+    "@npmcli/config" "^10.14.0"
     "@npmcli/fs" "^5.0.0"
     "@npmcli/map-workspaces" "^5.0.3"
     "@npmcli/metavuln-calculator" "^9.0.3"
