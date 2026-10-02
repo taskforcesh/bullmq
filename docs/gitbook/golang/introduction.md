@@ -87,16 +87,45 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Run blocks until ctx is cancelled or Close is called.
+	// Run blocks until ctx is cancelled (processors see the cancellation) or
+	// Close is called (in-flight jobs are allowed to finish).
 	if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		log.Fatal(err)
 	}
 }
 ```
 
-Graceful shutdown: cancel the context passed to `Run`, or call
-`worker.Close()` from another goroutine. Either way, jobs already in flight
-are allowed to finish before `Run` returns.
+There are two ways to stop a worker, and they differ in how in-flight jobs are
+treated:
+
+- **Graceful shutdown: `worker.Close()`.** Call it from another goroutine. The
+  worker stops fetching new jobs, waits for the jobs already in flight to
+  finish (their contexts are not cancelled), and then `Run` returns.
+- **Immediate shutdown: cancelling the context passed to `Run`.** The worker
+  stops fetching new jobs, but the same context is handed to your processors,
+  so they observe the cancellation through `ctx.Done()` and should return
+  early. Use this when you want to abort in-flight work rather than wait for it.
+
+```go
+// Graceful: let in-flight jobs finish.
+sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+defer stop()
+
+go func() {
+	<-sigCtx.Done()
+	if err := worker.Close(); err != nil {
+		log.Printf("close: %v", err)
+	}
+}()
+
+// Run on a context that is not tied to the signal, so processors are not cancelled.
+if err := worker.Run(context.Background()); err != nil && !errors.Is(err, context.Canceled) {
+	log.Fatal(err)
+}
+```
+
+If you pass the signal-aware context directly to `Run` instead, shutdown
+becomes immediate and processors must honour `ctx.Done()`.
 
 ### Listening to Worker Events
 
