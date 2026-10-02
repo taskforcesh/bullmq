@@ -552,7 +552,7 @@ func (q *Queue) moveJobsToWait(ctx context.Context, state string, count, timesta
 
 // Count returns the number of waiting, delayed and prioritized jobs.
 func (q *Queue) Count(ctx context.Context) (int64, error) {
-	counts, err := q.JobCounts(ctx, StateWaiting, StateDelayed, StatePrioritized)
+	counts, err := q.JobCounts(ctx, StateWaiting, StateDelayed, StatePrioritized, StateWaitingChildren)
 	if err != nil {
 		return 0, err
 	}
