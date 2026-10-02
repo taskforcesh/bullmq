@@ -184,7 +184,8 @@ type WorkerOptions struct {
 	Name string
 	// Concurrency is the number of jobs processed in parallel. Defaults to 1.
 	Concurrency int
-	// LockDuration is how long a job lock is held. Defaults to 30s.
+	// LockDuration is how long a job lock is held. Defaults to 30s. A positive
+	// value must be at least 1ms, since the lock TTL is stored in milliseconds.
 	LockDuration time.Duration
 	// LockRenewTime is how often the lock is renewed. Defaults to LockDuration/2.
 	LockRenewTime time.Duration
@@ -218,6 +219,9 @@ type WorkerOptions struct {
 func (o *WorkerOptions) applyDefaults() error {
 	if o.Concurrency <= 0 {
 		o.Concurrency = 1
+	}
+	if o.LockDuration > 0 && o.LockDuration < time.Millisecond {
+		return configError("lockDuration must be at least 1ms")
 	}
 	if o.LockDuration <= 0 {
 		o.LockDuration = 30 * time.Second
