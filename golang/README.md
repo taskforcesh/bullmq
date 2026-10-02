@@ -46,8 +46,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
-
+)
 	bullmq "github.com/taskforcesh/bullmq/golang"
 )
 
