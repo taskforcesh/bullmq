@@ -845,32 +845,30 @@
     "@pnpm/network.ca-file" "^1.0.1"
     config-chain "^1.1.11"
 
-"@redis/bloom@6.2.1":
-  version "6.2.1"
-  resolved "https://registry.yarnpkg.com/@redis/bloom/-/bloom-6.2.1.tgz#9aaffd5f51595fc4ff5bcd62ce9a31da82ce5cf4"
-  integrity sha512-huQgNLaCIZfQ9SeLn4q9124uOUd8HbZDYHwwUzNcRgHqCHiHKl2dDxMqJCeWh8cMqZAoWuHR8XnWbDMIf+o7ag==
+"@redis/bloom@6.3.0":
+  version "6.3.0"
+  resolved "https://registry.yarnpkg.com/@redis/bloom/-/bloom-6.3.0.tgz#5d6fe38f4f937c5a629c6bc5b6dafdbe9a07b433"
+  integrity sha512-NQ5poYpZr0jv6zazN1cy6JY5kIipKFZ3R9GTL4kOUTX3a9YAfY29U8bsE4lWhVQEM+G4V0BXVC57mubIdDijeA==
 
-"@redis/client@6.2.1":
-  version "6.2.1"
-  resolved "https://registry.yarnpkg.com/@redis/client/-/client-6.2.1.tgz#202d6c6bc88f1ed791fc50604d6d792ddf75438b"
-  integrity sha512-LzxBY7SIBvvJiyCgcaJZZakE3fJrZZ++i24+EDW9fKpCl68D35uJcKFpZZwCfOoG9WZTbyZlMzMeM0gtOAMU9Q==
-  dependencies:
-    cluster-key-slot "1.1.2"
+"@redis/client@6.3.0":
+  version "6.3.0"
+  resolved "https://registry.yarnpkg.com/@redis/client/-/client-6.3.0.tgz#b8501b8d39eb1d4d9d2d1c6bd75cf441bea259b2"
+  integrity sha512-fHrjwGCBvAANGi+TuRuwKi83sIOzgHr8eh+Uf48w3fSX7Hhrz174NrWqfJhAC2vnN0d/tfaZpdr6+o6JC3QHwg==
 
-"@redis/json@6.2.1":
-  version "6.2.1"
-  resolved "https://registry.yarnpkg.com/@redis/json/-/json-6.2.1.tgz#1861fe4b3522b845fd29094f40e0bbb5907bcb00"
-  integrity sha512-AFIUJ8Gj0DaaSBHYuSt8+O0oYWM+50OK1c0OmodB7XERIA8+BbyV3O4v76f9iccWasd1/7qjfZTpuzexUaZtrQ==
+"@redis/json@6.3.0":
+  version "6.3.0"
+  resolved "https://registry.yarnpkg.com/@redis/json/-/json-6.3.0.tgz#e2d928f6785eb57bb721a9764057dcef69aeb1af"
+  integrity sha512-yt6vRfPBXtW/3qm53cF81TSQpLMjWdW4/2E9WQ2GgbvsKkuCKCFQIcMiKlil1ZMnezK+IQuS795xKU5psbaegw==
 
-"@redis/search@6.2.1":
-  version "6.2.1"
-  resolved "https://registry.yarnpkg.com/@redis/search/-/search-6.2.1.tgz#0c83c6611dc387fde102828bd200cd5d459f4be9"
-  integrity sha512-2vfOAOyYFE7UUw3sBBlkqqruBtOUS4HRY5MtW4hp83llrwvtrTE4r22CEqXddlV+54zkLxBE4nmsIJ/dpezQrQ==
+"@redis/search@6.3.0":
+  version "6.3.0"
+  resolved "https://registry.yarnpkg.com/@redis/search/-/search-6.3.0.tgz#c153c125d0f791af78c145299f8ba4f7fc0eb0f8"
+  integrity sha512-RPXAZmKjZZG7Tm7m1w9keFdXzbL91PiSHQBfQRe9xwW40jNsTRbG0FwhIz4QlHPU4gKDAsCy8IQHj4yZl4H9rw==
 
-"@redis/time-series@6.2.1":
-  version "6.2.1"
-  resolved "https://registry.yarnpkg.com/@redis/time-series/-/time-series-6.2.1.tgz#0e3d9ae4563714491e7a6516165f037833f3cd36"
-  integrity sha512-kiYniph04dJOole+L359B6C9E+jYS2uDP7hca6Onj0xF38ZIpyxARO0Iq0W4ZRn1e8Q6vqW00QFZVSMRA/2Ijw==
+"@redis/time-series@6.3.0":
+  version "6.3.0"
+  resolved "https://registry.yarnpkg.com/@redis/time-series/-/time-series-6.3.0.tgz#d21c1113ec607e0de5329f5bb799688e4e8cb940"
+  integrity sha512-+fJOB8mN1z5WRakCJNh5lVdz1KqvHGSOistsKeitD24QsCtPwyRQXWC0iq6T/i/ubLE/YcguZqPm8F598MKk4A==
 
 "@rolldown/binding-android-arm-eabi@1.2.11":
   version "1.2.11"
@@ -2261,11 +2259,6 @@ cluster-key-slot@1.1.1:
   resolved "https://registry.yarnpkg.com/cluster-key-slot/-/cluster-key-slot-1.1.1.tgz#10ccb9ded0729464b6d2e7d714b100a2d1259d43"
   integrity sha512-rwHwUfXL40Chm1r08yrhU3qpUvdVlgkKNeyeGPOxnW8/SyVDvgRaed/Uz54AqWNaTCAThlj6QAs3TZcKI0xDEw==
 
-cluster-key-slot@1.1.2:
-  version "1.1.2"
-  resolved "https://registry.yarnpkg.com/cluster-key-slot/-/cluster-key-slot-1.1.2.tgz#88ddaa46906e303b5de30d3153b7d9fe0a0c19ac"
-  integrity sha512-RMr0FhtfXemyinomL4hrWcYJxmX6deFdCxpJzhDttxgO1+bcCnkk+9drydLVDmAMG7NE6aN/fl4F7ucU/90gAA==
-
 cmd-shim@^8.0.0:
   version "8.0.0"
   resolved "https://registry.yarnpkg.com/cmd-shim/-/cmd-shim-8.0.0.tgz#5be238f22f40faf3f7e8c92edc3f5d354f7657b2"
@@ -3252,10 +3245,10 @@ global-directory@^5.0.0:
   dependencies:
     ini "6.0.0"
 
-globals@17.12.0:
-  version "17.12.0"
-  resolved "https://registry.yarnpkg.com/globals/-/globals-17.12.0.tgz#910a368b8f093d3feb3f77a56dcefa05647d698e"
-  integrity sha512-cezEd/DTyyht9cvSSURyygXPfy04GtWO/5e6ZPvH7fCtjKz9PYOmuawphw1Ctd1f6C+5JypXfGD7ahNMXvevBA==
+globals@17.13.0:
+  version "17.13.0"
+  resolved "https://registry.yarnpkg.com/globals/-/globals-17.13.0.tgz#ab2134b5ededbf2fbe2831dd0acc36f4f1ddeac5"
+  integrity sha512-RwMTC61u7hrG3ZJMkZQOK4JLJrKS8QtoTii63EmWvFXHqycY9FObBJQCbsLxSO8kjKhWE5kV1GC+Vb1g3RI0Zg==
 
 globals@^14.0.0:
   version "14.0.0"
@@ -4994,15 +4987,15 @@ perfect-debounce@^2.0.0:
   resolved "https://registry.yarnpkg.com/perfect-debounce/-/perfect-debounce-2.1.0.tgz#e7078e38f231cb191855c3136a4423aef725d261"
   integrity sha512-LjgdTytVFXeUgtHZr9WYViYSM/g8MkcTPYDlPa3cDqMirHjKiSZPYd6DoL7pK8AJQr+uWkQvCjHNdiMqsrJs+g==
 
-pg-cloudflare@^1.4.0:
-  version "1.4.0"
-  resolved "https://registry.yarnpkg.com/pg-cloudflare/-/pg-cloudflare-1.4.0.tgz#4b4c20e6d8ae531d400730f4804571a8d62f1497"
-  integrity sha512-Vo7z/6rrQYxpNRylp4Tlob2elzbh+N/MOQbxFVWCxS7oEx6jF53GTJFxK2WWpKuBRkmiin4Mt+xofFDjx09R0A==
+pg-cloudflare@^1.4.1:
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/pg-cloudflare/-/pg-cloudflare-1.4.1.tgz#0fc904c9a8b3ca3a4f71e16bcc9171224ecbb2a8"
+  integrity sha512-6PQbsFWZcp9EmJEwy5cGQ2La+AMWpP46lgbb8X+U/XsHIUweYDNCpeuKck5RxL2MdVFi7krbbEi5nX4Zh7JhrQ==
 
-pg-connection-string@^2.14.0:
-  version "2.14.0"
-  resolved "https://registry.yarnpkg.com/pg-connection-string/-/pg-connection-string-2.14.0.tgz#abc26ee4f37c56c0f3ae0fcf0b0653cc4e1c0fd9"
-  integrity sha512-XwWDGcLRGCXAR8F/AM5bG7Q+A3Wm2s6QeEjlOKZLlH3UYcguiqCWKyWXVag5TLTIjR7oOJUY8kcADaZgWPyLeg==
+pg-connection-string@^2.14.1:
+  version "2.14.1"
+  resolved "https://registry.yarnpkg.com/pg-connection-string/-/pg-connection-string-2.14.1.tgz#d9529fe2497c0cac8a9f5f6f059679c52f1bd964"
+  integrity sha512-qR3kGNPBLpCNtz0evbKA0Y/MRFXwSSdT+pTJvYp/bXTcReZbvX1kzF0IyTc1QnxqF7AZbOeBhNL8R5mYQZV/MA==
 
 pg-int8@1.0.1:
   version "1.0.1"
@@ -5014,10 +5007,15 @@ pg-pool@^3.14.0:
   resolved "https://registry.yarnpkg.com/pg-pool/-/pg-pool-3.14.0.tgz#f35ae4eb846780cad71af24099b3edfa9781ad90"
   integrity sha512-gKtPkFdQPU3DksooVLi9LsjZxrsBUZIpa+7aVx+LV5pNh0KzP4Zleud2po+ConrxbuXGBJ6Hfer6hdgpIBpBaw==
 
-pg-protocol@*, pg-protocol@^1.16.0:
+pg-protocol@*:
   version "1.16.0"
   resolved "https://registry.yarnpkg.com/pg-protocol/-/pg-protocol-1.16.0.tgz#cffb008826561ee9770a8a15dc21f269d731b305"
   integrity sha512-sILXutLVjCLjcDuOmvhX5e2Z4cS5qG/6Bu3VkpFwdf/633ElGLpEh9bgmuI5I4sqKqkifQiGyiCcx1HdtrK7tg==
+
+pg-protocol@^1.16.1:
+  version "1.16.1"
+  resolved "https://registry.yarnpkg.com/pg-protocol/-/pg-protocol-1.16.1.tgz#87a3951b57002682d63166c029859bd834e64bf1"
+  integrity sha512-p9VOFMiHB/ZbJATetbg+99PxssTVSQRnyuPSQ67mN1+1KBOjZaZ83ZQzltnxPhJwSsC3nwVjJ10DVJlerbFzLg==
 
 pg-types@2.2.0, pg-types@^2.2.0:
   version "2.2.0"
@@ -5030,18 +5028,18 @@ pg-types@2.2.0, pg-types@^2.2.0:
     postgres-date "~1.0.4"
     postgres-interval "^1.1.0"
 
-pg@8.23.0:
-  version "8.23.0"
-  resolved "https://registry.yarnpkg.com/pg/-/pg-8.23.0.tgz#5c2026d32bd0cb4fbd9196bac1ecf5ae66607180"
-  integrity sha512-Ip2EQCngowJLGOfCwkFhPXU7/ljlhn6Rxlmy4XYfL2Y+vyRM59+8uR2xqRWKdYmbXmxCFOAmKxBuSUCdF34qLg==
+pg@8.23.1:
+  version "8.23.1"
+  resolved "https://registry.yarnpkg.com/pg/-/pg-8.23.1.tgz#e4848051a04aa2f968fd5671d075f89e5e7918b9"
+  integrity sha512-aL96AHANtWjPLDOLqnhx+ngp9+UK7ETEU8VJrDCGvsSSi/mGLcWYsS6Herg7lmaBJe4uwrfqsa7gTEFaSizDoQ==
   dependencies:
-    pg-connection-string "^2.14.0"
+    pg-connection-string "^2.14.1"
     pg-pool "^3.14.0"
-    pg-protocol "^1.16.0"
+    pg-protocol "^1.16.1"
     pg-types "2.2.0"
     pgpass "1.0.5"
   optionalDependencies:
-    pg-cloudflare "^1.4.0"
+    pg-cloudflare "^1.4.1"
 
 pgpass@1.0.5:
   version "1.0.5"
@@ -5371,16 +5369,16 @@ redis-parser@3.0.0:
   dependencies:
     redis-errors "^1.0.0"
 
-redis@6.2.1:
-  version "6.2.1"
-  resolved "https://registry.yarnpkg.com/redis/-/redis-6.2.1.tgz#8f5f2aff8e59b57d169a6a03416cc90a1f0a9a5c"
-  integrity sha512-Z9VHtgYs48PiQC77X9O2Er8Hj4T+5BtFjT91/vi5Is1D04N72cA946ZslM1ImJw8ZctFBZWAVjM7S5wJNeHMpg==
+redis@6.3.0:
+  version "6.3.0"
+  resolved "https://registry.yarnpkg.com/redis/-/redis-6.3.0.tgz#1509c3e7bbb41baa0f69247c0ff7a0fea2b0f91b"
+  integrity sha512-XFQbPie1lGpKeUZ8ySYY43yLnQy/iIQtHNvIr/1XdaABpb96rUSdm3Mfl+98FEVbv9ZJIzINMno5s0Nh8E5LEw==
   dependencies:
-    "@redis/bloom" "6.2.1"
-    "@redis/client" "6.2.1"
-    "@redis/json" "6.2.1"
-    "@redis/search" "6.2.1"
-    "@redis/time-series" "6.2.1"
+    "@redis/bloom" "6.3.0"
+    "@redis/client" "6.3.0"
+    "@redis/json" "6.3.0"
+    "@redis/search" "6.3.0"
+    "@redis/time-series" "6.3.0"
 
 regex-recursion@^6.0.2:
   version "6.0.2"
