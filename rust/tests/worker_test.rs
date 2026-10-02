@@ -7,7 +7,9 @@ use bullmq::error::Error;
 use bullmq::types::{BackoffStrategy, JobProgress, JobState, RetryOptions};
 use bullmq::worker::{CancellationToken, ProcessorFn, WorkerEvent};
 use bullmq::{BulkJob, Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
-use common::{cleanup_queue, test_connection, test_queue_name};
+use common::{
+    cleanup_queue, isolated_connection, kill_connections_in_db, test_connection, test_queue_name,
+};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -146,11 +148,14 @@ async fn test_idle_worker_picks_up_new_job_quickly() {
 /// Previously every connection was a bare `MultiplexedConnection`, which
 /// redis-rs never reconnects. Once the socket died the worker silently stopped
 /// fetching jobs — no error, no recovery — until the process was restarted.
-/// `CLIENT KILL` simulates the dropped socket deterministically.
+/// `CLIENT KILL` simulates the dropped socket deterministically. The test runs
+/// in its own logical database so the kill does not drop the connections of
+/// other tests running in parallel against the same server.
 #[tokio::test]
 async fn test_worker_recovers_after_connection_is_killed() {
+    const KILL_DB: u8 = 14;
     let name = test_queue_name();
-    let conn_opts = test_connection();
+    let conn_opts = isolated_connection(KILL_DB);
 
     let queue_opts = QueueOptions {
         connection: conn_opts.clone(),
@@ -183,19 +188,8 @@ async fn test_worker_recovers_after_connection_is_killed() {
         .expect("channel closed");
     assert_eq!(first, "before");
 
-    // Kill every client connection, as a Redis restart would. The killer's own
-    // connection is spared via SKIPME so the command can report a result.
-    let client = redis::Client::open(conn_opts.effective_url()).unwrap();
-    let mut killer = client.get_multiplexed_async_connection().await.unwrap();
-    let killed: i64 = redis::cmd("CLIENT")
-        .arg("KILL")
-        .arg("TYPE")
-        .arg("normal")
-        .arg("SKIPME")
-        .arg("yes")
-        .query_async(&mut killer)
-        .await
-        .unwrap();
+    // Drop every connection of this test's database, as a Redis restart would.
+    let killed = kill_connections_in_db(KILL_DB).await;
     assert!(killed > 0, "expected CLIENT KILL to drop some connections");
 
     // The worker must reconnect by itself and keep processing.

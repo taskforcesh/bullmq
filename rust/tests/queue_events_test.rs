@@ -12,7 +12,9 @@ use bullmq::{
     FlowJob, FlowProducer, Job, JobOptions, Queue, QueueEvent, QueueEvents, QueueEventsOptions,
     QueueOptions, Worker, WorkerOptions,
 };
-use common::{cleanup_queue, test_connection, test_queue_name};
+use common::{
+    cleanup_queue, isolated_connection, kill_connections_in_db, test_connection, test_queue_name,
+};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -467,11 +469,14 @@ async fn test_emits_delayed_event() {
 /// equivalent recovery path. The worker regression test
 /// (`test_worker_recovers_after_connection_is_killed`) only exercises the
 /// worker's path, so it can pass while this one is broken. `CLIENT KILL`
-/// simulates the dropped socket deterministically.
+/// simulates the dropped socket deterministically. The test runs in its own
+/// logical database so the kill does not drop the connections of other tests
+/// running in parallel against the same server.
 #[tokio::test]
 async fn test_queue_events_recovers_after_connection_is_killed() {
+    const KILL_DB: u8 = 13;
     let name = test_queue_name();
-    let conn_opts = test_connection();
+    let conn_opts = isolated_connection(KILL_DB);
     let queue = Queue::with_options(
         &name,
         QueueOptions {
@@ -501,19 +506,8 @@ async fn test_queue_events_recovers_after_connection_is_killed() {
         other => panic!("expected Added, got {other:?}"),
     }
 
-    // Kill every client connection, as a Redis restart would. The killer's own
-    // connection is spared via SKIPME so the command can report a result.
-    let client = redis::Client::open(conn_opts.effective_url()).unwrap();
-    let mut killer = client.get_multiplexed_async_connection().await.unwrap();
-    let killed: i64 = redis::cmd("CLIENT")
-        .arg("KILL")
-        .arg("TYPE")
-        .arg("normal")
-        .arg("SKIPME")
-        .arg("yes")
-        .query_async(&mut killer)
-        .await
-        .unwrap();
+    // Drop every connection of this test's database, as a Redis restart would.
+    let killed = kill_connections_in_db(KILL_DB).await;
     assert!(killed > 0, "expected CLIENT KILL to drop some connections");
 
     // Wait for the queue's own connection to reconnect before using it to add
