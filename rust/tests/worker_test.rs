@@ -10811,7 +10811,7 @@ async fn test_queue_trim_events() {
     let _trimmed = queue.trim_events(5).await.unwrap();
 
     // Verify the event stream length is bounded (~ is very approximate for small streams)
-    let mut conn = queue.connection().conn();
+    let mut conn = queue.connection().managed_conn();
     let len: usize = redis::cmd("XLEN")
         .arg(queue.keys().events())
         .query_async(&mut conn)

@@ -1004,7 +1004,7 @@ async fn should_add_meta_key_to_both_parents_and_children() {
 
 /// Helper to check if a queue has a meta key set.
 async fn check_meta_exists(queue: &Queue) -> bool {
-    let mut conn = queue.connection().conn();
+    let mut conn = queue.connection().managed_conn();
     let result: Option<String> = redis::cmd("HGET")
         .arg(queue.keys().meta())
         .arg("library")
@@ -4985,7 +4985,7 @@ async fn should_propagate_get_flow_dependency_errors() {
         "{}:dependencies",
         parent_queue.keys().job_key(original_tree.job.id())
     );
-    let mut conn = parent_queue.connection().conn();
+    let mut conn = parent_queue.connection().managed_conn();
     redis::cmd("DEL")
         .arg(&deps_key)
         .query_async::<()>(&mut conn)
@@ -5055,7 +5055,7 @@ async fn should_ignore_missing_child_jobs_when_loading_flow() {
         .job
         .id()
         .to_string();
-    let mut conn = child_queue.connection().conn();
+    let mut conn = child_queue.connection().managed_conn();
     redis::cmd("DEL")
         .arg(child_queue.keys().job_key(&child_id))
         .query_async::<()>(&mut conn)
@@ -5114,7 +5114,7 @@ async fn should_propagate_child_loading_errors_when_loading_flow() {
         .id()
         .to_string();
     let child_deps_key = format!("{}:dependencies", child_queue.keys().job_key(&child_id));
-    let mut conn = child_queue.connection().conn();
+    let mut conn = child_queue.connection().managed_conn();
     redis::cmd("DEL")
         .arg(&child_deps_key)
         .query_async::<()>(&mut conn)
