@@ -168,8 +168,11 @@ impl RedisConnection {
     }
 
     /// Ping the server to verify connectivity.
+    ///
+    /// Uses the auto-reconnecting managed connection so the check succeeds again
+    /// once the socket has been re-established after a drop.
     pub async fn ping(&self) -> Result<(), Error> {
-        let mut conn = self.inner.conn.clone();
+        let mut conn = self.inner.managed_conn.clone();
         redis::cmd("PING").query_async::<()>(&mut conn).await?;
         Ok(())
     }

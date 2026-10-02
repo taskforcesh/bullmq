@@ -459,6 +459,104 @@ async fn test_emits_delayed_event() {
     cleanup_queue(&queue).await;
 }
 
+/// Regression test: `QueueEvents` must recover on its own after its dedicated
+/// stream connection is dropped (network blip, Redis restart, failover).
+///
+/// `QueueEvents` runs its own consume loop with its own watchdog/rebuild
+/// branch (see `QueueEvents::consume`), completely separate from the worker's
+/// equivalent recovery path. The worker regression test
+/// (`test_worker_recovers_after_connection_is_killed`) only exercises the
+/// worker's path, so it can pass while this one is broken. `CLIENT KILL`
+/// simulates the dropped socket deterministically.
+#[tokio::test]
+async fn test_queue_events_recovers_after_connection_is_killed() {
+    let name = test_queue_name();
+    let conn_opts = test_connection();
+    let queue = Queue::with_options(
+        &name,
+        QueueOptions {
+            connection: conn_opts.clone(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let events = QueueEvents::with_options(
+        &name,
+        QueueEventsOptions {
+            connection: conn_opts.clone(),
+            last_event_id: Some("0".to_string()),
+            blocking_timeout: 1000,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let before = queue.add("before", serde_json::json!({})).await.unwrap();
+    let event = wait_for(&events, 10, |e| matches!(e, QueueEvent::Added { .. })).await;
+    match event {
+        QueueEvent::Added { job_id, .. } => assert_eq!(job_id, before.id()),
+        other => panic!("expected Added, got {other:?}"),
+    }
+
+    // Kill every client connection, as a Redis restart would. The killer's own
+    // connection is spared via SKIPME so the command can report a result.
+    let client = redis::Client::open(conn_opts.effective_url()).unwrap();
+    let mut killer = client.get_multiplexed_async_connection().await.unwrap();
+    let killed: i64 = redis::cmd("CLIENT")
+        .arg("KILL")
+        .arg("TYPE")
+        .arg("normal")
+        .arg("SKIPME")
+        .arg("yes")
+        .query_async(&mut killer)
+        .await
+        .unwrap();
+    assert!(killed > 0, "expected CLIENT KILL to drop some connections");
+
+    // Wait for the queue's own connection to reconnect before using it to add
+    // the next job.
+    tokio::time::timeout(Duration::from_secs(20), async {
+        loop {
+            if queue.connection().ping().await.is_ok() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("queue did not reconnect");
+
+    // QueueEvents must reconnect by itself and keep delivering later stream
+    // events.
+    let after = queue.add("after", serde_json::json!({})).await.unwrap();
+    let event = tokio::time::timeout(Duration::from_secs(20), async {
+        loop {
+            match events.next_event().await {
+                Some(entry) => {
+                    if let QueueEvent::Added { job_id, .. } = &entry.event {
+                        if job_id == after.id() {
+                            return entry.event;
+                        }
+                    }
+                }
+                None => panic!("QueueEvents closed before matching event"),
+            }
+        }
+    })
+    .await
+    .expect("QueueEvents did not recover after its connection was killed");
+    match event {
+        QueueEvent::Added { job_id, .. } => assert_eq!(job_id, after.id()),
+        other => panic!("expected Added, got {other:?}"),
+    }
+
+    events.close().await;
+    cleanup_queue(&queue).await;
+}
+
 #[tokio::test]
 async fn test_emits_drained_event() {
     let name = test_queue_name();
