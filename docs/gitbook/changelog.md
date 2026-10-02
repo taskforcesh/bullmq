@@ -1,3 +1,24 @@
+## [6.3.11](https://github.com/taskforcesh/bullmq/compare/v6.3.10...v6.3.11) (2026-10-01)
+
+
+### Bug Fixes
+
+* **worker:** detach stalled checker from telemetry context to prevent trace leak ([#4812](https://github.com/taskforcesh/bullmq/issues/4812)) fixes [#4731](https://github.com/taskforcesh/bullmq/issues/4731) ([01b8b14](https://github.com/taskforcesh/bullmq/commit/01b8b14a973984845dc0bbcefccf35b3ed30782d))
+
+## [6.3.10](https://github.com/taskforcesh/bullmq/compare/v6.3.9...v6.3.10) (2026-09-29)
+
+
+### Bug Fixes
+
+* **worker:** stop infinite connection-error retries during shutdown ([#4833](https://github.com/taskforcesh/bullmq/issues/4833)) ([96e0a96](https://github.com/taskforcesh/bullmq/commit/96e0a96b9f0be7d16eba9c2b6823ba9488101121))
+
+## [6.3.9](https://github.com/taskforcesh/bullmq/compare/v6.3.8...v6.3.9) (2026-09-25)
+
+
+### Bug Fixes
+
+* **connection:** infer backend-specific connection options instead of hiding mismatches with casts ([#4796](https://github.com/taskforcesh/bullmq/issues/4796)) ([10dc93c](https://github.com/taskforcesh/bullmq/commit/10dc93c59790cfffb117624311ca3983172955a8))
+
 ## [6.3.8](https://github.com/taskforcesh/bullmq/compare/v6.3.7...v6.3.8) (2026-09-18)
 
 

@@ -1143,6 +1143,37 @@ describe('workers', () => {
         expect(result).toBe('closed');
       },
     );
+
+    it('does not retry connection errors indefinitely while the worker is closing', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      // Start a real (non-forced) close without awaiting it yet. `close()`
+      // synchronously assigns `this.closing` to the in-flight promise before
+      // awaiting anything inside it, so `retryIfFailed` observes the same
+      // truthy `closing` state a real shutdown would produce.
+      const closePromise = worker.close();
+
+      await expect(
+        Promise.race([
+          worker['retryIfFailed'](
+            () => Promise.reject(new Error('Connection is closed.')),
+            {
+              delayInMs: 1,
+            },
+          ),
+          delay(200).then(() => {
+            throw new Error('retry loop did not exit while closing');
+          }),
+        ]),
+      ).rejects.toThrow('Connection is closed.');
+
+      await closePromise;
+    });
   });
 
   describe('when waiting for a job', () => {

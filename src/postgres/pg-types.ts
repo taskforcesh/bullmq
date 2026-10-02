@@ -49,9 +49,7 @@ export interface PgListenClient extends PgQueryable {
    * typed) because it is an implementation detail of `pg`.
    */
   connection?: {
-    stream?: {
-      setKeepAlive?(enable: boolean, initialDelay?: number): unknown;
-    };
+    stream?: unknown;
   };
   on(event: 'notification', listener: (msg: PgNotification) => void): this;
   on(event: 'error', listener: (err: Error) => void): this;

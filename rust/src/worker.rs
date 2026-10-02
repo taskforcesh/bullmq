@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::error::Error;
 use crate::job::Job;
-use crate::keys::{validate_queue_name, QueueKeys};
+use crate::keys::{validate_prefix, validate_queue_name, QueueKeys};
 use crate::options::{JobOptions, WorkerOptions};
 use crate::redis_connection::{BlockingRedisConnection, RedisConnection};
 use crate::types::RemoveOnFinish;
@@ -580,6 +580,7 @@ impl Worker {
         let processor: ProcessorFn = processor.into_processor();
 
         validate_queue_name(queue_name)?;
+        validate_prefix(&opts.prefix)?;
 
         // Validate options
         if opts.concurrency == 0 {
@@ -599,7 +600,7 @@ impl Worker {
         }
 
         let conn = RedisConnection::new(&opts.connection).await?;
-        let blocking_conn = BlockingRedisConnection::new(&conn).await?;
+        let blocking_conn = BlockingRedisConnection::new_managed(&conn).await?;
         let keys = QueueKeys::new(queue_name, Some(&opts.prefix));
 
         // Register the blocking connection's client name so that
@@ -611,7 +612,7 @@ impl Worker {
             .map(|n| format!(":w:{n}"))
             .unwrap_or_default();
         let _ = blocking_conn
-            .set_name(&keys.client_name(&client_name_suffix))
+            .managed_set_name(&keys.client_name(&client_name_suffix))
             .await;
 
         let id = Uuid::new_v4().to_string();
@@ -1008,7 +1009,10 @@ impl Worker {
         // BZPOPMIN takes a timeout in (fractional) seconds. Guard against a zero
         // timeout, which Redis interprets as "block forever".
         let timeout_secs = (timeout_ms.max(1) as f64) / 1000.0;
-        if let Err(e) = blocking_conn.bzpopmin(&ctx.marker_key, timeout_secs).await {
+        if let Err(e) = blocking_conn
+            .managed_bzpopmin(&ctx.marker_key, timeout_secs)
+            .await
+        {
             // Transient error (e.g. connection reset): back off briefly before
             // the driver loops and retries, unless we are shutting down. The
             // blocking connection reconnects in the background, so the retry
@@ -1444,7 +1448,7 @@ impl Worker {
             job_id.as_bytes(),          // ARGV[7] producerId
         ];
 
-        let mut redis_conn = ctx.conn.conn();
+        let mut redis_conn = ctx.conn.managed_conn();
         let _result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         // Script returns the next job ID on success, or nil if scheduler
@@ -1788,7 +1792,7 @@ impl Worker {
 
         let args: Vec<&[u8]> = vec![job_id.as_bytes(), token.as_bytes(), job_key.as_bytes()];
 
-        let mut conn = ctx.conn.conn();
+        let mut conn = ctx.conn.managed_conn();
         let result: redis::Value = script.execute(&mut conn, &script_keys, &args).await?;
 
         match result {
@@ -1821,7 +1825,7 @@ impl Worker {
         let now_bytes = now.to_string().into_bytes();
         let args: Vec<&[u8]> = vec![prefix_bytes, &now_bytes, &opts_packed];
 
-        let mut redis_conn = conn.conn();
+        let mut redis_conn = conn.managed_conn();
         let result = script.execute(&mut redis_conn, script_keys, &args).await?;
 
         Self::parse_move_to_active_result(&result)
@@ -1910,7 +1914,7 @@ impl Worker {
             &fields_to_update,
         ];
 
-        let mut redis_conn = conn.conn();
+        let mut redis_conn = conn.managed_conn();
         let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         match result {
@@ -1988,7 +1992,7 @@ impl Worker {
             &fields_to_update,     // ARGV[6] optional fields
         ];
 
-        let mut redis_conn = conn.conn();
+        let mut redis_conn = conn.managed_conn();
         let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         match result {
@@ -2067,7 +2071,7 @@ impl Worker {
             &move_opts,            // ARGV[9] opts
         ];
 
-        let mut redis_conn = conn.conn();
+        let mut redis_conn = conn.managed_conn();
         let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         match result {
@@ -2153,7 +2157,7 @@ impl Worker {
         let now_bytes = now.to_string().into_bytes();
         let args: Vec<&[u8]> = vec![&prefix_bytes, &now_bytes, &opts_packed];
 
-        let mut redis_conn = conn.conn();
+        let mut redis_conn = conn.managed_conn();
         let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         // Parse result
@@ -2163,12 +2167,12 @@ impl Worker {
                     // Wait for marker via BZPOPMIN
                     let marker_key = keys.marker();
                     let wait_result = blocking_conn
-                        .bzpopmin(&marker_key, opts.drain_delay as f64)
+                        .managed_bzpopmin(&marker_key, opts.drain_delay as f64)
                         .await?;
 
                     if wait_result.is_some() {
                         // Retry fetching
-                        let mut redis_conn = conn.conn();
+                        let mut redis_conn = conn.managed_conn();
                         let retry_result =
                             script.execute(&mut redis_conn, &script_keys, &args).await?;
                         match Self::parse_move_to_active_result(&retry_result)? {
@@ -2373,7 +2377,7 @@ impl Worker {
         let max_check_time = stalled_interval.to_string().into_bytes();
         let args: Vec<&[u8]> = vec![&max_str, &prefix_bytes, &now_bytes, &max_check_time];
 
-        let mut redis_conn = conn.conn();
+        let mut redis_conn = conn.managed_conn();
         let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         // Parse result for stalled job IDs
@@ -2435,7 +2439,7 @@ impl Worker {
                     let job_id_bytes = active_job.job_id.as_bytes();
                     let args: Vec<&[u8]> = vec![token_bytes, &dur_bytes, job_id_bytes];
 
-                    let mut redis_conn = conn.conn();
+                    let mut redis_conn = conn.managed_conn();
                     let _: Result<(), _> = script
                         .execute(&mut redis_conn, &script_keys, &args)
                         .await

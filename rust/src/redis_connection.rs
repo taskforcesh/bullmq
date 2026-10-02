@@ -1,5 +1,5 @@
-use redis::aio::{ConnectionManager, ConnectionManagerConfig};
-use redis::{Client, ClientTlsConfig, TlsCertificates};
+use redis::aio::{ConnectionManager, ConnectionManagerConfig, MultiplexedConnection};
+use redis::{AsyncConnectionConfig, Client, ClientTlsConfig, TlsCertificates};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -9,15 +9,12 @@ use crate::error::Error;
 use crate::options::{redact_url_userinfo, ReconnectOptions, RedisConnectionOptions};
 use crate::scripts::ScriptRegistry;
 
-/// The connection type used throughout the crate.
-///
-/// [`ConnectionManager`] wraps a multiplexed connection and transparently
-/// re-establishes it after the socket dies (network blip, Redis restart,
-/// failover). The command in flight when the socket dropped still fails, but
-/// the reconnection happens in the background and later commands succeed
-/// again — which is what keeps a long-running `Worker` alive across Redis
-/// restarts instead of silently wedging forever.
-pub type Conn = ConnectionManager;
+/// The multiplexed connection type returned by the legacy connection APIs.
+pub type Conn = MultiplexedConnection;
+
+/// A multiplexed connection that transparently re-establishes itself after
+/// the socket dies.
+pub type ManagedConn = ConnectionManager;
 
 /// Build a Redis [`Client`] from connection options.
 ///
@@ -80,7 +77,8 @@ pub struct RedisConnection {
 struct Inner {
     client: Client,
     opts: RedisConnectionOptions,
-    conn: Conn,
+    conn: MultiplexedConnection,
+    managed_conn: ManagedConn,
     scripts: ScriptRegistry,
 }
 
@@ -90,13 +88,15 @@ impl RedisConnection {
         let url = opts.effective_url();
         let client = build_client(opts, &url)?;
         let scripts = ScriptRegistry::new();
+        let conn = client.get_multiplexed_async_connection().await?;
         let config = manager_config(ReconnectOptions::default().response_timeout);
-        let conn = ConnectionManager::new_with_config(client.clone(), config).await?;
+        let managed_conn = ConnectionManager::new_with_config(client.clone(), config).await?;
 
         let inner = Arc::new(Inner {
             client,
             opts: opts.clone(),
             conn,
+            managed_conn,
             scripts,
         });
 
@@ -106,9 +106,14 @@ impl RedisConnection {
         Ok(Self { inner })
     }
 
-    /// Get a clone of the managed connection for concurrent use.
-    pub fn conn(&self) -> Conn {
+    /// Get a clone of the multiplexed connection for concurrent use.
+    pub fn conn(&self) -> MultiplexedConnection {
         self.inner.conn.clone()
+    }
+
+    /// Get a clone of the managed connection for concurrent use.
+    pub fn managed_conn(&self) -> ManagedConn {
+        self.inner.managed_conn.clone()
     }
 
     /// Get the script registry.
@@ -140,10 +145,24 @@ impl RedisConnection {
 
     /// Create a new dedicated connection (e.g., for blocking operations).
     ///
-    /// Like the shared connection it reconnects automatically. The response
-    /// timeout is disabled because callers use it for commands that block
-    /// server-side (`XREAD BLOCK`).
-    pub async fn dedicated_connection(&self) -> Result<Conn, Error> {
+    /// The connection is created with its response timeout **disabled**.
+    /// redis-rs applies a 500ms default response timeout to every multiplexed
+    /// connection, which is shorter than the block durations used by callers
+    /// (e.g. `QueueEvents`' `XREAD BLOCK`). With the default timeout the client
+    /// would abandon every blocking call after 500ms and surface a spurious
+    /// "timed out" error on an otherwise healthy, idle queue. See the note on
+    /// [`BlockingRedisConnection::new`] for the equivalent worker-side issue.
+    pub async fn dedicated_connection(&self) -> Result<MultiplexedConnection, Error> {
+        let config = AsyncConnectionConfig::new().set_response_timeout(None);
+        Ok(self
+            .inner
+            .client
+            .get_multiplexed_async_connection_with_config(&config)
+            .await?)
+    }
+
+    /// Create a dedicated managed connection that reconnects automatically.
+    pub async fn managed_dedicated_connection(&self) -> Result<ManagedConn, Error> {
         let config = manager_config(None);
         Ok(ConnectionManager::new_with_config(self.inner.client.clone(), config).await?)
     }
@@ -173,7 +192,8 @@ pub struct BlockingRedisConnection {
 
 struct BlockingInner {
     client: Client,
-    conn: Mutex<Conn>,
+    conn: Mutex<ManagedConn>,
+    compat_conn: Mutex<MultiplexedConnection>,
     /// Name registered with `CLIENT SETNAME`, kept so it can be reapplied
     /// after the managed connection is re-established.
     client_name: std::sync::Mutex<Option<String>>,
@@ -200,7 +220,7 @@ fn is_transient_connection_error(err: &Error) -> bool {
 const BLOCK_WATCHDOG_GRACE: std::time::Duration = std::time::Duration::from_secs(1);
 
 impl BlockingRedisConnection {
-    /// Create a new blocking connection from a [`RedisConnection`].
+    /// Create a new blocking connection from a Redis client.
     ///
     /// The connection is a [`ConnectionManager`], so it re-establishes itself
     /// in the background when the socket dies (Redis restart, failover). A
@@ -224,26 +244,51 @@ impl BlockingRedisConnection {
     /// reply is always delivered to a live waiter. This mirrors the TypeScript
     /// worker, whose stuck-connection watchdog fires at `blockTimeout + 1s`,
     /// deliberately longer than the block rather than shorter.
-    pub async fn new(conn: &RedisConnection) -> Result<Self, Error> {
-        let client = conn.client().clone();
+    pub async fn new(client: &Client) -> Result<Self, Error> {
+        let client = client.clone();
+        let legacy_config = AsyncConnectionConfig::new().set_response_timeout(None);
+        let compat_conn = client
+            .get_multiplexed_async_connection_with_config(&legacy_config)
+            .await?;
         let config = manager_config(None);
         let conn = ConnectionManager::new_with_config(client.clone(), config).await?;
         Ok(Self {
             inner: Arc::new(BlockingInner {
                 client,
                 conn: Mutex::new(conn),
+                compat_conn: Mutex::new(compat_conn),
                 client_name: std::sync::Mutex::new(None),
                 needs_renaming: AtomicBool::new(false),
             }),
         })
     }
 
-    /// Get a mutable reference to the connection.
-    pub async fn conn(&self) -> tokio::sync::MutexGuard<'_, Conn> {
-        self.inner.conn.lock().await
+    /// Create a new blocking connection managed by a [`RedisConnection`].
+    pub async fn new_managed(conn: &RedisConnection) -> Result<Self, Error> {
+        Self::new(conn.client()).await
     }
 
-    /// Execute a blocking BZPOPMIN command.
+    /// Get a mutable reference to the connection.
+    pub async fn conn(&self) -> tokio::sync::MutexGuard<'_, MultiplexedConnection> {
+        self.inner.compat_conn.lock().await
+    }
+
+    /// Execute a blocking BZPOPMIN command on the legacy connection.
+    pub async fn bzpopmin(
+        &self,
+        key: &str,
+        timeout_secs: f64,
+    ) -> Result<Option<(String, String, f64)>, Error> {
+        let mut conn = self.inner.compat_conn.lock().await;
+        let result: Option<(String, String, f64)> = redis::cmd("BZPOPMIN")
+            .arg(key)
+            .arg(timeout_secs)
+            .query_async(&mut *conn)
+            .await?;
+        Ok(result)
+    }
+
+    /// Execute a blocking BZPOPMIN command on the managed connection.
     ///
     /// Guarded by a watchdog: the response timeout is disabled on this
     /// connection, so a half-open socket (a network blip that never delivers a
@@ -252,7 +297,7 @@ impl BlockingRedisConnection {
     /// the command's own timeout plus [`BLOCK_WATCHDOG_GRACE`], the connection
     /// is treated as stuck and rebuilt, and an error is returned so the caller
     /// retries on the fresh connection.
-    pub async fn bzpopmin(
+    pub(crate) async fn managed_bzpopmin(
         &self,
         key: &str,
         timeout_secs: f64,
@@ -307,11 +352,22 @@ impl BlockingRedisConnection {
     /// Used by workers so that `Queue::get_workers` can discover them via
     /// `CLIENT LIST`. Best-effort: some managed providers (e.g. GCP) reject this
     /// command, so callers typically ignore the error.
-    ///
-    /// The name is remembered and reapplied automatically whenever the managed
-    /// connection is re-established, since a reconnect produces a fresh Redis
-    /// connection whose name is empty.
     pub async fn set_name(&self, name: &str) -> Result<(), Error> {
+        let mut conn = self.inner.compat_conn.lock().await;
+        redis::cmd("CLIENT")
+            .arg("SETNAME")
+            .arg(name)
+            .query_async::<()>(&mut *conn)
+            .await?;
+        Ok(())
+    }
+
+    /// Set the Redis client connection name on the managed connection.
+    ///
+    /// The name is reapplied automatically whenever the connection is
+    /// re-established.
+    ///
+    pub(crate) async fn managed_set_name(&self, name: &str) -> Result<(), Error> {
         self.store_client_name(name);
 
         let mut conn = self.inner.conn.lock().await;
@@ -348,7 +404,7 @@ impl BlockingRedisConnection {
             .clone()
     }
 
-    async fn apply_client_name(conn: &mut Conn, name: &str) -> Result<(), Error> {
+    async fn apply_client_name(conn: &mut ManagedConn, name: &str) -> Result<(), Error> {
         redis::cmd("CLIENT")
             .arg("SETNAME")
             .arg(name)
@@ -364,7 +420,7 @@ impl BlockingRedisConnection {
     /// the new Redis connection starts with an empty name. Without this, a
     /// worker that recovered from a Redis restart would silently disappear from
     /// `Queue::get_workers`, which discovers workers by `CLIENT LIST` name.
-    async fn reapply_client_name(&self, conn: &mut Conn) {
+    async fn reapply_client_name(&self, conn: &mut ManagedConn) {
         if !self.inner.needs_renaming.load(Ordering::Acquire) {
             return;
         }
@@ -395,8 +451,27 @@ impl BlockingRedisConnection {
 mod tests {
     use super::build_client;
     use super::is_transient_connection_error;
+    use super::{BlockingRedisConnection, ManagedConn, RedisConnection};
     use crate::error::Error;
     use crate::options::{redact_url_userinfo, RedisConnectionOptions, TlsCerts};
+    use redis::aio::MultiplexedConnection;
+    use redis::Client;
+    use tokio::sync::MutexGuard;
+
+    #[allow(dead_code)]
+    async fn legacy_connection_api_types(
+        client: &Client,
+        connection: &RedisConnection,
+        blocking_connection: &BlockingRedisConnection,
+    ) -> Result<(), Error> {
+        let _: MultiplexedConnection = connection.conn();
+        let _: MultiplexedConnection = connection.dedicated_connection().await?;
+        let _: MutexGuard<'_, MultiplexedConnection> = blocking_connection.conn().await;
+        let _: ManagedConn = connection.managed_conn();
+        let _: ManagedConn = connection.managed_dedicated_connection().await?;
+        let _ = BlockingRedisConnection::new(client).await?;
+        Ok(())
+    }
 
     fn opts_with_certs(certs: TlsCerts) -> RedisConnectionOptions {
         RedisConnectionOptions {

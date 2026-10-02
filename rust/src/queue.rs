@@ -8,8 +8,12 @@ use tracing::{debug, instrument};
 
 use crate::error::Error;
 use crate::job::{Job, ScriptContext};
-use crate::keys::{resolve_parent_queue_key, validate_queue_name, QueueKeys};
+use crate::keys::{
+    resolve_parent_queue_key, validate_custom_job_id, validate_prefix, validate_queue_name,
+    QueueKeys,
+};
 use crate::options::{DeduplicationOptions, JobOptions, ParentOptions, QueueOptions};
+use crate::paginate::{paginate_item_key, parse_paginate_reply, value_to_string};
 use crate::redis_connection::RedisConnection;
 use crate::types::{
     BackoffStrategy, DependenciesCount, JobCounts, JobState, QueueMeta, RemoveOnFinish,
@@ -27,6 +31,38 @@ const GET_JOBS_MAX_BACKFILL_ITERATIONS: usize = 5;
 /// forwarding job-count gauges to a metrics/telemetry backend.
 pub type JobCountRecorder<'a> = &'a dyn Fn(&str, u64);
 
+/// One dependency entry returned by [`Queue::get_dependencies`].
+///
+/// For `pending` dependencies, only `id` is populated.
+/// For `processed` dependencies, `v` contains the parsed JSON return value,
+/// or `err` contains the parse error message when the stored value is not
+/// valid JSON.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct DependencyItem {
+    /// Qualified child job key (`<prefix>:<queue>:<id>`).
+    pub id: String,
+    /// Parsed child return value (processed dependencies only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v: Option<serde_json::Value>,
+    /// JSON parse error for `v` (processed dependencies only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub err: Option<String>,
+}
+
+/// Paginated dependencies view returned by [`Queue::get_dependencies`].
+///
+/// Mirrors Node.js `Queue.getDependencies` and includes both dependency items
+/// and the fetched child jobs.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct QueueDependencies {
+    /// Dependency entries (pending keys or processed key/value pairs).
+    pub items: Vec<DependencyItem>,
+    /// Child jobs fetched for the returned `items`.
+    pub jobs: Vec<Job>,
+    /// Total number of entries in the dependency collection.
+    pub total: u64,
+}
+
 /// A Queue is the main entry point for adding jobs to be processed.
 ///
 /// It provides methods for adding single and bulk jobs, and managing
@@ -40,7 +76,8 @@ pub struct Queue {
 }
 
 impl Queue {
-    fn validate_job_size(job: &Job, argv2: &str) -> Result<(), Error> {
+    /// Client-side job validation, mirroring `Job.validateOptions` in Node.js.
+    fn validate_job_options(job: &Job, argv2: &str) -> Result<(), Error> {
         if let Some(size_limit) = job.opts().size_limit {
             if argv2.len() > size_limit {
                 return Err(Error::InvalidConfig(format!(
@@ -49,6 +86,15 @@ impl Queue {
                     size_limit
                 )));
             }
+        }
+
+        if let Some(job_id) = job.opts().job_id.as_deref() {
+            if job_id == "0" || job_id.starts_with("0:") {
+                return Err(Error::InvalidConfig(
+                    "JobId cannot be '0' or start with '0:'".to_string(),
+                ));
+            }
+            validate_custom_job_id(job_id)?;
         }
 
         Ok(())
@@ -73,6 +119,7 @@ impl Queue {
     /// Create a new Queue with explicit options.
     pub async fn with_options(name: &str, opts: QueueOptions) -> Result<Self, Error> {
         validate_queue_name(name)?;
+        validate_prefix(&opts.prefix)?;
         let conn = RedisConnection::new(&opts.connection).await?;
         let keys = QueueKeys::new(name, Some(&opts.prefix));
 
@@ -95,6 +142,7 @@ impl Queue {
         opts: QueueOptions,
     ) -> Result<Self, Error> {
         validate_queue_name(name)?;
+        validate_prefix(&opts.prefix)?;
         let keys = QueueKeys::new(name, Some(&opts.prefix));
 
         let queue = Self {
@@ -187,7 +235,7 @@ impl Queue {
             .iter()
             .map(|job| {
                 let argv2 = serde_json::to_string(job.data())?;
-                Self::validate_job_size(job, &argv2)?;
+                Self::validate_job_options(job, &argv2)?;
                 Ok(argv2)
             })
             .collect::<Result<_, Error>>()?;
@@ -221,7 +269,7 @@ impl Queue {
                 let keys = self.add_job_keys(script_name);
                 let packed_args = self.pack_add_args(job, &custom_job_id, timestamp);
                 let argv3 = self.pack_job_opts(job);
-                let mut conn = self.conn.conn();
+                let mut conn = self.conn.managed_conn();
 
                 async move {
                     let script = script?;
@@ -280,7 +328,7 @@ impl Queue {
 
         // Enforce sizeLimit client-side (matches Node.js `validateOptions`):
         // reject jobs whose serialized data exceeds the configured byte limit.
-        Self::validate_job_size(job, &argv2)?;
+        Self::validate_job_options(job, &argv2)?;
 
         // Build ARGV[3]: msgpack map of options
         let argv3 = self.pack_job_opts(job);
@@ -288,7 +336,7 @@ impl Queue {
         let argv2_bytes = argv2.into_bytes();
         let args: Vec<&[u8]> = vec![&argv1, &argv2_bytes, &argv3];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         let returned_job_id = Self::parse_added_job_id(result)?;
@@ -302,10 +350,15 @@ impl Queue {
     /// Per-job options take precedence over defaults.
     /// Create a ScriptContext for jobs returned by queue methods.
     fn make_script_context(&self) -> ScriptContext {
+        self.make_script_context_for_keys(self.keys.clone())
+    }
+
+    /// Create a ScriptContext for jobs that belong to `keys`.
+    fn make_script_context_for_keys(&self, keys: QueueKeys) -> ScriptContext {
         let (progress_tx, _) = tokio::sync::broadcast::channel(1);
         ScriptContext {
             conn: self.conn.clone(),
-            keys: self.keys.clone(),
+            keys,
             progress_tx,
             token: String::new(),
             lock_duration: 0,
@@ -520,6 +573,17 @@ impl Queue {
             entries.push(("de", b));
         }
 
+        // Persist the custom job id so the qualified job key
+        // (`{prefix}:{queueName}:{jobId}`) can be parsed back unambiguously.
+        // Mirrors `optsAsJSON` in the Node.js backend, which stores `jobId` too.
+        if let Some(ref job_id) = opts.job_id {
+            if !job_id.is_empty() {
+                let mut b = Vec::new();
+                write_str(&mut b, job_id).unwrap();
+                entries.push(("jobId", b));
+            }
+        }
+
         // Encode as msgpack map
         let mut buf = Vec::with_capacity(64);
         write_map_len(&mut buf, entries.len() as u32).unwrap();
@@ -656,7 +720,7 @@ impl Queue {
 
     /// Update queue metadata (version).
     async fn update_meta(&self) -> Result<(), Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let meta_key = self.keys.meta();
 
         redis::cmd("HSET")
@@ -691,7 +755,7 @@ impl Queue {
 
         let args: Vec<&[u8]> = vec![b"paused"];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         script.execute(&mut conn, &keys, &args).await?;
 
         debug!("queue paused");
@@ -720,7 +784,7 @@ impl Queue {
 
         let args: Vec<&[u8]> = vec![b"resumed"];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         script.execute(&mut conn, &keys, &args).await?;
 
         debug!("queue resumed");
@@ -729,7 +793,7 @@ impl Queue {
 
     /// Check if the queue is paused.
     pub async fn is_paused(&self) -> Result<bool, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let paused: Option<String> = redis::cmd("HGET")
             .arg(self.keys.meta())
             .arg("paused")
@@ -749,7 +813,7 @@ impl Queue {
 
     /// Get the counts of jobs in each state.
     pub async fn get_job_counts(&self) -> Result<JobCounts, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let mut pipe = redis::pipe();
 
         pipe.cmd("LLEN").arg(self.keys.wait());
@@ -867,7 +931,7 @@ impl Queue {
             args.push(t.as_bytes());
         }
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         // The script returns an array (one entry per state) of arrays of IDs.
@@ -958,7 +1022,7 @@ impl Queue {
             args.push(t.as_bytes());
         }
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         let redis_value_to_string = |value: redis::Value| -> Option<String> {
@@ -1091,7 +1155,7 @@ impl Queue {
             .collect();
         let args: Vec<&[u8]> = transformed.iter().map(|s| s.as_bytes()).collect();
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         let counts = match result {
@@ -1193,7 +1257,7 @@ impl Queue {
         let prio_strs: Vec<String> = unique.iter().map(|p| p.to_string()).collect();
         let args: Vec<&[u8]> = prio_strs.iter().map(|s| s.as_bytes()).collect();
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         let counts: Vec<u64> = match result {
@@ -1292,7 +1356,7 @@ impl Queue {
     /// entries are preserved in [`QueueMeta::other`]. Mirrors Node.js
     /// `Queue.getMeta`.
     pub async fn get_meta(&self) -> Result<QueueMeta, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let config: HashMap<String, String> = redis::cmd("HGETALL")
             .arg(self.keys.meta())
             .query_async(&mut conn)
@@ -1320,7 +1384,7 @@ impl Queue {
     /// The Rust port records `bullmq-official:<version>` under the `library` field
     /// when the queue is created. Returns `None` if the field is unset.
     pub async fn get_version(&self) -> Result<Option<String>, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let value: Option<String> = redis::cmd("HGET")
             .arg(self.keys.meta())
             .arg("library")
@@ -1343,7 +1407,7 @@ impl Queue {
         let keys = vec![self.keys.meta(), self.keys.active()];
         let args: Vec<&[u8]> = vec![];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
         Ok(matches!(result, redis::Value::Int(1)) || matches!(result, redis::Value::Boolean(true)))
     }
@@ -1446,7 +1510,7 @@ impl Queue {
         let end_s = end.to_string();
         let args: Vec<&[u8]> = vec![start_s.as_bytes(), end_s.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         // The script returns [meta(array of 3), data(array), count(int)].
@@ -1477,13 +1541,130 @@ impl Queue {
         Ok(metrics)
     }
 
+    /// Return dependencies of a parent job with pagination.
+    ///
+    /// Mirrors Node.js `Queue.getDependencies(parentId, type, start, end)`:
+    ///
+    /// - `dependency_type`: `"pending"` (dependencies set) or
+    ///   `"processed"` (processed hash)
+    /// - `start` / `end`: zero-based inclusive range (`-1` means all)
+    ///
+    /// Returns dependency items, fetched child jobs and total number of
+    /// dependency entries.
+    pub async fn get_dependencies(
+        &self,
+        parent_id: &str,
+        dependency_type: &str,
+        start: i64,
+        end: i64,
+    ) -> Result<QueueDependencies, Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("paginate")
+            .ok_or_else(|| Error::InvalidConfig("paginate script not found".to_string()))?
+            .clone();
+
+        let parent_key = self.keys.job_key(parent_id);
+        let key = match dependency_type {
+            "processed" => format!("{}:processed", parent_key),
+            "pending" => format!("{}:dependencies", parent_key),
+            other => {
+                return Err(Error::InvalidConfig(format!(
+                    "invalid dependency type: {other} (expected 'processed' or 'pending')"
+                )))
+            }
+        };
+
+        let page_size = if end >= 0 {
+            if end < start {
+                0
+            } else {
+                end.saturating_sub(start).saturating_add(1) as usize
+            }
+        } else {
+            usize::MAX
+        };
+
+        let mut cursor = "0".to_string();
+        let mut offset: i64 = 0;
+        let mut total: u64 = 0;
+        let mut collected_items: Vec<redis::Value> = Vec::new();
+        let mut jobs: Vec<Job> = Vec::new();
+        let mut conn = self.conn.managed_conn();
+
+        loop {
+            let collected_len = i64::try_from(collected_items.len())
+                .map_err(|_| Error::InvalidConfig("dependency pagination overflow".to_string()))?;
+            let start_arg = start
+                .checked_add(collected_len)
+                .ok_or_else(|| Error::InvalidConfig("dependency pagination overflow".to_string()))?
+                .to_string();
+            let end_arg = end.to_string();
+            let offset_arg = offset.to_string();
+            let max_iterations = "5".to_string();
+            let fetch_jobs = "1".to_string();
+
+            let args: Vec<&[u8]> = vec![
+                start_arg.as_bytes(),
+                end_arg.as_bytes(),
+                cursor.as_bytes(),
+                offset_arg.as_bytes(),
+                max_iterations.as_bytes(),
+                fetch_jobs.as_bytes(),
+            ];
+
+            let raw = script.execute(&mut conn, &[&key], &args).await?;
+            let (next_cursor, next_offset, mut page_items, page_total, raw_jobs) =
+                parse_paginate_reply(&raw)?;
+
+            if total == 0 {
+                total = page_total;
+            }
+
+            for (item, raw_job) in page_items.iter().zip(raw_jobs.iter()) {
+                let Some(qualified_key) = paginate_item_key(item) else {
+                    continue;
+                };
+                let Some(split) = split_qualified_job_key(&qualified_key) else {
+                    continue;
+                };
+                // A completed child may already have been deleted by
+                // `removeOnComplete` while its key and return value remain in the
+                // parent's processed hash, so `HGETALL` yields no fields. Keep the
+                // entry and build a default job from the qualified key to preserve
+                // the one-job-per-item ordering used by the Node.js implementation.
+                let fields = Self::parse_hash_array(raw_job);
+                let mut job = Job::from_redis_hash(&split.job_id, &fields)?;
+                let keys = QueueKeys::new(&split.queue_name, Some(&split.prefix));
+                job.set_context(self.make_script_context_for_keys(keys));
+                jobs.push(job);
+            }
+
+            collected_items.append(&mut page_items);
+            cursor = next_cursor;
+            offset = next_offset;
+
+            if cursor == "0" || collected_items.len() >= page_size {
+                break;
+            }
+        }
+
+        let items = collected_items
+            .iter()
+            .filter_map(Self::decode_dependency_item)
+            .collect();
+
+        Ok(QueueDependencies { items, jobs, total })
+    }
+
     /// Get return values of all completed children of a parent job.
     pub async fn get_children_values(
         &self,
         job_id: &str,
     ) -> Result<HashMap<String, serde_json::Value>, Error> {
         let processed_key = format!("{}:processed", self.keys.job_key(job_id));
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let result: HashMap<String, String> = redis::cmd("HGETALL")
             .arg(&processed_key)
@@ -1505,7 +1686,7 @@ impl Queue {
         job_id: &str,
     ) -> Result<HashMap<String, String>, Error> {
         let failed_key = format!("{}:failed", self.keys.job_key(job_id));
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let result: HashMap<String, String> = redis::cmd("HGETALL")
             .arg(&failed_key)
@@ -1523,7 +1704,7 @@ impl Queue {
         let failed_key = format!("{}:failed", job_key);
         let unsuccessful_key = format!("{}:unsuccessful", job_key);
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let mut pipe = redis::pipe();
         pipe.cmd("HLEN").arg(&processed_key);
         pipe.cmd("SCARD").arg(&deps_key);
@@ -1544,7 +1725,7 @@ impl Queue {
     /// Get unprocessed dependencies (children still pending).
     pub async fn get_unprocessed_dependencies(&self, job_id: &str) -> Result<Vec<String>, Error> {
         let deps_key = format!("{}:dependencies", self.keys.job_key(job_id));
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let result: Vec<String> = redis::cmd("SMEMBERS")
             .arg(&deps_key)
@@ -1580,7 +1761,7 @@ impl Queue {
         let keys = vec![prefix_key];
         let args: Vec<&[u8]> = vec![job_key.as_bytes(), parent_key.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -1621,7 +1802,7 @@ impl Queue {
         let job_id_bytes = job_id.as_bytes().to_vec();
         let args: Vec<&[u8]> = vec![&job_id_bytes];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -1675,7 +1856,7 @@ impl Queue {
         let remove_children_flag = if remove_children { b"1" as &[u8] } else { b"0" };
         let args: Vec<&[u8]> = vec![job_id.as_bytes(), remove_children_flag, prefix.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -1719,7 +1900,7 @@ impl Queue {
         let prefix = self.keys.key_prefix();
         let args: Vec<&[u8]> = vec![prefix.as_bytes(), job_id.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         script.execute(&mut conn, &keys, &args).await?;
         Ok(())
     }
@@ -1781,7 +1962,7 @@ impl Queue {
                 normalized.as_bytes(),
             ];
 
-            let mut conn = self.conn.conn();
+            let mut conn = self.conn.managed_conn();
             let result = script.execute(&mut conn, &keys, &args).await?;
 
             let batch: Vec<String> = match result {
@@ -1830,7 +2011,7 @@ impl Queue {
         let prefix = self.keys.key_prefix();
         let args: Vec<&[u8]> = vec![prefix.as_bytes(), delayed_str.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         script.execute(&mut conn, &keys, &args).await?;
 
         debug!(delayed, "queue drained");
@@ -1876,7 +2057,7 @@ impl Queue {
         let count_str = count.to_string();
         let ts_str = ts.to_string();
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         loop {
             let args: Vec<&[u8]> = vec![count_str.as_bytes(), ts_str.as_bytes(), state.as_bytes()];
             let result = script.execute(&mut conn, &keys, &args).await?;
@@ -1917,7 +2098,7 @@ impl Queue {
         // Use MAX_VALUE equivalent for timestamp so all delayed jobs match
         let ts_str = "9007199254740991".to_string(); // Number.MAX_SAFE_INTEGER
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         loop {
             let args: Vec<&[u8]> = vec![count_str.as_bytes(), ts_str.as_bytes(), b"delayed"];
             let result = script.execute(&mut conn, &keys, &args).await?;
@@ -1938,7 +2119,7 @@ impl Queue {
     /// preventing any new jobs from being processed until it expires.
     pub async fn rate_limit(&self, expire_time_ms: u64) -> Result<(), Error> {
         let limiter_key = self.keys.limiter();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         redis::cmd("SET")
             .arg(&limiter_key)
@@ -1954,7 +2135,7 @@ impl Queue {
     /// Remove the rate limit key, allowing processing to resume immediately.
     pub async fn remove_rate_limit_key(&self) -> Result<bool, Error> {
         let limiter_key = self.keys.limiter();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let result: u32 = redis::cmd("DEL")
             .arg(&limiter_key)
@@ -1968,7 +2149,7 @@ impl Queue {
     /// Limits the total number of active jobs across all workers for this queue.
     pub async fn set_global_concurrency(&self, concurrency: u64) -> Result<(), Error> {
         let meta_key = self.keys.meta();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         redis::cmd("HSET")
             .arg(&meta_key)
@@ -1983,7 +2164,7 @@ impl Queue {
     /// Remove global concurrency limit from queue meta.
     pub async fn remove_global_concurrency(&self) -> Result<(), Error> {
         let meta_key = self.keys.meta();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         redis::cmd("HDEL")
             .arg(&meta_key)
@@ -1997,7 +2178,7 @@ impl Queue {
     /// Set global rate limit (stored in queue meta hash).
     pub async fn set_global_rate_limit(&self, max: u64, duration: u64) -> Result<(), Error> {
         let meta_key = self.keys.meta();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         redis::cmd("HSET")
             .arg(&meta_key)
@@ -2014,7 +2195,7 @@ impl Queue {
     /// Remove global rate limit values from queue meta.
     pub async fn remove_global_rate_limit(&self) -> Result<(), Error> {
         let meta_key = self.keys.meta();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         redis::cmd("HDEL")
             .arg(&meta_key)
@@ -2046,7 +2227,7 @@ impl Queue {
             .unwrap_or_else(|| "0".to_string());
         let args: Vec<&[u8]> = vec![max_jobs_str.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -2058,7 +2239,7 @@ impl Queue {
     /// Return the global concurrency value, or `None` when not set.
     pub async fn get_global_concurrency(&self) -> Result<Option<u64>, Error> {
         let meta_key = self.keys.meta();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let value: Option<String> = redis::cmd("HGET")
             .arg(&meta_key)
@@ -2072,7 +2253,7 @@ impl Queue {
     /// Return the global rate limit as `(max, duration)`, or `None` when not set.
     pub async fn get_global_rate_limit(&self) -> Result<Option<(u64, u64)>, Error> {
         let meta_key = self.keys.meta();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let values: Vec<Option<String>> = redis::cmd("HMGET")
             .arg(&meta_key)
@@ -2117,7 +2298,7 @@ impl Queue {
         let keys = vec![dedup_key];
         let args: Vec<&[u8]> = vec![job_id.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -2134,7 +2315,7 @@ impl Queue {
         deduplication_id: &str,
     ) -> Result<Option<String>, Error> {
         let dedup_key = format!("{}:de:{}", self.keys.base(), deduplication_id);
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result: redis::Value = redis::cmd("GET")
             .arg(&dedup_key)
             .query_async(&mut conn)
@@ -2168,7 +2349,7 @@ impl Queue {
     /// stored job ID.
     pub async fn remove_debounce_key(&self, id: &str) -> Result<u64, Error> {
         let dedup_key = format!("{}:de:{}", self.keys.base(), id);
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let deleted: u64 = redis::cmd("DEL")
             .arg(&dedup_key)
             .query_async(&mut conn)
@@ -2187,7 +2368,7 @@ impl Queue {
         asc: bool,
     ) -> Result<(Vec<String>, usize), Error> {
         let logs_key = format!("{}{}:logs", self.keys.key_prefix(), job_id);
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let (logs, count): (Vec<String>, usize) = if asc {
             redis::pipe()
@@ -2220,7 +2401,7 @@ impl Queue {
 
     /// Trim the event stream to approximately `max_length` entries.
     pub async fn trim_events(&self, max_length: usize) -> Result<usize, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let trimmed: usize = redis::cmd("XTRIM")
             .arg(self.keys.events())
             .arg("MAXLEN")
@@ -2256,7 +2437,7 @@ impl Queue {
         let keys = vec![job_key, events_key, meta_key];
         let args: Vec<&[u8]> = vec![job_id.as_bytes(), progress_json.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result: redis::Value = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -2285,7 +2466,7 @@ impl Queue {
         let count_str = count.to_string();
         let force_str = if force { "1" } else { "0" };
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         loop {
             let args: Vec<&[u8]> = vec![count_str.as_bytes(), force_str.as_bytes()];
             let result = script.execute(&mut conn, &keys, &args).await?;
@@ -2455,7 +2636,7 @@ impl Queue {
             &producer_key,                 // ARGV[9]
         ];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         // Parse result: the script returns [jobId, delay] on success
@@ -2493,7 +2674,7 @@ impl Queue {
         let keys = vec![self.keys.repeat()];
         let args: Vec<&[u8]> = vec![job_scheduler_id.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         // Result is [hash_fields_array, score_string]
@@ -2532,7 +2713,7 @@ impl Queue {
         end: isize,
         asc: bool,
     ) -> Result<Vec<crate::job_scheduler::JobSchedulerJson>, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let repeat_key = self.keys.repeat();
 
         // Get members with scores
@@ -2576,7 +2757,7 @@ impl Queue {
 
     /// Get the total number of job schedulers.
     pub async fn get_job_schedulers_count(&self) -> Result<u64, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let count: u64 = redis::cmd("ZCARD")
             .arg(self.keys.repeat())
             .query_async(&mut conn)
@@ -2601,7 +2782,7 @@ impl Queue {
         let prefix = self.keys.key_prefix();
         let args: Vec<&[u8]> = vec![job_scheduler_id.as_bytes(), prefix.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -2632,6 +2813,36 @@ impl Queue {
             }
         }
         map
+    }
+
+    /// Decode one dependency item, matching Node.js `Queue.getDependencies`.
+    fn decode_dependency_item(item: &redis::Value) -> Option<DependencyItem> {
+        match item {
+            redis::Value::Array(pair) => {
+                let id = pair.first().and_then(value_to_string)?;
+                let raw = pair.get(1).and_then(value_to_string).unwrap_or_default();
+                match serde_json::from_str::<serde_json::Value>(&raw) {
+                    Ok(v) => Some(DependencyItem {
+                        id,
+                        v: Some(v),
+                        err: None,
+                    }),
+                    Err(err) => Some(DependencyItem {
+                        id,
+                        v: None,
+                        err: Some(err.to_string()),
+                    }),
+                }
+            }
+            other => {
+                let id = value_to_string(other)?;
+                Some(DependencyItem {
+                    id,
+                    v: None,
+                    err: None,
+                })
+            }
+        }
     }
 
     /// Pack job options from a JobOptions struct into msgpack (for template opts).
@@ -2916,6 +3127,43 @@ fn duration_as_millis(duration: Duration) -> u64 {
     u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
+/// A `<prefix>:<queueName>:<jobId>` split of a qualified job key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SplitJobKey {
+    prefix: String,
+    queue_name: String,
+    job_id: String,
+}
+
+impl SplitJobKey {
+    /// Build a split, rejecting the empty prefixes, queue names and job ids
+    /// that a malformed key produces.
+    fn new(prefix: &str, queue_name: &str, job_id: &str) -> Option<Self> {
+        if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
+            return None;
+        }
+        Some(Self {
+            prefix: prefix.to_string(),
+            queue_name: queue_name.to_string(),
+            job_id: job_id.to_string(),
+        })
+    }
+}
+
+/// Split a qualified job key into `{prefix}:{queueName}:{jobId}`.
+///
+/// Prefixes and queue names are validated to be non-empty and free of `:`
+/// (see `validate_prefix` and `validate_queue_name`), so the first two
+/// separators delimit them and everything that follows is the job id — however
+/// many `:` it contains, as legacy repeatable ids do. This holds for children
+/// stored under a prefix other than the parent queue's, since the boundary is
+/// derived from the key alone rather than from the parent's prefix.
+fn split_qualified_job_key(key: &str) -> Option<SplitJobKey> {
+    let (prefix, rest) = key.split_once(':')?;
+    let (queue_name, job_id) = rest.split_once(':')?;
+    SplitJobKey::new(prefix, queue_name, job_id)
+}
+
 /// Escape a Prometheus label value (`\`, `"`, and newlines).
 ///
 /// Mirrors Node.js `escapePrometheusLabelValue`.
@@ -3034,5 +3282,60 @@ mod progress_serialization_tests {
     fn serializes_regular_values_as_json() {
         let serialized = serialize_progress_for_script(&JobProgress::Number(42.0)).unwrap();
         assert_eq!(serialized, "42.0");
+    }
+}
+
+#[cfg(test)]
+mod dependency_key_tests {
+    use super::{split_qualified_job_key, SplitJobKey};
+
+    fn split(prefix: &str, queue_name: &str, job_id: &str) -> Option<SplitJobKey> {
+        SplitJobKey::new(prefix, queue_name, job_id)
+    }
+
+    #[test]
+    fn splits_plain_keys() {
+        assert_eq!(
+            split_qualified_job_key("bull:queue:1"),
+            split("bull", "queue", "1")
+        );
+    }
+
+    #[test]
+    fn preserves_colons_in_custom_job_ids() {
+        // Prefixes and queue names cannot contain `:`, so everything after the
+        // second separator belongs to the id — no stored `opts.jobId` or Redis
+        // probe is needed to find the boundary.
+        assert_eq!(
+            split_qualified_job_key("bull:queue:repeat:sched:1700000000000"),
+            split("bull", "queue", "repeat:sched:1700000000000")
+        );
+        assert_eq!(
+            split_qualified_job_key("bull:queue:a:b:c:d"),
+            split("bull", "queue", "a:b:c:d")
+        );
+    }
+
+    #[test]
+    fn splits_children_stored_under_a_foreign_prefix() {
+        // The boundary comes from the key itself, so a child living under a
+        // prefix other than the parent queue's resolves correctly, colon id or
+        // not.
+        assert_eq!(
+            split_qualified_job_key("tenant:child:1"),
+            split("tenant", "child", "1")
+        );
+        assert_eq!(
+            split_qualified_job_key("tenant:child:repeat:sched:1"),
+            split("tenant", "child", "repeat:sched:1")
+        );
+    }
+
+    #[test]
+    fn rejects_keys_without_a_prefix_queue_name_or_job_id() {
+        assert_eq!(split_qualified_job_key(":queue:1"), None);
+        assert_eq!(split_qualified_job_key("bull::1"), None);
+        assert_eq!(split_qualified_job_key("bull:queue:"), None);
+        assert_eq!(split_qualified_job_key("queue:1"), None);
     }
 }

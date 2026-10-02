@@ -244,6 +244,10 @@ All high-level classes depend only on the `IQueueBackend` interface and receive 
 but you can inject your own as the last constructor argument to back BullMQ with a
 different datastore or with a mock in tests:
 
+When passing a backend factory, supply an options object with a `connection`
+accepted by that factory. Options can only be omitted for the default Redis
+backend, without an explicit factory or custom backend/connection type arguments.
+
 ```typescript
 import { Queue, BackendFactory } from 'bullmq';
 
@@ -256,8 +260,26 @@ const queue = new Queue('myqueue', { connection: {} }, myBackendFactory);
 
 The classes are generic over the backend type, so `getBackend()` returns the concrete
 type produced by whatever factory you provide (the default being
-`RedisQueueBackend`). A non-Redis user would, for example, write
-`new Queue<MyData, MyResult, string, MyBackend>(name, opts, createMyBackend)`.
+`RedisQueueBackend`). Give a custom factory the type
+`BackendFactory<MyBackend, MyConnectionOptions>` so its connection options are
+checked too.
+
+To specify job types with a custom backend, either list every type argument
+(the backend and connection types come after the job types) or bind the backend with
+`withBackend` and write only the job types:
+
+```typescript
+import { withBackend } from 'bullmq';
+import { createMyBackend } from './my-backend';
+
+const { Queue, Worker } = withBackend(createMyBackend);
+const queue = new Queue<MyData, MyResult>('myqueue', opts);
+const worker = new Worker<MyData, MyResult>('myqueue', processor, opts);
+```
+
+The returned constructors extend the regular classes and use `createMyBackend`
+automatically. See [Typed jobs and event results](postgresql.md#typed-jobs-and-event-results)
+for why this is needed and for the explicit type-argument form.
 
 {% hint style="warning" %}
 Building a production-grade backend is substantial work: you must implement the full
