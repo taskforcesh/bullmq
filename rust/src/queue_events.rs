@@ -36,7 +36,7 @@ use redis::streams::{StreamReadOptions, StreamReadReply};
 use redis::AsyncCommands;
 use tokio::sync::{mpsc, Mutex};
 use tokio::task::JoinHandle;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::error::Error;
 use crate::keys::{validate_prefix, validate_queue_name, QueueKeys};
@@ -54,6 +54,9 @@ pub struct QueueEventsOptions {
     ///
     /// Smaller values make [`QueueEvents::close`] more responsive at the cost of
     /// extra round trips; defaults to `5000`.
+    ///
+    /// `0` blocks indefinitely (Redis `BLOCK 0`) and disables the stuck-connection
+    /// watchdog, so a half-open socket will not be detected.
     pub blocking_timeout: u64,
     /// The stream id to start reading from.
     ///
@@ -385,7 +388,7 @@ impl QueueEvents {
     pub async fn with_options(name: &str, opts: QueueEventsOptions) -> Result<Self, Error> {
         validate_queue_name(name)?;
         validate_prefix(&opts.prefix)?;
-        let conn = RedisConnection::new(&opts.connection).await?;
+        let conn = RedisConnection::new_managed_only(&opts.connection).await?;
         Self::build(name, conn, opts).await
     }
 
@@ -498,7 +501,7 @@ impl QueueEvents {
         closing: Arc<AtomicBool>,
         tx: mpsc::UnboundedSender<QueueEventEntry>,
     ) {
-        let mut redis_conn = match conn.dedicated_connection().await {
+        let mut redis_conn = match conn.managed_dedicated_connection().await {
             Ok(c) => c,
             Err(e) => {
                 let _ = tx.send(QueueEventEntry {
@@ -516,10 +519,47 @@ impl QueueEvents {
             .clone()
             .unwrap_or_else(|| "$".to_string());
         let read_opts = StreamReadOptions::default().block(opts.blocking_timeout as usize);
+        // The dedicated connection runs without a response timeout so `XREAD
+        // BLOCK` can block for its full duration. Guard it with a watchdog so a
+        // half-open socket (a network blip that never delivers a FIN/RST) can't
+        // wedge the listener forever.
+        //
+        // `BLOCK 0` means "block forever", so no bounded deadline can be
+        // enforced; skip the watchdog in that case (same as the Node.js
+        // `readEvents`, which falls back to a plain blocking read).
+        let watchdog = (opts.blocking_timeout > 0).then(|| {
+            Duration::from_millis(opts.blocking_timeout).saturating_add(Duration::from_secs(1))
+        });
 
         while !closing.load(Ordering::Relaxed) {
-            let reply: Result<Option<StreamReadReply>, _> =
-                redis_conn.xread_options(&[&key], &[&id], &read_opts).await;
+            let keys = [&key];
+            let ids = [&id];
+            let read = redis_conn.xread_options(&keys, &ids, &read_opts);
+            let reply: Result<Option<StreamReadReply>, _> = match watchdog {
+                None => read.await,
+                Some(watchdog) => match tokio::time::timeout(watchdog, read).await {
+                    Ok(reply) => reply,
+                    Err(_) => {
+                        // Stuck connection: `ConnectionManager` only reconnects on
+                        // errors it observes, and a half-open socket never surfaces
+                        // one. Rebuild it explicitly.
+                        warn!(queue = %key, "queue events read exceeded its watchdog, reconnecting");
+                        match conn.managed_dedicated_connection().await {
+                            Ok(c) => redis_conn = c,
+                            Err(e) => {
+                                let _ = tx.send(QueueEventEntry {
+                                    id: String::new(),
+                                    event: QueueEvent::Error {
+                                        message: e.to_string(),
+                                    },
+                                });
+                                tokio::time::sleep(Duration::from_millis(100)).await;
+                            }
+                        }
+                        continue;
+                    }
+                },
+            };
 
             match reply {
                 Ok(Some(reply)) => {

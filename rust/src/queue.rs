@@ -120,7 +120,7 @@ impl Queue {
     pub async fn with_options(name: &str, opts: QueueOptions) -> Result<Self, Error> {
         validate_queue_name(name)?;
         validate_prefix(&opts.prefix)?;
-        let conn = RedisConnection::new(&opts.connection).await?;
+        let conn = RedisConnection::new_managed_only(&opts.connection).await?;
         let keys = QueueKeys::new(name, Some(&opts.prefix));
 
         let queue = Self {
@@ -269,7 +269,7 @@ impl Queue {
                 let keys = self.add_job_keys(script_name);
                 let packed_args = self.pack_add_args(job, &custom_job_id, timestamp);
                 let argv3 = self.pack_job_opts(job);
-                let mut conn = self.conn.conn();
+                let mut conn = self.conn.managed_conn();
 
                 async move {
                     let script = script?;
@@ -336,7 +336,7 @@ impl Queue {
         let argv2_bytes = argv2.into_bytes();
         let args: Vec<&[u8]> = vec![&argv1, &argv2_bytes, &argv3];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         let returned_job_id = Self::parse_added_job_id(result)?;
@@ -720,7 +720,7 @@ impl Queue {
 
     /// Update queue metadata (version).
     async fn update_meta(&self) -> Result<(), Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let meta_key = self.keys.meta();
 
         redis::cmd("HSET")
@@ -755,7 +755,7 @@ impl Queue {
 
         let args: Vec<&[u8]> = vec![b"paused"];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         script.execute(&mut conn, &keys, &args).await?;
 
         debug!("queue paused");
@@ -784,7 +784,7 @@ impl Queue {
 
         let args: Vec<&[u8]> = vec![b"resumed"];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         script.execute(&mut conn, &keys, &args).await?;
 
         debug!("queue resumed");
@@ -793,7 +793,7 @@ impl Queue {
 
     /// Check if the queue is paused.
     pub async fn is_paused(&self) -> Result<bool, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let paused: Option<String> = redis::cmd("HGET")
             .arg(self.keys.meta())
             .arg("paused")
@@ -813,7 +813,7 @@ impl Queue {
 
     /// Get the counts of jobs in each state.
     pub async fn get_job_counts(&self) -> Result<JobCounts, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let mut pipe = redis::pipe();
 
         pipe.cmd("LLEN").arg(self.keys.wait());
@@ -931,7 +931,7 @@ impl Queue {
             args.push(t.as_bytes());
         }
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         // The script returns an array (one entry per state) of arrays of IDs.
@@ -1022,7 +1022,7 @@ impl Queue {
             args.push(t.as_bytes());
         }
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         let redis_value_to_string = |value: redis::Value| -> Option<String> {
@@ -1155,7 +1155,7 @@ impl Queue {
             .collect();
         let args: Vec<&[u8]> = transformed.iter().map(|s| s.as_bytes()).collect();
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         let counts = match result {
@@ -1257,7 +1257,7 @@ impl Queue {
         let prio_strs: Vec<String> = unique.iter().map(|p| p.to_string()).collect();
         let args: Vec<&[u8]> = prio_strs.iter().map(|s| s.as_bytes()).collect();
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         let counts: Vec<u64> = match result {
@@ -1356,7 +1356,7 @@ impl Queue {
     /// entries are preserved in [`QueueMeta::other`]. Mirrors Node.js
     /// `Queue.getMeta`.
     pub async fn get_meta(&self) -> Result<QueueMeta, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let config: HashMap<String, String> = redis::cmd("HGETALL")
             .arg(self.keys.meta())
             .query_async(&mut conn)
@@ -1384,7 +1384,7 @@ impl Queue {
     /// The Rust port records `bullmq-official:<version>` under the `library` field
     /// when the queue is created. Returns `None` if the field is unset.
     pub async fn get_version(&self) -> Result<Option<String>, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let value: Option<String> = redis::cmd("HGET")
             .arg(self.keys.meta())
             .arg("library")
@@ -1407,7 +1407,7 @@ impl Queue {
         let keys = vec![self.keys.meta(), self.keys.active()];
         let args: Vec<&[u8]> = vec![];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
         Ok(matches!(result, redis::Value::Int(1)) || matches!(result, redis::Value::Boolean(true)))
     }
@@ -1510,7 +1510,7 @@ impl Queue {
         let end_s = end.to_string();
         let args: Vec<&[u8]> = vec![start_s.as_bytes(), end_s.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         // The script returns [meta(array of 3), data(array), count(int)].
@@ -1591,7 +1591,7 @@ impl Queue {
         let mut total: u64 = 0;
         let mut collected_items: Vec<redis::Value> = Vec::new();
         let mut jobs: Vec<Job> = Vec::new();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         loop {
             let collected_len = i64::try_from(collected_items.len())
@@ -1664,7 +1664,7 @@ impl Queue {
         job_id: &str,
     ) -> Result<HashMap<String, serde_json::Value>, Error> {
         let processed_key = format!("{}:processed", self.keys.job_key(job_id));
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let result: HashMap<String, String> = redis::cmd("HGETALL")
             .arg(&processed_key)
@@ -1686,7 +1686,7 @@ impl Queue {
         job_id: &str,
     ) -> Result<HashMap<String, String>, Error> {
         let failed_key = format!("{}:failed", self.keys.job_key(job_id));
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let result: HashMap<String, String> = redis::cmd("HGETALL")
             .arg(&failed_key)
@@ -1704,7 +1704,7 @@ impl Queue {
         let failed_key = format!("{}:failed", job_key);
         let unsuccessful_key = format!("{}:unsuccessful", job_key);
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let mut pipe = redis::pipe();
         pipe.cmd("HLEN").arg(&processed_key);
         pipe.cmd("SCARD").arg(&deps_key);
@@ -1725,7 +1725,7 @@ impl Queue {
     /// Get unprocessed dependencies (children still pending).
     pub async fn get_unprocessed_dependencies(&self, job_id: &str) -> Result<Vec<String>, Error> {
         let deps_key = format!("{}:dependencies", self.keys.job_key(job_id));
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let result: Vec<String> = redis::cmd("SMEMBERS")
             .arg(&deps_key)
@@ -1761,7 +1761,7 @@ impl Queue {
         let keys = vec![prefix_key];
         let args: Vec<&[u8]> = vec![job_key.as_bytes(), parent_key.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -1802,7 +1802,7 @@ impl Queue {
         let job_id_bytes = job_id.as_bytes().to_vec();
         let args: Vec<&[u8]> = vec![&job_id_bytes];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -1856,7 +1856,7 @@ impl Queue {
         let remove_children_flag = if remove_children { b"1" as &[u8] } else { b"0" };
         let args: Vec<&[u8]> = vec![job_id.as_bytes(), remove_children_flag, prefix.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -1900,7 +1900,7 @@ impl Queue {
         let prefix = self.keys.key_prefix();
         let args: Vec<&[u8]> = vec![prefix.as_bytes(), job_id.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         script.execute(&mut conn, &keys, &args).await?;
         Ok(())
     }
@@ -1962,7 +1962,7 @@ impl Queue {
                 normalized.as_bytes(),
             ];
 
-            let mut conn = self.conn.conn();
+            let mut conn = self.conn.managed_conn();
             let result = script.execute(&mut conn, &keys, &args).await?;
 
             let batch: Vec<String> = match result {
@@ -2011,7 +2011,7 @@ impl Queue {
         let prefix = self.keys.key_prefix();
         let args: Vec<&[u8]> = vec![prefix.as_bytes(), delayed_str.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         script.execute(&mut conn, &keys, &args).await?;
 
         debug!(delayed, "queue drained");
@@ -2057,7 +2057,7 @@ impl Queue {
         let count_str = count.to_string();
         let ts_str = ts.to_string();
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         loop {
             let args: Vec<&[u8]> = vec![count_str.as_bytes(), ts_str.as_bytes(), state.as_bytes()];
             let result = script.execute(&mut conn, &keys, &args).await?;
@@ -2098,7 +2098,7 @@ impl Queue {
         // Use MAX_VALUE equivalent for timestamp so all delayed jobs match
         let ts_str = "9007199254740991".to_string(); // Number.MAX_SAFE_INTEGER
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         loop {
             let args: Vec<&[u8]> = vec![count_str.as_bytes(), ts_str.as_bytes(), b"delayed"];
             let result = script.execute(&mut conn, &keys, &args).await?;
@@ -2119,7 +2119,7 @@ impl Queue {
     /// preventing any new jobs from being processed until it expires.
     pub async fn rate_limit(&self, expire_time_ms: u64) -> Result<(), Error> {
         let limiter_key = self.keys.limiter();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         redis::cmd("SET")
             .arg(&limiter_key)
@@ -2135,7 +2135,7 @@ impl Queue {
     /// Remove the rate limit key, allowing processing to resume immediately.
     pub async fn remove_rate_limit_key(&self) -> Result<bool, Error> {
         let limiter_key = self.keys.limiter();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let result: u32 = redis::cmd("DEL")
             .arg(&limiter_key)
@@ -2149,7 +2149,7 @@ impl Queue {
     /// Limits the total number of active jobs across all workers for this queue.
     pub async fn set_global_concurrency(&self, concurrency: u64) -> Result<(), Error> {
         let meta_key = self.keys.meta();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         redis::cmd("HSET")
             .arg(&meta_key)
@@ -2164,7 +2164,7 @@ impl Queue {
     /// Remove global concurrency limit from queue meta.
     pub async fn remove_global_concurrency(&self) -> Result<(), Error> {
         let meta_key = self.keys.meta();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         redis::cmd("HDEL")
             .arg(&meta_key)
@@ -2178,7 +2178,7 @@ impl Queue {
     /// Set global rate limit (stored in queue meta hash).
     pub async fn set_global_rate_limit(&self, max: u64, duration: u64) -> Result<(), Error> {
         let meta_key = self.keys.meta();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         redis::cmd("HSET")
             .arg(&meta_key)
@@ -2195,7 +2195,7 @@ impl Queue {
     /// Remove global rate limit values from queue meta.
     pub async fn remove_global_rate_limit(&self) -> Result<(), Error> {
         let meta_key = self.keys.meta();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         redis::cmd("HDEL")
             .arg(&meta_key)
@@ -2227,7 +2227,7 @@ impl Queue {
             .unwrap_or_else(|| "0".to_string());
         let args: Vec<&[u8]> = vec![max_jobs_str.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -2239,7 +2239,7 @@ impl Queue {
     /// Return the global concurrency value, or `None` when not set.
     pub async fn get_global_concurrency(&self) -> Result<Option<u64>, Error> {
         let meta_key = self.keys.meta();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let value: Option<String> = redis::cmd("HGET")
             .arg(&meta_key)
@@ -2253,7 +2253,7 @@ impl Queue {
     /// Return the global rate limit as `(max, duration)`, or `None` when not set.
     pub async fn get_global_rate_limit(&self) -> Result<Option<(u64, u64)>, Error> {
         let meta_key = self.keys.meta();
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let values: Vec<Option<String>> = redis::cmd("HMGET")
             .arg(&meta_key)
@@ -2298,7 +2298,7 @@ impl Queue {
         let keys = vec![dedup_key];
         let args: Vec<&[u8]> = vec![job_id.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -2315,7 +2315,7 @@ impl Queue {
         deduplication_id: &str,
     ) -> Result<Option<String>, Error> {
         let dedup_key = format!("{}:de:{}", self.keys.base(), deduplication_id);
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result: redis::Value = redis::cmd("GET")
             .arg(&dedup_key)
             .query_async(&mut conn)
@@ -2349,7 +2349,7 @@ impl Queue {
     /// stored job ID.
     pub async fn remove_debounce_key(&self, id: &str) -> Result<u64, Error> {
         let dedup_key = format!("{}:de:{}", self.keys.base(), id);
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let deleted: u64 = redis::cmd("DEL")
             .arg(&dedup_key)
             .query_async(&mut conn)
@@ -2368,7 +2368,7 @@ impl Queue {
         asc: bool,
     ) -> Result<(Vec<String>, usize), Error> {
         let logs_key = format!("{}{}:logs", self.keys.key_prefix(), job_id);
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
 
         let (logs, count): (Vec<String>, usize) = if asc {
             redis::pipe()
@@ -2401,7 +2401,7 @@ impl Queue {
 
     /// Trim the event stream to approximately `max_length` entries.
     pub async fn trim_events(&self, max_length: usize) -> Result<usize, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let trimmed: usize = redis::cmd("XTRIM")
             .arg(self.keys.events())
             .arg("MAXLEN")
@@ -2437,7 +2437,7 @@ impl Queue {
         let keys = vec![job_key, events_key, meta_key];
         let args: Vec<&[u8]> = vec![job_id.as_bytes(), progress_json.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result: redis::Value = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -2466,7 +2466,7 @@ impl Queue {
         let count_str = count.to_string();
         let force_str = if force { "1" } else { "0" };
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         loop {
             let args: Vec<&[u8]> = vec![count_str.as_bytes(), force_str.as_bytes()];
             let result = script.execute(&mut conn, &keys, &args).await?;
@@ -2636,7 +2636,7 @@ impl Queue {
             &producer_key,                 // ARGV[9]
         ];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         // Parse result: the script returns [jobId, delay] on success
@@ -2674,7 +2674,7 @@ impl Queue {
         let keys = vec![self.keys.repeat()];
         let args: Vec<&[u8]> = vec![job_scheduler_id.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         // Result is [hash_fields_array, score_string]
@@ -2713,7 +2713,7 @@ impl Queue {
         end: isize,
         asc: bool,
     ) -> Result<Vec<crate::job_scheduler::JobSchedulerJson>, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let repeat_key = self.keys.repeat();
 
         // Get members with scores
@@ -2757,7 +2757,7 @@ impl Queue {
 
     /// Get the total number of job schedulers.
     pub async fn get_job_schedulers_count(&self) -> Result<u64, Error> {
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let count: u64 = redis::cmd("ZCARD")
             .arg(self.keys.repeat())
             .query_async(&mut conn)
@@ -2782,7 +2782,7 @@ impl Queue {
         let prefix = self.keys.key_prefix();
         let args: Vec<&[u8]> = vec![job_scheduler_id.as_bytes(), prefix.as_bytes()];
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
