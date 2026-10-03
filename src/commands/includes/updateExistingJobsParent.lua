@@ -1,11 +1,13 @@
 --[[
     This function is used to update the parent's dependencies if the job
-    is already completed and about to be ignored. The parent must get its
-    dependencies updated to avoid the parent job being stuck forever in 
-    the waiting-children state.
+    is already completed or failed and about to be ignored. The parent must
+    get its dependencies updated to avoid the parent job being stuck forever
+    in the waiting-children state.
 ]]
 
 -- Includes
+--- @include "destructureJobKey"
+--- @include "moveChildFromDependenciesIfNeeded"
 --- @include "updateParentDepsIfNeeded"
 
 local function updateExistingJobsParent(parentKey, parent, parentData,
@@ -20,6 +22,15 @@ local function updateExistingJobsParent(parentKey, parent, parentData,
         else
             if parentDependenciesKey ~= nil then
                 rcall("SADD", parentDependenciesKey, jobIdKey)
+
+                -- A failed job is not re-run by a duplicated add, so resolve the
+                -- dependency the same way its failure would have.
+                local failedKey = getJobKeyPrefix(jobIdKey, jobId) .. "failed"
+                if rcall("ZSCORE", failedKey, jobId) then
+                    local failedReason = rcall("HGET", jobIdKey, "failedReason")
+                    moveChildFromDependenciesIfNeeded(parentData, jobIdKey,
+                                                      failedReason, timestamp)
+                end
             end
         end
         rcall("HMSET", jobIdKey, "parentKey", parentKey, "parent", parentData)
