@@ -694,6 +694,11 @@ func (w *Worker) packMoveToFinishedOpts(job *Job, target string) []byte {
 }
 
 // lockRenewalLoop periodically extends the locks of all active jobs.
+//
+// All locks are renewed with a single extendLocks script call per tick, so the
+// time spent renewing does not grow with the number of active jobs, and each
+// call is bounded by LockRenewTime so a slow Redis cannot delay the next tick
+// past the renewal interval.
 func (w *Worker) lockRenewalLoop(ctx context.Context) {
 	ticker := time.NewTicker(w.opts.LockRenewTime)
 	defer ticker.Stop()
@@ -707,28 +712,82 @@ func (w *Worker) lockRenewalLoop(ctx context.Context) {
 		w.mu.Lock()
 		snapshot := make([]*activeJob, 0, len(w.active))
 		for _, a := range w.active {
-			snapshot = append(snapshot, a)
+			// A job without a token holds no lock to renew.
+			if a.job.token != "" {
+				snapshot = append(snapshot, a)
+			}
 		}
 		w.mu.Unlock()
 
-		for _, a := range snapshot {
-			if err := a.job.ExtendLock(ctx, w.opts.LockDuration); err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-				if errors.Is(err, ErrJobLockNotExist) {
-					// The lock is gone: another worker owns the job now, so
-					// stop processing it locally.
-					a.cancel()
-					w.emit(Event{Type: EventStalled, Job: a.job})
-				} else {
-					// Transient error (e.g. network blip): keep the job
-					// running and just report it.
-					w.emitError(err)
-				}
+		if len(snapshot) == 0 {
+			continue
+		}
+
+		callCtx, cancel := context.WithTimeout(ctx, w.opts.LockRenewTime)
+		failed, err := w.extendLocks(callCtx, snapshot)
+		cancel()
+		if err != nil {
+			if ctx.Err() != nil {
+				return
 			}
+			// Transient error (e.g. network blip or timeout): keep the jobs
+			// running and just report it; the next tick retries.
+			w.emitError(err)
+			continue
+		}
+
+		for _, id := range failed {
+			w.mu.Lock()
+			current, ok := w.active[id]
+			w.mu.Unlock()
+			// Skip jobs that finished, or were replaced, since the snapshot.
+			if !ok || !snapshotContains(snapshot, current) {
+				continue
+			}
+			// The lock is gone: another worker owns the job now, so stop
+			// processing it locally.
+			current.cancel()
+			w.emit(Event{Type: EventStalled, Job: current.job})
 		}
 	}
+}
+
+func snapshotContains(snapshot []*activeJob, a *activeJob) bool {
+	for _, s := range snapshot {
+		if s == a {
+			return true
+		}
+	}
+	return false
+}
+
+// extendLocks renews the locks of the given jobs with one script call and
+// returns the ids whose lock could not be renewed (missing or owned by
+// another token).
+func (w *Worker) extendLocks(ctx context.Context, jobs []*activeJob) ([]string, error) {
+	tokens := newMsgpackWriter(16 * len(jobs))
+	tokens.ArrayLen(len(jobs))
+	ids := newMsgpackWriter(8 * len(jobs))
+	ids.ArrayLen(len(jobs))
+	for _, a := range jobs {
+		tokens.Str(a.job.token)
+		ids.Str(a.job.ID)
+	}
+
+	k := w.c.keys
+	res, err := w.c.runScript(ctx, "extendLocks", []string{k.Stalled()},
+		k.KeyPrefix(), tokens.Bytes(), ids.Bytes(), w.opts.LockDuration.Milliseconds())
+	if err != nil {
+		return nil, err
+	}
+	arr, _ := res.([]any)
+	failed := make([]string, 0, len(arr))
+	for _, v := range arr {
+		if id, ok := asString(v); ok {
+			failed = append(failed, id)
+		}
+	}
+	return failed, nil
 }
 
 // stalledCheckLoop moves jobs whose lock expired back to the wait list.

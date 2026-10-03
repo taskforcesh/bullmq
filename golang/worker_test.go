@@ -648,6 +648,135 @@ func TestWorkerCloseKeepsRenewingLocksOfInFlightJobs(t *testing.T) {
 	}
 }
 
+func TestWorkerRenewsLocksOfAllActiveJobsInOneBatch(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q := newTestQueue(t, nil)
+
+	const total = 5
+	var invocations atomic.Int64
+	release := make(chan struct{})
+
+	// The jobs outlive LockDuration several times over and the stalled check
+	// runs more often than the lock TTL, so any job whose lock is not renewed
+	// in time would be picked up (and processed) a second time.
+	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		invocations.Add(1)
+		<-release
+		return nil, nil
+	}, &bullmq.WorkerOptions{
+		Concurrency:     total,
+		LockDuration:    300 * time.Millisecond,
+		LockRenewTime:   50 * time.Millisecond,
+		StalledInterval: 100 * time.Millisecond,
+	})
+	runWorker(t, w)
+	// Registered after runWorker so it runs first: the processors block on
+	// release, and the worker cannot stop until they return.
+	var releaseOnce sync.Once
+	t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
+
+	for range total {
+		if _, err := q.Add(ctx, "held", nil, nil); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+	}
+
+	waitFor(t, 10*time.Second, "all jobs to become active", func() bool {
+		return w.ActiveCount() == total
+	})
+	time.Sleep(1500 * time.Millisecond)
+
+	if got := invocations.Load(); got != total {
+		t.Fatalf("the processor ran %d times, want %d (a lock expired and a job was re-run)", got, total)
+	}
+	if got := w.ActiveCount(); got != total {
+		t.Fatalf("ActiveCount = %d, want %d", got, total)
+	}
+	releaseOnce.Do(func() { close(release) })
+}
+
+func TestWorkerCancelsOnlyTheJobWhoseLockWasLost(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q := newTestQueue(t, nil)
+
+	const total = 3
+	var mu sync.Mutex
+	ctxs := map[string]context.Context{}
+	release := make(chan struct{})
+
+	w := newTestWorker(t, q.Name(), func(jobCtx context.Context, job *bullmq.Job) (any, error) {
+		mu.Lock()
+		ctxs[job.ID] = jobCtx
+		mu.Unlock()
+		<-release
+		return nil, nil
+	}, &bullmq.WorkerOptions{
+		Concurrency:      total,
+		LockDuration:     1 * time.Second,
+		LockRenewTime:    50 * time.Millisecond,
+		SkipStalledCheck: true,
+	})
+
+	stalled := make(chan string, total)
+	go func() {
+		for ev := range w.Events() {
+			if ev.Type == bullmq.EventStalled && ev.Job != nil {
+				stalled <- ev.Job.ID
+			}
+		}
+	}()
+	runWorker(t, w)
+	var releaseOnce sync.Once
+	t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
+
+	for range total {
+		if _, err := q.Add(ctx, "held", nil, nil); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+	}
+	waitFor(t, 10*time.Second, "all jobs to become active", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(ctxs) == total
+	})
+
+	// Drop one job's lock, simulating another worker taking it over.
+	var lostID string
+	mu.Lock()
+	for id := range ctxs {
+		lostID = id
+		break
+	}
+	mu.Unlock()
+	if err := q.Client().Del(ctx, q.Keys().JobLock(lostID)).Err(); err != nil {
+		t.Fatalf("Del: %v", err)
+	}
+
+	select {
+	case id := <-stalled:
+		if id != lostID {
+			t.Fatalf("EventStalled for job %s, want %s", id, lostID)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("no EventStalled for the job whose lock was lost")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	select {
+	case <-ctxs[lostID].Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("the job whose lock was lost was not cancelled")
+	}
+	for id, c := range ctxs {
+		if id != lostID && c.Err() != nil {
+			t.Fatalf("job %s was cancelled although its lock is intact", id)
+		}
+	}
+}
+
 func TestWorkerCloseIsIdempotent(t *testing.T) {
 	requireRedis(t)
 	q := newTestQueue(t, nil)

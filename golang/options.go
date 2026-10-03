@@ -185,9 +185,14 @@ type WorkerOptions struct {
 	// Concurrency is the number of jobs processed in parallel. Defaults to 1.
 	Concurrency int
 	// LockDuration is how long a job lock is held. Defaults to 30s. A positive
-	// value must be at least 1ms, since the lock TTL is stored in milliseconds.
+	// value must be at least 1ms, since the lock TTL is stored in milliseconds,
+	// and at least 2ms unless SkipLockRenewal is set (the renewal interval
+	// must be at least 1ms and less than LockDuration).
 	LockDuration time.Duration
 	// LockRenewTime is how often the lock is renewed. Defaults to LockDuration/2.
+	// When renewal is enabled it must be at least 1ms (the lock TTL is stored
+	// in milliseconds) and less than LockDuration, so the lock is renewed
+	// before it expires.
 	LockRenewTime time.Duration
 	// StalledInterval is how often stalled jobs are checked. Defaults to 30s.
 	StalledInterval time.Duration
@@ -228,6 +233,16 @@ func (o *WorkerOptions) applyDefaults() error {
 	}
 	if o.LockRenewTime <= 0 {
 		o.LockRenewTime = o.LockDuration / 2
+		if !o.SkipLockRenewal && o.LockRenewTime < time.Millisecond {
+			return configError("lockDuration must be at least 2ms when lock renewal is enabled")
+		}
+	} else if !o.SkipLockRenewal {
+		if o.LockRenewTime < time.Millisecond {
+			return configError("lockRenewTime must be at least 1ms")
+		}
+		if o.LockRenewTime >= o.LockDuration {
+			return configError("lockRenewTime must be less than lockDuration")
+		}
 	}
 	if o.StalledInterval <= 0 {
 		o.StalledInterval = 30 * time.Second

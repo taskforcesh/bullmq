@@ -14,15 +14,44 @@ func TestApplyDefaultsRejectsSubMillisecondLockDuration(t *testing.T) {
 	}
 }
 
-func TestApplyDefaultsAcceptsOneMillisecondLockDuration(t *testing.T) {
+func TestApplyDefaultsOneMillisecondLockDuration(t *testing.T) {
 	o := WorkerOptions{LockDuration: time.Millisecond}
+	if err := o.applyDefaults(); err == nil {
+		t.Fatal("expected error: default renewal interval would be sub-millisecond")
+	}
+	o = WorkerOptions{LockDuration: time.Millisecond, SkipLockRenewal: true}
+	if err := o.applyDefaults(); err != nil {
+		t.Fatalf("unexpected error with SkipLockRenewal: %v", err)
+	}
+}
+
+func TestApplyDefaultsAcceptsTwoMillisecondLockDuration(t *testing.T) {
+	o := WorkerOptions{LockDuration: 2 * time.Millisecond}
 	if err := o.applyDefaults(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if o.LockRenewTime <= 0 {
-		t.Fatalf("LockRenewTime = %v, want > 0", o.LockRenewTime)
+	if o.LockRenewTime != time.Millisecond {
+		t.Fatalf("LockRenewTime = %v, want 1ms", o.LockRenewTime)
 	}
 }
+
+func TestApplyDefaultsValidatesLockRenewTime(t *testing.T) {
+	bad := []WorkerOptions{
+		{LockDuration: time.Second, LockRenewTime: 500 * time.Microsecond},
+		{LockDuration: time.Second, LockRenewTime: time.Second},
+		{LockDuration: time.Second, LockRenewTime: 2 * time.Second},
+	}
+	for _, o := range bad {
+		if err := o.applyDefaults(); err == nil {
+			t.Fatalf("LockDuration %v LockRenewTime %v: expected error", o.LockDuration, o.LockRenewTime)
+		}
+	}
+	ok := WorkerOptions{LockDuration: time.Second, LockRenewTime: time.Millisecond}
+	if err := ok.applyDefaults(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 
 func TestApplyDefaultsUnsetLockDuration(t *testing.T) {
 	var o WorkerOptions
