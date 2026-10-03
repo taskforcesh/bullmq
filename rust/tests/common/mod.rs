@@ -52,38 +52,6 @@ fn with_database(url: &str, db: u8) -> String {
     parsed.into()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::with_database;
-
-    #[test]
-    fn with_database_handles_supported_url_forms() {
-        assert_eq!(
-            with_database("redis://127.0.0.1:6379", 14),
-            "redis://127.0.0.1:6379/14"
-        );
-        assert_eq!(
-            with_database("redis://127.0.0.1:6379/", 14),
-            "redis://127.0.0.1:6379/14"
-        );
-        assert_eq!(
-            with_database("redis://host:6379/0", 14),
-            "redis://host:6379/14"
-        );
-        assert_eq!(
-            with_database(
-                "rediss://user:pa%40ss@host:6380/3?protocol=resp3&timeout=5",
-                14
-            ),
-            "rediss://user:pa%40ss@host:6380/14?protocol=resp3&timeout=5"
-        );
-        assert_eq!(
-            with_database("redis://host:6379?protocol=resp3", 14),
-            "redis://host:6379/14?protocol=resp3"
-        );
-    }
-}
-
 /// Kill every client connection that selected logical database `db`, as a
 /// Redis restart or network blip would, and return how many were killed.
 ///
@@ -121,4 +89,36 @@ pub async fn kill_connections_in_db(db: u8) -> i64 {
         killed += n;
     }
     killed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::with_database;
+
+    #[test]
+    fn with_database_handles_supported_url_forms() {
+        assert_eq!(
+            with_database("redis://127.0.0.1:6379", 14),
+            "redis://127.0.0.1:6379/14"
+        );
+        assert_eq!(
+            with_database("redis://127.0.0.1:6379/", 14),
+            "redis://127.0.0.1:6379/14"
+        );
+        assert_eq!(
+            with_database("redis://host:6379/0", 14),
+            "redis://host:6379/14"
+        );
+        assert_eq!(
+            with_database(
+                "rediss://user:pa%40ss@host:6380/3?protocol=resp3&timeout=5",
+                14
+            ),
+            "rediss://user:pa%40ss@host:6380/14?protocol=resp3&timeout=5"
+        );
+        assert_eq!(
+            with_database("redis://host:6379?protocol=resp3", 14),
+            "redis://host:6379/14?protocol=resp3"
+        );
+    }
 }
