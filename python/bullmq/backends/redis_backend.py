@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Optional, TYPE_CHECKING
 
-from bullmq.backend import Backend
+from bullmq.backend import Backend, require_event_field
 from bullmq.redis_connection import RedisConnection
 from bullmq.scripts import Scripts
 from bullmq.utils import (
@@ -417,6 +417,33 @@ class RedisBackend(Backend):
     # Queue metadata & maintenance keys
     # ============================================================
 
+    async def setQueueMeta(self, values: dict) -> int:
+        if not values:
+            return 0
+        return await self.conn.hset(self.keys["meta"], mapping=values)
+
+    async def getQueueMetaField(self, field: str) -> Optional[str]:
+        return await self.conn.hget(self.keys["meta"], field)
+
+    async def getQueueMetaFields(self, fields: list) -> list:
+        if not fields:
+            return []
+        return await self.conn.hmget(self.keys["meta"], fields)
+
+    async def removeQueueMetaFields(self, fields: list) -> int:
+        if not fields:
+            return 0
+        return await self.conn.hdel(self.keys["meta"], *fields)
+
+    async def setRateLimit(self, expire_time_ms: int) -> None:
+        # 2^53 - 1, equivalent to Number.MAX_SAFE_INTEGER on the Node side.
+        await self.conn.set(
+            self.keys["limiter"], 9007199254740991, px=expire_time_ms
+        )
+
+    async def removeRateLimitKey(self) -> int:
+        return await self.conn.delete(self.keys["limiter"])
+
     async def trimEvents(self, max_length: int) -> Any:
         return await self.connection.conn.xtrim(
             self.keys["events"], maxlen=max_length, approximate="~"
@@ -424,6 +451,23 @@ class RedisBackend(Backend):
 
     async def removeDeprecatedPriorityKey(self) -> Any:
         return await self.connection.conn.delete(self.toKey("priority"))
+
+    # ============================================================
+    # Event stream
+    # ============================================================
+
+    async def publishEvent(self, fields: dict, max_events: int) -> str:
+        require_event_field(fields)
+        return await self.conn.xadd(
+            self.keys["events"],
+            fields,
+            maxlen=max_events,
+            approximate=True,
+        )
+
+    async def readEvents(self, id: str, block_timeout: int) -> Any:
+        # redis-py takes BLOCK in ms, matching the JS surface's blockingTimeout.
+        return await self.conn.xread({self.keys["events"]: id}, block=block_timeout)
 
     # ============================================================
     # Worker blocking primitive

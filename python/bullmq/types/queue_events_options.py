@@ -12,12 +12,29 @@ class QueueEventsOptions(TypedDict, total=False):
     Prefix for all queue keys.
     """
 
+    backend: str
+    """
+    Datastore backend to use: 'redis' (default) or 'postgres'. Must match the
+    backend the queue itself was created with.
+
+    @default 'redis'
+    """
+
     connection: Union[dict[str, Any], redis.Redis, str]
     """
-    Options for connecting to a Redis instance. QueueEvents requires a
-    dedicated connection because XREAD BLOCK ties up the connection
-    for the duration of the blocking call; passing a shared connection
+    Options for connecting to the datastore (a libpq connection string or
+    parameter dict when `backend` is 'postgres'). QueueEvents requires a
+    dedicated connection because the blocking stream read ties up the
+    connection for the duration of the call; passing a shared connection
     would starve other operations.
+    """
+
+    schema: str
+    """
+    PostgreSQL schema used to namespace queues (the SQL-native replacement for
+    `prefix`). Only used when `backend` is 'postgres'.
+
+    @default 'bullmq'
     """
 
     autorun: bool
@@ -61,5 +78,7 @@ class QueueEventsProducerOptions(TypedDict, total=False):
     """
 
     prefix: str
+    backend: str
     connection: Union[dict[str, Any], redis.Redis, str]
+    schema: str
     skipVersionCheck: bool
