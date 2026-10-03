@@ -470,7 +470,25 @@ export class Queue<
    * @returns The next job to be scheduled (would normally be in delayed state).
    */
   async upsertJobScheduler(
+    jobSchedulerId: string,
+    repeatOpts: Omit<RepeatOptions, 'key'>,
+    jobTemplate: {
+      name: NameType;
+      data?: DataType;
+      opts?: JobSchedulerTemplateOptions;
+    },
+  ): Promise<Job<DataType, ResultType, NameType> | undefined>;
+  async upsertJobScheduler(
     jobSchedulerId: NameType,
+    repeatOpts: Omit<RepeatOptions, 'key'>,
+    jobTemplate?: {
+      name?: NameType;
+      data?: DataType;
+      opts?: JobSchedulerTemplateOptions;
+    },
+  ): Promise<Job<DataType, ResultType, NameType> | undefined>;
+  async upsertJobScheduler(
+    jobSchedulerId: string,
     repeatOpts: Omit<RepeatOptions, 'key'>,
     jobTemplate?: {
       name?: NameType;
@@ -491,7 +509,7 @@ export class Queue<
     >(
       jobSchedulerId,
       repeatOpts,
-      jobTemplate?.name ?? jobSchedulerId,
+      jobTemplate?.name ?? (jobSchedulerId as NameType),
       jobTemplate?.data ?? <DataType>{},
       { ...this.jobsOpts, ...jobTemplate?.opts },
       { override: true },
