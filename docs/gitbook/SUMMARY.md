@@ -187,6 +187,11 @@
 - [Changelogs](php/changelog.md)
   - [v1](php/changelogs/changelog-v1.md)
 
+## Go
+
+- [Introduction](golang/introduction.md)
+- [Changelogs](golang/changelog.md)
+
 ## .Net
 
 - [Changelogs](dotnet/changelog.md)
