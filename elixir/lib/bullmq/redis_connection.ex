@@ -139,7 +139,7 @@ defmodule BullMQ.RedisConnection do
   @doc """
   Closes the Redis connection pool.
   """
-  @spec close(connection(), timeout()) :: :ok | {:error, term()}
+  @spec close(connection(), timeout()) :: :ok
   def close(conn, timeout \\ 5000) do
     # Clean up persistent_term entries
     :persistent_term.erase({__MODULE__, :redis_opts, conn})
@@ -484,8 +484,11 @@ defmodule BullMQ.RedisConnection do
         Registry.register(Pool.registry_name(conn), {:blocking, self()}, pid)
         {:ok, pid}
 
-      error ->
+      {:error, _} = error ->
         error
+
+      :ignore ->
+        {:error, :ignore}
     end
   end
 
@@ -622,17 +625,15 @@ defmodule BullMQ.RedisConnection do
 
   defp build_redis_opts(opts) do
     base_opts =
-      cond do
-        Keyword.has_key?(opts, :url) ->
-          parse_redis_url(Keyword.get(opts, :url))
-
-        true ->
-          [
-            host: Keyword.get(opts, :host, "localhost"),
-            port: Keyword.get(opts, :port, 6379),
-            password: Keyword.get(opts, :password),
-            database: Keyword.get(opts, :database, 0)
-          ]
+      if Keyword.has_key?(opts, :url) do
+        parse_redis_url(Keyword.get(opts, :url))
+      else
+        [
+          host: Keyword.get(opts, :host, "localhost"),
+          port: Keyword.get(opts, :port, 6379),
+          password: Keyword.get(opts, :password),
+          database: Keyword.get(opts, :database, 0)
+        ]
       end
 
     base_opts
@@ -651,46 +652,37 @@ defmodule BullMQ.RedisConnection do
   defp parse_redis_url(url) when is_binary(url) do
     uri = URI.parse(url)
 
-    # Parse host and port
-    host = uri.host || "localhost"
-    port = uri.port || 6379
-
-    # Parse password from userinfo (format: user:password or just password)
-    password =
-      case uri.userinfo do
-        nil ->
-          nil
-
-        userinfo ->
-          case String.split(userinfo, ":", parts: 2) do
-            [_, pass] -> pass
-            [pass] -> pass
-          end
-      end
-
-    # Parse database from path (e.g., /0 for database 0)
-    database =
-      case uri.path do
-        nil ->
-          0
-
-        "" ->
-          0
-
-        "/" ->
-          0
-
-        "/" <> db_str ->
-          case Integer.parse(db_str) do
-            {db, _} -> db
-            :error -> 0
-          end
-      end
-
-    [host: host, port: port, password: password, database: database]
+    [
+      host: uri.host || "localhost",
+      port: uri.port || 6379,
+      password: extract_password(uri.userinfo),
+      database: extract_database(uri.path)
+    ]
   end
 
   defp parse_redis_url(_), do: [host: "localhost", port: 6379]
+
+  defp extract_password(nil), do: nil
+
+  defp extract_password(userinfo) do
+    case String.split(userinfo, ":", parts: 2) do
+      [_, pass] -> pass
+      [pass] -> pass
+    end
+  end
+
+  defp extract_database(nil), do: 0
+  defp extract_database(""), do: 0
+  defp extract_database("/"), do: 0
+
+  defp extract_database("/" <> db_str) do
+    case Integer.parse(db_str) do
+      {db, _} -> db
+      :error -> 0
+    end
+  end
+
+  defp extract_database(_), do: 0
 
   defp stringify_args(args) do
     Enum.map(args, fn

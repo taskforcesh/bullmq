@@ -5,7 +5,7 @@ defmodule BullMQ.ObliterateTest do
 
   use ExUnit.Case, async: false
 
-  alias BullMQ.{Queue, Worker, Keys, RedisConnection}
+  alias BullMQ.{Keys, Queue, RedisConnection, Worker}
 
   @redis_url "redis://localhost:6379"
   @prefix "test"
@@ -178,7 +178,7 @@ defmodule BullMQ.ObliterateTest do
 
     # Verify keys still exist
     keys = get_keys(queue_name)
-    assert length(keys) > 0
+    assert keys != []
 
     GenServer.stop(worker)
     Agent.stop(first_job)
@@ -290,7 +290,7 @@ defmodule BullMQ.ObliterateTest do
     for i <- 61..110 do
       {:ok, _job} =
         Queue.add(queue_name, "test", %{foo: "barLoop#{i}"},
-          delay: 10000,
+          delay: 10_000,
           connection: redis,
           prefix: @prefix
         )

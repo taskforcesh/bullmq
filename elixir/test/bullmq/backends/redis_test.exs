@@ -123,4 +123,29 @@ defmodule BullMQ.Backends.RedisTest do
     assert Backend.close(sibling) == :ok
     assert Backend.wait_until_ready(backend) == :ok
   end
+
+  test "maxed? reports whether queue is at concurrency limit", %{
+    backend: backend,
+    conn: conn,
+    queue_name: queue_name
+  } do
+    # Default queue has no concurrency set -> false
+    refute Backend.maxed?(backend)
+
+    # Set concurrency limit to 2 in queue meta
+    assert {:ok, _} = Backend.set_queue_meta(backend, %{"concurrency" => "2"})
+    refute Backend.maxed?(backend)
+
+    # Simulate active jobs by pushing to the active list
+    active_key = "#{@test_prefix}:#{queue_name}:active"
+    assert {:ok, 1} = RedisConnection.command(conn, ["LPUSH", active_key, "job-1"])
+    refute Backend.maxed?(backend)
+
+    assert {:ok, 2} = RedisConnection.command(conn, ["LPUSH", active_key, "job-2"])
+    assert Backend.maxed?(backend) == true
+
+    # Removing an active job drops count below concurrency limit
+    assert {:ok, 1} = RedisConnection.command(conn, ["LREM", active_key, 0, "job-2"])
+    refute Backend.maxed?(backend)
+  end
 end

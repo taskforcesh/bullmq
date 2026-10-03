@@ -13,7 +13,7 @@ defmodule BullMQ.QueueEventsIntegrationTest do
 
   @moduletag :integration
 
-  alias BullMQ.{Queue, Worker, QueueEvents}
+  alias BullMQ.{Queue, QueueEvents, Worker}
 
   @redis_url BullMQ.TestHelper.redis_url()
   @test_prefix BullMQ.TestHelper.test_prefix()
