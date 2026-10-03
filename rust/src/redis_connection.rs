@@ -168,13 +168,26 @@ impl RedisConnection {
     }
 
     /// Execute a Redis command directly.
+    ///
+    /// Runs on the same session as [`conn`](Self::conn) when the legacy socket
+    /// is open (see [`new`](Self::new)), so connection-local state such as
+    /// `SELECT` or `CLIENT SETNAME` is shared. Otherwise it runs on the
+    /// auto-reconnecting managed connection.
     pub async fn cmd<T: redis::FromRedisValue>(&self, cmd: &mut redis::Cmd) -> Result<T, Error> {
+        if let Some(mut conn) = self.try_conn() {
+            return Ok(cmd.query_async(&mut conn).await?);
+        }
         let mut conn = self.inner.managed_conn.clone();
         Ok(cmd.query_async(&mut conn).await?)
     }
 
     /// Execute a pipeline.
+    ///
+    /// Uses the same connection selection as [`cmd`](Self::cmd).
     pub async fn pipe<T: redis::FromRedisValue>(&self, pipe: &redis::Pipeline) -> Result<T, Error> {
+        if let Some(mut conn) = self.try_conn() {
+            return Ok(pipe.query_async(&mut conn).await?);
+        }
         let mut conn = self.inner.managed_conn.clone();
         Ok(pipe.query_async(&mut conn).await?)
     }
@@ -210,9 +223,13 @@ impl RedisConnection {
 
     /// Ping the server to verify connectivity.
     ///
-    /// Uses the auto-reconnecting managed connection so the check succeeds again
-    /// once the socket has been re-established after a drop.
+    /// Uses the same connection selection as [`cmd`](Self::cmd): the legacy
+    /// socket when open, otherwise the auto-reconnecting managed connection.
     pub async fn ping(&self) -> Result<(), Error> {
+        if let Some(mut conn) = self.try_conn() {
+            redis::cmd("PING").query_async::<()>(&mut conn).await?;
+            return Ok(());
+        }
         let mut conn = self.inner.managed_conn.clone();
         redis::cmd("PING").query_async::<()>(&mut conn).await?;
         Ok(())
