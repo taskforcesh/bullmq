@@ -34,11 +34,54 @@ pub async fn cleanup_queue(queue: &Queue) {
 /// Tests that drop connections on purpose (see [`kill_connections_in_db`]) must
 /// not share a database with the rest of the suite, otherwise they would also
 /// kill the connections of unrelated tests running in parallel.
+///
+/// The configured URL is parsed and only its database component (the path) is
+/// replaced, so any existing database, credentials, TLS scheme and query
+/// parameters are preserved.
 #[allow(dead_code)]
 pub fn isolated_connection(db: u8) -> RedisConnectionOptions {
     let mut opts = test_connection();
-    opts.url = format!("{}/{}", opts.url.trim_end_matches('/'), db);
+    opts.url = with_database(&opts.url, db);
     opts
+}
+
+/// Return `url` with its database replaced by `db`.
+fn with_database(url: &str, db: u8) -> String {
+    let mut parsed = url::Url::parse(url).expect("REDIS_URL must be a valid URL");
+    parsed.set_path(&format!("/{db}"));
+    parsed.into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::with_database;
+
+    #[test]
+    fn with_database_handles_supported_url_forms() {
+        assert_eq!(
+            with_database("redis://127.0.0.1:6379", 14),
+            "redis://127.0.0.1:6379/14"
+        );
+        assert_eq!(
+            with_database("redis://127.0.0.1:6379/", 14),
+            "redis://127.0.0.1:6379/14"
+        );
+        assert_eq!(
+            with_database("redis://host:6379/0", 14),
+            "redis://host:6379/14"
+        );
+        assert_eq!(
+            with_database(
+                "rediss://user:pa%40ss@host:6380/3?protocol=resp3&timeout=5",
+                14
+            ),
+            "rediss://user:pa%40ss@host:6380/14?protocol=resp3&timeout=5"
+        );
+        assert_eq!(
+            with_database("redis://host:6379?protocol=resp3", 14),
+            "redis://host:6379/14?protocol=resp3"
+        );
+    }
 }
 
 /// Kill every client connection that selected logical database `db`, as a

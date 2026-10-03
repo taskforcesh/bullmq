@@ -2,7 +2,7 @@ use redis::aio::{ConnectionManager, ConnectionManagerConfig, MultiplexedConnecti
 use redis::{AsyncConnectionConfig, Client, ClientTlsConfig, TlsCertificates};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::Mutex;
 use tracing::{debug, warn};
 
 use crate::error::Error;
@@ -77,27 +77,50 @@ pub struct RedisConnection {
 struct Inner {
     client: Client,
     opts: RedisConnectionOptions,
-    /// Legacy multiplexed socket, opened lazily by
-    /// [`RedisConnection::legacy_conn`] so that callers who never use the
-    /// compatibility accessors do not pay for a second Redis client.
-    legacy_conn: OnceCell<MultiplexedConnection>,
+    /// Legacy multiplexed socket backing [`RedisConnection::conn`]. Opened by
+    /// [`RedisConnection::new`]; absent for
+    /// [`RedisConnection::new_managed_only`].
+    legacy_conn: Option<MultiplexedConnection>,
     managed_conn: ManagedConn,
     scripts: ScriptRegistry,
 }
 
 impl RedisConnection {
     /// Create a new connection from options.
+    ///
+    /// Besides the auto-reconnecting managed connection, this also opens the
+    /// legacy multiplexed socket returned by [`conn`](Self::conn), so existing
+    /// callers of `conn()` keep working. Use
+    /// [`new_managed_only`](Self::new_managed_only) to skip that second socket.
     pub async fn new(opts: &RedisConnectionOptions) -> Result<Self, Error> {
+        Self::connect(opts, true).await
+    }
+
+    /// Create a new connection that only opens the auto-reconnecting managed
+    /// connection, without the extra legacy socket.
+    ///
+    /// [`conn`](Self::conn) panics on such a connection; use
+    /// [`try_conn`](Self::try_conn) to check, or [`managed_conn`](Self::managed_conn).
+    pub async fn new_managed_only(opts: &RedisConnectionOptions) -> Result<Self, Error> {
+        Self::connect(opts, false).await
+    }
+
+    async fn connect(opts: &RedisConnectionOptions, with_legacy: bool) -> Result<Self, Error> {
         let url = opts.effective_url();
         let client = build_client(opts, &url)?;
         let scripts = ScriptRegistry::new();
         let config = manager_config(ReconnectOptions::default().response_timeout);
         let managed_conn = ConnectionManager::new_with_config(client.clone(), config).await?;
+        let legacy_conn = if with_legacy {
+            Some(client.get_multiplexed_async_connection().await?)
+        } else {
+            None
+        };
 
         let inner = Arc::new(Inner {
             client,
             opts: opts.clone(),
-            legacy_conn: OnceCell::new(),
+            legacy_conn,
             managed_conn,
             scripts,
         });
@@ -108,37 +131,25 @@ impl RedisConnection {
         Ok(Self { inner })
     }
 
-    /// Open (on first call) and return the legacy multiplexed connection.
-    ///
-    /// The socket is created lazily and then shared by every clone of this
-    /// `RedisConnection`. Prefer [`managed_conn`](Self::managed_conn), which
-    /// reconnects automatically and needs no extra socket.
-    pub async fn legacy_conn(&self) -> Result<MultiplexedConnection, Error> {
-        let conn = self
-            .inner
-            .legacy_conn
-            .get_or_try_init(|| async {
-                Ok::<_, Error>(self.inner.client.get_multiplexed_async_connection().await?)
-            })
-            .await?;
-        Ok(conn.clone())
-    }
-
     /// Get a clone of the legacy multiplexed connection for concurrent use.
     ///
-    /// The legacy socket is no longer opened eagerly. Await
-    /// [`legacy_conn`](Self::legacy_conn) once before calling this accessor.
+    /// Prefer [`managed_conn`](Self::managed_conn), which reconnects
+    /// automatically after the socket dies.
     ///
     /// # Panics
     ///
-    /// Panics if [`legacy_conn`](Self::legacy_conn) has not completed
-    /// successfully on this connection (or a clone of it).
+    /// Panics if this connection was created with
+    /// [`new_managed_only`](Self::new_managed_only). Connections created with
+    /// [`new`](Self::new) never panic.
     pub fn conn(&self) -> MultiplexedConnection {
-        self.inner
-            .legacy_conn
-            .get()
-            .cloned()
-            .expect("legacy connection not opened; await RedisConnection::legacy_conn() first")
+        self.try_conn()
+            .expect("legacy connection not opened; connection was created with new_managed_only")
+    }
+
+    /// Non-panicking variant of [`conn`](Self::conn); `None` when the legacy
+    /// socket was not opened.
+    pub fn try_conn(&self) -> Option<MultiplexedConnection> {
+        self.inner.legacy_conn.clone()
     }
 
     /// Get a clone of the managed connection for concurrent use.
@@ -226,9 +237,10 @@ pub struct BlockingRedisConnection {
 struct BlockingInner {
     client: Client,
     conn: Mutex<ManagedConn>,
-    /// Legacy multiplexed socket, opened lazily on first use of the
-    /// compatibility accessors.
-    compat_conn: OnceCell<Mutex<MultiplexedConnection>>,
+    /// Legacy multiplexed socket (response timeout disabled). Opened by
+    /// [`BlockingRedisConnection::new`]; absent for
+    /// [`BlockingRedisConnection::new_managed_only`].
+    compat_conn: Option<Mutex<MultiplexedConnection>>,
     /// Name registered with `CLIENT SETNAME`, kept so it can be reapplied
     /// after the managed connection is re-established.
     client_name: std::sync::Mutex<Option<String>>,
@@ -279,15 +291,41 @@ impl BlockingRedisConnection {
     /// reply is always delivered to a live waiter. This mirrors the TypeScript
     /// worker, whose stuck-connection watchdog fires at `blockTimeout + 1s`,
     /// deliberately longer than the block rather than shorter.
+    ///
+    /// Also opens the legacy socket used by [`conn`](Self::conn),
+    /// [`bzpopmin`](Self::bzpopmin) and [`set_name`](Self::set_name). Use
+    /// [`new_managed_only`](Self::new_managed_only) to skip it.
     pub async fn new(client: &Client) -> Result<Self, Error> {
+        Self::connect(client, true).await
+    }
+
+    /// Create a blocking connection without the extra legacy socket.
+    ///
+    /// [`conn`](Self::conn) panics, and [`bzpopmin`](Self::bzpopmin) /
+    /// [`set_name`](Self::set_name) return an error, on such a connection.
+    pub async fn new_managed_only(client: &Client) -> Result<Self, Error> {
+        Self::connect(client, false).await
+    }
+
+    async fn connect(client: &Client, with_legacy: bool) -> Result<Self, Error> {
         let client = client.clone();
         let config = manager_config(None);
         let conn = ConnectionManager::new_with_config(client.clone(), config).await?;
+        let compat_conn = if with_legacy {
+            let compat_config = AsyncConnectionConfig::new().set_response_timeout(None);
+            Some(Mutex::new(
+                client
+                    .get_multiplexed_async_connection_with_config(&compat_config)
+                    .await?,
+            ))
+        } else {
+            None
+        };
         Ok(Self {
             inner: Arc::new(BlockingInner {
                 client,
                 conn: Mutex::new(conn),
-                compat_conn: OnceCell::new(),
+                compat_conn,
                 client_name: std::sync::Mutex::new(None),
                 needs_renaming: AtomicBool::new(false),
             }),
@@ -295,37 +333,32 @@ impl BlockingRedisConnection {
     }
 
     /// Create a new blocking connection managed by a [`RedisConnection`].
+    ///
+    /// Opens the legacy socket only if `conn` has one, so a managed-only
+    /// `RedisConnection` yields a managed-only blocking connection.
     pub async fn new_managed(conn: &RedisConnection) -> Result<Self, Error> {
-        Self::new(conn.client()).await
+        Self::connect(conn.client(), conn.try_conn().is_some()).await
     }
 
-    /// Open (on first use) the legacy multiplexed socket, with its response
-    /// timeout disabled.
-    async fn compat(&self) -> Result<&Mutex<MultiplexedConnection>, Error> {
-        self.inner
-            .compat_conn
-            .get_or_try_init(|| async {
-                let config = AsyncConnectionConfig::new().set_response_timeout(None);
-                let conn = self
-                    .inner
-                    .client
-                    .get_multiplexed_async_connection_with_config(&config)
-                    .await?;
-                Ok::<_, Error>(Mutex::new(conn))
-            })
-            .await
+    fn compat(&self) -> Result<&Mutex<MultiplexedConnection>, Error> {
+        self.inner.compat_conn.as_ref().ok_or_else(|| {
+            Error::InvalidConfig(
+                "legacy connection not opened; connection was created with new_managed_only"
+                    .to_string(),
+            )
+        })
     }
 
-    /// Get a mutable reference to the legacy connection, opening it on first use.
+    /// Get a mutable reference to the legacy connection.
     ///
     /// # Panics
     ///
-    /// Panics if the legacy socket cannot be opened. Prefer the managed
-    /// connection, which is always available.
+    /// Panics if this connection was created with
+    /// [`new_managed_only`](Self::new_managed_only). Connections created with
+    /// [`new`](Self::new) never panic.
     pub async fn conn(&self) -> tokio::sync::MutexGuard<'_, MultiplexedConnection> {
         self.compat()
-            .await
-            .expect("failed to open legacy Redis connection")
+            .expect("legacy connection not opened; connection was created with new_managed_only")
             .lock()
             .await
     }
@@ -336,7 +369,7 @@ impl BlockingRedisConnection {
         key: &str,
         timeout_secs: f64,
     ) -> Result<Option<(String, String, f64)>, Error> {
-        let mut conn = self.compat().await?.lock().await;
+        let mut conn = self.compat()?.lock().await;
         let result: Option<(String, String, f64)> = redis::cmd("BZPOPMIN")
             .arg(key)
             .arg(timeout_secs)
@@ -410,7 +443,7 @@ impl BlockingRedisConnection {
     /// `CLIENT LIST`. Best-effort: some managed providers (e.g. GCP) reject this
     /// command, so callers typically ignore the error.
     pub async fn set_name(&self, name: &str) -> Result<(), Error> {
-        let mut conn = self.compat().await?.lock().await;
+        let mut conn = self.compat()?.lock().await;
         redis::cmd("CLIENT")
             .arg("SETNAME")
             .arg(name)
@@ -521,7 +554,6 @@ mod tests {
         connection: &RedisConnection,
         blocking_connection: &BlockingRedisConnection,
     ) -> Result<(), Error> {
-        let _: MultiplexedConnection = connection.legacy_conn().await?;
         let _: MultiplexedConnection = connection.conn();
         let _: MultiplexedConnection = connection.dedicated_connection().await?;
         let _: MutexGuard<'_, MultiplexedConnection> = blocking_connection.conn().await;

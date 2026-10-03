@@ -237,7 +237,7 @@ impl FlowProducer {
 
     /// Create a new FlowProducer with explicit options.
     pub async fn with_options(opts: FlowProducerOptions) -> Result<Self, Error> {
-        let conn = RedisConnection::new(&opts.connection).await?;
+        let conn = RedisConnection::new_managed_only(&opts.connection).await?;
         let prefix = opts.prefix.unwrap_or_else(|| "bull".to_string());
         validate_prefix(&prefix)?;
         Ok(Self { conn, prefix })

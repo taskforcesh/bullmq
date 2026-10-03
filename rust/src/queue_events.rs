@@ -388,7 +388,7 @@ impl QueueEvents {
     pub async fn with_options(name: &str, opts: QueueEventsOptions) -> Result<Self, Error> {
         validate_queue_name(name)?;
         validate_prefix(&opts.prefix)?;
-        let conn = RedisConnection::new(&opts.connection).await?;
+        let conn = RedisConnection::new_managed_only(&opts.connection).await?;
         Self::build(name, conn, opts).await
     }
 

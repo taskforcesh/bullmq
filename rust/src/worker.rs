@@ -599,7 +599,7 @@ impl Worker {
             ));
         }
 
-        let conn = RedisConnection::new(&opts.connection).await?;
+        let conn = RedisConnection::new_managed_only(&opts.connection).await?;
         let blocking_conn = BlockingRedisConnection::new_managed(&conn).await?;
         let keys = QueueKeys::new(queue_name, Some(&opts.prefix));
 
