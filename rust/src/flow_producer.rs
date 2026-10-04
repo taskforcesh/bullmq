@@ -237,7 +237,7 @@ impl FlowProducer {
 
     /// Create a new FlowProducer with explicit options.
     pub async fn with_options(opts: FlowProducerOptions) -> Result<Self, Error> {
-        let conn = RedisConnection::new(&opts.connection).await?;
+        let conn = RedisConnection::new_managed_only(&opts.connection).await?;
         let prefix = opts.prefix.unwrap_or_else(|| "bull".to_string());
         validate_prefix(&prefix)?;
         Ok(Self { conn, prefix })
@@ -296,7 +296,7 @@ impl FlowProducer {
         apply_queue_defaults(&mut flow, opts);
         validate_flow_queue_names(&flow)?;
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         self.conn
             .scripts()
             .ensure_loaded(&mut conn, &Self::pipeline_script_names(&flow))
@@ -353,7 +353,7 @@ impl FlowProducer {
             validate_flow_queue_names(flow)?;
         }
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let script_names: Vec<&str> = flows.iter().flat_map(Self::pipeline_script_names).collect();
         self.conn
             .scripts()
@@ -440,7 +440,7 @@ impl FlowProducer {
             let job_key = keys.job_key(job_id);
 
             // Load job data from Redis
-            let mut conn = self.conn.conn();
+            let mut conn = self.conn.managed_conn();
             let hash: HashMap<String, String> = redis::cmd("HGETALL")
                 .arg(&job_key)
                 .query_async(&mut conn)
@@ -537,7 +537,7 @@ impl FlowProducer {
             .ok_or_else(|| Error::InvalidConfig("paginate script not found".to_string()))?
             .clone();
 
-        let mut conn = self.conn.conn();
+        let mut conn = self.conn.managed_conn();
         let mut cursor = "0".to_string();
         let mut offset: i64 = 0;
         let mut collected: Vec<String> = Vec::with_capacity(limit);
