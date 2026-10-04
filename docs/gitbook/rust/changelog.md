@@ -1,3 +1,10 @@
+## [1.3.4](https://github.com/taskforcesh/bullmq/compare/vrs1.3.3...vrs1.3.4) (2026-10-04)
+
+
+### Bug Fixes
+
+* **connection:** use connection manager to recover from disconnections [rust] ([#4806](https://github.com/taskforcesh/bullmq/issues/4806)) fixes [#4742](https://github.com/taskforcesh/bullmq/issues/4742) ([16992c8](https://github.com/taskforcesh/bullmq/commit/16992c8ff1c02ce58b2be9aa41783bb0928a369e))
+
 ## [1.3.3](https://github.com/taskforcesh/bullmq/compare/vrs1.3.2...vrs1.3.3) (2026-09-26)
 
 
