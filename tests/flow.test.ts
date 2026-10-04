@@ -2599,20 +2599,20 @@ describe('flows', () => {
             worker.on('failed', onFinished);
           });
 
-          await flow.add(
-            flowTree({ removeOnComplete: true, removeOnFail: true }),
-          );
-          await parentFinished;
+          try {
+            await flow.add(
+              flowTree({ removeOnComplete: true, removeOnFail: true }),
+            );
+            await parentFinished;
 
-          const tree = await flow.add(flowTree());
+            const tree = await flow.add(flowTree());
 
-          await delay(1000);
-          const state = await tree.job.getState();
-
-          await worker.close();
-          await flow.close();
-
-          return state;
+            await delay(1000);
+            return await tree.job.getState();
+          } finally {
+            await worker.close();
+            await flow.close();
+          }
         };
 
         it('moves parent to wait when child has ignoreDependencyOnFailure', async () => {
@@ -2684,14 +2684,16 @@ describe('flows', () => {
             { connection, prefix },
           );
 
-          await delay(1000);
-          const state = await (await parentQueue.getJob('tue'))!.getState();
+          try {
+            await delay(1000);
+            const state = await (await parentQueue.getJob('tue'))!.getState();
 
-          expect(state).toBe('completed');
-
-          await parentWorker.close();
-          await parentQueue.close();
-          await cleanupQueue(parentQueueName);
+            expect(state).toBe('completed');
+          } finally {
+            await parentWorker.close();
+            await parentQueue.close();
+            await cleanupQueue(parentQueueName);
+          }
         });
       });
     });
