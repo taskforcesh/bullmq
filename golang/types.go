@@ -111,6 +111,7 @@ func (r *RemoveOnFinish) writeMsgpack(w *msgpackWriter) {
 func (r *RemoveOnFinish) UnmarshalJSON(data []byte) error {
 	var b bool
 	if err := json.Unmarshal(data, &b); err == nil {
+		*r = RemoveOnFinish{}
 		if b {
 			zero := int64(0)
 			r.Count = &zero
@@ -119,11 +120,16 @@ func (r *RemoveOnFinish) UnmarshalJSON(data []byte) error {
 	}
 	var n int64
 	if err := json.Unmarshal(data, &n); err == nil {
-		r.Count = &n
+		*r = RemoveOnFinish{Count: &n}
 		return nil
 	}
 	type alias RemoveOnFinish
-	return json.Unmarshal(data, (*alias)(r))
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*r = RemoveOnFinish(decoded)
+	return nil
 }
 
 // Progress is a job progress value: either a number or an arbitrary JSON value.
