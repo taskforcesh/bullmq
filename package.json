@@ -53,6 +53,7 @@
     "dry-run": "npm publish --dry-run",
     "eslint:fix": "./node_modules/.bin/eslint . --fix",
     "generate:raw:scripts": "ts-node --project tsconfig-cjs.json scripts/generateRawScripts.ts",
+    "format:go": "gofmt -w ./golang",
     "lint": "./node_modules/.bin/eslint .",
     "lint:staged": "lint-staged",
     "prepublishOnly": "npm run build",

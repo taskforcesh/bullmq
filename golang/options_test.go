@@ -52,7 +52,6 @@ func TestApplyDefaultsValidatesLockRenewTime(t *testing.T) {
 	}
 }
 
-
 func TestApplyDefaultsUnsetLockDuration(t *testing.T) {
 	var o WorkerOptions
 	if err := o.applyDefaults(); err != nil {
