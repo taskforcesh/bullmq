@@ -776,6 +776,12 @@ export interface IQueueBackend {
   disconnectBlocking(wait?: boolean): Promise<void>;
 
   /**
+   * Like {@link disconnectBlocking}, but final: an in-flight reconnect of the
+   * blocking connection must give up instead of reviving it.
+   */
+  closeBlocking(): Promise<void>;
+
+  /**
    * Re-establishes the backend's blocking connection after an interrupt.
    */
   reconnectBlocking(): Promise<void>;

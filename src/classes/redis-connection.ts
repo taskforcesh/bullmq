@@ -179,6 +179,10 @@ export class RedisConnection extends EventEmitter {
   static clientFactory?: (opts: RedisOptions) => IRedisClient;
 
   closing: boolean;
+  // A socketless reconnecting client may never emit `end`, so close() rejects
+  // this to release a reconnect() parked in waitUntilReady.
+  private closed?: Promise<never>;
+  private rejectClosed?: (error: Error) => void;
   capabilities: RedisCapabilities = {
     canDoubleTimeout: false,
     canBlockFor1Ms: true,
@@ -727,7 +731,19 @@ export class RedisConnection extends EventEmitter {
 
   async reconnect(): Promise<void> {
     const client = await this.client;
+    if (!this.closed) {
+      this.closed = new Promise<never>((_, reject) => {
+        this.rejectClosed = reject;
+      });
+      this.closed.catch(() => {});
+    }
+
     for (;;) {
+      // close() leaves the client in `end`, which must not trigger connect().
+      if (this.closing) {
+        throw new ConnectionClosedError();
+      }
+
       if (
         client.status === 'ready' ||
         (client.status === 'connect' && isRedisCluster(client))
@@ -740,7 +756,10 @@ export class RedisConnection extends EventEmitter {
       }
 
       try {
-        await RedisConnection.waitUntilReady(client);
+        await Promise.race([
+          RedisConnection.waitUntilReady(client),
+          this.closed,
+        ]);
       } catch (error) {
         if (
           !['end', 'connecting', 'connect', 'reconnecting'].includes(
@@ -758,6 +777,7 @@ export class RedisConnection extends EventEmitter {
       const status = this.status;
       this.status = 'closing';
       this.closing = true;
+      this.rejectClosed?.(new ConnectionClosedError());
       this.disableBlockingClusterReconnect();
 
       try {

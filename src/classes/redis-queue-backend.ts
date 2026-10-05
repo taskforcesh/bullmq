@@ -414,6 +414,15 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   }
 
   /**
+   * Closes the dedicated blocking connection for good. No-op if there is none.
+   */
+  async closeBlocking(): Promise<void> {
+    if (this.blockingConnection) {
+      await this.blockingConnection.close(true);
+    }
+  }
+
+  /**
    * Re-establishes the dedicated blocking connection after an interrupt.
    */
   async reconnectBlocking(): Promise<void> {

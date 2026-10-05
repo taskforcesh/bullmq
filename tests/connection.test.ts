@@ -22,6 +22,7 @@ import {
   QueueBase,
   FlowProducer,
   RedisConnection,
+  ConnectionClosedError,
 } from '../src/classes';
 import { randomUUID, removeAllQueueData } from '../src/utils';
 
@@ -564,6 +565,7 @@ describe('RedisConnection', () => {
       client.emit('end');
       await Promise.resolve();
       await Promise.resolve();
+      await Promise.resolve();
 
       expect(reconnectResolved).toBe(false);
       expect(waitUntilReady.callCount).toBe(2);
@@ -574,6 +576,36 @@ describe('RedisConnection', () => {
       await Promise.all([reconnecting, concurrentReconnect!]);
       expect(client.connect.calledOnce).toBe(true);
       waitUntilReady.restore();
+    });
+
+    it('does not connect from status end once closing', async () => {
+      const client = createClient('end');
+      const connection = createConnection(client);
+      connection.closing = true;
+
+      await expect(connection.reconnect()).rejects.toThrow(
+        ConnectionClosedError,
+      );
+      expect(client.connect.called).toBe(false);
+    });
+
+    it('stops waiting when close() starts, even without an end event', async () => {
+      const client = createClient('reconnecting');
+      const connection = createConnection(client);
+      Object.assign(connection, {
+        extraOptions: { shared: true },
+        _client: client,
+        handleClientError: () => {},
+        handleClientClose: () => {},
+        handleClientReady: () => {},
+      });
+
+      const reconnecting = connection.reconnect();
+      await Promise.resolve();
+      await connection.close();
+
+      await expect(reconnecting).rejects.toThrow(ConnectionClosedError);
+      expect(client.connect.called).toBe(false);
     });
   });
 
