@@ -164,7 +164,11 @@ Report progress from inside the processor:
 func(ctx context.Context, job *bullmq.Job) (any, error) {
 	for i := 0; i < 100; i++ {
 		// Do work...
-		if err := job.UpdateProgress(ctx, bullmq.NumberProgress(float64(i))); err != nil {
+		progress, err := bullmq.NumberProgress(float64(i))
+		if err != nil {
+			return nil, err
+		}
+		if err := job.UpdateProgress(ctx, progress); err != nil {
 			return nil, err
 		}
 	}
