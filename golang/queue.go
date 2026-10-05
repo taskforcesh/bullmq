@@ -255,6 +255,15 @@ func (q *Queue) packAddArgs(opts *JobOptions, name string, timestamp int64) ([]b
 			"rdof": opts.removeDependencyOnFailureVal(),
 			"cpof": opts.continueParentOnFailureVal(),
 		}
+		enabled := 0
+		for _, value := range flags {
+			if value {
+				enabled++
+			}
+		}
+		if enabled > 1 {
+			return nil, configError("parent failure options are mutually exclusive")
+		}
 		n := 2
 		for _, v := range flags {
 			if v {
