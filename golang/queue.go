@@ -282,7 +282,13 @@ func (q *Queue) packAddArgs(opts *JobOptions, name string, timestamp int64) ([]b
 	// repeat job key: job schedulers are not supported by this port yet.
 	w.Nil()
 
-	if opts.Deduplication != nil && opts.Deduplication.ID != "" {
+	if opts.Deduplication != nil {
+		if opts.Deduplication.ID == "" {
+			return nil, configError("deduplication ID must be provided")
+		}
+		if opts.Parent != nil {
+			return nil, configError("deduplication and parent options cannot be used together")
+		}
 		w.Str(q.c.keys.Base() + ":de:" + opts.Deduplication.ID)
 	} else {
 		w.Nil()
