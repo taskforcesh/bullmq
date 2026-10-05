@@ -1,4 +1,5 @@
 import redis.asyncio as redis
+from redis.asyncio.cluster import RedisCluster
 from typing import Optional, Union
 from redis.backoff import ExponentialBackoff
 from redis.asyncio.retry import Retry
@@ -76,7 +77,7 @@ class RedisConnection:
 
     def __init__(
         self,
-        redisOpts: Union[dict, str, redis.Redis] = {},
+        redisOpts: Union[dict, str, redis.Redis, RedisCluster] = {},
         skipVersionCheck: bool = False,
         skipWaitingForReady: bool = False,
     ):
@@ -91,7 +92,7 @@ class RedisConnection:
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
-        if isinstance(redisOpts, redis.Redis):
+        if isinstance(redisOpts, (redis.Redis, RedisCluster)):
             self.conn = redisOpts
         elif isinstance(redisOpts, dict):
             defaultOpts = {

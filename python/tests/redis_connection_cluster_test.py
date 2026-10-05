@@ -2,6 +2,9 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+from redis.asyncio.cluster import RedisCluster
+
+from bullmq import Queue, Worker
 from bullmq.redis_connection import RedisConnection
 
 
@@ -37,3 +40,28 @@ class TestRedisConnectionCluster(unittest.IsolatedAsyncioTestCase):
         node2_client.client_setname.assert_called_once_with("bull:test-queue:w:worker")
         self.assertEqual(node1_pool.connection_kwargs.get("client_name"), "bull:test-queue:w:worker")
         self.assertEqual(node2_pool.connection_kwargs.get("client_name"), "bull:test-queue:w:worker")
+
+    async def test_accepts_a_redis_cluster_client(self):
+        cluster = RedisCluster(host="localhost", port=7000)
+        connection = RedisConnection(cluster)
+
+        self.assertIs(connection.conn, cluster)
+        self.assertTrue(connection.commands)
+
+    async def test_queue_and_worker_use_a_passed_cluster_client(self):
+        cluster = RedisCluster(host="localhost", port=7000)
+
+        queue = Queue("test-queue", {"prefix": "{bull}", "connection": cluster})
+
+        async def process(job, token):
+            return None
+
+        worker = Worker(
+            "test-queue",
+            process,
+            {"prefix": "{bull}", "connection": cluster, "autorun": False},
+        )
+
+        self.assertIs(queue.backend.connection.conn, cluster)
+        self.assertIs(worker.backend.connection.conn, cluster)
+        self.assertIs(worker.backend.blocking_connection.conn, cluster)
