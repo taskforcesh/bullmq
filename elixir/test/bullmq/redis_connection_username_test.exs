@@ -1,6 +1,8 @@
 defmodule BullMQ.RedisConnectionUsernameTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   @moduletag :integration
 
   alias BullMQ.RedisConnection
@@ -54,18 +56,23 @@ defmodule BullMQ.RedisConnectionUsernameTest do
 
     wrong_conn = :"username_test_wrong_#{System.unique_integer([:positive])}"
 
-    {:ok, _pid} =
-      RedisConnection.start_link(
-        name: wrong_conn,
-        host: @base_uri.host,
-        port: @base_uri.port,
-        username: acl_username,
-        password: "not-the-right-password"
-      )
-
     on_exit(fn -> RedisConnection.close(wrong_conn) end)
 
-    assert {:error, _} = RedisConnection.command(wrong_conn, ["PING"])
+    log =
+      capture_log(fn ->
+        {:ok, _pid} =
+          RedisConnection.start_link(
+            name: wrong_conn,
+            host: @base_uri.host,
+            port: @base_uri.port,
+            username: acl_username,
+            password: "not-the-right-password"
+          )
+
+        assert {:error, _} = RedisConnection.command(wrong_conn, ["PING"])
+      end)
+
+    assert log =~ "WRONGPASS"
   end
 
   test "no username defaults to nil", %{conn: conn} do
