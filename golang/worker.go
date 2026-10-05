@@ -42,7 +42,8 @@ const (
 type Event struct {
 	// Type is the kind of event.
 	Type EventType
-	// Job is the job the event refers to; nil for EventDrained and EventError.
+	// Job is the job the event refers to; nil for EventDrained, EventError and
+	// EventClosed.
 	Job *Job
 	// Result is the processor return value for EventCompleted, or the new
 	// Progress value for EventProgress.

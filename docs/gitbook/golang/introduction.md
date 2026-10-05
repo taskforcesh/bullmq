@@ -86,6 +86,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer worker.Close()
 
 	// Run blocks until ctx is cancelled (processors see the cancellation) or
 	// Close is called (in-flight jobs are allowed to finish).

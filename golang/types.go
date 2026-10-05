@@ -239,4 +239,8 @@ type Metrics struct {
 	PrevTS int64
 	// Data holds one entry per minute, most recent first.
 	Data []int64
+	// NumPoints is the total number of retained data points, regardless of
+	// the requested [start, end] window. Use it for pagination (the reference
+	// getMetrics API returns it as `count`).
+	NumPoints int64
 }

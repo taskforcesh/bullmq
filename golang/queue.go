@@ -781,6 +781,9 @@ func (q *Queue) Metrics(ctx context.Context, state JobState, start, end int64) (
 			m.Data = append(m.Data, n)
 		}
 	}
+	if len(arr) > 2 {
+		m.NumPoints, _ = asInt64(arr[2])
+	}
 	return m, nil
 }
 

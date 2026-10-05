@@ -93,6 +93,9 @@ func TestWorkerCollectsCompletedMetrics(t *testing.T) {
 	if metrics.Count != 1 {
 		t.Errorf("Count = %d, want 1", metrics.Count)
 	}
+	if metrics.NumPoints != int64(len(metrics.Data)) {
+		t.Errorf("NumPoints = %d, want %d", metrics.NumPoints, len(metrics.Data))
+	}
 }
 
 func TestWorkerProcessesJobsInOrder(t *testing.T) {

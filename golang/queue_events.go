@@ -184,10 +184,12 @@ func (qe *QueueEvents) Close() error {
 		case <-time.After(qe.opts.BlockingTimeout + time.Second):
 		}
 	}
+	var firstErr error
 	if qe.blockingOwned {
-		if err := qe.blocking.Close(); err != nil {
-			return err
-		}
+		firstErr = qe.blocking.Close()
 	}
-	return qe.c.close()
+	if err := qe.c.close(); firstErr == nil {
+		firstErr = err
+	}
+	return firstErr
 }
