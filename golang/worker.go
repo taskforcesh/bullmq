@@ -480,6 +480,7 @@ func (w *Worker) processJob(ctx context.Context, job *Job) {
 	if cerr := w.moveToCompleted(finishCtx, job, result); cerr != nil {
 		if ferr := w.moveToFailed(finishCtx, job, cerr); ferr != nil {
 			w.emitError(ferr)
+			return
 		}
 		w.emit(Event{Type: EventFailed, Job: job, Err: cerr})
 		return
