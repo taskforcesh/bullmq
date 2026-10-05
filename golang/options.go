@@ -254,6 +254,14 @@ func (o *WorkerOptions) applyDefaults() error {
 	if o.DrainDelay <= 0 {
 		o.DrainDelay = 5 * time.Second
 	}
+	if o.Limiter != nil {
+		if o.Limiter.Max <= 0 {
+			return configError("limiter max must be greater than 0")
+		}
+		if o.Limiter.Duration < time.Millisecond {
+			return configError("limiter duration must be at least 1ms")
+		}
+	}
 	return nil
 }
 
