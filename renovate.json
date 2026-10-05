@@ -278,6 +278,13 @@
       "description": "Do not pin peerDependencies, keep range strategy as-is",
       "matchDepTypes": ["peerDependencies"],
       "rangeStrategy": "widen"
+    },
+    {
+      "description": "Do not pin the redis-py runtime dependency of the Python library, keep its compatible range so consumers can resolve it alongside their own redis pin",
+      "matchManagers": ["pep621"],
+      "matchDepTypes": ["project.dependencies"],
+      "matchPackageNames": ["redis"],
+      "rangeStrategy": "widen"
     }
   ],
   "vulnerabilityAlerts": {
