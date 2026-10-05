@@ -427,6 +427,7 @@ func (w *Worker) processJob(ctx context.Context, job *Job) {
 			delete(w.active, job.ID)
 		}
 		w.mu.Unlock()
+		job.worker = nil
 		cancel()
 	}()
 
