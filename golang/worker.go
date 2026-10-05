@@ -526,8 +526,13 @@ func (w *Worker) moveToFailed(ctx context.Context, job *Job, cause error) error 
 		job.AttemptsMade+1 < attempts
 
 	if retriesLeft {
-		delay := w.backoffDelay(job, cause)
-		if delay >= 0 {
+		delay, berr := w.backoffDelay(job, cause)
+		switch {
+		case berr != nil:
+			// Retrying with an immediate zero delay would risk a tight retry
+			// loop, so report the problem and fail the job instead.
+			w.emitError(berr)
+		case delay >= 0:
 			return w.retryJob(ctx, job, delay)
 		}
 	}
@@ -554,31 +559,34 @@ func (w *Worker) retryJob(ctx context.Context, job *Job, delay time.Duration) er
 }
 
 // backoffDelay computes how long to wait before the next attempt. A negative
-// result means the job should not be retried.
-func (w *Worker) backoffDelay(job *Job, cause error) time.Duration {
+// delay means the job should not be retried. A non-nil error is returned when
+// the job uses a custom backoff type and no BackoffStrategy is configured,
+// matching the reference implementations, which reject unknown strategies.
+func (w *Worker) backoffDelay(job *Job, cause error) (time.Duration, error) {
 	var backoff *Backoff
 	if job.Opts != nil {
 		backoff = job.Opts.Backoff
 	}
 	if backoff == nil {
-		return 0
+		return 0, nil
 	}
 	attempts := job.AttemptsMade + 1
 	switch backoff.Type {
 	case BackoffFixed:
-		return time.Duration(backoff.Delay) * time.Millisecond
+		return time.Duration(backoff.Delay) * time.Millisecond, nil
 	case BackoffExponential:
 		factor := math.Pow(2, float64(attempts-1))
-		return time.Duration(float64(backoff.Delay)*factor) * time.Millisecond
+		return time.Duration(float64(backoff.Delay)*factor) * time.Millisecond, nil
 	default:
 		if w.opts.BackoffStrategy == nil {
-			return 0
+			return 0, configError("unknown backoff strategy %q for job %s; if a custom backoff strategy is used, set WorkerOptions.BackoffStrategy",
+				backoff.Type, job.ID)
 		}
 		ms := w.opts.BackoffStrategy(attempts, backoff.Type, cause, job)
 		if ms < 0 {
-			return -1
+			return -1, nil
 		}
-		return time.Duration(ms) * time.Millisecond
+		return time.Duration(ms) * time.Millisecond, nil
 	}
 }
 
@@ -792,18 +800,16 @@ func (w *Worker) extendLocks(ctx context.Context, jobs []*activeJob) ([]string, 
 	return failed, nil
 }
 
-// stalledCheckLoop moves jobs whose lock expired back to the wait list.
+// stalledCheckLoop moves jobs whose lock expired back to the wait list. It
+// scans immediately on start, so expired locks present at startup are
+// recovered right away, and then again after every StalledInterval.
 func (w *Worker) stalledCheckLoop(ctx context.Context) {
-	ticker := time.NewTicker(w.opts.StalledInterval)
-	defer ticker.Stop()
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
 		if err := w.checkStalledJobs(ctx); err != nil && ctx.Err() == nil {
 			w.emitError(err)
+		}
+		if !sleepCtx(ctx, w.opts.StalledInterval) {
+			return
 		}
 	}
 }

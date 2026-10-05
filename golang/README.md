@@ -82,7 +82,11 @@ worker, err := bullmq.NewWorker("emails",
 			return nil, err
 		}
 
-		if err := job.UpdateProgress(ctx, bullmq.NumberProgress(50)); err != nil {
+		progress, err := bullmq.NumberProgress(50)
+		if err != nil {
+			return nil, err
+		}
+		if err := job.UpdateProgress(ctx, progress); err != nil {
 			return nil, err
 		}
 

@@ -347,7 +347,11 @@ func TestWorkerEmitsProgressEvent(t *testing.T) {
 	q := newTestQueue(t, nil)
 
 	w := newTestWorker(t, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
-		if err := job.UpdateProgress(ctx, bullmq.NumberProgress(42)); err != nil {
+		progress, err := bullmq.NumberProgress(42)
+		if err != nil {
+			return nil, err
+		}
+		if err := job.UpdateProgress(ctx, progress); err != nil {
 			return nil, err
 		}
 		return nil, nil

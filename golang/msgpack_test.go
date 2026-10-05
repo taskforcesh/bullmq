@@ -3,6 +3,7 @@ package bullmq
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"testing"
 )
 
@@ -98,12 +99,21 @@ func TestRemoveAllEncodesAsCountZero(t *testing.T) {
 }
 
 func TestProgressEncoding(t *testing.T) {
-	p := NumberProgress(42)
+	p, err := NumberProgress(42)
+	if err != nil {
+		t.Fatalf("NumberProgress: %v", err)
+	}
 	if p.Raw() != "42" {
 		t.Fatalf("Raw() = %q, want %q", p.Raw(), "42")
 	}
 	if n, ok := p.Number(); !ok || n != 42 {
 		t.Fatalf("Number() = %v, %v", n, ok)
+	}
+
+	for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		if _, err := NumberProgress(v); err == nil {
+			t.Fatalf("NumberProgress(%v) succeeded, want error", v)
+		}
 	}
 
 	structured, err := JSONProgress(map[string]int{"done": 3})

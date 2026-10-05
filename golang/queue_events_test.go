@@ -131,7 +131,11 @@ func TestQueueEventsReportsProgress(t *testing.T) {
 	snapshot := collectEvents(t, q.Name())
 
 	w := newTestWorker(t, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
-		return nil, job.UpdateProgress(ctx, bullmq.NumberProgress(75))
+		progress, err := bullmq.NumberProgress(75)
+		if err != nil {
+			return nil, err
+		}
+		return nil, job.UpdateProgress(ctx, progress)
 	}, nil)
 	runWorker(t, w)
 

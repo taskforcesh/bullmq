@@ -2,6 +2,7 @@ package bullmq
 
 import (
 	"encoding/json"
+	"math"
 	"strconv"
 	"time"
 )
@@ -130,9 +131,13 @@ type Progress struct {
 	raw json.RawMessage
 }
 
-// NumberProgress builds a numeric progress value.
-func NumberProgress(v float64) Progress {
-	return Progress{raw: json.RawMessage(strconv.FormatFloat(v, 'f', -1, 64))}
+// NumberProgress builds a numeric progress value. It returns an error for NaN
+// and infinite values, which have no JSON representation.
+func NumberProgress(v float64) (Progress, error) {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return Progress{}, configError("progress must be a finite number, got %v", v)
+	}
+	return Progress{raw: json.RawMessage(strconv.FormatFloat(v, 'f', -1, 64))}, nil
 }
 
 // JSONProgress builds a structured progress value.

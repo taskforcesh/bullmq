@@ -23,6 +23,11 @@ type Queue struct {
 // BullMQ ports.
 const getJobsMaxBackfillIterations = 5
 
+// priorityLimit is the largest accepted priority (2^21-1). The shared scripts
+// compute scores as priority * 2^32 + counter, so larger values would exceed
+// the exact integer range of Redis/Lua and lose the counter.
+const priorityLimit int64 = 1<<21 - 1
+
 // NewQueue creates a queue named name.
 func NewQueue(name string, opts *QueueOptions) (*Queue, error) {
 	if opts == nil {
@@ -158,6 +163,9 @@ func (q *Queue) prepareJob(spec JobSpec) (preparedJob, error) {
 		if strings.Contains(opts.JobID, ":") && len(strings.Split(opts.JobID, ":")) != 3 {
 			return preparedJob{}, configError("custom job ID cannot contain ':'")
 		}
+	}
+	if opts.priorityVal() > priorityLimit {
+		return preparedJob{}, configError("priority should be between 0 and %d", priorityLimit)
 	}
 
 	payload, err := json.Marshal(spec.Data)

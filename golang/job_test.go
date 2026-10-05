@@ -18,7 +18,11 @@ func TestJobUpdateProgress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if err := job.UpdateProgress(ctx, bullmq.NumberProgress(50)); err != nil {
+	progress, err := bullmq.NumberProgress(50)
+	if err != nil {
+		t.Fatalf("NumberProgress: %v", err)
+	}
+	if err := job.UpdateProgress(ctx, progress); err != nil {
 		t.Fatalf("UpdateProgress: %v", err)
 	}
 

@@ -51,7 +51,8 @@ type JobOptions struct {
 	// per-job value of 0 can be told apart from "not set", letting it override
 	// a non-zero queue default back to 0.
 	Delay *int64 `json:"delay,omitempty"`
-	// Priority; lower values are processed first. 0 means unprioritized. A
+	// Priority; lower values are processed first. 0 means unprioritized and
+	// the maximum is 2^21-1 (2097151). A
 	// pointer so a per-job value of 0 can be told apart from "not set",
 	// letting it override a non-zero queue default back to 0.
 	Priority *int64 `json:"priority,omitempty"`
