@@ -333,6 +333,9 @@ func (j *Job) ChangeDelay(ctx context.Context, delay time.Duration) error {
 
 // ChangePriority updates the priority of a waiting or prioritized job.
 func (j *Job) ChangePriority(ctx context.Context, priority int64, lifo bool) error {
+	if priority < 0 || priority > priorityLimit {
+		return configError("priority should be between 0 and %d", priorityLimit)
+	}
 	c, err := j.ctx()
 	if err != nil {
 		return err
