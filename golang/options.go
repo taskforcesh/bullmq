@@ -219,6 +219,9 @@ type WorkerOptions struct {
 	// a negative value discards the job.
 	BackoffStrategy func(attemptsMade int64, backoffType BackoffType, err error, job *Job) int64
 	// OnError is called for background errors that cannot be returned to a caller.
+	// It runs on its own goroutine, so it may safely call Worker.Close, but
+	// calls can be concurrent and are not ordered; the callback must be safe
+	// for concurrent use.
 	OnError func(err error)
 }
 

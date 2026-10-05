@@ -878,8 +878,12 @@ func (w *Worker) emitError(err error) {
 	if err == nil {
 		return
 	}
-	if w.opts.OnError != nil {
-		w.opts.OnError(err)
+	// The callback runs on its own goroutine: Run waits for the fetch, renewal
+	// and stalled-check goroutines that call emitError, and Close waits for
+	// Run, so a synchronous callback that calls Close (the natural recovery
+	// action) would deadlock.
+	if onError := w.opts.OnError; onError != nil {
+		go onError(err)
 	}
 	w.emit(Event{Type: EventError, Err: err})
 }
