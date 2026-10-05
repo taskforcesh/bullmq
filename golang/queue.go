@@ -164,7 +164,7 @@ func (q *Queue) prepareJob(spec JobSpec) (preparedJob, error) {
 			return preparedJob{}, configError("custom job ID cannot contain ':'")
 		}
 	}
-	if opts.priorityVal() > priorityLimit {
+	if priority := opts.priorityVal(); priority < 0 || priority > priorityLimit {
 		return preparedJob{}, configError("priority should be between 0 and %d", priorityLimit)
 	}
 
