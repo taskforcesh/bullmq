@@ -420,13 +420,13 @@ func (j *Job) ExtendLock(ctx context.Context, duration time.Duration) error {
 //
 // The current attempt is not counted, matching the Node.js implementation.
 func (j *Job) MoveToDelayed(ctx context.Context, delay time.Duration) error {
-	return j.moveToDelayed(ctx, delay, true)
+	return j.moveToDelayed(ctx, delay, true, nil)
 }
 
 // moveToDelayed reschedules an active job. When skipAttempt is false the
 // attemptsMade counter is incremented, which is what the worker needs when it
 // retries a failed job with a backoff.
-func (j *Job) moveToDelayed(ctx context.Context, delay time.Duration, skipAttempt bool) error {
+func (j *Job) moveToDelayed(ctx context.Context, delay time.Duration, skipAttempt bool, fieldsToUpdate []byte) error {
 	c, err := j.ctx()
 	if err != nil {
 		return err
@@ -446,7 +446,7 @@ func (j *Job) moveToDelayed(ctx context.Context, delay time.Duration, skipAttemp
 	},
 		c.keys.KeyPrefix(), nowMillis(), j.ID, token, ms,
 		boolToStr(skipAttempt),
-		"",  // no extra fields to update
+		fieldsArg(fieldsToUpdate),
 		"0", // do not fetch the next job
 		"",  // unused when not fetching
 	); err != nil {

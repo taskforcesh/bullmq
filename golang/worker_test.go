@@ -225,6 +225,12 @@ func TestWorkerRetriesFailedJobs(t *testing.T) {
 	if stored.AttemptsMade != 3 {
 		t.Errorf("AttemptsMade = %d, want 3", stored.AttemptsMade)
 	}
+	if stored.FailedReason != "transient" {
+		t.Errorf("FailedReason = %q, want %q", stored.FailedReason, "transient")
+	}
+	if len(stored.Stacktrace) != 2 || stored.Stacktrace[0] != "transient" || stored.Stacktrace[1] != "transient" {
+		t.Errorf("Stacktrace = %v, want two transient failures", stored.Stacktrace)
+	}
 }
 
 func TestWorkerFailsAfterExhaustingAttempts(t *testing.T) {
@@ -258,6 +264,90 @@ func TestWorkerFailsAfterExhaustingAttempts(t *testing.T) {
 	}
 	if stored.FailedReason != "always fails" {
 		t.Errorf("FailedReason = %q", stored.FailedReason)
+	}
+	if len(stored.Stacktrace) != 2 || stored.Stacktrace[0] != "always fails" || stored.Stacktrace[1] != "always fails" {
+		t.Errorf("Stacktrace = %v, want two failures", stored.Stacktrace)
+	}
+}
+
+func TestWorkerDoesNotUpdateFailureMetadataAfterLosingLock(t *testing.T) {
+	requireRedis(t)
+
+	tests := []struct {
+		name string
+		opts *bullmq.JobOptions
+	}{
+		{name: "immediate retry", opts: &bullmq.JobOptions{Attempts: bullmq.Int64(2)}},
+		{name: "delayed retry", opts: &bullmq.JobOptions{
+			Attempts: bullmq.Int64(2),
+			Backoff:  &bullmq.Backoff{Type: bullmq.BackoffFixed, Delay: 60_000},
+		}},
+		{name: "terminal failure", opts: &bullmq.JobOptions{Attempts: bullmq.Int64(1)}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := testContext(t)
+			q := newTestQueue(t, nil)
+			started := make(chan struct{})
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			releaseProcessor := func() { releaseOnce.Do(func() { close(release) }) }
+			t.Cleanup(releaseProcessor)
+
+			w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+				close(started)
+				<-release
+				return nil, errors.New("stale failure")
+			}, &bullmq.WorkerOptions{
+				SkipLockRenewal:  true,
+				SkipStalledCheck: true,
+			})
+			runWorker(t, w)
+
+			job, err := q.Add(ctx, "lose-lock", nil, tt.opts)
+			if err != nil {
+				t.Fatalf("Add: %v", err)
+			}
+			select {
+			case <-started:
+			case <-time.After(10 * time.Second):
+				t.Fatal("the processor did not start")
+			}
+
+			if err := q.Client().Del(ctx, q.Keys().JobLock(job.ID)).Err(); err != nil {
+				t.Fatalf("delete lock: %v", err)
+			}
+			if err := q.Client().HSet(ctx, q.Keys().Job(job.ID),
+				"failedReason", "new owner",
+				"stacktrace", `["new owner"]`,
+			).Err(); err != nil {
+				t.Fatalf("set failure metadata: %v", err)
+			}
+			releaseProcessor()
+
+			deadline := time.After(10 * time.Second)
+			for {
+				select {
+				case event := <-w.Events():
+					if event.Type == bullmq.EventError {
+						stored, err := q.Job(ctx, job.ID)
+						if err != nil {
+							t.Fatalf("Job: %v", err)
+						}
+						if stored.FailedReason != "new owner" {
+							t.Errorf("FailedReason = %q, want %q", stored.FailedReason, "new owner")
+						}
+						if len(stored.Stacktrace) != 1 || stored.Stacktrace[0] != "new owner" {
+							t.Errorf("Stacktrace = %v, want [new owner]", stored.Stacktrace)
+						}
+						return
+					}
+				case <-deadline:
+					t.Fatal("worker did not report the lost lock")
+				}
+			}
+		})
 	}
 }
 

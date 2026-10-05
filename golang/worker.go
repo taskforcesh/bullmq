@@ -504,7 +504,7 @@ func (w *Worker) moveToCompleted(ctx context.Context, job *Job, result any) erro
 	if err != nil {
 		return err
 	}
-	_, err = w.moveToFinished(ctx, job, "completed", "returnvalue", string(raw))
+	_, err = w.moveToFinished(ctx, job, "completed", "returnvalue", string(raw), nil)
 	if err == nil {
 		job.ReturnValue = raw
 	}
@@ -513,10 +513,9 @@ func (w *Worker) moveToCompleted(ctx context.Context, job *Job, result any) erro
 
 func (w *Worker) moveToFailed(ctx context.Context, job *Job, cause error) error {
 	reason := cause.Error()
-
-	if err := w.saveStacktrace(ctx, job, reason); err != nil {
-		w.emitError(err)
-	}
+	fieldsToUpdate, stacktrace := packFailureFields(job, reason)
+	job.FailedReason = reason
+	job.Stacktrace = stacktrace
 
 	attempts := int64(0)
 	if job.Opts != nil {
@@ -534,19 +533,19 @@ func (w *Worker) moveToFailed(ctx context.Context, job *Job, cause error) error 
 			// loop, so report the problem and fail the job instead.
 			w.emitError(berr)
 		case delay >= 0:
-			return w.retryJob(ctx, job, delay)
+			return w.retryJob(ctx, job, delay, fieldsToUpdate)
 		}
 	}
 
-	_, err := w.moveToFinished(ctx, job, "failed", "failedReason", reason)
+	_, err := w.moveToFinished(ctx, job, "failed", "failedReason", reason, fieldsToUpdate)
 	return err
 }
 
 // retryJob puts a failed job back into the wait list, either immediately or
 // after the backoff delay.
-func (w *Worker) retryJob(ctx context.Context, job *Job, delay time.Duration) error {
+func (w *Worker) retryJob(ctx context.Context, job *Job, delay time.Duration, fieldsToUpdate []byte) error {
 	if delay > 0 {
-		return job.moveToDelayed(ctx, delay, false)
+		return job.moveToDelayed(ctx, delay, false, fieldsToUpdate)
 	}
 	pushCmd := "LPUSH"
 	if job.Opts.isLIFO() {
@@ -556,7 +555,7 @@ func (w *Worker) retryJob(ctx context.Context, job *Job, delay time.Duration) er
 	return w.c.runScriptStatus(ctx, "retryJob", []string{
 		k.Active(), k.Wait(), k.Paused(), k.Job(job.ID), k.Meta(), k.Events(),
 		k.Delayed(), k.Prioritized(), k.PC(), k.Marker(), k.Stalled(),
-	}, k.KeyPrefix(), nowMillis(), pushCmd, job.ID, job.token, "")
+	}, k.KeyPrefix(), nowMillis(), pushCmd, job.ID, job.token, fieldsArg(fieldsToUpdate))
 }
 
 // backoffDelay computes how long to wait before the next attempt. A negative
@@ -591,23 +590,30 @@ func (w *Worker) backoffDelay(job *Job, cause error) (time.Duration, error) {
 	}
 }
 
-func (w *Worker) saveStacktrace(ctx context.Context, job *Job, reason string) error {
-	trace := append(job.Stacktrace, reason)
+func packFailureFields(job *Job, reason string) ([]byte, []string) {
+	trace := append(append([]string(nil), job.Stacktrace...), reason)
 	if len(trace) > 10 {
 		trace = trace[len(trace)-10:]
 	}
-	raw, err := json.Marshal(trace)
-	if err != nil {
-		return err
+	raw, _ := json.Marshal(trace)
+	fields := newMsgpackWriter(len(reason) + len(raw) + 32)
+	fields.ArrayLen(4)
+	fields.Str("failedReason")
+	fields.Str(reason)
+	fields.Str("stacktrace")
+	fields.Str(string(raw))
+	return fields.Bytes(), trace
+}
+
+func fieldsArg(fields []byte) any {
+	if len(fields) == 0 {
+		return ""
 	}
-	job.Stacktrace = trace
-	job.FailedReason = reason
-	return w.c.runScriptStatus(ctx, "saveStacktrace",
-		[]string{w.c.keys.Job(job.ID)}, string(raw), reason)
+	return fields
 }
 
 // moveToFinished moves an active job into the completed or failed set.
-func (w *Worker) moveToFinished(ctx context.Context, job *Job, target, field, value string) (any, error) {
+func (w *Worker) moveToFinished(ctx context.Context, job *Job, target, field, value string, fieldsToUpdate []byte) (any, error) {
 	k := w.c.keys
 	keys := []string{
 		k.Wait(), k.Active(), k.Prioritized(), k.Events(), k.Stalled(),
@@ -620,7 +626,7 @@ func (w *Worker) moveToFinished(ctx context.Context, job *Job, target, field, va
 		"0", // never fetch the next job here; the fetch loop owns that
 		k.KeyPrefix(),
 		w.packMoveToFinishedOpts(job, target),
-		"", // no extra fields to update
+		fieldsArg(fieldsToUpdate),
 	)
 	if err != nil {
 		return nil, err
