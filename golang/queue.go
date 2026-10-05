@@ -148,8 +148,16 @@ func (p preparedJob) toJob(res any, q *Queue) (*Job, error) {
 // keys and packed arguments needed to add the job without touching Redis.
 func (q *Queue) prepareJob(spec JobSpec) (preparedJob, error) {
 	opts := mergeJobOptions(spec.Opts, q.defaultJobOptions)
-	if opts.JobID == "0" || strings.HasPrefix(opts.JobID, "0:") {
-		return preparedJob{}, configError("job ID cannot be '0' or start with '0:'")
+	if opts.JobID != "" {
+		if opts.JobID == "0" || strings.HasPrefix(opts.JobID, "0:") {
+			return preparedJob{}, configError("job ID cannot be '0' or start with '0:'")
+		}
+		if n, err := strconv.ParseInt(opts.JobID, 10, 64); err == nil && strconv.FormatInt(n, 10) == opts.JobID {
+			return preparedJob{}, configError("custom job ID cannot be an integer")
+		}
+		if strings.Contains(opts.JobID, ":") && len(strings.Split(opts.JobID, ":")) != 3 {
+			return preparedJob{}, configError("custom job ID cannot contain ':'")
+		}
 	}
 
 	payload, err := json.Marshal(spec.Data)
