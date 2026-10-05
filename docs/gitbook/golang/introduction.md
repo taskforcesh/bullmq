@@ -104,7 +104,8 @@ treated:
 - **Immediate shutdown: cancelling the context passed to `Run`.** The worker
   stops fetching new jobs, but the same context is handed to your processors,
   so they observe the cancellation through `ctx.Done()` and should return
-  early. Use this when you want to abort in-flight work rather than wait for it.
+  early. After `Run` returns, call `worker.Close()` to release the worker's
+  Redis connections and close its event channel.
 
 ```go
 // Graceful: let in-flight jobs finish.
