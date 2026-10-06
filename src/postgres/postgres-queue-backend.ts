@@ -2275,10 +2275,6 @@ export class PostgresQueueBackend
     this.cancelWait?.();
   }
 
-  async closeBlocking(): Promise<void> {
-    return this.disconnectBlocking();
-  }
-
   async reconnectBlocking(): Promise<void> {
     // Allow the blocking wait to run again and force a fresh LISTEN on the next
     // waitForJob (e.g. after a reconnect).

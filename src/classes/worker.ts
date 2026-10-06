@@ -1551,13 +1551,8 @@ export class Worker<
     // always disconnect it whenever the main loop is running. Waiting for the
     // actual disconnect ('end' event) is required to avoid a race where the
     // bzpopmin call is still in flight when the main loop awaits its result.
-    // On close it is closed instead, so a watchdog reset cannot revive it.
     if (this.mainLoopRunning) {
-      if (reconnect) {
-        await this.backend.disconnectBlocking(true);
-      } else {
-        await this.backend.closeBlocking();
-      }
+      await this.backend.disconnectBlocking(true);
       await this.mainLoopRunning;
     } else {
       reconnect = false;
