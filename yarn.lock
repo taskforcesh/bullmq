@@ -3118,9 +3118,9 @@ flatted@^3.4.2:
   integrity sha512-5+ybhBZANEJxaH3X5evAFatUxLfEHSr7n6kYJ+1Qd0mUqr4eu9gIf6GDbWHf8RJijHrjjO8G+la14SlL2SeS1Q==
 
 focus-trap@^8.2.2:
-  version "8.2.2"
-  resolved "https://registry.yarnpkg.com/focus-trap/-/focus-trap-8.2.2.tgz#6e8a203f2228ca8b5eb95465433e69a5d5e48387"
-  integrity sha512-qV0g8hRYBqgACcFOH3f9wXc4zPKhr/0z9RI2a6ZijZ72EeBi4g8oBy8zAWuUR1TsMpOzwpUMFvjdasrC41Joug==
+  version "8.2.3"
+  resolved "https://registry.yarnpkg.com/focus-trap/-/focus-trap-8.2.3.tgz#9edfa1725a528fa99552d96efbf9fa3675db822a"
+  integrity sha512-LTNHZwcFM7bSdU1cG1ExoaTEzoGmdjw+EzDotolZmLTCbm0ll2k6J3NL+WfqP14nGLxAp+XDJgwlT2DtNhcukA==
   dependencies:
     tabbable "^6.5.0"
 
@@ -3382,9 +3382,9 @@ html-void-elements@^3.0.0:
   integrity sha512-bEqo66MRXsUGxWHV5IP0PUiAWwoEjba4VCzg0LjFJBpchPaTfyfCKTG6bc5F8ucKec3q5y6qOdGyYTSBEvhCrg==
 
 http-cache-semantics@^4.1.1:
-  version "4.2.0"
-  resolved "https://registry.yarnpkg.com/http-cache-semantics/-/http-cache-semantics-4.2.0.tgz#205f4db64f8562b76a4ff9235aa5279839a09dd5"
-  integrity sha512-dTxcvPXqPvXBQpq5dUr6mEMJX4oIEFv6bwom3FDwKRDsuIjjJGANqhBuoAn9c1RQJIdAKav33ED65E2ys+87QQ==
+  version "4.3.0"
+  resolved "https://registry.yarnpkg.com/http-cache-semantics/-/http-cache-semantics-4.3.0.tgz#09eead3b16c6d85552857cc3fbd888d8353a2aaf"
+  integrity sha512-M5t5LlJpS1UHMjvwRQVdFHvPISGeLAxNcrWuJkeGh0KxsqCHZ1O3NXZU/8x7cD0BDcGW8kapxMKTvwlqrNkHkA==
 
 http-proxy-agent@^7.0.0:
   version "7.0.2"
