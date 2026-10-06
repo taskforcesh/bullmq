@@ -89,7 +89,12 @@ const LISTEN_KEEPALIVE_INITIAL_DELAY_MS = 10000;
  */
 function enableSocketKeepAlive(client: PgListenClient): boolean {
   const stream = client.connection?.stream;
-  if (!stream || typeof stream.setKeepAlive !== 'function') {
+  if (
+    !stream ||
+    typeof stream !== 'object' ||
+    !('setKeepAlive' in stream) ||
+    typeof stream.setKeepAlive !== 'function'
+  ) {
     return false;
   }
   try {

@@ -2,12 +2,16 @@ import { JobProgress } from '../types';
 import {
   BackendFactory,
   IoredisListener,
+  IQueueBackend,
   QueueEventsOptions,
   StreamReadRaw,
 } from '../interfaces';
-import { array2obj, isRedisInstance, QUEUE_EVENT_SUFFIX } from '../utils';
+import { ConnectionOptions } from '../interfaces/redis-options';
+import { array2obj, QUEUE_EVENT_SUFFIX } from '../utils';
 import { QueueBase } from './queue-base';
-import { createIORedisClient, isIRedisClient } from './ioredis-client';
+import { RedisQueueBackend } from './redis-queue-backend';
+import type { DefaultQueueOptions } from '../types/default-queue-options';
+import type { NoInferType } from '../types/no-infer';
 
 export interface QueueEventsListener<ReturnType = any> extends IoredisListener {
   /**
@@ -256,31 +260,44 @@ type KeyOf<T extends object> = Extract<keyof T, string>;
  * This class requires a dedicated redis connection.
  *
  */
-export class QueueEvents<ReturnType = any> extends QueueBase {
+export class QueueEvents<
+  ReturnType = any,
+  B extends IQueueBackend = RedisQueueBackend,
+  ConnectionOptionsType = ConnectionOptions,
+> extends QueueBase<B, ConnectionOptionsType> {
   private running = false;
   private blocking = false;
 
   constructor(
     name: string,
-    { connection, autorun = true, ...opts }: QueueEventsOptions = {
-      connection: {},
-    },
-    backendFactory?: BackendFactory,
+    opts: QueueEventsOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    opts: QueueEventsOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory?: undefined,
+  );
+  constructor(
+    name: string,
+    ...args: DefaultQueueOptions<
+      B,
+      ConnectionOptionsType,
+      RedisQueueBackend,
+      QueueEventsOptions
+    >
+  );
+  constructor(
+    name: string,
+    opts?: QueueEventsOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
-    super(
-      name,
-      {
-        ...opts,
-        connection: isRedisInstance(connection)
-          ? (isIRedisClient(connection)
-              ? connection
-              : createIORedisClient(connection as any)
-            ).duplicate()
-          : connection,
-      },
-      backendFactory,
-      true,
-    );
+    const { autorun = true } = opts ?? {};
+    const queueOptions = opts && { ...opts };
+    if (queueOptions) {
+      delete queueOptions.autorun;
+    }
+    super(name, queueOptions, backendFactory, true);
 
     this.opts = Object.assign(
       {
@@ -352,7 +369,7 @@ export class QueueEvents<ReturnType = any> extends QueueBase {
   }
 
   private async consumeEvents(): Promise<void> {
-    const opts: QueueEventsOptions = this.opts;
+    const opts: QueueEventsOptions<ConnectionOptionsType> = this.opts;
 
     let id = opts.lastEventId || '$';
 

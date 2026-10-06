@@ -280,10 +280,10 @@
     treeverse "^3.0.0"
     walk-up-path "^4.0.0"
 
-"@npmcli/config@^10.13.0":
-  version "10.13.0"
-  resolved "https://registry.yarnpkg.com/@npmcli/config/-/config-10.13.0.tgz#cb0a2e4f8f523fbed1e4aaa243f9d2996d1cb3f3"
-  integrity sha512-FS1eopTDqQ7EgmkuyC7QrarKr7ZXx1aVrQerER+AT27fsqt4ZvyaH/LeVYUOa2V6UUtokQsPOTfsb+LoqYyphw==
+"@npmcli/config@^10.14.0":
+  version "10.14.0"
+  resolved "https://registry.yarnpkg.com/@npmcli/config/-/config-10.14.0.tgz#8051cb7a34ff4eb7d495f6b01528cd25755a9a3f"
+  integrity sha512-OTl2GIQYzKqtQgkSvB4m1DkvgEZOa4xbNsD4FRQmUUbi6nUzom7ps2ag8U8BZSatz31Cz8rugLF6Ynd4jg653Q==
   dependencies:
     "@npmcli/map-workspaces" "^5.0.0"
     "@npmcli/package-json" "^7.0.0"
@@ -782,9 +782,9 @@ ansi-regex@^5.0.1:
   integrity sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==
 
 ansi-regex@^6.1.0, ansi-regex@^6.2.2:
-  version "6.3.0"
-  resolved "https://registry.yarnpkg.com/ansi-regex/-/ansi-regex-6.3.0.tgz#247c8e7b70a1a43b10ce14c0226fcbf58e8815d5"
-  integrity sha512-WpDfL7NO6j7tH88IDBNVdUJxDh9nmCteAVW9dsep846XdwF4naCBK+/tGLX3KJgcpgMRXCFlTM2hKGoK9FsdrQ==
+  version "6.4.0"
+  resolved "https://registry.yarnpkg.com/ansi-regex/-/ansi-regex-6.4.0.tgz#69093d6436d30dbb9b04fe7bdcbcfe16c697d8a1"
+  integrity sha512-KzTVk2tCWAHtYrvvvaP8bJKJq2pVinhLcGEQdtLIYPbmNGNyYe8QwNaTUYQp2J7/vIsUKt5QCqAfUkYyG9DkOw==
 
 ansi-styles@^3.2.1:
   version "3.2.1"
@@ -1509,9 +1509,9 @@ hosted-git-info@^9.0.0, hosted-git-info@^9.0.3:
     lru-cache "^11.1.0"
 
 http-cache-semantics@^4.1.1:
-  version "4.2.0"
-  resolved "https://registry.yarnpkg.com/http-cache-semantics/-/http-cache-semantics-4.2.0.tgz#205f4db64f8562b76a4ff9235aa5279839a09dd5"
-  integrity sha512-dTxcvPXqPvXBQpq5dUr6mEMJX4oIEFv6bwom3FDwKRDsuIjjJGANqhBuoAn9c1RQJIdAKav33ED65E2ys+87QQ==
+  version "4.3.0"
+  resolved "https://registry.yarnpkg.com/http-cache-semantics/-/http-cache-semantics-4.3.0.tgz#09eead3b16c6d85552857cc3fbd888d8353a2aaf"
+  integrity sha512-M5t5LlJpS1UHMjvwRQVdFHvPISGeLAxNcrWuJkeGh0KxsqCHZ1O3NXZU/8x7cD0BDcGW8kapxMKTvwlqrNkHkA==
 
 http-proxy-agent@^7.0.0:
   version "7.0.2"
@@ -1635,9 +1635,9 @@ init-package-json@^8.2.5:
     validate-npm-package-name "^7.0.0"
 
 ip-address@^10.1.1:
-  version "10.7.2"
-  resolved "https://registry.yarnpkg.com/ip-address/-/ip-address-10.7.2.tgz#5b3b2b7d46c6293861b82dfcd49cc203aa8f2c5c"
-  integrity sha512-7H/2gFSIitxc0hG3nOI1glS8QLo/EHBFFLk8vEUjXY/xu0AdL8jZ9U1IzO2PUm0d2D/ofQcAifb0g6OBkt8U7w==
+  version "10.7.3"
+  resolved "https://registry.yarnpkg.com/ip-address/-/ip-address-10.7.3.tgz#4cb77d274a4e2484a3ea438cfe98dbe0c502e8c5"
+  integrity sha512-A1kdq/tSb5QjvKvAMgIoEvDBIgL7qaqVP/jkvSwYYRZ9iEzvPpopxp2wQfu3SuZRHtpHNxMn8Fs0bS+gf5Xmwg==
 
 is-arrayish@^0.2.1:
   version "0.2.1"
@@ -2286,13 +2286,13 @@ npm-user-validate@^4.0.0:
   integrity sha512-TP+Ziq/qPi/JRdhaEhnaiMkqfMGjhDLoh/oRfW+t5aCuIfJxIUxvwk6Sg/6ZJ069N/Be6gs00r+aZeJTfS9uHQ==
 
 npm@^11.6.2:
-  version "11.20.0"
-  resolved "https://registry.yarnpkg.com/npm/-/npm-11.20.0.tgz#6326d796fe2eff2cc0427e21940443df812a729a"
-  integrity sha512-dF3EDFwbYN+N5RUip+ZYDe0NeURK5BgqKOcvT1iNtUYhTMTl0FwWhBuXrS7KtXyduqyTMS5aaQaregnHDAxNgw==
+  version "11.21.0"
+  resolved "https://registry.yarnpkg.com/npm/-/npm-11.21.0.tgz#7184c24ba6c6d8c1419ed1c4a187377bc05b254c"
+  integrity sha512-Zov8KhamNneiLdELtj5YALtNmJW4L4fCLTzjfpzXG2w6MSHcf0UxgdlK5uloCuksWT+7mGUU7wi79cO6RqivPg==
   dependencies:
     "@isaacs/string-locale-compare" "^1.1.0"
     "@npmcli/arborist" "^9.9.2"
-    "@npmcli/config" "^10.13.0"
+    "@npmcli/config" "^10.14.0"
     "@npmcli/fs" "^5.0.0"
     "@npmcli/map-workspaces" "^5.0.3"
     "@npmcli/metavuln-calculator" "^9.0.3"
@@ -2930,9 +2930,9 @@ string-width@^7.0.0, string-width@^7.2.0:
     strip-ansi "^7.1.0"
 
 string-width@^8.2.1:
-  version "8.2.2"
-  resolved "https://registry.yarnpkg.com/string-width/-/string-width-8.2.2.tgz#7310516493df575742fe98af6fae87d85d5ed0ac"
-  integrity sha512-GaPUh5gfdrYzqeVNZvUfT23vYYxXzKYidUcnMtJg/3rxRV63EFZy3k6xfKlmfeJD0176lnUV/Usr3XcwSvFzpg==
+  version "8.3.0"
+  resolved "https://registry.yarnpkg.com/string-width/-/string-width-8.3.0.tgz#f1e85ca6d276ed9226c979c3651fb7abf548fbbe"
+  integrity sha512-ZbmZM0JCihQN91dWnxoipT2KOEyHqEyfRXUyjuRhW8b/xnqPDoq4gWEVApTVa9db2wN8mmoikgFBbjh71+cGeQ==
   dependencies:
     get-east-asian-width "^1.5.0"
     strip-ansi "^7.1.2"
@@ -3156,14 +3156,14 @@ uglify-js@^3.1.4:
   integrity sha512-v3Xu+yuwBXisp6QYTcH4UbH+xYJXqnq2m/LtQVWKWzYc1iehYnLixoQDN9FH6/j9/oybfd6W9Ghwkl8+UMKTKQ==
 
 undici@^6.23.0, undici@^6.25.0:
-  version "6.28.1"
-  resolved "https://registry.yarnpkg.com/undici/-/undici-6.28.1.tgz#aa9d2c44aef3840bef80216f2a50f337543a3fbd"
-  integrity sha512-zWpdTVD54H48CIybL0rWQ3ukpb9d23wM7eH5RtfdmeP70cWHNjtfo7P4vZX+5CoDcO53J4Pu5uXp7lNfjc6DRA==
+  version "6.29.0"
+  resolved "https://registry.yarnpkg.com/undici/-/undici-6.29.0.tgz#140fa16e337ac706d6ff12f03fbe5c4357e5f9a3"
+  integrity sha512-R+RODBqp6i2pPflGdq+xIOUkl+RNfGgHwoinecKu/JCuf2uO06cOKoDbI2P7Dn6KcswdKwrczbU6IYJ6K8X+wg==
 
 undici@^7.0.0:
-  version "7.29.1"
-  resolved "https://registry.yarnpkg.com/undici/-/undici-7.29.1.tgz#7741c6fc8b3e1a48e30323833642bfbe841443ad"
-  integrity sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==
+  version "7.30.0"
+  resolved "https://registry.yarnpkg.com/undici/-/undici-7.30.0.tgz#64a947266eb7e21dbeac8b99f8720feef308bbe0"
+  integrity sha512-dkrQXeHSaoamnItlYbmzG0wFYrM0ZwDxCIg0A7aKjTyyhh9svRzCNFEzV+Vm05/yehjCzjDZ31KXfGEjYSztDQ==
 
 unicode-emoji-modifier-base@^1.0.0:
   version "1.0.0"
@@ -3181,9 +3181,9 @@ unicorn-magic@^0.3.0:
   integrity sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA==
 
 unicorn-magic@^0.4.0:
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/unicorn-magic/-/unicorn-magic-0.4.0.tgz#78c6a090fd6d07abd2468b83b385603e00dfdb24"
-  integrity sha512-wH590V9VNgYH9g3lH9wWjTrUoKsjLF6sGLjhR4sH1LWpLmCOH0Zf7PukhDA8BiS7KHe4oPNkcTHqYkj7SOGUOw==
+  version "0.4.1"
+  resolved "https://registry.yarnpkg.com/unicorn-magic/-/unicorn-magic-0.4.1.tgz#b7a367e6e10c96da7e6b9b007d69c11c7d558dee"
+  integrity sha512-lzlXPoVB0Uy/FvTaUgX39RbixYiSKoc3JSoSf01+0c2B6FR3qdYIPN7Qjo/AV7n6sqLCk0509cT3LRj1oSZ1+A==
 
 unique-string@^3.0.0:
   version "3.0.0"
