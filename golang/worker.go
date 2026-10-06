@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
+	"net"
 	"runtime/debug"
 	"strconv"
 	"sync"
@@ -466,28 +468,98 @@ func (w *Worker) processJob(ctx context.Context, job *Job) {
 		return
 	}
 
-	// Use the parent context so that a cancelled job still gets reported.
-	finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-	defer finishCancel()
-
-	if err != nil {
-		if ferr := w.moveToFailed(finishCtx, job, err); ferr != nil {
+	// moveToFailed appends to job.Stacktrace, so restore it before every
+	// attempt to keep retried transitions from duplicating entries.
+	baseTrace := job.Stacktrace
+	fail := func(cause error) {
+		ferr := w.retryTransition(ctx, func(c context.Context) error {
+			job.Stacktrace = baseTrace
+			return w.moveToFailed(c, job, cause)
+		})
+		if ferr != nil {
 			w.emitError(ferr)
 			return
 		}
-		w.emit(Event{Type: EventFailed, Job: job, Err: err})
+		w.emit(Event{Type: EventFailed, Job: job, Err: cause})
+	}
+
+	if err != nil {
+		fail(err)
 		return
 	}
 
-	if cerr := w.moveToCompleted(finishCtx, job, result); cerr != nil {
-		if ferr := w.moveToFailed(finishCtx, job, cerr); ferr != nil {
-			w.emitError(ferr)
-			return
-		}
-		w.emit(Event{Type: EventFailed, Job: job, Err: cerr})
+	// A result that cannot be encoded is a genuine job failure, unlike an
+	// error from the completion transition below.
+	raw, merr := json.Marshal(result)
+	if merr != nil {
+		fail(merr)
+		return
+	}
+
+	// The processor succeeded, so a failure to record that is never turned
+	// into a job failure: transient Redis errors are retried, and anything
+	// else (e.g. the lock was lost) is reported and left to the stalled check.
+	if cerr := w.retryTransition(ctx, func(c context.Context) error {
+		return w.moveToCompleted(c, job, raw)
+	}); cerr != nil {
+		w.emitError(cerr)
 		return
 	}
 	w.emit(Event{Type: EventCompleted, Job: job, Result: result})
+}
+
+// transitionTimeout bounds a single job-state transition attempt, and
+// transitionRetryDelay is the pause between attempts after a transient error.
+var (
+	transitionTimeout    = 30 * time.Second
+	transitionRetryDelay = 5 * time.Second
+)
+
+// retryTransition runs a job-state transition, retrying transient Redis errors
+// (connection loss, timeouts, server loading/failover) like the Node worker's
+// retryIfFailed, so the lock keeps being renewed meanwhile. Other errors are
+// returned immediately. Each attempt runs detached from ctx's cancellation so
+// a cancelled job still gets reported, but retrying stops once the caller's
+// ctx is cancelled or Close is called; the first attempt is always made.
+func (w *Worker) retryTransition(ctx context.Context, fn func(context.Context) error) error {
+	for {
+		attemptCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), transitionTimeout)
+		err := fn(attemptCtx)
+		cancel()
+		if err == nil || !isTransientRedisError(err) {
+			return err
+		}
+
+		t := time.NewTimer(transitionRetryDelay)
+		select {
+		case <-t.C:
+		case <-ctx.Done():
+			t.Stop()
+			return err
+		case <-w.stop:
+			t.Stop()
+			return err
+		}
+	}
+}
+
+// isTransientRedisError reports whether err is a connectivity or server
+// availability problem that is worth retrying, as opposed to a script or
+// logic error.
+func isTransientRedisError(err error) bool {
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	for _, prefix := range []string{"LOADING", "READONLY", "MASTERDOWN", "CLUSTERDOWN", "TRYAGAIN"} {
+		if redis.HasErrorPrefix(err, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // safeProcess invokes the processor, converting panics into job failures.
@@ -500,12 +572,8 @@ func (w *Worker) safeProcess(ctx context.Context, job *Job) (result any, err err
 	return w.proc(ctx, job)
 }
 
-func (w *Worker) moveToCompleted(ctx context.Context, job *Job, result any) error {
-	raw, err := json.Marshal(result)
-	if err != nil {
-		return err
-	}
-	_, err = w.moveToFinished(ctx, job, "completed", "returnvalue", string(raw), nil)
+func (w *Worker) moveToCompleted(ctx context.Context, job *Job, raw []byte) error {
+	_, err := w.moveToFinished(ctx, job, "completed", "returnvalue", string(raw), nil)
 	if err == nil {
 		job.ReturnValue = raw
 	}
