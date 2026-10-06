@@ -78,7 +78,7 @@ type JobOptions struct {
 	Timestamp int64 `json:"timestamp,omitempty"`
 
 	// Parent links this job to a parent job.
-	Parent *ParentOptions `json:"-"`
+	Parent *ParentOptions `json:"parent,omitempty"`
 	// Deduplication prevents duplicates while the key is alive.
 	Deduplication *DeduplicationOptions `json:"de,omitempty"`
 

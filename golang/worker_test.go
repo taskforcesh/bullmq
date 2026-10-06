@@ -186,6 +186,45 @@ func TestWorkerRespectsConcurrency(t *testing.T) {
 	}
 }
 
+func TestWorkerFailedEventReportsAttemptsMadeOnRetry(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q := newTestQueue(t, nil)
+
+	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		return nil, errors.New("nope")
+	}, nil)
+	counts := make(chan int64, 4)
+	go func() {
+		for ev := range w.Events() {
+			if ev.Type == bullmq.EventFailed && ev.Job != nil {
+				counts <- ev.Job.AttemptsMade
+			}
+		}
+	}()
+	runWorker(t, w)
+
+	// The first two failures are retried through moveToDelayed (backoff), and
+	// the third is terminal.
+	if _, err := q.Add(ctx, "doomed", nil, &bullmq.JobOptions{
+		Attempts: bullmq.Int64(3),
+		Backoff:  &bullmq.Backoff{Type: bullmq.BackoffFixed, Delay: 10},
+	}); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	for want := int64(1); want <= 3; want++ {
+		select {
+		case got := <-counts:
+			if got != want {
+				t.Fatalf("failed event %d: AttemptsMade = %d, want %d", want, got, want)
+			}
+		case <-time.After(20 * time.Second):
+			t.Fatalf("timed out waiting for failed event %d", want)
+		}
+	}
+}
+
 func TestWorkerRetriesFailedJobs(t *testing.T) {
 	requireRedis(t)
 	ctx := testContext(t)

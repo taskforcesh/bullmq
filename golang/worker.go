@@ -447,7 +447,7 @@ func (w *Worker) processJob(ctx context.Context, job *Job) {
 	// it as an explicit error instead.
 	if job.RepeatJobKey != "" {
 		w.emitError(fmt.Errorf(
-			"bullmq: job %s was produced by job scheduler %q; the Go worker cannot advance job schedulers, so no further iteration will be scheduled unless another scheduler-capable worker also consumes this queue",
+			"bullmq: job %s was produced by job scheduler %q; the Go worker cannot advance job schedulers, so the schedule stops after this iteration; Go workers must not consume queues containing job scheduler jobs",
 			job.ID, job.RepeatJobKey,
 		))
 	}
@@ -613,18 +613,28 @@ func (w *Worker) moveToFailed(ctx context.Context, job *Job, cause error) error 
 // retryJob puts a failed job back into the wait list, either immediately or
 // after the backoff delay.
 func (w *Worker) retryJob(ctx context.Context, job *Job, delay time.Duration, fieldsToUpdate []byte) error {
+	var err error
 	if delay > 0 {
-		return job.moveToDelayed(ctx, delay, false, fieldsToUpdate)
+		err = job.moveToDelayed(ctx, delay, false, fieldsToUpdate)
+	} else {
+		pushCmd := "LPUSH"
+		if job.Opts.isLIFO() {
+			pushCmd = "RPUSH"
+		}
+		k := w.c.keys
+		err = w.c.runScriptStatus(ctx, "retryJob", []string{
+			k.Active(), k.Wait(), k.Paused(), k.Job(job.ID), k.Meta(), k.Events(),
+			k.Delayed(), k.Prioritized(), k.PC(), k.Marker(), k.Stalled(),
+		}, k.KeyPrefix(), nowMillis(), pushCmd, job.ID, job.token, fieldsArg(fieldsToUpdate))
 	}
-	pushCmd := "LPUSH"
-	if job.Opts.isLIFO() {
-		pushCmd = "RPUSH"
+	if err != nil {
+		return err
 	}
-	k := w.c.keys
-	return w.c.runScriptStatus(ctx, "retryJob", []string{
-		k.Active(), k.Wait(), k.Paused(), k.Job(job.ID), k.Meta(), k.Events(),
-		k.Delayed(), k.Prioritized(), k.PC(), k.Marker(), k.Stalled(),
-	}, k.KeyPrefix(), nowMillis(), pushCmd, job.ID, job.token, fieldsArg(fieldsToUpdate))
+	// Both scripts increment "atm" in Redis; mirror it locally only once the
+	// transition has succeeded so failed attempts that are retried don't
+	// drift the counter.
+	job.AttemptsMade++
+	return nil
 }
 
 // backoffDelay computes how long to wait before the next attempt. A negative

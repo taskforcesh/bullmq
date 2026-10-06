@@ -63,6 +63,47 @@ func TestPackJobOptionsOnlyIncludesSetFields(t *testing.T) {
 	}
 }
 
+func TestPackJobOptionsEncodesEveryEffectiveOption(t *testing.T) {
+	opts := &JobOptions{
+		JobID:                   "custom",
+		Timestamp:               1700000000000,
+		Delay:                   Int64(0),
+		Priority:                Int64(0),
+		Attempts:                Int64(0),
+		LIFO:                    Bool(false),
+		KeepLogs:                Int64(0),
+		SizeLimit:               Int64(0),
+		FailParentOnFailure:     Bool(false),
+		ContinueParentOnFailure: Bool(false),
+		Parent:                  &ParentOptions{ID: "p1", Queue: "bull:parents"},
+	}
+	packed := packJobOptions(opts)
+	// 11 top-level entries: jobId, timestamp, delay, priority, attempts, lifo,
+	// kl, sizeLimit, parent, fpof, cpof.
+	if want := byte(0x80 | 11); packed[0] != want {
+		t.Fatalf("map header = %#x, want %#x", packed[0], want)
+	}
+	for _, key := range []string{"jobId", "timestamp", "parent", "queue", "kl", "sizeLimit", "fpof", "cpof"} {
+		if !bytes.Contains(packed, []byte(key)) {
+			t.Errorf("packed options are missing key %q", key)
+		}
+	}
+
+	// The persisted JSON form must decode back into the same options.
+	raw, err := json.Marshal(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back JobOptions
+	if err := json.Unmarshal(raw, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back.JobID != "custom" || back.Timestamp != opts.Timestamp ||
+		back.Parent == nil || *back.Parent != *opts.Parent {
+		t.Fatalf("round trip mismatch: %+v", back)
+	}
+}
+
 func TestRemoveOnFinishRoundTripsThroughJSON(t *testing.T) {
 	cases := []struct {
 		raw       string

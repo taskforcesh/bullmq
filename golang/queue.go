@@ -181,6 +181,9 @@ func (q *Queue) prepareJob(spec JobSpec) (preparedJob, error) {
 	if timestamp == 0 {
 		timestamp = nowMillis()
 	}
+	// opts is a private copy, so record the effective timestamp in it; it is
+	// persisted in the stored opts and returned in Job.Opts.
+	opts.Timestamp = timestamp
 
 	var scriptName string
 	var keys []string
@@ -321,23 +324,44 @@ func packJobOptions(opts *JobOptions) []byte {
 	}
 	var entries []entry
 
-	if delay := opts.delayMs(); delay > 0 {
-		entries = append(entries, entry{"delay", func(w *msgpackWriter) { w.Uint(uint64(delay)) }})
+	// This map is persisted verbatim (as JSON) in the job's "opts" field, so
+	// every option that was set is encoded, including explicit zero/false
+	// values, under the same keys JobOptions uses for JSON.
+	addInt := func(key string, v *int64) {
+		if v != nil {
+			val := *v
+			entries = append(entries, entry{key, func(w *msgpackWriter) { w.Int(val) }})
+		}
 	}
-	if opts.priorityVal() > 0 {
-		entries = append(entries, entry{"priority", func(w *msgpackWriter) { w.Uint(uint64(opts.priorityVal())) }})
+	addBool := func(key string, v *bool) {
+		if v != nil {
+			val := *v
+			entries = append(entries, entry{key, func(w *msgpackWriter) { w.Bool(val) }})
+		}
 	}
-	if opts.attemptsVal() > 0 {
-		entries = append(entries, entry{"attempts", func(w *msgpackWriter) { w.Uint(uint64(opts.attemptsVal())) }})
+
+	if opts.JobID != "" {
+		id := opts.JobID
+		entries = append(entries, entry{"jobId", func(w *msgpackWriter) { w.Str(id) }})
 	}
-	if opts.isLIFO() {
-		entries = append(entries, entry{"lifo", func(w *msgpackWriter) { w.Bool(true) }})
+	if opts.Timestamp != 0 {
+		ts := opts.Timestamp
+		entries = append(entries, entry{"timestamp", func(w *msgpackWriter) { w.Int(ts) }})
 	}
-	if opts.keepLogsVal() > 0 {
-		entries = append(entries, entry{"kl", func(w *msgpackWriter) { w.Uint(uint64(opts.keepLogsVal())) }})
-	}
-	if opts.sizeLimitVal() > 0 {
-		entries = append(entries, entry{"sizeLimit", func(w *msgpackWriter) { w.Uint(uint64(opts.sizeLimitVal())) }})
+	addInt("delay", opts.Delay)
+	addInt("priority", opts.Priority)
+	addInt("attempts", opts.Attempts)
+	addBool("lifo", opts.LIFO)
+	addInt("kl", opts.KeepLogs)
+	addInt("sizeLimit", opts.SizeLimit)
+	if p := opts.Parent; p != nil {
+		entries = append(entries, entry{"parent", func(w *msgpackWriter) {
+			w.MapLen(2)
+			w.Str("id")
+			w.Str(p.ID)
+			w.Str("queue")
+			w.Str(p.Queue)
+		}})
 	}
 	if opts.RemoveOnComplete != nil {
 		roc := opts.RemoveOnComplete
@@ -351,17 +375,11 @@ func packJobOptions(opts *JobOptions) []byte {
 		b := opts.Backoff
 		entries = append(entries, entry{"backoff", func(w *msgpackWriter) { b.writeMsgpack(w) }})
 	}
-	for key, enabled := range map[string]bool{
-		"fpof": opts.failParentOnFailureVal(),
-		"cpof": opts.continueParentOnFailureVal(),
-		"idof": opts.ignoreDependencyOnFailureVal(),
-		"rdof": opts.removeDependencyOnFailureVal(),
-	} {
-		if enabled {
-			entries = append(entries, entry{key, func(w *msgpackWriter) { w.Bool(true) }})
-		}
-	}
-	if d := opts.Deduplication; d != nil && d.ID != "" {
+	addBool("fpof", opts.FailParentOnFailure)
+	addBool("cpof", opts.ContinueParentOnFailure)
+	addBool("idof", opts.IgnoreDependencyOnFailure)
+	addBool("rdof", opts.RemoveDependencyOnFailure)
+	if d := opts.Deduplication; d != nil {
 		entries = append(entries, entry{"de", func(w *msgpackWriter) {
 			n := 1
 			if d.TTL > 0 {
