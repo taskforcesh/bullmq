@@ -88,6 +88,20 @@ func TestBackoffJitterValidation(t *testing.T) {
 	}
 }
 
+func TestBackoffNegativeDelayRejected(t *testing.T) {
+	for _, typ := range []BackoffType{BackoffFixed, BackoffExponential} {
+		b := &Backoff{Type: typ, Delay: -1}
+		if err := b.validate(); err == nil {
+			t.Fatalf("validate accepted a negative delay for %s", typ)
+		}
+		w := &Worker{}
+		job := &Job{ID: "1", Opts: &JobOptions{Backoff: b}}
+		if _, err := w.backoffDelay(job, nil); err == nil {
+			t.Fatalf("backoffDelay accepted a negative delay for %s", typ)
+		}
+	}
+}
+
 func TestBackoffMsgpackJitter(t *testing.T) {
 	enc := func(b *Backoff) []byte {
 		w := newMsgpackWriter(32)

@@ -419,6 +419,58 @@ func TestQueueCleanRemovesCompletedJobs(t *testing.T) {
 	}
 }
 
+func TestQueueCleanUnlimitedRunsInBatches(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q := newTestQueue(t, nil)
+
+	// More than one 10,000-job batch, so the loop must run at least twice.
+	const total = 10_050
+	for added := 0; added < total; added += 1000 {
+		n := min(1000, total-added)
+		specs := make([]bullmq.JobSpec, n)
+		for i := range specs {
+			specs[i] = bullmq.JobSpec{Name: "j"}
+		}
+		if _, err := q.AddBulk(ctx, specs); err != nil {
+			t.Fatalf("AddBulk: %v", err)
+		}
+	}
+
+	removed, err := q.Clean(ctx, 0, 0, bullmq.StateWaiting)
+	if err != nil {
+		t.Fatalf("Clean: %v", err)
+	}
+	if len(removed) != total {
+		t.Fatalf("Clean removed %d jobs, want %d", len(removed), total)
+	}
+	count, err := q.Count(ctx)
+	if err != nil || count != 0 {
+		t.Fatalf("Count = %d, err = %v; want 0", count, err)
+	}
+}
+
+func TestQueueCleanHonoursLimit(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q := newTestQueue(t, nil)
+
+	specs := make([]bullmq.JobSpec, 10)
+	for i := range specs {
+		specs[i] = bullmq.JobSpec{Name: "j"}
+	}
+	if _, err := q.AddBulk(ctx, specs); err != nil {
+		t.Fatalf("AddBulk: %v", err)
+	}
+	removed, err := q.Clean(ctx, 0, 4, bullmq.StateWaiting)
+	if err != nil {
+		t.Fatalf("Clean: %v", err)
+	}
+	if len(removed) != 4 {
+		t.Fatalf("Clean removed %d jobs, want 4", len(removed))
+	}
+}
+
 func TestQueuePromoteJobsFarFuture(t *testing.T) {
 	requireRedis(t)
 	ctx := testContext(t)

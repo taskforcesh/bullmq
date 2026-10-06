@@ -536,10 +536,18 @@ var cleanableStates = map[JobState]bool{
 	"paused":         true,
 }
 
+// cleanMaxBatch bounds how many jobs a single cleanJobsInSet call may remove.
+// The script runs atomically, so an unbounded call on a large state would block
+// every Redis client; this matches the reference implementation.
+const cleanMaxBatch int64 = 10000
+
 // Clean removes finished (or waiting/delayed) jobs older than grace.
 //
 // state must be one of wait, active, paused, prioritized, delayed, completed or
-// failed. A limit of 0 means unlimited. It returns the removed job ids.
+// failed. A limit of 0 means unlimited. Removal runs in batches of at most
+// 10,000 jobs, repeating until limit jobs were removed or a batch comes back
+// short, so a large state never blocks Redis in a single call. It returns the
+// removed job ids.
 func (q *Queue) Clean(ctx context.Context, grace time.Duration, limit int64, state JobState) ([]string, error) {
 	if !cleanableStates[state] {
 		return nil, configError("clean state must be one of wait, active, paused, prioritized, delayed, completed or failed, got %q", state)
@@ -548,17 +556,28 @@ func (q *Queue) Clean(ctx context.Context, grace time.Duration, limit int64, sta
 	if state == StateWaiting {
 		name = "wait"
 	}
-	res, err := q.c.runScript(ctx, "cleanJobsInSet", []string{
-		q.c.keys.Get(name), q.c.keys.Events(), q.c.keys.Repeat(),
-	}, q.c.keys.KeyPrefix(), nowMillis()-grace.Milliseconds(), limit, name)
-	if err != nil {
-		return nil, err
-	}
-	arr, _ := res.([]any)
-	ids := make([]string, 0, len(arr))
-	for _, v := range arr {
-		if s, ok := asString(v); ok {
-			ids = append(ids, s)
+	keys := []string{q.c.keys.Get(name), q.c.keys.Events(), q.c.keys.Repeat()}
+	timestamp := nowMillis() - grace.Milliseconds()
+
+	ids := make([]string, 0)
+	for limit == 0 || int64(len(ids)) < limit {
+		batch := cleanMaxBatch
+		if limit > 0 {
+			batch = min(batch, limit-int64(len(ids)))
+		}
+		res, err := q.c.runScript(ctx, "cleanJobsInSet", keys,
+			q.c.keys.KeyPrefix(), timestamp, batch, name)
+		if err != nil {
+			return ids, err
+		}
+		arr, _ := res.([]any)
+		for _, v := range arr {
+			if s, ok := asString(v); ok {
+				ids = append(ids, s)
+			}
+		}
+		if int64(len(arr)) < batch {
+			break
 		}
 	}
 	return ids, nil

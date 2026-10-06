@@ -40,7 +40,7 @@ const (
 // Backoff configures the retry delay of a job.
 type Backoff struct {
 	// Type is the strategy name. Custom strategy names are forwarded to the
-	// worker's Settings.BackoffStrategy callback.
+	// worker's WorkerOptions.BackoffStrategy callback.
 	Type BackoffType `json:"type"`
 	// Delay is the base delay in milliseconds.
 	Delay int64 `json:"delay,omitempty"`
@@ -51,8 +51,12 @@ type Backoff struct {
 	Jitter float64 `json:"jitter,omitempty"`
 }
 
-// validate checks that Jitter is a number between 0 and 1.
+// validate checks that Delay is not negative and Jitter is a number between
+// 0 and 1.
 func (b *Backoff) validate() error {
+	if b.Delay < 0 {
+		return configError("backoff delay must be greater or equal than 0, got %d", b.Delay)
+	}
 	if math.IsNaN(b.Jitter) || b.Jitter < 0 || b.Jitter > 1 {
 		return configError("backoff jitter should be between 0 and 1, got %v", b.Jitter)
 	}
@@ -254,9 +258,14 @@ type MetricsOptions struct {
 type Metrics struct {
 	// Count is the total number of jobs recorded.
 	Count int64
-	// PrevCount is the number of jobs recorded before the returned window.
+	// PrevCount is the job count at the last time a data point was recorded.
+	// It is internal metrics state used to compute the next data point's
+	// delta, not a retention boundary.
 	PrevCount int64
-	// PrevTS is the timestamp of the oldest retained data point.
+	// PrevTS is the timestamp (Unix milliseconds) of the transition that last
+	// recorded a data point, i.e. the previous collection timestamp. It is
+	// internal metrics state, not the timestamp of the oldest retained data
+	// point, so do not use it as the retention boundary.
 	PrevTS int64
 	// Data holds one entry per minute, most recent first.
 	Data []int64
