@@ -66,7 +66,7 @@ func NewQueueEvents(queueName string, opts *QueueEventsOptions) (*QueueEvents, e
 	if err != nil {
 		return nil, err
 	}
-	blocking, blockingOwned := o.Redis.buildBlocking(c.keys.ClientName(":qe"))
+	blocking, blockingOwned := o.Redis.buildBlocking(c.keys.ClientName(":qe"), o.BlockingTimeout+10*time.Second)
 	return &QueueEvents{
 		c:             c,
 		blocking:      blocking,

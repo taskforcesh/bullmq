@@ -143,11 +143,36 @@ func (o RedisOptions) build() (redis.UniversalClient, bool) {
 // blocking command acquires, leaving the blocking connection unnamed and
 // making Queue.Workers miss or misreport the worker.
 //
-// When o.Client is set the caller supplied their own (possibly shared, possibly
-// pooled) client; it is reused as-is and the name is best-effort only, since a
-// shared client's connections cannot be safely repinned or renamed here.
-func (o RedisOptions) buildBlocking(name string) (redis.UniversalClient, bool) {
+// readTimeout is the socket read timeout of the dedicated client. It acts as
+// a watchdog for raw commands (which carry no per-command timeout metadata in
+// go-redis) and must therefore exceed the longest blocking call that will be
+// issued through the client; a non-positive value disables it.
+//
+// When o.Client is a *redis.Client, a dedicated client is derived from its
+// options (address, credentials, TLS, dialer, sentinel failover, ...) with a
+// single pooled connection, the blocking read timeout and the client name, so
+// the caller's default read timeout (3s) never applies to blocking commands.
+// Other supplied clients (cluster, ring, ...) cannot be cloned; they are
+// reused as-is, the returned bool is false, and callers must use go-redis's
+// timeout-aware typed blocking commands and treat the name as best-effort.
+//
+// The returned bool reports whether the client is dedicated and owned, i.e.
+// must be closed by the caller.
+func (o RedisOptions) buildBlocking(name string, readTimeout time.Duration) (redis.UniversalClient, bool) {
+	if readTimeout <= 0 {
+		readTimeout = -1
+	}
 	if o.Client != nil {
+		if c, ok := o.Client.(*redis.Client); ok {
+			opt := *c.Options()
+			opt.PoolSize = 1
+			opt.MinIdleConns = 0
+			opt.MaxIdleConns = 0
+			opt.MaxActiveConns = 0
+			opt.ReadTimeout = readTimeout
+			opt.ClientName = name
+			return redis.NewClient(&opt), true
+		}
 		return o.Client, false
 	}
 	addr := o.Addr
@@ -160,7 +185,7 @@ func (o RedisOptions) buildBlocking(name string) (redis.UniversalClient, bool) {
 		Password:    o.Password,
 		DB:          o.DB,
 		PoolSize:    1,
-		ReadTimeout: -1,
+		ReadTimeout: readTimeout,
 		ClientName:  name,
 	}), true
 }

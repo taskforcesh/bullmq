@@ -44,14 +44,35 @@ type Backoff struct {
 	Type BackoffType `json:"type"`
 	// Delay is the base delay in milliseconds.
 	Delay int64 `json:"delay,omitempty"`
+	// Jitter is the fraction (0 to 1) of the delay that is randomized: the
+	// effective delay is drawn uniformly from [delay*(1-Jitter), delay]. 0
+	// (the default) disables jitter. Applies to the fixed and exponential
+	// strategies.
+	Jitter float64 `json:"jitter,omitempty"`
+}
+
+// validate checks that Jitter is a number between 0 and 1.
+func (b *Backoff) validate() error {
+	if math.IsNaN(b.Jitter) || b.Jitter < 0 || b.Jitter > 1 {
+		return configError("backoff jitter should be between 0 and 1, got %v", b.Jitter)
+	}
+	return nil
 }
 
 func (b *Backoff) writeMsgpack(w *msgpackWriter) {
-	w.MapLen(2)
+	n := 2
+	if b.Jitter > 0 {
+		n++
+	}
+	w.MapLen(n)
 	w.Str("type")
 	w.Str(string(b.Type))
 	w.Str("delay")
 	w.Uint(uint64(b.Delay))
+	if b.Jitter > 0 {
+		w.Str("jitter")
+		w.Float(b.Jitter)
+	}
 }
 
 // RemoveOnFinish controls the automatic removal of completed or failed jobs.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand/v2"
 	"net"
 	"runtime/debug"
 	"strconv"
@@ -79,8 +80,11 @@ type Worker struct {
 
 	// blocking is a dedicated single-connection client used for BZPOPMIN so
 	// that a blocked read never starves the shared pool, and so CLIENT
-	// SETNAME (set via RedisOptions.buildBlocking's OnConnect hook) reliably
-	// applies to the connection BZPOPMIN actually runs on.
+	// SETNAME (set via RedisOptions.buildBlocking's ClientName option)
+	// reliably applies to the connection BZPOPMIN actually runs on. It is
+	// derived from a caller-supplied *redis.Client when possible; otherwise
+	// (blockingOwned == false) it is the caller's client and blocking reads
+	// must use the timeout-aware typed command.
 	blocking      redis.UniversalClient
 	blockingOwned bool
 }
@@ -122,7 +126,7 @@ func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, 
 	}
 
 	id := randomID()
-	blocking, blockingOwned := o.Redis.buildBlocking(blockingClientName(c, o.Name))
+	blocking, blockingOwned := o.Redis.buildBlocking(blockingClientName(c, o.Name), o.DrainDelay+10*time.Second)
 
 	w := &Worker{
 		c:             c,
@@ -325,9 +329,24 @@ func (w *Worker) waitForJob(ctx context.Context, waitFor time.Duration) bool {
 	if timeout < time.Millisecond {
 		timeout = time.Millisecond
 	}
-	// BZPOPMIN is issued through Do so that sub-second timeouts are preserved;
-	// the typed helper in go-redis rounds them up to a full second.
-	err := w.blocking.Do(ctx, "bzpopmin", w.c.keys.Marker(), timeout.Seconds()).Err()
+	var err error
+	if w.blockingOwned {
+		// BZPOPMIN is issued through Do so that sub-second timeouts are
+		// preserved; the typed helper in go-redis rounds them up to a full
+		// second. The dedicated client's read timeout (DrainDelay + 10s)
+		// outlasts the block while still guarding against a dead socket.
+		err = w.blocking.Do(ctx, "bzpopmin", w.c.keys.Marker(), timeout.Seconds()).Err()
+	} else {
+		// A caller-supplied client we could not clone has its own read
+		// timeout, which raw commands would be subject to. The typed command
+		// carries the blocking timeout so go-redis extends the read deadline,
+		// but only supports whole seconds; shorter waits just sleep.
+		whole := timeout.Truncate(time.Second)
+		if whole < time.Second {
+			return sleepCtx(ctx, timeout)
+		}
+		err = w.blocking.BZPopMin(ctx, whole, w.c.keys.Marker()).Err()
+	}
 	if err != nil && err != redis.Nil && ctx.Err() == nil {
 		w.emitError(err)
 		return sleepCtx(ctx, time.Second)
@@ -653,11 +672,22 @@ func (w *Worker) backoffDelay(job *Job, cause error) (time.Duration, error) {
 	}
 	attempts := job.AttemptsMade + 1
 	switch backoff.Type {
-	case BackoffFixed:
-		return time.Duration(backoff.Delay) * time.Millisecond, nil
-	case BackoffExponential:
-		factor := math.Pow(2, float64(attempts-1))
-		return time.Duration(float64(backoff.Delay)*factor) * time.Millisecond, nil
+	case BackoffFixed, BackoffExponential:
+		// Jobs loaded from other ports are not validated on the way in.
+		if err := backoff.validate(); err != nil {
+			return 0, err
+		}
+		maxDelay := float64(backoff.Delay)
+		if backoff.Type == BackoffExponential {
+			maxDelay = math.Round(math.Pow(2, float64(attempts-1)) * maxDelay)
+		}
+		ms := maxDelay
+		if backoff.Jitter > 0 {
+			// Uniform in [maxDelay*(1-jitter), maxDelay), as in the Node.js
+			// implementation.
+			ms = math.Floor(rand.Float64()*maxDelay*backoff.Jitter + maxDelay*(1-backoff.Jitter))
+		}
+		return time.Duration(ms) * time.Millisecond, nil
 	default:
 		if w.opts.BackoffStrategy == nil {
 			return 0, configError("unknown backoff strategy %q for job %s; if a custom backoff strategy is used, set WorkerOptions.BackoffStrategy",

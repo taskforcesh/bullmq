@@ -101,17 +101,28 @@ if err != nil {
 }
 defer worker.Close()
 
-// Run blocks until ctx is cancelled or Close is called.
+// Run blocks until ctx is cancelled (processors see the cancellation) or
+// Close is called (in-flight jobs are allowed to finish).
 if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 	log.Fatal(err)
 }
 ```
 
-`Worker.Run` blocks, so cancel its context (or call `Worker.Close`) to shut it
-down gracefully; in-flight jobs are allowed to finish first. Cancelling the
-context only makes `Run` return; it does not release the worker's Redis
-connections, so `Close` must still be called afterwards (as `defer` does
-above) to avoid leaking connections in a long-lived process.
+`Worker.Run` blocks until it is stopped, and the two ways of stopping it treat
+in-flight jobs differently:
+
+- **`Worker.Close`** (call it from another goroutine) is the graceful option:
+  the worker stops fetching new jobs and waits for in-flight jobs to finish;
+  their contexts are not cancelled.
+- **Cancelling the context passed to `Run`** is an immediate shutdown: the same
+  context is handed to every processor, so in-flight jobs observe the
+  cancellation through `ctx.Done()` and should return early.
+
+Cancelling the context only makes `Run` return; it does not release the
+worker's Redis connections, so `Close` must still be called afterwards (as
+`defer` does above) to avoid leaking connections in a long-lived process. To
+shut down gracefully on a signal, call `Close` from the signal handler and run
+the worker on a context that is not tied to the signal.
 
 ### Job options
 
@@ -182,7 +193,7 @@ for ev := range events.Events() {
 
 ### Sharing a Redis client
 
-Pass an existing `redis.UniversalClient` to reuse a connection pool. Note that while waiting for jobs the worker blocks on `BZPOPMIN`, which occupies one connection from that pool.
+Pass an existing `redis.UniversalClient` to reuse a connection pool. Blocking reads (`BZPOPMIN` in workers, `XREAD` in `QueueEvents`) never run on the shared pool: when the client is a `*redis.Client`, a dedicated single-connection client is derived from its options with a read timeout suited to blocking calls, and is closed by `Worker.Close`/`QueueEvents.Close`. Other client types (cluster, ring) are used as-is with go-redis's timeout-aware typed blocking commands.
 
 ```go
 rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:6379"})

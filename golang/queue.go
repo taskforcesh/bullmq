@@ -167,6 +167,11 @@ func (q *Queue) prepareJob(spec JobSpec) (preparedJob, error) {
 	if priority := opts.priorityVal(); priority < 0 || priority > priorityLimit {
 		return preparedJob{}, configError("priority should be between 0 and %d", priorityLimit)
 	}
+	if opts.Backoff != nil {
+		if err := opts.Backoff.validate(); err != nil {
+			return preparedJob{}, err
+		}
+	}
 
 	payload, err := json.Marshal(spec.Data)
 	if err != nil {
