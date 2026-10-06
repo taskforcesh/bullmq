@@ -121,6 +121,16 @@ func (qe *QueueEvents) run(ctx context.Context) error {
 
 	key := qe.c.keys.Events()
 	lastID := qe.opts.LastEventID
+	if lastID == "$" {
+		messages, err := qe.blocking.XRevRangeN(ctx, key, "+", "-", 1).Result()
+		if err != nil {
+			return err
+		}
+		lastID = "0-0"
+		if len(messages) > 0 {
+			lastID = messages[0].ID
+		}
+	}
 
 	for {
 		if ctx.Err() != nil {
