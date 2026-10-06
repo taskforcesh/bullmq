@@ -431,10 +431,10 @@ func (j *Job) moveToDelayed(ctx context.Context, delay time.Duration, skipAttemp
 	if err != nil {
 		return err
 	}
-	token := j.token
-	if token == "" {
-		token = "0"
+if j.token == "" {
+		return ErrJobLockNotExist
 	}
+	token := j.token
 	ms := delay.Milliseconds()
 	if ms < 0 {
 		ms = 0
