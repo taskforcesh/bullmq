@@ -520,7 +520,12 @@ var (
 // retryIfFailed, so the lock keeps being renewed meanwhile. Other errors are
 // returned immediately. Each attempt runs detached from ctx's cancellation so
 // a cancelled job still gets reported, but retrying stops once the caller's
-// ctx is cancelled or Close is called; the first attempt is always made.
+// ctx (the Run context) is cancelled; the first attempt is always made.
+//
+// Close deliberately does not stop retries: a graceful Close drains in-flight
+// jobs while their locks keep being renewed, so abandoning a transition on a
+// transient error would leave the job active until stalled recovery. Cancelling
+// the Run context is the forced-stop signal.
 func (w *Worker) retryTransition(ctx context.Context, fn func(context.Context) error) error {
 	for {
 		attemptCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), transitionTimeout)
@@ -534,9 +539,6 @@ func (w *Worker) retryTransition(ctx context.Context, fn func(context.Context) e
 		select {
 		case <-t.C:
 		case <-ctx.Done():
-			t.Stop()
-			return err
-		case <-w.stop:
 			t.Stop()
 			return err
 		}

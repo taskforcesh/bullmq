@@ -74,12 +74,33 @@ func TestRetryTransitionReturnsNonTransientImmediately(t *testing.T) {
 	}
 }
 
-func TestRetryTransitionStopsOnClose(t *testing.T) {
+func TestRetryTransitionKeepsRetryingDuringGracefulClose(t *testing.T) {
+	old := transitionRetryDelay
+	transitionRetryDelay = time.Millisecond
+	t.Cleanup(func() { transitionRetryDelay = old })
+
 	w := newTransitionTestWorker(t)
-	close(w.stop)
+	close(w.stop) // graceful Close in progress; the Run context is still live
 	calls := 0
 	err := w.retryTransition(context.Background(), func(context.Context) error {
 		calls++
+		if calls < 3 {
+			return io.EOF
+		}
+		return nil
+	})
+	if err != nil || calls != 3 {
+		t.Fatalf("err = %v, calls = %d; want nil, 3", err, calls)
+	}
+}
+
+func TestRetryTransitionStopsWhenRunContextIsCancelled(t *testing.T) {
+	w := newTransitionTestWorker(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	calls := 0
+	err := w.retryTransition(ctx, func(context.Context) error {
+		calls++
+		cancel() // forced stop while the transition is failing
 		return io.EOF
 	})
 	if !errors.Is(err, io.EOF) || calls != 1 {
