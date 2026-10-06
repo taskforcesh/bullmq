@@ -312,8 +312,12 @@ export class RedisConnection extends EventEmitter {
   /**
    * Waits for a redis client to be ready.
    * @param redis - client
+   * @param cancelled - if this rejects, stop waiting and drop the listeners
    */
-  static async waitUntilReady(client: RedisClient): Promise<void> {
+  static async waitUntilReady(
+    client: RedisClient,
+    cancelled?: Promise<unknown>,
+  ): Promise<void> {
     if (client.status === 'ready') {
       return;
     }
@@ -370,6 +374,7 @@ export class RedisConnection extends EventEmitter {
         client.once('ready', handleReady);
         client.on('end', handleEnd);
         client.once('error', handleError);
+        cancelled?.then(undefined, reject);
       });
     } finally {
       client.removeListener('end', handleEnd);
@@ -739,7 +744,6 @@ export class RedisConnection extends EventEmitter {
     }
 
     for (;;) {
-      // close() leaves the client in `end`, which must not trigger connect().
       if (this.closing) {
         throw new ConnectionClosedError();
       }
@@ -752,15 +756,28 @@ export class RedisConnection extends EventEmitter {
       }
 
       if (client.status === 'wait' || client.status === 'end') {
-        return client.connect();
+        const connecting = client.connect();
+        connecting.catch(() => {});
+        try {
+          await Promise.race([connecting, this.closed]);
+        } catch (error) {
+          if (this.closing) {
+            throw new ConnectionClosedError();
+          }
+          throw error;
+        }
+        if (this.closing) {
+          throw new ConnectionClosedError();
+        }
+        return;
       }
 
       try {
-        await Promise.race([
-          RedisConnection.waitUntilReady(client),
-          this.closed,
-        ]);
+        await RedisConnection.waitUntilReady(client, this.closed);
       } catch (error) {
+        if (this.closing) {
+          throw new ConnectionClosedError();
+        }
         if (
           !['end', 'connecting', 'connect', 'reconnecting'].includes(
             client.status,
