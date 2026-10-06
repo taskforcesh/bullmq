@@ -249,7 +249,7 @@ func (q *Queue) packAddArgs(opts *JobOptions, name string, timestamp int64) ([]b
 	w.Str(q.c.keys.KeyPrefix())
 	w.Str(opts.JobID)
 	w.Str(name)
-	w.Uint(uint64(timestamp))
+	w.Int(timestamp)
 
 	if opts.Parent != nil {
 		parentQueueKey, err := resolveParentQueueKey(q.c.keys.Prefix(), opts.Parent.Queue)
