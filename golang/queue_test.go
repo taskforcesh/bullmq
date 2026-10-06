@@ -419,6 +419,28 @@ func TestQueueCleanRemovesCompletedJobs(t *testing.T) {
 	}
 }
 
+func TestQueuePromoteJobsFarFuture(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q := newTestQueue(t, nil)
+
+	// ~30 years: its delayed-set score (due timestamp * 4096) exceeds 2^53.
+	job, err := q.Add(ctx, "delayed", nil, &bullmq.JobOptions{Delay: bullmq.Int64(30 * 365 * 24 * 3600 * 1000)})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if _, err := q.PromoteJobs(ctx, 100); err != nil {
+		t.Fatalf("PromoteJobs: %v", err)
+	}
+	state, err := q.JobState(ctx, job.ID)
+	if err != nil {
+		t.Fatalf("JobState: %v", err)
+	}
+	if state != bullmq.StateWaiting {
+		t.Fatalf("state = %q, want %q", state, bullmq.StateWaiting)
+	}
+}
+
 func TestQueuePromoteJobs(t *testing.T) {
 	requireRedis(t)
 	ctx := testContext(t)

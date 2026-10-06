@@ -752,7 +752,8 @@ func TestWorkerCloseKeepsRenewingLocksOfInFlightJobs(t *testing.T) {
 	defer cancelRun()
 	go func() { _ = w.Run(runCtx) }()
 
-	if _, err := q.Add(ctx, "long-running", nil, nil); err != nil {
+	job, err := q.Add(ctx, "long-running", nil, nil)
+	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 
@@ -762,12 +763,32 @@ func TestWorkerCloseKeepsRenewingLocksOfInFlightJobs(t *testing.T) {
 		t.Fatal("the job was never picked up")
 	}
 
+	// Close stops this worker's own stalled checker, so a separate rescuer
+	// with a fast stalled check is what would reclaim the job if its lock
+	// expired. It stays idle as long as the lock keeps being renewed.
+	rescuer := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		invocations.Add(1)
+		return nil, nil
+	}, &bullmq.WorkerOptions{
+		LockDuration:    500 * time.Millisecond,
+		LockRenewTime:   150 * time.Millisecond,
+		StalledInterval: 100 * time.Millisecond,
+	})
+	runWorker(t, rescuer)
+
 	closeDone := make(chan error, 1)
 	go func() { closeDone <- w.Close() }()
 
-	// Give lock renewal and any stalled check several opportunities to run
-	// while the processor is still sleeping, well beyond LockDuration.
+	// Give lock renewal and the rescuer's stalled checks several
+	// opportunities to run while the processor is still sleeping, well
+	// beyond LockDuration.
 	time.Sleep(2 * time.Second)
+
+	// The lock must still be present, i.e. it was renewed after Close.
+	lockKey := q.Keys().JobLock(job.ID)
+	if n, err := q.Client().Exists(ctx, lockKey).Result(); err != nil || n != 1 {
+		t.Errorf("lock %s exists = %d (err %v), want 1: renewal stopped during Close", lockKey, n, err)
+	}
 	close(release)
 
 	select {

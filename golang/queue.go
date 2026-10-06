@@ -3,6 +3,7 @@ package bullmq
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -575,7 +576,10 @@ func (q *Queue) RetryJobs(ctx context.Context, state JobState, count int64) (int
 // PromoteJobs moves delayed jobs to the wait list right away, looping until
 // every eligible job has been moved.
 func (q *Queue) PromoteJobs(ctx context.Context, count int64) (int64, error) {
-	return q.moveJobsToWait(ctx, "delayed", count, 1<<53)
+	// The delayed set is scored by dueTimestamp*4096 (plus a counter), not by a
+	// millisecond timestamp, so the cutoff must be the largest int64 to cover
+	// every delayed job regardless of how far in the future it is due.
+	return q.moveJobsToWait(ctx, "delayed", count, math.MaxInt64)
 }
 
 // moveJobsToWait repeatedly invokes the moveJobsToWait script until it

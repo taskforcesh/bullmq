@@ -39,6 +39,7 @@ func newTransitionTestWorker(t *testing.T) *Worker {
 	if err != nil {
 		t.Fatalf("NewWorker: %v", err)
 	}
+	t.Cleanup(func() { _ = w.Close() })
 	return w
 }
 
@@ -80,7 +81,7 @@ func TestRetryTransitionKeepsRetryingDuringGracefulClose(t *testing.T) {
 	t.Cleanup(func() { transitionRetryDelay = old })
 
 	w := newTransitionTestWorker(t)
-	close(w.stop) // graceful Close in progress; the Run context is still live
+	w.stopOnce.Do(func() { close(w.stop) }) // graceful Close in progress; the Run context is still live
 	calls := 0
 	err := w.retryTransition(context.Background(), func(context.Context) error {
 		calls++
