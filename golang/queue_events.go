@@ -83,7 +83,8 @@ func NewQueueEvents(queueName string, opts *QueueEventsOptions) (*QueueEvents, e
 // closed when the listener stops.
 func (qe *QueueEvents) Events() <-chan QueueEvent { return qe.events }
 
-// Errors returns the channel carrying non-fatal read errors.
+// Errors returns the channel carrying non-fatal read errors. It is closed
+// when the listener stops, after the last error has been sent.
 func (qe *QueueEvents) Errors() <-chan error { return qe.errs }
 
 // Run starts consuming the event stream and blocks until ctx is cancelled or
@@ -103,6 +104,9 @@ func (qe *QueueEvents) Run(ctx context.Context) error {
 
 func (qe *QueueEvents) run(ctx context.Context) error {
 	defer close(qe.done)
+	// Only this goroutine sends on events and errs, so closing them here, once
+	// the loop has returned, cannot race with a send.
+	defer close(qe.errs)
 	defer close(qe.events)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -169,13 +173,14 @@ func (qe *QueueEvents) Close() error {
 
 	// Claim the runOnce slot in case Run was never called. If we win the
 	// race, Run has not started (and never will), so we must close done
-	// and events ourselves. If Run already claimed it, it owns those
+	// and the channels ourselves. If Run already claimed it, it owns those
 	// closes via its deferred cleanup and we just wait for it below.
 	closedHere := false
 	qe.runOnce.Do(func() {
 		closedHere = true
 		close(qe.done)
 		close(qe.events)
+		close(qe.errs)
 	})
 
 	if !closedHere {

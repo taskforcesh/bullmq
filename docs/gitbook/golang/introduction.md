@@ -184,7 +184,7 @@ queue.Add(ctx, "flaky-job", map[string]any{}, &bullmq.JobOptions{
 	Attempts: bullmq.Int64(5),
 	Backoff: &bullmq.Backoff{
 		Type:  bullmq.BackoffExponential,
-		Delay: 1000, // 1s, 2s, 4s, 8s, 16s
+		Delay: 1000, // waits 1s, 2s, 4s, 8s between the 5 attempts
 	},
 })
 ```

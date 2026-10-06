@@ -196,6 +196,8 @@ type WorkerOptions struct {
 	// before it expires.
 	LockRenewTime time.Duration
 	// StalledInterval is how often stalled jobs are checked. Defaults to 30s.
+	// A positive value must be at least 1ms unless SkipStalledCheck is set,
+	// since it is sent to Redis as a millisecond lock TTL.
 	StalledInterval time.Duration
 	// MaxStalledCount is how many times a job may stall before failing. Defaults to 1.
 	// Use a pointer so an explicit 0 (fail on first stall) is distinguishable
@@ -247,6 +249,9 @@ func (o *WorkerOptions) applyDefaults() error {
 		if o.LockRenewTime >= o.LockDuration {
 			return configError("lockRenewTime must be less than lockDuration")
 		}
+	}
+	if o.StalledInterval > 0 && o.StalledInterval < time.Millisecond && !o.SkipStalledCheck {
+		return configError("stalledInterval must be at least 1ms when the stalled check is enabled")
 	}
 	if o.StalledInterval <= 0 {
 		o.StalledInterval = 30 * time.Second
@@ -377,11 +382,12 @@ func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 		return &clone
 	}
 	merged := *defaults
-	// The job id and parent are never inherited from queue defaults.
+	// The job id, parent and deduplication are per-job identifiers and are
+	// never inherited from queue defaults. Timestamp is inherited like any
+	// other default.
 	merged.JobID = ""
 	merged.Parent = nil
 	merged.Deduplication = nil
-	merged.Timestamp = 0
 
 	if opts == nil {
 		return &merged

@@ -95,6 +95,54 @@ func TestQueueEventsReportsTheJobLifecycle(t *testing.T) {
 	}
 }
 
+func TestQueueEventsClosesErrorsChannelOnShutdown(t *testing.T) {
+	requireRedis(t)
+	q := newTestQueue(t, nil)
+
+	drained := func(t *testing.T, qe *bullmq.QueueEvents) {
+		t.Helper()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for range qe.Errors() {
+			}
+		}()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("Errors() was not closed")
+		}
+	}
+
+	// Closed after Run exits because of cancellation.
+	qe, err := bullmq.NewQueueEvents(q.Name(), &bullmq.QueueEventsOptions{
+		Redis:           redisOptions(),
+		BlockingTimeout: 200 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewQueueEvents: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	runDone := make(chan struct{})
+	go func() {
+		defer close(runDone)
+		_ = qe.Run(ctx)
+	}()
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	<-runDone
+	drained(t, qe)
+	_ = qe.Close()
+
+	// Closed by Close when Run was never called.
+	unstarted, err := bullmq.NewQueueEvents(q.Name(), &bullmq.QueueEventsOptions{Redis: redisOptions()})
+	if err != nil {
+		t.Fatalf("NewQueueEvents: %v", err)
+	}
+	_ = unstarted.Close()
+	drained(t, unstarted)
+}
+
 func TestQueueEventsReportsFailures(t *testing.T) {
 	requireRedis(t)
 	ctx := testContext(t)

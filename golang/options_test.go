@@ -52,6 +52,23 @@ func TestApplyDefaultsValidatesLockRenewTime(t *testing.T) {
 	}
 }
 
+func TestApplyDefaultsRejectsSubMillisecondStalledInterval(t *testing.T) {
+	for _, d := range []time.Duration{time.Nanosecond, 999 * time.Microsecond} {
+		o := WorkerOptions{StalledInterval: d}
+		if err := o.applyDefaults(); err == nil {
+			t.Fatalf("StalledInterval %v: expected error, got nil", d)
+		}
+	}
+	o := WorkerOptions{StalledInterval: time.Millisecond}
+	if err := o.applyDefaults(); err != nil {
+		t.Fatalf("1ms StalledInterval: unexpected error: %v", err)
+	}
+	o = WorkerOptions{StalledInterval: time.Microsecond, SkipStalledCheck: true}
+	if err := o.applyDefaults(); err != nil {
+		t.Fatalf("SkipStalledCheck: unexpected error: %v", err)
+	}
+}
+
 func TestApplyDefaultsUnsetLockDuration(t *testing.T) {
 	var o WorkerOptions
 	if err := o.applyDefaults(); err != nil {

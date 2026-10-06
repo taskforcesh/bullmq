@@ -193,6 +193,20 @@ func TestMergeJobOptions(t *testing.T) {
 	}
 }
 
+func TestMergeJobOptionsInheritsDefaultTimestamp(t *testing.T) {
+	defaults := &JobOptions{Timestamp: 1700000000000}
+
+	if got := mergeJobOptions(nil, defaults).Timestamp; got != 1700000000000 {
+		t.Errorf("inherited Timestamp = %d, want the default", got)
+	}
+	if got := mergeJobOptions(&JobOptions{}, defaults).Timestamp; got != 1700000000000 {
+		t.Errorf("Timestamp with unset per-job value = %d, want the default", got)
+	}
+	if got := mergeJobOptions(&JobOptions{Timestamp: 42}, defaults).Timestamp; got != 42 {
+		t.Errorf("per-job Timestamp = %d, want 42", got)
+	}
+}
+
 func TestMergeJobOptionsOverridesDefaultsBackToZero(t *testing.T) {
 	defaults := &JobOptions{Delay: Int64(1000), LIFO: Bool(true), Priority: Int64(1), Attempts: Int64(5), KeepLogs: Int64(10), SizeLimit: Int64(2048)}
 
