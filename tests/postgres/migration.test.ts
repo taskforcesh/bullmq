@@ -331,6 +331,131 @@ describe('PostgreSQL migrations', () => {
   });
 });
 
+/**
+ * A migration may keep `minClientVersion` at the current major only if
+ * applying it does not break instances still running the previous library
+ * code: they keep working and simply lack the new features. The relay
+ * migration claims this by only adding new `relay_*` objects; this test
+ * proves it by comparing every pre-existing object before and after.
+ */
+describe('PostgreSQL relay migration (0004_relay)', () => {
+  const url = getPostgresUrl();
+  const before = 'bullmq_pre_relay_test';
+  const after = 'bullmq_post_relay_test';
+  let pool: Pool;
+
+  /** Every object of a schema, as normalized definition strings. */
+  const snapshot = async (schema: string): Promise<string[]> => {
+    const { rows } = await pool.query<{ item: string }>(
+      `SELECT 'column ' || c.table_name || '.' || c.column_name || ' ' || c.data_type
+              || ' default=' || COALESCE(c.column_default, '') || ' null=' || c.is_nullable AS item
+         FROM information_schema.columns c WHERE c.table_schema = $1
+       UNION ALL
+       SELECT 'index ' || indexname || ' ' || indexdef
+         FROM pg_indexes WHERE schemaname = $1
+       UNION ALL
+       SELECT 'constraint ' || cl.relname || ' ' || con.conname || ' ' || pg_get_constraintdef(con.oid)
+         FROM pg_constraint con
+         JOIN pg_class cl ON cl.oid = con.conrelid
+         JOIN pg_namespace n ON n.oid = cl.relnamespace
+        WHERE n.nspname = $1
+       UNION ALL
+       SELECT 'function ' || p.proname || ' ' || pg_get_functiondef(p.oid)
+         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = $1 AND p.prokind IN ('f', 'p')
+       UNION ALL
+       SELECT 'type ' || t.typname || ' ' || t.typtype::text || ' ' || COALESCE(
+                (SELECT string_agg(e.enumlabel, ',' ORDER BY e.enumsortorder)
+                   FROM pg_enum e WHERE e.enumtypid = t.oid), '')
+         FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE n.nspname = $1 AND t.typtype IN ('e', 'd', 'c')
+       UNION ALL
+       SELECT 'sequence ' || sequence_name
+         FROM information_schema.sequences WHERE sequence_schema = $1
+       UNION ALL
+       SELECT 'trigger ' || tg.tgname || ' ' || pg_get_triggerdef(tg.oid)
+         FROM pg_trigger tg
+         JOIN pg_class cl ON cl.oid = tg.tgrelid
+         JOIN pg_namespace n ON n.oid = cl.relnamespace
+        WHERE n.nspname = $1 AND NOT tg.tgisinternal`,
+      [schema],
+    );
+    return rows.map(row => row.item.split(schema).join('<schema>')).sort();
+  };
+
+  /** Applies the migrations before the relay one, as an older release did. */
+  const migrateBeforeRelay = async (schema: string) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`CREATE SCHEMA "${schema}"`);
+      await client.query(`SET LOCAL search_path TO "${schema}"`);
+      for (const migration of MIGRATIONS.filter(m => m.name < '0004_relay')) {
+        await client.query(migration.load());
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  };
+
+  beforeAll(async () => {
+    pool = new Pool({ connectionString: url });
+    for (const schema of [before, after]) {
+      await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+    }
+  });
+
+  afterAll(async () => {
+    for (const schema of [before, after]) {
+      await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+    }
+    await pool.end();
+  });
+
+  it('is marked compatible with the current major', () => {
+    const relay = MIGRATIONS.find(m => m.name === '0004_relay');
+    expect(relay?.minClientVersion).toBe(BULLMQ_MAJOR_VERSION);
+  });
+
+  it('leaves every pre-existing object unchanged and only adds relay_* objects', async () => {
+    await migrateBeforeRelay(before);
+    const client = await pool.connect();
+    try {
+      await runMigrations(client, after);
+    } finally {
+      client.release();
+    }
+
+    // The migration ledger is not part of the hand-applied schema.
+    const isLedger = (item: string) =>
+      /^(column migration\.|index migration_pkey |constraint migration |type migration )/.test(
+        item,
+      );
+    const pre = (await snapshot(before)).filter(item => !isLedger(item));
+    const post = (await snapshot(after)).filter(item => !isLedger(item));
+
+    // Nothing that existed before was altered, replaced or removed.
+    const postSet = new Set(post);
+    expect(pre.filter(item => !postSet.has(item))).toEqual([]);
+
+    // Everything added belongs to the relay.
+    const preSet = new Set(pre);
+    const added = post.filter(item => !preSet.has(item));
+    expect(added.length).toBeGreaterThan(0);
+    const foreign = added.filter(
+      item =>
+        !/^(column|index|constraint|function|type|sequence|trigger) relay_/.test(
+          item,
+        ),
+    );
+    expect(foreign).toEqual([]);
+  });
+});
+
 describe('PostgreSQL server-version check', () => {
   // A minimal PgQueryable stub that reports a fixed server version, so we can
   // exercise the thresholds without an actual old/new server.
