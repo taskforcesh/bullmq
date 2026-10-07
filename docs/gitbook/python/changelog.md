@@ -1,3 +1,10 @@
+## [3.3.1](https://github.com/taskforcesh/bullmq/compare/vpy3.3.0...vpy3.3.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **lock-manager:** renew locks with the atomic extendLocks script [python] ([#4872](https://github.com/taskforcesh/bullmq/issues/4872)) ([b1d410e](https://github.com/taskforcesh/bullmq/commit/b1d410ea524a9ac4d2b739640b72ded97bc47b0c))
+
 # [3.3.0](https://github.com/taskforcesh/bullmq/compare/vpy3.2.8...vpy3.3.0) (2026-09-30)
 
 
