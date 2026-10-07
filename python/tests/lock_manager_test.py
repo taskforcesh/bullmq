@@ -178,12 +178,13 @@ class TestLockManager(unittest.IsolatedAsyncioTestCase):
 
         worker = Worker(queueName, process, {"prefix": prefix})
 
-        renewed, rejected = await renewals
-        self.assertEqual(renewed, [])
-        self.assertEqual(rejected, [job.id])
-
-        await worker.close()
-        await queue.close()
+        try:
+            renewed, rejected = await renewals
+            self.assertEqual(renewed, [])
+            self.assertEqual(rejected, [job.id])
+        finally:
+            await worker.close()
+            await queue.close()
 
 
 if __name__ == "__main__":
