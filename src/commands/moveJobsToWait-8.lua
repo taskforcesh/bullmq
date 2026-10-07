@@ -31,6 +31,7 @@ local rcall = redis.call;
 --- @include "includes/batches"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isQueuePausedOrMaxed"
+--- @include "includes/moveChildBackToParentDependencies"
 
 local metaKey = KEYS[6]
 local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[7])
@@ -42,11 +43,13 @@ if (#jobs > 0) then
         for i, key in ipairs(jobs) do
             local jobKey = KEYS[1] .. key
             rcall("HDEL", jobKey, "finishedOn", "processedOn", "failedReason")
+            moveChildBackToParentDependencies(jobKey, ARGV[3])
         end
     elseif ARGV[3] == "completed" then
         for i, key in ipairs(jobs) do
             local jobKey = KEYS[1] .. key
             rcall("HDEL", jobKey, "finishedOn", "processedOn", "returnvalue")
+            moveChildBackToParentDependencies(jobKey, ARGV[3])
         end
     end
 
