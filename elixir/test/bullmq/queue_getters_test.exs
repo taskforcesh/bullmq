@@ -448,7 +448,7 @@ defmodule BullMQ.QueueGettersTest do
       ])
 
       {:ok, rate_limit} = Queue.get_global_rate_limit(queue_name, connection: conn, prefix: prefix)
-      assert rate_limit == %{max: 100, duration: 60000}
+      assert rate_limit == %{max: 100, duration: 60_000}
     end
   end
 

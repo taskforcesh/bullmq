@@ -96,7 +96,7 @@ defmodule BullMQ.CancellationToken do
   """
 
   @type t :: reference()
-  @type reason :: String.t() | atom() | nil
+  @type reason :: term()
 
   @doc """
   Creates a new cancellation token.

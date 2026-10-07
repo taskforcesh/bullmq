@@ -57,7 +57,7 @@ defmodule BullMQ.Job do
       end
   """
 
-  alias BullMQ.{Backend, Keys, Types}
+  alias BullMQ.{Backend, Backoff, Keys, Types, Utils}
 
   # Mapping for encoding option names to short keys (for Redis storage)
   # Elixir uses snake_case, which gets encoded to short keys for Node.js compatibility
@@ -211,18 +211,18 @@ defmodule BullMQ.Job do
       queue_name: queue_name,
       opts: decode_opts(Map.get(data, "opts", "{}")),
       prefix: Keyword.get(opts, :prefix, "bull"),
-      timestamp: parse_int(Map.get(data, "timestamp", "0")),
-      delay: parse_int(Map.get(data, "delay", "0")),
-      priority: parse_int(Map.get(data, "priority", "0")),
-      processed_on: parse_int_or_nil(Map.get(data, "processedOn")),
-      finished_on: parse_int_or_nil(Map.get(data, "finishedOn")),
+      timestamp: Utils.parse_int(Map.get(data, "timestamp", "0")),
+      delay: Utils.parse_int(Map.get(data, "delay", "0")),
+      priority: Utils.parse_int(Map.get(data, "priority", "0")),
+      processed_on: Utils.parse_int_or_nil(Map.get(data, "processedOn")),
+      finished_on: Utils.parse_int_or_nil(Map.get(data, "finishedOn")),
       progress: decode_progress(Map.get(data, "progress")),
       return_value: decode_json_or_nil(Map.get(data, "returnvalue")),
       failed_reason: Map.get(data, "failedReason"),
       stacktrace: decode_stacktrace(Map.get(data, "stacktrace")),
-      attempts_made: parse_int(Map.get(data, "attemptsMade") || Map.get(data, "atm", "0")),
-      attempts_started: parse_int(Map.get(data, "ats", "0")),
-      stalled_counter: parse_int(Map.get(data, "stc", "0")),
+      attempts_made: Utils.parse_int(Map.get(data, "attemptsMade") || Map.get(data, "atm", "0")),
+      attempts_started: Utils.parse_int(Map.get(data, "ats", "0")),
+      stalled_counter: Utils.parse_int(Map.get(data, "stc", "0")),
       parent_key: Map.get(data, "parentKey"),
       parent: decode_json_or_nil(Map.get(data, "parent")),
       processed_by: Map.get(data, "processedBy"),
@@ -378,8 +378,7 @@ defmodule BullMQ.Job do
   """
   @spec should_retry?(t()) :: boolean()
   def should_retry?(%__MODULE__{opts: opts, attempts_made: attempts_made}) do
-    # Handle both atom and string keys (string keys come from JSON decode)
-    max_attempts = get_opt(opts, :attempts, "attempts", 1)
+    max_attempts = Utils.get_opt(opts, [:attempts, "attempts"], 1)
     attempts_made + 1 < max_attempts
   end
 
@@ -388,49 +387,8 @@ defmodule BullMQ.Job do
   """
   @spec calculate_backoff(t()) :: Types.duration_ms()
   def calculate_backoff(%__MODULE__{opts: opts, attempts_made: attempts_made}) do
-    # Handle both atom and string keys (string keys come from JSON decode)
-    backoff = get_opt(opts, :backoff, "backoff", nil)
-
-    case backoff do
-      nil ->
-        0
-
-      %{type: :fixed, delay: delay} ->
-        delay
-
-      %{"type" => "fixed", "delay" => delay} ->
-        delay
-
-      %{type: :exponential, delay: delay} ->
-        jitter = get_in(backoff, [:jitter]) || 0
-        calculate_exponential_backoff(delay, attempts_made, jitter)
-
-      %{"type" => "exponential", "delay" => delay} ->
-        jitter = get_in(backoff, ["jitter"]) || 0
-        calculate_exponential_backoff(delay, attempts_made, jitter)
-
-      %{type: type, delay: delay} when is_atom(type) ->
-        # Custom backoff type - return base delay
-        delay
-
-      %{"type" => _type, "delay" => delay} ->
-        # Custom backoff type with string keys - return base delay
-        delay
-
-      delay when is_integer(delay) ->
-        delay
-
-      _ ->
-        0
-    end
-  end
-
-  # Helper to get option value with both atom and string keys
-  defp get_opt(opts, atom_key, string_key, default) do
-    case Map.get(opts, atom_key) do
-      nil -> Map.get(opts, string_key, default)
-      value -> value
-    end
+    backoff = Utils.get_opt(opts, [:backoff, "backoff"])
+    Backoff.calculate_from_config(backoff, attempts_made + 1)
   end
 
   @doc """
@@ -440,7 +398,7 @@ defmodule BullMQ.Job do
   """
   @spec delay_until(t()) :: Types.timestamp_ms()
   def delay_until(%__MODULE__{timestamp: timestamp, delay: delay}) do
-    timestamp + delay
+    round(timestamp + delay)
   end
 
   @doc """
@@ -506,17 +464,6 @@ defmodule BullMQ.Job do
   defp build_parent_key(%{id: id, queue: queue} = parent) do
     prefix = Map.get(parent, :prefix, "bull")
     "#{prefix}:#{queue}:#{id}"
-  end
-
-  defp calculate_exponential_backoff(delay, attempts, jitter) when jitter > 0 do
-    base_delay = trunc(:math.pow(2, attempts - 1) * delay)
-    min_delay = trunc(base_delay * (1 - jitter))
-    jitter_range = trunc(base_delay * jitter)
-    min_delay + :rand.uniform(jitter_range + 1) - 1
-  end
-
-  defp calculate_exponential_backoff(delay, attempts, _jitter) do
-    trunc(:math.pow(2, attempts - 1) * delay)
   end
 
   defp encode_json(nil), do: "null"
@@ -965,8 +912,8 @@ defmodule BullMQ.Job do
   # Helper to parse HGETALL result into a map with JSON-decoded values
   defp parse_hash_result(data) do
     data
-    |> Enum.chunk_every(2)
-    |> Enum.into(%{}, fn [k, v] ->
+    |> Utils.parse_hash_data()
+    |> Map.new(fn {k, v} ->
       value =
         case Jason.decode(v) do
           {:ok, decoded} -> decoded
@@ -1014,20 +961,6 @@ defmodule BullMQ.Job do
       _ -> []
     end
   end
-
-  defp parse_int(str) when is_binary(str) do
-    case Integer.parse(str) do
-      {int, _} -> int
-      :error -> 0
-    end
-  end
-
-  defp parse_int(int) when is_integer(int), do: int
-  defp parse_int(_), do: 0
-
-  defp parse_int_or_nil(nil), do: nil
-  defp parse_int_or_nil(""), do: nil
-  defp parse_int_or_nil(str), do: parse_int(str)
 
   defp maybe_put(map, _key, value, default) when value == default, do: map
 

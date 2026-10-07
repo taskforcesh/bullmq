@@ -1,6 +1,6 @@
 defmodule BullMQ.HighConcurrencyTest do
   use ExUnit.Case, async: false
-  alias BullMQ.{Queue, Worker, RedisConnection}
+  alias BullMQ.{Queue, RedisConnection, Worker}
 
   @redis_opts [host: "localhost", port: 6379]
   @moduletag timeout: 300_000
@@ -108,7 +108,7 @@ defmodule BullMQ.HighConcurrencyTest do
     # Clean redis
     {:ok, keys} = RedisConnection.command(conn_name, ["KEYS", "bull:#{queue_name}:*"])
 
-    if length(keys) > 0 do
+    if keys != [] do
       RedisConnection.command(conn_name, ["DEL" | keys])
     end
 

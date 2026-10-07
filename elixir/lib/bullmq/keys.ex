@@ -303,7 +303,9 @@ defmodule BullMQ.Keys do
       iex> BullMQ.Keys.parse_job_key("bull:my_queue:123")
       {:ok, %{prefix: "bull", queue: "my_queue", job_id: "123"}}
   """
-  @spec parse_job_key(String.t()) :: {:ok, map()} | {:error, :invalid_key}
+  @spec parse_job_key(String.t()) ::
+          {:ok, %{prefix: String.t(), queue: String.t(), job_id: String.t()}}
+          | {:error, :invalid_key}
   def parse_job_key(key) do
     case String.split(key, ":") do
       [prefix, queue, job_id] ->

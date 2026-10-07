@@ -13,6 +13,7 @@ defmodule BullMQ.Backends.PostgresTest do
   @moduletag :postgres
 
   alias BullMQ.{Backend, Backends, Job}
+  alias BullMQ.Backends.Postgres.Connection, as: PostgresConnection
 
   @postgres_url System.get_env("POSTGRES_URL", "postgres://localhost:5432/bullmq_test")
 
@@ -20,9 +21,9 @@ defmodule BullMQ.Backends.PostgresTest do
     conn = :"pg_conn_#{System.unique_integer([:positive])}"
 
     {:ok, _} =
-      Backends.Postgres.Connection.start_link(name: conn, url: @postgres_url, schema: "bullmq")
+      PostgresConnection.start_link(name: conn, url: @postgres_url, schema: "bullmq")
 
-    on_exit(fn -> Backends.Postgres.Connection.close(conn) end)
+    on_exit(fn -> PostgresConnection.close(conn) end)
     {:ok, conn: conn}
   end
 
@@ -179,12 +180,12 @@ defmodule BullMQ.Backends.PostgresTest do
                b,
                "sched-1",
                next,
-               scheduler_opts,
-               Jason.encode!(%{"n" => 1}),
-               %{},
-               %{"delay" => 5000, "timestamp" => now},
-               now,
-               nil
+               scheduler_opts: scheduler_opts,
+               template_data: Jason.encode!(%{"n" => 1}),
+               template_opts: %{},
+               delayed_opts: %{"delay" => 5000, "timestamp" => now},
+               now: now,
+               producer_id: nil
              )
 
     assert is_binary(job_id)
@@ -221,7 +222,10 @@ defmodule BullMQ.Backends.PostgresTest do
     assert {:ok, [3, 0, 0]} = Backend.get_counts_by_types(b, [:waiting, :active, :completed])
   end
 
-  test "add_jobs does not double-emit events for existing or duplicate ids", %{backend: b, queue: q} do
+  test "add_jobs does not double-emit events for existing or duplicate ids", %{
+    backend: b,
+    queue: q
+  } do
     # A job that already exists, added on its own first.
     {:ok, "x1"} = Backend.add_job(b, Job.new(q, "a", %{}, job_id: "x1"))
     assert {:ok, [1, 0, 0]} = Backend.get_counts_by_types(b, [:waiting, :active, :completed])
@@ -416,9 +420,8 @@ defmodule BullMQ.Backends.PostgresTest do
     assert {:ok, [_, _, 0]} = Backend.get_counts_by_types(b, [:waiting, :active, :completed])
   end
 
-  test "is_maxed, get_rate_limit_ttl, get_metrics return sane shapes", %{backend: b} do
-    assert {:ok, maxed} = Backend.is_maxed(b)
-    assert is_boolean(maxed)
+  test "maxed?, get_rate_limit_ttl, get_metrics return sane shapes", %{backend: b} do
+    assert is_boolean(Backend.maxed?(b))
 
     assert {:ok, ttl} = Backend.get_rate_limit_ttl(b, max_jobs: 10)
     assert is_integer(ttl)
@@ -495,12 +498,12 @@ defmodule BullMQ.Backends.PostgresTest do
         b,
         "s1",
         now + 1000,
-        %{"name" => "t", "every" => 1000},
-        Jason.encode!(%{}),
-        %{},
-        %{"delay" => 1000, "timestamp" => now},
-        now,
-        nil
+        scheduler_opts: %{"name" => "t", "every" => 1000},
+        template_data: Jason.encode!(%{}),
+        template_opts: %{},
+        delayed_opts: %{"delay" => 1000, "timestamp" => now},
+        now: now,
+        producer_id: nil
       )
 
     assert is_binary(job_id)

@@ -14,7 +14,7 @@ defmodule BullMQ.WorkerIntegrationTest do
 
   @moduletag :integration
 
-  alias BullMQ.{Job, Queue, Worker, Keys, Scripts}
+  alias BullMQ.{Job, Keys, Queue, Scripts, Worker}
 
   @redis_url BullMQ.TestHelper.redis_url()
   @test_prefix BullMQ.TestHelper.test_prefix() <> "_worker"
@@ -726,15 +726,13 @@ defmodule BullMQ.WorkerIntegrationTest do
           processor: fn _job ->
             count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
 
-            cond do
-              count < 3 ->
-                # Delay 3 times
-                send(test_pid, {:delay, count})
-                {:delay, 100}
-
-              true ->
-                # Complete on 4th attempt
-                {:ok, :done}
+            if count < 3 do
+              # Delay 3 times
+              send(test_pid, {:delay, count})
+              {:delay, 100}
+            else
+              # Complete on 4th attempt
+              {:ok, :done}
             end
           end,
           on_completed: fn job, _result ->
@@ -2317,7 +2315,7 @@ defmodule BullMQ.WorkerIntegrationTest do
       job_id = "test-job-#{System.unique_integer([:positive])}"
 
       {:ok, _} =
-        Redix.command(raw_conn, ["SET", Keys.lock(ctx, job_id), correct_token, "PX", 30000])
+        Redix.command(raw_conn, ["SET", Keys.lock(ctx, job_id), correct_token, "PX", 30_000])
 
       {:ok, _} = Redix.command(raw_conn, ["SADD", Keys.stalled(ctx), job_id])
 

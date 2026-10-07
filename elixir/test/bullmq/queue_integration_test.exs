@@ -9,7 +9,7 @@ defmodule BullMQ.QueueIntegrationTest do
 
   @moduletag :integration
 
-  alias BullMQ.{Queue, Job, RedisConnection}
+  alias BullMQ.{Job, Queue, RedisConnection}
 
   @redis_url BullMQ.TestHelper.redis_url()
   @test_prefix BullMQ.TestHelper.test_prefix()

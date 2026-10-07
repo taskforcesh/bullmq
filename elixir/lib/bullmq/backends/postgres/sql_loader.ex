@@ -32,15 +32,16 @@ defmodule BullMQ.Backends.Postgres.SqlLoader do
   @doc "Returns the base directory the SQL is loaded from (priv or src)."
   @spec base_dir() :: String.t()
   def base_dir do
-    priv = priv_dir()
+    case priv_dir() do
+      priv when is_binary(priv) ->
+        cond do
+          dir_has_sql?(Path.join(priv, "commands")) -> priv
+          File.dir?(Path.join(@src_dir, "commands")) -> @src_dir
+          true -> priv
+        end
 
-    cond do
-      priv && dir_has_sql?(Path.join(priv, "commands")) -> priv
-      File.dir?(Path.join(@src_dir, "commands")) -> @src_dir
-      # Prefer the (possibly not-yet-populated) priv path for the error message;
-      # fall back to src only when priv can't be resolved at all.
-      priv -> priv
-      true -> @src_dir
+      _ ->
+        @src_dir
     end
   end
 
