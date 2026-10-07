@@ -5,6 +5,7 @@ import { ConnectionClosedError, createValkeyGlideClient } from '../src/classes';
 type GlideArg = string | Buffer;
 type GlideCommandOptions = {
   decoder?: number;
+  route?: string;
 };
 
 const GLIDE_STRING_DECODER = 1;
@@ -886,6 +887,36 @@ describe('ValkeyGlideAdapter', () => {
 
     expect(raw.closeCalls).toBe(1);
     await blockedRead;
+  });
+
+  it('routes INFO to a single node in cluster mode', async () => {
+    class MockGlideClusterClient extends MockGlideClient {
+      async customCommand(
+        args: GlideArg[],
+        options?: GlideCommandOptions,
+      ): Promise<any> {
+        if (String(args[0]).toUpperCase() === 'INFO') {
+          this.commands.push(args.map(arg => String(arg)));
+          this.infoOptions.push(options);
+          // Without a route, Glide fans out and returns a map keyed by node.
+          return options?.route
+            ? 'valkey_version:8.0.0\r\nredis_version:7.2.4'
+            : { 'node-1:6379': 'valkey_version:8.0.0' };
+        }
+
+        return super.customCommand(args, options);
+      }
+
+      readonly infoOptions: Array<GlideCommandOptions | undefined> = [];
+    }
+
+    const raw = new MockGlideClusterClient();
+    const client = createValkeyGlideClient(raw as any);
+
+    const info = await client.info();
+
+    expect(raw.infoOptions).toEqual([{ route: 'randomNode' }]);
+    expect(info).toContain('valkey_version:');
   });
 
   it('throws ConnectionClosedError for commands issued after disconnect', async () => {

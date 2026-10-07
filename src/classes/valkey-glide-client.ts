@@ -13,6 +13,7 @@ interface LuaScript {
 type GlideArg = string | Buffer;
 type GlideCommandOptions = {
   decoder?: number;
+  route?: 'randomNode' | 'allNodes' | 'allPrimaries';
 };
 
 const GLIDE_STRING_DECODER = 1;
@@ -946,7 +947,12 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   }
 
   async info(): Promise<string> {
-    return toStringValue(await this.runRawCommand(['INFO']));
+    return toStringValue(
+      await this.runRawCommand(
+        ['INFO'],
+        this.isCluster ? { route: 'randomNode' } : undefined,
+      ),
+    );
   }
 
   async clientSetName(name: string): Promise<any> {
