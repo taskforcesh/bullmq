@@ -43,6 +43,15 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0003_dedup_stale_key.sql'),
   },
+  {
+    version: 4,
+    name: '0004_relay',
+    // Additive only (new relay_* tables, sequence and functions; no change to
+    // existing objects), so clients from the same major that don't use the
+    // relay keep working against the updated schema.
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0004_relay.sql'),
+  },
 ];
 
 /**
