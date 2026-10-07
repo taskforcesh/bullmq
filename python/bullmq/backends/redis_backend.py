@@ -297,17 +297,7 @@ class RedisBackend(Backend):
     async def extendLocks(
         self, job_ids: list[str], tokens: list[str], duration: int
     ) -> list:
-        multi = self.connection.conn.pipeline()
-        for job_id, token in zip(job_ids, tokens):
-            # The registered script is async; awaiting it buffers the command
-            # onto the pipeline (it does not execute until multi.execute()).
-            await self.scripts.extendLock(job_id, token, duration, multi)
-        renew_results = await multi.execute()
-        return [
-            job_id
-            for job_id, renewed in zip(job_ids, renew_results)
-            if int(renewed) <= 0
-        ]
+        return await self.scripts.extendJobLocks(job_ids, tokens, duration)
 
     # ============================================================
     # Job mutations
