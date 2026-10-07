@@ -199,13 +199,13 @@
     picocolors "^1.1.1"
 
 "@conventional-changelog/git-client@^3.0.0":
-  version "3.1.2"
-  resolved "https://registry.yarnpkg.com/@conventional-changelog/git-client/-/git-client-3.1.2.tgz#2298db5ba59a2f8826300bc7ad477169f76f15aa"
-  integrity sha512-jZqwnJwf7nboIlAcw/mkOjVa6DexCcUOgT2oOQgkoi3z9vR8tGFkcMy2BFcYwjhL9sYcDDXkRQDayiDieCoW7A==
+  version "3.2.0"
+  resolved "https://registry.yarnpkg.com/@conventional-changelog/git-client/-/git-client-3.2.0.tgz#69e783d11d172c8940c531f750e7d9644decfb72"
+  integrity sha512-sD/E0vzpkoDz/dqM1Hhv0ihC4KBw6RXjefeO8SG1XrX+wGkMxe1pKeedkKDPCtr2JjuhbuS9aJNgOvnT8hbeBw==
   dependencies:
     "@simple-libs/child-process-utils" "^2.0.0"
     "@simple-libs/stream-utils" "^2.0.0"
-    semver "^7.5.2"
+    verkit "^0.5.0"
 
 "@conventional-changelog/template@^1.4.0":
   version "1.4.0"
@@ -1129,9 +1129,9 @@ conventional-changelog-angular@^9.0.0:
     "@conventional-changelog/template" "^1.4.0"
 
 conventional-changelog-conventionalcommits@^10.0.0:
-  version "10.4.0"
-  resolved "https://registry.yarnpkg.com/conventional-changelog-conventionalcommits/-/conventional-changelog-conventionalcommits-10.4.0.tgz#a75bb40f10731d66e0b4209dc1dd3ee0cf2925f3"
-  integrity sha512-Rriac6ZrAlVm6cy9Bz4NSp+WMHpwNXoPIYex+HjCgduAVUSbnew29DQjQw0C4g9u3HtSYzGiGY+pdBXAZo+4aA==
+  version "10.4.1"
+  resolved "https://registry.yarnpkg.com/conventional-changelog-conventionalcommits/-/conventional-changelog-conventionalcommits-10.4.1.tgz#7f53704de03014b113fb67d6fe82d5221dfeb703"
+  integrity sha512-jS1LRFSbRoAr6JbhhRy1JYfNNUj5LM3+v49hRE03CgccsiYqgdVj/RTmrw4J1rylrqijHwdOlJWiJa61JHOgHg==
   dependencies:
     "@conventional-changelog/template" "^1.4.0"
 
@@ -1160,9 +1160,9 @@ conventional-commits-parser@^6.0.0:
     meow "^13.0.0"
 
 conventional-commits-parser@^7.0.0:
-  version "7.1.2"
-  resolved "https://registry.yarnpkg.com/conventional-commits-parser/-/conventional-commits-parser-7.1.2.tgz#4dca0779b338bab96fe994e864dfedf3c1908b03"
-  integrity sha512-O+x4N2yH+ijvqWlIyTHsXTAP+algNWgGbjY2duCe8w2vUMvUB95cLRslCPfTMQyLAKlet3bhZTdu6ozn4M+QJQ==
+  version "7.1.3"
+  resolved "https://registry.yarnpkg.com/conventional-commits-parser/-/conventional-commits-parser-7.1.3.tgz#2301e0d451c24e085a47baba53ea3d27022ad5d1"
+  integrity sha512-Q9oWm1o9uy/oEsZQIraoFMZ4RuPD+79KgwWj6mJVP356tazolCB0piRLZ5Kz9te9p027uSEcUW+Gu44Eh+X79g==
   dependencies:
     "@simple-libs/stream-utils" "^2.0.0"
     argue-cli "^3.1.0"
@@ -1367,9 +1367,9 @@ escape-string-regexp@^1.0.5:
   integrity sha512-vbRorB5FUQWvla16U8R/qgaFIya2qGzwDrNmCZuYKrbdSUMG6I1ZCGQRefkRVhuOkIGVne7BQ35DSfo1qvJqFg==
 
 execa@^10.0.0:
-  version "10.0.1"
-  resolved "https://registry.yarnpkg.com/execa/-/execa-10.0.1.tgz#7e5ed6cc9d5ac2cc4160036c624934137f0750ff"
-  integrity sha512-ge98qjkRK4IB7tL7Ju/6qmm5LHoH1eEMt5FNZrz3f4UIYhF28lggX20z3FaX1sgc67msLEn0N0BscOs29iuwyw==
+  version "10.1.0"
+  resolved "https://registry.yarnpkg.com/execa/-/execa-10.1.0.tgz#c35bdc00c07dc5b40df0831920594a54fb6ccbdf"
+  integrity sha512-5HT/600HqXEtmkb9mK/PkTWw+bQSCzPnWiZ4/87wD3Hi0wFzCapOuNT9p4M08PDd+KLHdHvFhKjOWmNx/npRNQ==
   dependencies:
     "@sindresorhus/merge-streams" "^4.0.0"
     figures "^6.1.0"
@@ -1378,11 +1378,11 @@ execa@^10.0.0:
     is-plain-obj "^4.1.0"
     is-stream "^4.0.1"
     npm-run-path "^6.0.0"
-    pretty-ms "^9.3.0"
+    pretty-ms "^9.3.1"
     signal-exit "^4.1.0"
     strip-final-newline "^4.0.0"
     which-command "^0.1.0"
-    yoctocolors "^2.1.2"
+    yoctocolors "^2.2.0"
 
 execa@^8.0.0:
   version "8.0.1"
@@ -1638,11 +1638,11 @@ graceful-fs@^4.1.2, graceful-fs@^4.1.6, graceful-fs@^4.2.0, graceful-fs@^4.2.11,
   integrity sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==
 
 handlebars@^4.7.7:
-  version "4.7.9"
-  resolved "https://registry.yarnpkg.com/handlebars/-/handlebars-4.7.9.tgz#6f139082ab58dc4e5a0e51efe7db5ae890d56a0f"
-  integrity sha512-4E71E0rpOaQuJR2A3xDZ+GM1HyWYv1clR58tC8emQNeQe3RH7MAzSbat+V0wG78LQBo6m6bzSG/L4pBuCsgnUQ==
+  version "4.7.10"
+  resolved "https://registry.yarnpkg.com/handlebars/-/handlebars-4.7.10.tgz#12419ea1b41391b3ffcf003f2164dcbce090c417"
+  integrity sha512-P5VJMVM7qgBn6vjXMw8WG9uVI+ncf2pi72j4de4yz5ZULLj2RGqLYaKOYGsgyrViQ0tePOVlN1tDCCXXtFqXKg==
   dependencies:
-    minimist "^1.2.5"
+    minimist "^1.2.8"
     neo-async "^2.6.2"
     source-map "^0.6.1"
     wordwrap "^1.0.0"
@@ -2287,7 +2287,7 @@ minimatch@^10.0.3, minimatch@^10.1.1, minimatch@^10.2.2, minimatch@^10.2.5:
   dependencies:
     brace-expansion "^5.0.8"
 
-minimist@^1.2.0, minimist@^1.2.5:
+minimist@^1.2.0, minimist@^1.2.8:
   version "1.2.8"
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.8.tgz#c1a464e7693302e082a075cee0c057741ac4772c"
   integrity sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==
@@ -2829,7 +2829,7 @@ postcss-selector-parser@^7.0.0:
     cssesc "^3.0.0"
     util-deprecate "^1.0.2"
 
-pretty-ms@^9.2.0, pretty-ms@^9.3.0:
+pretty-ms@^9.2.0, pretty-ms@^9.3.1:
   version "9.3.1"
   resolved "https://registry.yarnpkg.com/pretty-ms/-/pretty-ms-9.3.1.tgz#7b58d8fbf376f01602ff05230358e8fa5e0f072b"
   integrity sha512-HzMy3Geq23nVALD/M2LliU+F+M+gVNsvkQWWqeBZ8HDiCgzo6YPJ/Omrmtq24EFrIsk0a3EkQGEd7bDOo+IhGA==
@@ -3519,6 +3519,11 @@ validate-npm-package-name@^7.0.0, validate-npm-package-name@^7.0.2:
   resolved "https://registry.yarnpkg.com/validate-npm-package-name/-/validate-npm-package-name-7.0.2.tgz#e57c3d721a4c8bbff454a246e7f7da811559ea0d"
   integrity sha512-hVDIBwsRruT73PbK7uP5ebUt+ezEtCmzZz3F59BSr2F6OVFnJ/6h8liuvdLrQ88Xmnk6/+xGGuq+pG9WwTuy3A==
 
+verkit@^0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/verkit/-/verkit-0.5.0.tgz#8b7617dda9ad2edb7851c6a4ff5f3ca428482401"
+  integrity sha512-u4J1hr6Y+C/hit34GwL3eIcUf3wngT8TlYUjK7tk0jxydKLAq3sYvifjdTDA6U3KCKRcQCQDGf/srjxfZF3l7g==
+
 walk-up-path@^4.0.0:
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/walk-up-path/-/walk-up-path-4.0.0.tgz#590666dcf8146e2d72318164f1f2ac6ef51d4198"
@@ -3633,7 +3638,7 @@ yargs@^18.0.0:
     y18n "^5.0.5"
     yargs-parser "^22.0.0"
 
-yoctocolors@^2.1.1, yoctocolors@^2.1.2:
+yoctocolors@^2.1.1, yoctocolors@^2.2.0:
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/yoctocolors/-/yoctocolors-2.2.0.tgz#c4b68ee477f3982c33e4de24a5aa4a354be506d3"
   integrity sha512-xYqdZFUK/VYazNl/oCDYN+3WloWQwMfZxBoiNt6qNyk+xfOdi598muWE42rNZFp1kNOiqW936q5RhUdnpqElSg==
