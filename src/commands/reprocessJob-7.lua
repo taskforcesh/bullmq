@@ -28,6 +28,7 @@ local rcall = redis.call;
 --- @include "includes/addJobInTargetList"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isQueuePausedOrMaxed"
+--- @include "includes/moveChildBackToParentDependencies"
 
 local jobKey = KEYS[1]
 if rcall("EXISTS", jobKey) == 1 then
@@ -48,20 +49,7 @@ if rcall("EXISTS", jobKey) == 1 then
     local isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[5], KEYS[6])
     addJobInTargetList(KEYS[4], KEYS[7], ARGV[2], isPausedOrMaxed, jobId)
 
-    local parentKey = rcall("HGET", jobKey, "parentKey")
-
-    if parentKey and rcall("EXISTS", parentKey) == 1 then
-      if ARGV[4] == "failed" then
-        if rcall("ZREM", parentKey .. ":unsuccessful", jobKey) == 1 or
-          rcall("HDEL", parentKey .. ":failed", jobKey) == 1 then
-          rcall("SADD", parentKey .. ":dependencies", jobKey)
-        end
-      else
-        if rcall("HDEL", parentKey .. ":processed", jobKey) == 1 then
-          rcall("SADD", parentKey .. ":dependencies", jobKey)
-        end
-      end
-    end
+    moveChildBackToParentDependencies(jobKey, ARGV[4])
 
     local maxEvents = getOrSetMaxEvents(KEYS[5])
     -- Emit waiting event
