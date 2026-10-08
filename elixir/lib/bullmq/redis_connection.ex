@@ -69,6 +69,7 @@ defmodule BullMQ.RedisConnection do
     * `:url` - Redis URL (e.g., "redis://localhost:6379")
     * `:host` - Redis host (default: "localhost")
     * `:port` - Redis port (default: 6379)
+    * `:username` - Redis username (optional, requires Redis 6+ ACL support)
     * `:password` - Redis password (optional)
     * `:database` - Redis database number (default: 0)
     * `:pool_size` - Number of connections in the pool (default: 10)
@@ -630,6 +631,7 @@ defmodule BullMQ.RedisConnection do
           [
             host: Keyword.get(opts, :host, "localhost"),
             port: Keyword.get(opts, :port, 6379),
+            username: Keyword.get(opts, :username),
             password: Keyword.get(opts, :password),
             database: Keyword.get(opts, :database, 0)
           ]
@@ -655,16 +657,17 @@ defmodule BullMQ.RedisConnection do
     host = uri.host || "localhost"
     port = uri.port || 6379
 
-    # Parse password from userinfo (format: user:password or just password)
-    password =
+    # Parse username/password from userinfo (format: user:password or just password)
+    {username, password} =
       case uri.userinfo do
         nil ->
-          nil
+          {nil, nil}
 
         userinfo ->
           case String.split(userinfo, ":", parts: 2) do
-            [_, pass] -> pass
-            [pass] -> pass
+            ["", pass] -> {nil, URI.decode(pass)}
+            [user, pass] -> {URI.decode(user), URI.decode(pass)}
+            [pass] -> {nil, URI.decode(pass)}
           end
       end
 
@@ -687,7 +690,7 @@ defmodule BullMQ.RedisConnection do
           end
       end
 
-    [host: host, port: port, password: password, database: database]
+    [host: host, port: port, username: username, password: password, database: database]
   end
 
   defp parse_redis_url(_), do: [host: "localhost", port: 6379]
