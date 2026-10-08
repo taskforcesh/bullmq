@@ -101,8 +101,8 @@ const relay = new Relay({
 ## Custom backends
 
 A backend implements the `IRelayBackend` interface: a small set of semantic
-operations (register a node, renew its lease, sweep, subscribe, unsubscribe,
-publish, read the inbox), each of which must be atomic. Pass a factory as
+operations (register a node, renew its lease, sweep, subscribe, remove a
+subscription, publish, read the inbox), each of which must be atomic. Pass a factory as
 the `backend` option:
 
 ```typescript

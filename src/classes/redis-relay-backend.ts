@@ -108,16 +108,6 @@ export class RedisRelayBackend implements IRelayBackend {
     };
   }
 
-  async unsubscribe(
-    nodeId: string,
-    endpointId: string,
-    pattern: string,
-  ): Promise<boolean> {
-    return (
-      (await this.exec('relayUnsubscribe', [nodeId, endpointId, pattern])) === 1
-    );
-  }
-
   async removeEndpoint(nodeId: string, endpointId: string): Promise<number> {
     return this.exec('relayRemoveEndpoint', [nodeId, endpointId]);
   }

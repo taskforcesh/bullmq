@@ -106,20 +106,6 @@ export class PostgresRelayBackend implements IRelayBackend {
     };
   }
 
-  async unsubscribe(
-    nodeId: string,
-    endpointId: string,
-    pattern: string,
-  ): Promise<boolean> {
-    const { rows } = await this.run('relay_unsubscribe', [
-      this.namespace,
-      nodeId,
-      endpointId,
-      pattern,
-    ]);
-    return rows[0].removed;
-  }
-
   async removeEndpoint(nodeId: string, endpointId: string): Promise<number> {
     const { rows } = await this.run('relay_remove_endpoint', [
       this.namespace,
