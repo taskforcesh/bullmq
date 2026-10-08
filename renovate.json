@@ -5,18 +5,22 @@
     ":semanticCommits",
     ":enableVulnerabilityAlerts"
   ],
+  "timezone": "Europe/Madrid",
+  "minimumReleaseAge": "3 days",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
   "labels": ["dependencies"],
   "rangeStrategy": "pin",
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["before 9am"]
+    "schedule": ["before 9am on monday"]
   },
   "separateMajorMinor": true,
   "packageRules": [
     {
-      "description": "Run non-security dependency updates once per day by default",
+      "description": "Run non-security dependency updates once per week (Monday morning)",
       "matchPackageNames": ["*"],
-      "schedule": ["before 9am"]
+      "schedule": ["before 9am on monday"]
     },
     {
       "description": "Use chore commit type for all dev dependency updates",
@@ -278,6 +282,49 @@
       "description": "Do not pin peerDependencies, keep range strategy as-is",
       "matchDepTypes": ["peerDependencies"],
       "rangeStrategy": "widen"
+    },
+    {
+      "description": "Never pin or bump `engines`: it is published to consumers (pinning engines.node to one exact version would block every user on other Node versions)",
+      "matchDepTypes": ["engines"],
+      "enabled": false
+    },
+    {
+      "description": "bullmq is a library: keep PHP runtime requirements as ranges (pinning them in composer.json `require` breaks consumers); widen instead of pinning",
+      "matchManagers": ["composer"],
+      "matchDepTypes": ["require"],
+      "rangeStrategy": "widen"
+    },
+    {
+      "description": "Never pin or bump the PHP platform requirement itself",
+      "matchManagers": ["composer"],
+      "matchPackageNames": ["php"],
+      "enabled": false
+    },
+    {
+      "description": "Cargo resolves ONE version per crate: crates pinned with `=` in both [dependencies] and [dev-dependencies] (e.g. tokio) must move in the same PR, so keep Rust dev-dependencies in the Rust groups",
+      "matchCategories": ["rust"],
+      "matchDepTypes": ["dev-dependencies"],
+      "groupName": "Rust dependencies",
+      "groupSlug": "rust"
+    },
+    {
+      "description": "Same for Rust majors",
+      "matchCategories": ["rust"],
+      "matchDepTypes": ["dev-dependencies"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "Rust dependencies (major)",
+      "groupSlug": "rust-major"
+    },
+    {
+      "description": "🚨 Rust security fixes in ONE PR for both [dependencies] and [dev-dependencies] (overrides the runtime/dev security split above, which produced unresolvable Cargo.lock updates for tokio)",
+      "isVulnerabilityAlert": true,
+      "matchManagers": ["cargo"],
+      "groupName": "security patches [rust]",
+      "groupSlug": "security-patches-rust",
+      "prPriority": 100,
+      "labels": ["security", "osv"],
+      "commitMessageSuffix": "[SECURITY]",
+      "schedule": ["before 9am"]
     },
     {
       "description": "Do not pin the redis-py runtime dependency of the Python library, keep its compatible range so consumers can resolve it alongside their own redis pin",
