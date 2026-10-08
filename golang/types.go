@@ -63,20 +63,17 @@ func (b *Backoff) validate() error {
 	return nil
 }
 
-func (b *Backoff) writeMsgpack(w *msgpackWriter) {
-	n := 2
-	if b.Jitter > 0 {
-		n++
+// msgpackValue builds the `{type, delay}` map the Lua commands expect, with
+// `jitter` added only when it is enabled.
+func (b *Backoff) msgpackValue() map[string]any {
+	m := map[string]any{
+		"type":  string(b.Type),
+		"delay": b.Delay,
 	}
-	w.MapLen(n)
-	w.Str("type")
-	w.Str(string(b.Type))
-	w.Str("delay")
-	w.Uint(uint64(b.Delay))
 	if b.Jitter > 0 {
-		w.Str("jitter")
-		w.Float(b.Jitter)
+		m["jitter"] = b.Jitter
 	}
+	return m
 }
 
 // RemoveOnFinish controls the automatic removal of completed or failed jobs.
@@ -109,26 +106,21 @@ func KeepAge(seconds int64) *RemoveOnFinish {
 	return &RemoveOnFinish{Age: &seconds}
 }
 
-func (r *RemoveOnFinish) writeMsgpack(w *msgpackWriter) {
-	n := 0
-	for _, v := range []*int64{r.Count, r.Age, r.Limit} {
-		if v != nil {
-			n++
-		}
-	}
-	w.MapLen(n)
+// msgpackValue builds the keep policy map the Lua commands expect. Only the
+// fields that were set are included, so an explicit zero count (remove the
+// job straight away) is preserved.
+func (r *RemoveOnFinish) msgpackValue() map[string]any {
+	m := make(map[string]any, 3)
 	if r.Count != nil {
-		w.Str("count")
-		w.Int(*r.Count)
+		m["count"] = *r.Count
 	}
 	if r.Age != nil {
-		w.Str("age")
-		w.Int(*r.Age)
+		m["age"] = *r.Age
 	}
 	if r.Limit != nil {
-		w.Str("limit")
-		w.Int(*r.Limit)
+		m["limit"] = *r.Limit
 	}
+	return m
 }
 
 // UnmarshalJSON accepts the boolean, numeric and object forms written by the
@@ -238,14 +230,12 @@ type RateLimiter struct {
 	Duration time.Duration
 }
 
-// writeMsgpack encodes the limiter as the `{max, duration}` map the Lua
-// commands expect.
-func (r *RateLimiter) writeMsgpack(w *msgpackWriter) {
-	w.MapLen(2)
-	w.Str("max")
-	w.Uint(uint64(r.Max))
-	w.Str("duration")
-	w.Uint(uint64(r.Duration.Milliseconds()))
+// msgpackValue builds the `{max, duration}` map the Lua commands expect.
+func (r *RateLimiter) msgpackValue() map[string]any {
+	return map[string]any{
+		"max":      r.Max,
+		"duration": r.Duration.Milliseconds(),
+	}
 }
 
 // MetricsOptions enables the collection of completed/failed counters.

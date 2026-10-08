@@ -13,10 +13,14 @@ import (
 // to wait before the next attempt (rate limit or next delayed job).
 func (b *RedisBackend) MoveToActive(ctx context.Context, opts MoveToActiveOptions) (*FetchResult, error) {
 	k := b.keys
+	packed, err := packMoveToActiveOpts(opts)
+	if err != nil {
+		return nil, err
+	}
 	res, err := b.runScript(ctx, "moveToActive", []string{
 		k.Wait(), k.Active(), k.Prioritized(), k.Events(), k.Stalled(),
 		k.Limiter(), k.Delayed(), k.Paused(), k.Meta(), k.PC(), k.Marker(),
-	}, k.KeyPrefix(), nowMillis(), packMoveToActiveOpts(opts))
+	}, k.KeyPrefix(), nowMillis(), packed)
 	if err != nil {
 		return nil, err
 	}
@@ -51,29 +55,18 @@ func parseFetchResult(res any) *FetchResult {
 	return &FetchResult{Job: jobRecordFromHash(jobID, fields)}
 }
 
-func packMoveToActiveOpts(opts MoveToActiveOptions) []byte {
-	n := 2
-	if opts.WorkerName != "" {
-		n++
+func packMoveToActiveOpts(opts MoveToActiveOptions) ([]byte, error) {
+	m := map[string]any{
+		"token":        opts.Token,
+		"lockDuration": opts.LockDuration.Milliseconds(),
 	}
-	if opts.Limiter != nil {
-		n++
-	}
-	mp := newMsgpackWriter(96)
-	mp.MapLen(n)
-	mp.Str("token")
-	mp.Str(opts.Token)
-	mp.Str("lockDuration")
-	mp.Uint(uint64(opts.LockDuration.Milliseconds()))
 	if opts.WorkerName != "" {
-		mp.Str("name")
-		mp.Str(opts.WorkerName)
+		m["name"] = opts.WorkerName
 	}
 	if l := opts.Limiter; l != nil {
-		mp.Str("limiter")
-		l.writeMsgpack(mp)
+		m["limiter"] = l.msgpackValue()
 	}
-	return mp.Bytes()
+	return packMsgpack(m)
 }
 
 // MoveToCompleted moves an active job into the completed set.
@@ -83,7 +76,11 @@ func (b *RedisBackend) MoveToCompleted(ctx context.Context, jobID string, return
 
 // MoveToFailed moves an active job into the failed set.
 func (b *RedisBackend) MoveToFailed(ctx context.Context, jobID string, failure FailureInfo, opts FinishOptions) (int64, error) {
-	return b.moveToFinished(ctx, jobID, "failed", "failedReason", failure.Reason, packFailureFields(&failure), opts)
+	fields, err := packFailureFields(&failure)
+	if err != nil {
+		return 0, err
+	}
+	return b.moveToFinished(ctx, jobID, "failed", "failedReason", failure.Reason, fields, opts)
 }
 
 // moveToFinished moves an active job into the completed or failed set. The
@@ -97,11 +94,15 @@ func (b *RedisBackend) moveToFinished(ctx context.Context, jobID, target, field,
 	}
 
 	finishedOn := nowMillis()
+	packed, err := packMoveToFinishedOpts(opts)
+	if err != nil {
+		return 0, err
+	}
 	res, err := b.runScript(ctx, "moveToFinished", keys,
 		jobID, finishedOn, field, value, target,
 		"0",
 		k.KeyPrefix(),
-		packMoveToFinishedOpts(opts),
+		packed,
 		fieldsArg(fieldsToUpdate),
 	)
 	if err != nil {
@@ -113,56 +114,39 @@ func (b *RedisBackend) moveToFinished(ctx context.Context, jobID, target, field,
 	return finishedOn, nil
 }
 
-func packMoveToFinishedOpts(opts FinishOptions) []byte {
+func packMoveToFinishedOpts(opts FinishOptions) ([]byte, error) {
 	maxMetricsSize := ""
 	if opts.Metrics != nil && opts.Metrics.MaxDataPoints > 0 {
 		maxMetricsSize = strconv.FormatInt(opts.Metrics.MaxDataPoints, 10)
 	}
 
+	// The Lua command indexes keepJobs, so it must always be a table.
+	keepJobs := map[string]any{}
+	if opts.KeepJobs != nil {
+		keepJobs = opts.KeepJobs.msgpackValue()
+	}
+
 	// The job option accessors are nil-safe.
 	jobOpts := opts.JobOpts
 
-	n := 9
+	m := map[string]any{
+		"token":          opts.Token,
+		"keepJobs":       keepJobs,
+		"lockDuration":   opts.LockDuration.Milliseconds(),
+		"attempts":       jobOpts.attemptsVal(),
+		"maxMetricsSize": maxMetricsSize,
+		"fpof":           jobOpts.failParentOnFailureVal(),
+		"cpof":           jobOpts.continueParentOnFailureVal(),
+		"idof":           jobOpts.ignoreDependencyOnFailureVal(),
+		"rdof":           jobOpts.removeDependencyOnFailureVal(),
+	}
 	if opts.WorkerName != "" {
-		n++
-	}
-	if opts.Limiter != nil {
-		n++
-	}
-
-	mp := newMsgpackWriter(192)
-	mp.MapLen(n)
-	mp.Str("token")
-	mp.Str(opts.Token)
-	mp.Str("keepJobs")
-	if opts.KeepJobs != nil {
-		opts.KeepJobs.writeMsgpack(mp)
-	} else {
-		mp.MapLen(0)
-	}
-	mp.Str("lockDuration")
-	mp.Uint(uint64(opts.LockDuration.Milliseconds()))
-	mp.Str("attempts")
-	mp.Uint(uint64(jobOpts.attemptsVal()))
-	mp.Str("maxMetricsSize")
-	mp.Str(maxMetricsSize)
-	mp.Str("fpof")
-	mp.Bool(jobOpts.failParentOnFailureVal())
-	mp.Str("cpof")
-	mp.Bool(jobOpts.continueParentOnFailureVal())
-	mp.Str("idof")
-	mp.Bool(jobOpts.ignoreDependencyOnFailureVal())
-	mp.Str("rdof")
-	mp.Bool(jobOpts.removeDependencyOnFailureVal())
-	if opts.WorkerName != "" {
-		mp.Str("name")
-		mp.Str(opts.WorkerName)
+		m["name"] = opts.WorkerName
 	}
 	if l := opts.Limiter; l != nil {
-		mp.Str("limiter")
-		l.writeMsgpack(mp)
+		m["limiter"] = l.msgpackValue()
 	}
-	return mp.Bytes()
+	return packMsgpack(m)
 }
 
 // MoveStalledJobsToWait moves jobs whose lock expired back to the wait list

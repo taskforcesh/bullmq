@@ -1,7 +1,7 @@
 package bullmq
 
 import (
-	"bytes"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -103,17 +103,15 @@ func TestBackoffNegativeDelayRejected(t *testing.T) {
 }
 
 func TestBackoffMsgpackJitter(t *testing.T) {
-	enc := func(b *Backoff) []byte {
-		w := newMsgpackWriter(32)
-		b.writeMsgpack(w)
-		return w.Bytes()
+	without := (&Backoff{Type: BackoffFixed, Delay: 10}).msgpackValue()
+	want := map[string]any{"type": string(BackoffFixed), "delay": int64(10)}
+	if !reflect.DeepEqual(without, want) {
+		t.Fatalf("without jitter = %v, want %v", without, want)
 	}
-	without := enc(&Backoff{Type: BackoffFixed, Delay: 10})
-	with := enc(&Backoff{Type: BackoffFixed, Delay: 10, Jitter: 0.5})
-	if without[0] != 0x82 || with[0] != 0x83 {
-		t.Fatalf("map headers = %#x, %#x; want 0x82, 0x83", without[0], with[0])
-	}
-	if !bytes.Contains(with, []byte("jitter")) || bytes.Contains(without, []byte("jitter")) {
-		t.Fatal("jitter key presence is wrong")
+
+	with := (&Backoff{Type: BackoffFixed, Delay: 10, Jitter: 0.5}).msgpackValue()
+	want["jitter"] = 0.5
+	if !reflect.DeepEqual(with, want) {
+		t.Fatalf("with jitter = %v, want %v", with, want)
 	}
 }

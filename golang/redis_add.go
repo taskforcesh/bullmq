@@ -51,12 +51,16 @@ func (b *RedisBackend) prepareAdd(job NewJob) (redisAdd, error) {
 	if err != nil {
 		return redisAdd{}, err
 	}
+	packedOpts, err := packJobOptions(opts)
+	if err != nil {
+		return redisAdd{}, err
+	}
 	return redisAdd{
 		scriptName: scriptName,
 		keys:       keys,
 		argv1:      argv1,
 		payload:    string(job.Data),
-		opts:       packJobOptions(opts),
+		opts:       packedOpts,
 	}, nil
 }
 
@@ -137,12 +141,13 @@ func (b *RedisBackend) AddJobs(ctx context.Context, jobs []NewJob) ([]string, er
 // [keyPrefix, customId, name, timestamp, parentKey, parentDepsKey, parent,
 // repeatJobKey, deduplicationKey].
 func (b *RedisBackend) packAddArgs(opts *JobOptions, name string, timestamp int64) ([]byte, error) {
-	w := newMsgpackWriter(160)
-	w.ArrayLen(9)
-	w.Str(b.keys.KeyPrefix())
-	w.Str(opts.JobID)
-	w.Str(name)
-	w.Int(timestamp)
+	// Unset entries stay nil: index 7 is the repeat job key, which this port
+	// does not support yet.
+	args := make([]any, 9)
+	args[0] = b.keys.KeyPrefix()
+	args[1] = opts.JobID
+	args[2] = name
+	args[3] = timestamp
 
 	if opts.Parent != nil {
 		parentQueueKey, err := resolveParentQueueKey(b.keys.Prefix(), opts.Parent.Queue)
@@ -150,81 +155,55 @@ func (b *RedisBackend) packAddArgs(opts *JobOptions, name string, timestamp int6
 			return nil, err
 		}
 		parentKey := parentQueueKey + ":" + opts.Parent.ID
-		w.Str(parentKey)
-		w.Str(parentKey + ":dependencies")
 
-		flags := map[string]bool{
+		parent := map[string]any{
+			"id":       opts.Parent.ID,
+			"queueKey": parentQueueKey,
+		}
+		for key, enabled := range map[string]bool{
 			"fpof": opts.failParentOnFailureVal(),
 			"idof": opts.ignoreDependencyOnFailureVal(),
 			"rdof": opts.removeDependencyOnFailureVal(),
 			"cpof": opts.continueParentOnFailureVal(),
-		}
-		n := 2
-		for _, v := range flags {
-			if v {
-				n++
+		} {
+			if enabled {
+				parent[key] = true
 			}
 		}
-		w.MapLen(n)
-		w.Str("id")
-		w.Str(opts.Parent.ID)
-		w.Str("queueKey")
-		w.Str(parentQueueKey)
-		// Iterated in a fixed order so the encoding is deterministic.
-		for _, k := range []string{"fpof", "idof", "rdof", "cpof"} {
-			if flags[k] {
-				w.Str(k)
-				w.Bool(true)
-			}
-		}
-	} else {
-		w.Nil()
-		w.Nil()
-		w.Nil()
-	}
 
-	// repeat job key: job schedulers are not supported by this port yet.
-	w.Nil()
+		args[4] = parentKey
+		args[5] = parentKey + ":dependencies"
+		args[6] = parent
+	}
 
 	if opts.Deduplication != nil {
-		w.Str(b.keys.Base() + ":de:" + opts.Deduplication.ID)
-	} else {
-		w.Nil()
+		args[8] = b.keys.Base() + ":de:" + opts.Deduplication.ID
 	}
-	return w.Bytes(), nil
+	return packMsgpack(args)
 }
 
 // packJobOptions builds ARGV[3] of the add* commands.
-func packJobOptions(opts *JobOptions) []byte {
-	type entry struct {
-		key   string
-		write func(*msgpackWriter)
-	}
-	var entries []entry
-
+func packJobOptions(opts *JobOptions) ([]byte, error) {
 	// This map is persisted verbatim (as JSON) in the job's "opts" field, so
 	// every option that was set is encoded, including explicit zero/false
 	// values, under the same keys JobOptions uses for JSON.
+	m := make(map[string]any, 17)
 	addInt := func(key string, v *int64) {
 		if v != nil {
-			val := *v
-			entries = append(entries, entry{key, func(w *msgpackWriter) { w.Int(val) }})
+			m[key] = *v
 		}
 	}
 	addBool := func(key string, v *bool) {
 		if v != nil {
-			val := *v
-			entries = append(entries, entry{key, func(w *msgpackWriter) { w.Bool(val) }})
+			m[key] = *v
 		}
 	}
 
 	if opts.JobID != "" {
-		id := opts.JobID
-		entries = append(entries, entry{"jobId", func(w *msgpackWriter) { w.Str(id) }})
+		m["jobId"] = opts.JobID
 	}
 	if opts.Timestamp != 0 {
-		ts := opts.Timestamp
-		entries = append(entries, entry{"timestamp", func(w *msgpackWriter) { w.Int(ts) }})
+		m["timestamp"] = opts.Timestamp
 	}
 	addInt("delay", opts.Delay)
 	addInt("priority", opts.Priority)
@@ -233,65 +212,34 @@ func packJobOptions(opts *JobOptions) []byte {
 	addInt("kl", opts.KeepLogs)
 	addInt("sizeLimit", opts.SizeLimit)
 	if p := opts.Parent; p != nil {
-		entries = append(entries, entry{"parent", func(w *msgpackWriter) {
-			w.MapLen(2)
-			w.Str("id")
-			w.Str(p.ID)
-			w.Str("queue")
-			w.Str(p.Queue)
-		}})
+		m["parent"] = map[string]any{"id": p.ID, "queue": p.Queue}
 	}
 	if opts.RemoveOnComplete != nil {
-		roc := opts.RemoveOnComplete
-		entries = append(entries, entry{"removeOnComplete", func(w *msgpackWriter) { roc.writeMsgpack(w) }})
+		m["removeOnComplete"] = opts.RemoveOnComplete.msgpackValue()
 	}
 	if opts.RemoveOnFail != nil {
-		rof := opts.RemoveOnFail
-		entries = append(entries, entry{"removeOnFail", func(w *msgpackWriter) { rof.writeMsgpack(w) }})
+		m["removeOnFail"] = opts.RemoveOnFail.msgpackValue()
 	}
 	if opts.Backoff != nil {
-		bo := opts.Backoff
-		entries = append(entries, entry{"backoff", func(w *msgpackWriter) { bo.writeMsgpack(w) }})
+		m["backoff"] = opts.Backoff.msgpackValue()
 	}
 	addBool("fpof", opts.FailParentOnFailure)
 	addBool("cpof", opts.ContinueParentOnFailure)
 	addBool("idof", opts.IgnoreDependencyOnFailure)
 	addBool("rdof", opts.RemoveDependencyOnFailure)
 	if d := opts.Deduplication; d != nil {
-		entries = append(entries, entry{"de", func(w *msgpackWriter) {
-			n := 1
-			if d.TTL > 0 {
-				n++
-			}
-			if d.Extend {
-				n++
-			}
-			if d.Replace {
-				n++
-			}
-			w.MapLen(n)
-			w.Str("id")
-			w.Str(d.ID)
-			if d.TTL > 0 {
-				w.Str("ttl")
-				w.Uint(uint64(d.TTL))
-			}
-			if d.Extend {
-				w.Str("extend")
-				w.Bool(true)
-			}
-			if d.Replace {
-				w.Str("replace")
-				w.Bool(true)
-			}
-		}})
+		de := map[string]any{"id": d.ID}
+		if d.TTL > 0 {
+			de["ttl"] = d.TTL
+		}
+		if d.Extend {
+			de["extend"] = true
+		}
+		if d.Replace {
+			de["replace"] = true
+		}
+		m["de"] = de
 	}
 
-	w := newMsgpackWriter(96)
-	w.MapLen(len(entries))
-	for _, e := range entries {
-		w.Str(e.key)
-		e.write(w)
-	}
-	return w.Bytes()
+	return packMsgpack(m)
 }

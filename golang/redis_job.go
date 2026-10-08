@@ -59,18 +59,18 @@ func jobRecordFromHash(id string, fields map[string]string) *JobRecord {
 
 // packFailureFields encodes the `fieldsToUpdate` argument of the commands that
 // record a failed attempt: a flat msgpack array of field, value pairs.
-func packFailureFields(f *FailureInfo) []byte {
+func packFailureFields(f *FailureInfo) ([]byte, error) {
 	if f == nil {
-		return nil
+		return nil, nil
 	}
-	trace, _ := json.Marshal(f.Stacktrace)
-	w := newMsgpackWriter(len(f.Reason) + len(trace) + 32)
-	w.ArrayLen(4)
-	w.Str("failedReason")
-	w.Str(f.Reason)
-	w.Str("stacktrace")
-	w.Str(string(trace))
-	return w.Bytes()
+	trace, err := json.Marshal(f.Stacktrace)
+	if err != nil {
+		return nil, err
+	}
+	return packMsgpack([]any{
+		"failedReason", f.Reason,
+		"stacktrace", string(trace),
+	})
 }
 
 // fieldsArg turns packed fields into a script argument, using the empty
@@ -232,10 +232,14 @@ func (b *RedisBackend) RetryFinishedJob(ctx context.Context, jobID string, state
 // RetryJob puts an active job straight back into the wait list.
 func (b *RedisBackend) RetryJob(ctx context.Context, jobID, token string, lifo bool, failure *FailureInfo) error {
 	k := b.keys
+	fields, err := packFailureFields(failure)
+	if err != nil {
+		return err
+	}
 	return b.runScriptStatus(ctx, "retryJob", []string{
 		k.Active(), k.Wait(), k.Paused(), k.Job(jobID), k.Meta(), k.Events(),
 		k.Delayed(), k.Prioritized(), k.PC(), k.Marker(), k.Stalled(),
-	}, k.KeyPrefix(), nowMillis(), pushCommand(lifo), jobID, token, fieldsArg(packFailureFields(failure)))
+	}, k.KeyPrefix(), nowMillis(), pushCommand(lifo), jobID, token, fieldsArg(fields))
 }
 
 // MoveToDelayed reschedules an active job.
@@ -245,6 +249,10 @@ func (b *RedisBackend) MoveToDelayed(ctx context.Context, jobID, token string, d
 	if ms < 0 {
 		ms = 0
 	}
+	fields, err := packFailureFields(opts.Failure)
+	if err != nil {
+		return err
+	}
 	return b.runScriptStatus(ctx, "moveToDelayed", []string{
 		k.Marker(), k.Active(), k.Prioritized(), k.Delayed(),
 		k.Job(jobID), k.Events(), k.Meta(), k.Stalled(),
@@ -252,7 +260,7 @@ func (b *RedisBackend) MoveToDelayed(ctx context.Context, jobID, token string, d
 	},
 		k.KeyPrefix(), nowMillis(), jobID, token, ms,
 		boolToStr(opts.SkipAttempt),
-		fieldsArg(packFailureFields(opts.Failure)),
+		fieldsArg(fields),
 		"0", // do not fetch the next job
 		"",  // unused when not fetching
 	)
@@ -305,17 +313,23 @@ func (b *RedisBackend) ExtendLock(ctx context.Context, jobID, token string, dura
 // returns the ids whose lock could not be renewed (missing or owned by
 // another token).
 func (b *RedisBackend) ExtendLocks(ctx context.Context, locks []JobLock, duration time.Duration) ([]string, error) {
-	tokens := newMsgpackWriter(16 * len(locks))
-	tokens.ArrayLen(len(locks))
-	ids := newMsgpackWriter(8 * len(locks))
-	ids.ArrayLen(len(locks))
-	for _, l := range locks {
-		tokens.Str(l.Token)
-		ids.Str(l.JobID)
+	tokens := make([]string, len(locks))
+	ids := make([]string, len(locks))
+	for i, l := range locks {
+		tokens[i] = l.Token
+		ids[i] = l.JobID
+	}
+	packedTokens, err := packMsgpack(tokens)
+	if err != nil {
+		return nil, err
+	}
+	packedIDs, err := packMsgpack(ids)
+	if err != nil {
+		return nil, err
 	}
 
 	res, err := b.runScript(ctx, "extendLocks", []string{b.keys.Stalled()},
-		b.keys.KeyPrefix(), tokens.Bytes(), ids.Bytes(), duration.Milliseconds())
+		b.keys.KeyPrefix(), packedTokens, packedIDs, duration.Milliseconds())
 	if err != nil {
 		return nil, err
 	}

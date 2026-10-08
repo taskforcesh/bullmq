@@ -4,44 +4,96 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"reflect"
 	"testing"
+
+	"github.com/vmihailenco/msgpack/v5"
 )
 
-func TestMsgpackScalars(t *testing.T) {
+// unpackMsgpack decodes a packed payload the way the Lua commands see it:
+// every integer is a number, every string is a string. Integers are
+// normalized to int64 because the decoder picks a signed or unsigned type
+// depending on the width the encoder chose.
+func unpackMsgpack(t *testing.T, data []byte) any {
+	t.Helper()
+	dec := msgpack.NewDecoder(bytes.NewReader(data))
+	dec.UseLooseInterfaceDecoding(true)
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		t.Fatalf("decode % x: %v", data, err)
+	}
+	return normalizeMsgpackInts(v)
+}
+
+func normalizeMsgpackInts(v any) any {
+	switch t := v.(type) {
+	case uint64:
+		return int64(t)
+	case map[string]any:
+		for k, item := range t {
+			t[k] = normalizeMsgpackInts(item)
+		}
+	case []any:
+		for i, item := range t {
+			t[i] = normalizeMsgpackInts(item)
+		}
+	}
+	return v
+}
+
+func unpackMsgpackMap(t *testing.T, data []byte) map[string]any {
+	t.Helper()
+	m, ok := unpackMsgpack(t, data).(map[string]any)
+	if !ok {
+		t.Fatalf("expected a map, got % x", data)
+	}
+	return m
+}
+
+func TestPackMsgpackWireFormat(t *testing.T) {
 	cases := []struct {
 		name  string
-		write func(*msgpackWriter)
+		value any
 		want  []byte
 	}{
-		{"nil", func(w *msgpackWriter) { w.Nil() }, []byte{0xc0}},
-		{"true", func(w *msgpackWriter) { w.Bool(true) }, []byte{0xc3}},
-		{"false", func(w *msgpackWriter) { w.Bool(false) }, []byte{0xc2}},
-		{"positive fixint", func(w *msgpackWriter) { w.Uint(7) }, []byte{0x07}},
-		{"uint8", func(w *msgpackWriter) { w.Uint(200) }, []byte{0xcc, 0xc8}},
-		{"uint16", func(w *msgpackWriter) { w.Uint(1000) }, []byte{0xcd, 0x03, 0xe8}},
-		{"uint32", func(w *msgpackWriter) { w.Uint(70000) }, []byte{0xce, 0x00, 0x01, 0x11, 0x70}},
-		{"negative fixint", func(w *msgpackWriter) { w.Int(-1) }, []byte{0xff}},
-		{"int8", func(w *msgpackWriter) { w.Int(-100) }, []byte{0xd0, 0x9c}},
-		{"fixstr", func(w *msgpackWriter) { w.Str("id") }, []byte{0xa2, 'i', 'd'}},
-		{"fixarray", func(w *msgpackWriter) { w.ArrayLen(2) }, []byte{0x92}},
-		{"fixmap", func(w *msgpackWriter) { w.MapLen(3) }, []byte{0x83}},
+		{"nil", nil, []byte{0xc0}},
+		{"true", true, []byte{0xc3}},
+		{"false", false, []byte{0xc2}},
+		{"positive fixint", int64(7), []byte{0x07}},
+		{"uint8", int64(200), []byte{0xcc, 0xc8}},
+		{"uint16", int64(1000), []byte{0xcd, 0x03, 0xe8}},
+		{"uint32", int64(70000), []byte{0xce, 0x00, 0x01, 0x11, 0x70}},
+		{"negative fixint", int64(-1), []byte{0xff}},
+		{"int8", int64(-100), []byte{0xd0, 0x9c}},
+		{"fixstr", "id", []byte{0xa2, 'i', 'd'}},
+		{"array", []any{int64(1), nil}, []byte{0x92, 0x01, 0xc0}},
+		{"empty map", map[string]any{}, []byte{0x80}},
+		{
+			"sorted map keys",
+			map[string]any{"b": int64(2), "a": int64(1)},
+			[]byte{0x82, 0xa1, 'a', 0x01, 0xa1, 'b', 0x02},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			w := newMsgpackWriter(8)
-			tc.write(w)
-			if !bytes.Equal(w.Bytes(), tc.want) {
-				t.Errorf("got % x, want % x", w.Bytes(), tc.want)
+			got, err := packMsgpack(tc.value)
+			if err != nil {
+				t.Fatalf("packMsgpack: %v", err)
+			}
+			if !bytes.Equal(got, tc.want) {
+				t.Errorf("got % x, want % x", got, tc.want)
 			}
 		})
 	}
 }
 
-func TestMsgpackStr8UsedForLongStrings(t *testing.T) {
+func TestPackMsgpackUsesStrFamilyForStrings(t *testing.T) {
 	s := string(bytes.Repeat([]byte("a"), 40))
-	w := newMsgpackWriter(64)
-	w.Str(s)
-	got := w.Bytes()
+	got, err := packMsgpack(s)
+	if err != nil {
+		t.Fatalf("packMsgpack: %v", err)
+	}
+	// str8, not bin8: the Lua commands expect strings.
 	if got[0] != 0xd9 || got[1] != 40 {
 		t.Fatalf("expected str8 header, got % x", got[:2])
 	}
@@ -51,15 +103,21 @@ func TestMsgpackStr8UsedForLongStrings(t *testing.T) {
 }
 
 func TestPackJobOptionsOnlyIncludesSetFields(t *testing.T) {
-	empty := packJobOptions(&JobOptions{})
+	empty, err := packJobOptions(&JobOptions{})
+	if err != nil {
+		t.Fatalf("packJobOptions: %v", err)
+	}
 	if !bytes.Equal(empty, []byte{0x80}) {
 		t.Fatalf("empty options should encode as an empty map, got % x", empty)
 	}
 
-	opts := &JobOptions{Attempts: Int64(3), Delay: Int64(1000), LIFO: Bool(true)}
-	packed := packJobOptions(opts)
-	if packed[0] != 0x83 {
-		t.Fatalf("expected a 3 entry map header, got %#x", packed[0])
+	packed, err := packJobOptions(&JobOptions{Attempts: Int64(3), Delay: Int64(1000), LIFO: Bool(true)})
+	if err != nil {
+		t.Fatalf("packJobOptions: %v", err)
+	}
+	want := map[string]any{"attempts": int64(3), "delay": int64(1000), "lifo": true}
+	if got := unpackMsgpackMap(t, packed); !reflect.DeepEqual(got, want) {
+		t.Fatalf("packed options = %v, want %v", got, want)
 	}
 }
 
@@ -77,16 +135,27 @@ func TestPackJobOptionsEncodesEveryEffectiveOption(t *testing.T) {
 		ContinueParentOnFailure: Bool(false),
 		Parent:                  &ParentOptions{ID: "p1", Queue: "bull:parents"},
 	}
-	packed := packJobOptions(opts)
-	// 11 top-level entries: jobId, timestamp, delay, priority, attempts, lifo,
-	// kl, sizeLimit, parent, fpof, cpof.
-	if want := byte(0x80 | 11); packed[0] != want {
-		t.Fatalf("map header = %#x, want %#x", packed[0], want)
+	packed, err := packJobOptions(opts)
+	if err != nil {
+		t.Fatalf("packJobOptions: %v", err)
 	}
-	for _, key := range []string{"jobId", "timestamp", "parent", "queue", "kl", "sizeLimit", "fpof", "cpof"} {
-		if !bytes.Contains(packed, []byte(key)) {
-			t.Errorf("packed options are missing key %q", key)
-		}
+	// Options that were set explicitly are encoded even when they hold the
+	// zero value.
+	want := map[string]any{
+		"jobId":     "custom",
+		"timestamp": int64(1700000000000),
+		"delay":     int64(0),
+		"priority":  int64(0),
+		"attempts":  int64(0),
+		"lifo":      false,
+		"kl":        int64(0),
+		"sizeLimit": int64(0),
+		"fpof":      false,
+		"cpof":      false,
+		"parent":    map[string]any{"id": "p1", "queue": "bull:parents"},
+	}
+	if got := unpackMsgpackMap(t, packed); !reflect.DeepEqual(got, want) {
+		t.Fatalf("packed options = %v, want %v", got, want)
 	}
 
 	// The persisted JSON form must decode back into the same options.
@@ -131,11 +200,13 @@ func TestRemoveOnFinishRoundTripsThroughJSON(t *testing.T) {
 }
 
 func TestRemoveAllEncodesAsCountZero(t *testing.T) {
-	w := newMsgpackWriter(8)
-	RemoveAll().writeMsgpack(w)
+	got, err := packMsgpack(RemoveAll().msgpackValue())
+	if err != nil {
+		t.Fatalf("packMsgpack: %v", err)
+	}
 	want := []byte{0x81, 0xa5, 'c', 'o', 'u', 'n', 't', 0x00}
-	if !bytes.Equal(w.Bytes(), want) {
-		t.Fatalf("got % x, want % x", w.Bytes(), want)
+	if !bytes.Equal(got, want) {
+		t.Fatalf("got % x, want % x", got, want)
 	}
 }
 
