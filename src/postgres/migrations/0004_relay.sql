@@ -92,9 +92,6 @@ BEGIN
       END IF;
       CONTINUE;
     END IF;
-    IF i = 1 AND v_segment ~ '^\$[A-Za-z]+$' THEN
-      CONTINUE;
-    END IF;
     IF v_segment !~ '^[A-Za-z0-9_:%-]+$' THEN
       RETURN NULL;
     END IF;
@@ -242,19 +239,6 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION relay_unsubscribe(
-  p_ns text, p_node text, p_endpoint text, p_pattern text
-)
-RETURNS boolean
-LANGUAGE plpgsql AS $$
-BEGIN
-  DELETE FROM relay_subscription
-   WHERE ns = p_ns AND node_id = p_node AND endpoint_id = p_endpoint
-     AND pattern = p_pattern;
-  RETURN FOUND;
-END;
-$$;
-
 CREATE FUNCTION relay_remove_endpoint(p_ns text, p_node text, p_endpoint text)
 RETURNS integer
 LANGUAGE plpgsql AS $$
@@ -310,16 +294,29 @@ BEGIN
   END IF;
 
   FOR v_row IN
+    WITH matched AS (
+      SELECT s.node_id, s.endpoint_id
+        FROM relay_subscription s
+       WHERE s.ns = p_ns
+         AND s.root IN (v_segments[1], '*')
+         AND relay_match_topic(string_to_array(s.pattern, '.'), v_segments)
+    ), live AS (
+      -- Locks the target nodes so a concurrent sweep can't delete them before
+      -- their inbox rows are inserted (the sweep skips locked nodes; a node it
+      -- deleted first is simply not returned here).
+      SELECT n.node_id
+        FROM relay_node n
+       WHERE n.ns = p_ns
+         AND n.node_id IN (SELECT matched.node_id FROM matched)
+         AND n.lease_until >= clock_timestamp()
+         FOR KEY SHARE
+    )
     INSERT INTO relay_inbox (ns, node_id, kind, topic, mid, ts, data, endpoints)
-    SELECT p_ns, s.node_id, 'msg', p_topic, message_id, p_ts, p_data,
-           array_agg(DISTINCT s.endpoint_id ORDER BY s.endpoint_id)
-      FROM relay_subscription s
-      JOIN relay_node n ON n.ns = s.ns AND n.node_id = s.node_id
-     WHERE s.ns = p_ns
-       AND s.root IN (v_segments[1], '*')
-       AND n.lease_until >= clock_timestamp()
-       AND relay_match_topic(string_to_array(s.pattern, '.'), v_segments)
-     GROUP BY s.node_id
+    SELECT p_ns, m.node_id, 'msg', p_topic, message_id, p_ts, p_data,
+           array_agg(DISTINCT m.endpoint_id ORDER BY m.endpoint_id)
+      FROM matched m
+      JOIN live l ON l.node_id = m.node_id
+     GROUP BY m.node_id
     RETURNING relay_inbox.node_id AS node_id,
               cardinality(relay_inbox.endpoints) AS endpoint_total
   LOOP

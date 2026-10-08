@@ -112,12 +112,6 @@ export interface IRelayBackend {
     pattern: string,
   ): Promise<RelaySubscribeResult>;
 
-  unsubscribe(
-    nodeId: string,
-    endpointId: string,
-    pattern: string,
-  ): Promise<boolean>;
-
   /** @returns the number of subscriptions removed. */
   removeEndpoint(nodeId: string, endpointId: string): Promise<number>;
 

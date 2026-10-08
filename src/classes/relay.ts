@@ -106,6 +106,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   private loop?: Promise<void>;
   private heartbeating = false;
   private sweeping = false;
+  private recoveryPending = false;
   private closing?: Promise<void>;
 
   constructor(private readonly opts: RelayOptions<C>) {
@@ -267,7 +268,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
         this.nodeId,
         this.leaseDuration,
       );
-      if (!alive && !this.closing) {
+      if ((!alive || this.recoveryPending) && !this.closing) {
         await this.recover();
       }
     } finally {
@@ -277,13 +278,16 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
 
   /**
    * The node's lease expired and it was swept: register again and restore
-   * its subscriptions. Retained messages are not delivered again.
+   * its subscriptions. Retained messages are not delivered again. If it fails
+   * part way, the next heartbeat retries it.
    */
   private async recover(): Promise<void> {
+    this.recoveryPending = true;
     await this.backend.registerNode(this.nodeId, this.leaseDuration);
     for (const [endpointId, endpoint] of this.endpoints) {
       await this.backend.subscribe(this.nodeId, endpointId, endpoint.pattern);
     }
+    this.recoveryPending = false;
     this.emit('recovered');
   }
 

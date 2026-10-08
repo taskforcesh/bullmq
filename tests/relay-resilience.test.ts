@@ -52,10 +52,6 @@ class FakeBackend implements IRelayBackend {
     this.check('subscribe');
     return { added: true };
   }
-  async unsubscribe() {
-    this.check('unsubscribe');
-    return true;
-  }
   async removeEndpoint() {
     this.check('removeEndpoint');
     return 1;
@@ -246,6 +242,37 @@ describe('Relay resilience', () => {
     await Promise.all([(relay as any).heartbeat(), (relay as any).heartbeat()]);
     const registrations = backend.calls.filter(c => c === 'registerNode');
     expect(registrations).toHaveLength(2); // start + one recovery
+    await relay.close();
+  });
+
+  it('retries a recovery that failed part way', async () => {
+    const backend = new FakeBackend();
+    const relay = createRelay(backend);
+    await relay.waitUntilReady();
+    await relay.subscribe('a', () => undefined);
+    await relay.subscribe('b', () => undefined);
+    let recovered = 0;
+    relay.on('recovered', () => recovered++);
+
+    // Swept, and restoring the subscriptions fails.
+    backend.heartbeatResult = false;
+    backend.fail.subscribe = new Error('network blip');
+    await expect((relay as any).heartbeat()).rejects.toThrow('network blip');
+    expect(recovered).toBe(0);
+
+    // The node is registered again, but the recovery is still pending.
+    backend.heartbeatResult = true;
+    delete backend.fail.subscribe;
+    const before = backend.calls.length;
+    await (relay as any).heartbeat();
+    expect(recovered).toBe(1);
+    const retried = backend.calls.slice(before);
+    expect(retried.filter(c => c === 'registerNode')).toHaveLength(1);
+    expect(retried.filter(c => c === 'subscribe')).toHaveLength(2);
+
+    // Once complete, heartbeats don't recover again.
+    await (relay as any).heartbeat();
+    expect(recovered).toBe(1);
     await relay.close();
   });
 
