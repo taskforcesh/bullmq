@@ -947,6 +947,9 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   }
 
   async info(): Promise<string> {
+    // Duplicated clients resolve their raw client asynchronously, so wait for
+    // it before checking cluster mode.
+    await this.ensureRaw();
     return toStringValue(
       await this.runRawCommand(
         ['INFO'],
