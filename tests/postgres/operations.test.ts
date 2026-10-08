@@ -218,6 +218,22 @@ describe('PostgreSQL backend operations', () => {
     }
   });
 
+  it('addLog awaits connection readiness instead of racing migrations', async () => {
+    const freshSchema = `bullmq_ops_test_fresh_${randomUUID().replace(/-/g, '_')}`;
+    const backend = createPostgresBackend(`ops-${randomUUID()}`, {
+      connection: { connectionString: url, schema: freshSchema, migrate: true },
+    } as any);
+    try {
+      // No waitUntilReady() call here - addLog must gate on readiness itself.
+      await expect(backend.addLog('nonexistent-job', 'line')).rejects.toThrow(
+        'Missing key for job nonexistent-job',
+      );
+    } finally {
+      await backend.close();
+      await pool.query(`DROP SCHEMA IF EXISTS "${freshSchema}" CASCADE`);
+    }
+  });
+
   it('stores and reads queue metadata', async () => {
     const backend = newBackend();
     try {

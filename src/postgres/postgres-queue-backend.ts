@@ -1267,16 +1267,12 @@ export class PostgresQueueBackend
     return count;
   }
 
-  // A lock taken inside the same statement as add_log.sql's own MAX(idx) read
-  // wouldn't help: under READ COMMITTED, a statement's snapshot is fixed when
-  // it starts, before the lock wait resolves, so a blocked caller can still
-  // read stale data. Running the lock as its own statement first — same
-  // connection, same transaction — forces add_log.sql's snapshot to start
-  // after the lock is held instead.
+  // Lock and read must be separate statements - a snapshot is fixed before a lock wait resolves under READ COMMITTED.
   private async insertLogAtomically(
     jobId: string,
     logRow: string,
   ): Promise<number> {
+    await this.connection.waitUntilReady();
     const client = await this.connection.pool.connect();
     try {
       await client.query('BEGIN');
