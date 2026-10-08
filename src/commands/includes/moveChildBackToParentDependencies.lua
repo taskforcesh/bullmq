@@ -1,7 +1,5 @@
---[[
-  Function to move a retried child back to its parent's dependencies, so the
-  parent waits for it again.
-]]
+  Function to move a retried child back to its parent's dependencies.
+  This does not move a parent that has already left waiting-children back to that state.
 
 local function moveChildBackToParentDependencies(jobKey, prevState)
   local parentKey = rcall("HGET", jobKey, "parentKey")
