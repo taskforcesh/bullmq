@@ -699,7 +699,7 @@ export class Worker<
           ResultType,
           NameType,
           ProgressType
-        >>(() => this._getNextJob(token, { block: true }), {
+        >>(() => this._getNextJob(token, { block: true }, true), {
           delayInMs: this.opts.runRetryDelay,
           onlyEmitError: true,
         });
@@ -781,9 +781,15 @@ export class Worker<
     );
   }
 
+  /**
+   * @param track - Track the job for lock renewal and cancellation as soon as
+   * it becomes active (automatic processing). Jobs fetched manually through
+   * {@link getNextJob} are not tracked.
+   */
   private async _getNextJob(
     token: string,
     { block = true }: GetNextJobOptions = {},
+    track = false,
   ): Promise<Job<DataType, ResultType, NameType, ProgressType> | undefined> {
     if (this.paused) {
       return;
@@ -800,14 +806,14 @@ export class Worker<
         this.blockUntil = await this.waiting;
 
         if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
-          job = await this.moveToActive(token, this.opts.name);
+          job = await this.moveToActive(token, this.opts.name, track);
         }
       } finally {
         this.waiting = null;
       }
     } else {
       if (!this.isRateLimited()) {
-        job = await this.moveToActive(token, this.opts.name);
+        job = await this.moveToActive(token, this.opts.name, track);
       }
     }
 
@@ -850,12 +856,13 @@ export class Worker<
   protected async moveToActive(
     token: string,
     name?: string,
+    track = false,
   ): Promise<Job<DataType, ResultType, NameType, ProgressType>> {
     const [jobData, id, rateLimitDelay, delayUntil] =
       await this.backend.moveToActive(token, name);
     this.updateDelays(rateLimitDelay, delayUntil);
 
-    return this.nextJobFromJobData(jobData, id, token);
+    return this.nextJobFromJobData(jobData, id, token, track);
   }
 
   private async waitForJob(blockUntil: number): Promise<number> {
@@ -962,10 +969,17 @@ export class Worker<
     this.blockUntil = Math.max(delayUntil, 0) || 0;
   }
 
+  /**
+   * @param track - Track the job for lock renewal and cancellation right away,
+   * before any further async work and before the `active` event, so a
+   * cancellation requested at any point after the job became active (e.g.
+   * from an `active` listener) reaches the processor's signal.
+   */
   protected async nextJobFromJobData(
     jobData?: JobJson,
     jobId?: string,
     token?: string,
+    track = false,
   ): Promise<Job<DataType, ResultType, NameType, ProgressType>> {
     if (!jobData) {
       if (!this.drained) {
@@ -976,6 +990,15 @@ export class Worker<
       this.drained = false;
       const job = this.createJob(jobData, jobId);
       job.token = token;
+
+      if (track) {
+        this.lockManager.trackJob(
+          job.id,
+          token,
+          job.processedOn,
+          this.processorAcceptsSignal,
+        );
+      }
 
       try {
         const shouldScheduleRepeat = await this.retryIfFailed(
@@ -1033,6 +1056,12 @@ export class Worker<
         );
         this.emit('error', schedulingError);
 
+        // The job will not be processed: stop renewing its lock so it can be
+        // recovered as stalled, as before it was tracked.
+        if (track) {
+          this.lockManager.untrackJob(job.id);
+        }
+
         // Return undefined to indicate no next job is available
         return undefined;
       }
@@ -1062,6 +1091,9 @@ export class Worker<
           [TelemetryAttributes.JobName]: job.name,
         });
 
+        // The job fetched next by the finish operation, if any.
+        let next: void | Job<DataType, ResultType, NameType, ProgressType>;
+
         const abortController = this.lockManager.trackJob(
           job.id,
           token,
@@ -1073,7 +1105,7 @@ export class Worker<
           const unrecoverableErrorMessage =
             this.getUnrecoverableErrorMessage(job);
           if (unrecoverableErrorMessage) {
-            const failed = await this.retryIfFailed<void | Job<
+            next = await this.retryIfFailed<void | Job<
               DataType,
               ResultType,
               NameType,
@@ -1091,7 +1123,7 @@ export class Worker<
               },
               { delayInMs: this.opts.runRetryDelay, span },
             );
-            return failed;
+            return next;
           }
 
           const result = await this.callProcessJob(
@@ -1101,7 +1133,7 @@ export class Worker<
               ? (abortController.signal as AbortSignal)
               : undefined,
           );
-          return await this.retryIfFailed<void | Job<
+          next = await this.retryIfFailed<void | Job<
             DataType,
             ResultType,
             NameType,
@@ -1119,8 +1151,9 @@ export class Worker<
             },
             { delayInMs: this.opts.runRetryDelay, span },
           );
+          return next;
         } catch (err) {
-          const failed = await this.retryIfFailed<void | Job<
+          next = await this.retryIfFailed<void | Job<
             DataType,
             ResultType,
             NameType,
@@ -1138,9 +1171,14 @@ export class Worker<
             },
             { delayInMs: this.opts.runRetryDelay, span, onlyEmitError: true },
           );
-          return failed;
+          return next;
         } finally {
-          this.lockManager.untrackJob(job.id);
+          // The job fetched next may be this same job (e.g. retried at once
+          // by this worker): its new attempt is already tracked and must stay
+          // so.
+          if (!next || next.id !== job.id) {
+            this.lockManager.untrackJob(job.id);
+          }
           const now = Date.now();
 
           span?.setAttributes({
@@ -1195,7 +1233,7 @@ export class Worker<
         const [jobData, jobId, rateLimitDelay, delayUntil] = completed;
         this.updateDelays(rateLimitDelay, delayUntil);
 
-        return this.nextJobFromJobData(jobData, jobId, token);
+        return this.nextJobFromJobData(jobData, jobId, token, true);
       }
     }
   }
@@ -1228,7 +1266,7 @@ export class Worker<
           return;
         }
 
-        return this.moveToActive(token, this.opts.name);
+        return this.moveToActive(token, this.opts.name, true);
       }
 
       const result = await job.moveToFailed(err, token, fetchNext);
@@ -1246,7 +1284,7 @@ export class Worker<
       if (Array.isArray(result)) {
         const [jobData, jobId, rateLimitDelay, delayUntil] = result;
         this.updateDelays(rateLimitDelay, delayUntil);
-        return this.nextJobFromJobData(jobData, jobId, token);
+        return this.nextJobFromJobData(jobData, jobId, token, true);
       }
     }
   }
