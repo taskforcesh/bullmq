@@ -1,3 +1,10 @@
+## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vrs1.3.4...vrs1.3.5) (2026-10-08)
+
+
+### Bug Fixes
+
+* **deps:** update security patches [rust] [security] ([#4893](https://github.com/taskforcesh/bullmq/issues/4893)) ([0e07ef6](https://github.com/taskforcesh/bullmq/commit/0e07ef6cc1597b5bc080458d89a7333b4a5e9331))
+
 ## [1.3.4](https://github.com/taskforcesh/bullmq/compare/vrs1.3.3...vrs1.3.4) (2026-10-04)
 
 
