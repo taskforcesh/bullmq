@@ -3,7 +3,6 @@ package bullmq
 import (
 	"context"
 	"encoding/json"
-	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -11,18 +10,16 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Queue adds jobs to a Redis backed BullMQ queue and inspects its contents.
+// Queue adds jobs to a BullMQ queue and inspects its contents.
+//
+// A Queue only depends on the [Backend] abstraction, so it works with any
+// datastore for which a backend exists. By default it uses Redis.
 //
 // A Queue is safe for concurrent use.
 type Queue struct {
-	c                 *client
+	backend           Backend
 	defaultJobOptions *JobOptions
 }
-
-// getJobsMaxBackfillIterations bounds how many forward-backfill iterations the
-// `getJobs` Lua command performs for a bounded range, matching the other
-// BullMQ ports.
-const getJobsMaxBackfillIterations = 5
 
 // priorityLimit is the largest accepted priority (2^21-1). The shared scripts
 // compute scores as priority * 2^32 + counter, so larger values would exceed
@@ -34,24 +31,39 @@ func NewQueue(name string, opts *QueueOptions) (*Queue, error) {
 	if opts == nil {
 		opts = &QueueOptions{}
 	}
-	c, err := newClient(name, opts.Prefix, opts.Redis)
+	backend, err := resolveBackend(opts.Backend, opts.Redis, name, BackendOptions{Prefix: opts.Prefix})
 	if err != nil {
 		return nil, err
 	}
-	return &Queue{c: c, defaultJobOptions: opts.DefaultJobOptions}, nil
+	return &Queue{backend: backend, defaultJobOptions: opts.DefaultJobOptions}, nil
 }
 
 // Name returns the queue name.
-func (q *Queue) Name() string { return q.c.keys.Name() }
+func (q *Queue) Name() string { return q.backend.QueueName() }
 
-// Keys exposes the key generator used by the queue.
-func (q *Queue) Keys() *Keys { return q.c.keys }
+// Backend returns the datastore backend used by the queue.
+func (q *Queue) Backend() Backend { return q.backend }
 
-// Client returns the underlying Redis client.
-func (q *Queue) Client() redis.UniversalClient { return q.c.rdb }
+// Keys exposes the key generator used by the queue. It returns nil when the
+// queue does not use the Redis backend.
+func (q *Queue) Keys() *Keys {
+	if rb, ok := q.backend.(*RedisBackend); ok {
+		return rb.Keys()
+	}
+	return nil
+}
 
-// Close releases the Redis connection when the queue owns it.
-func (q *Queue) Close() error { return q.c.close() }
+// Client returns the underlying Redis client. It returns nil when the queue
+// does not use the Redis backend.
+func (q *Queue) Client() redis.UniversalClient {
+	if rb, ok := q.backend.(*RedisBackend); ok {
+		return rb.Client()
+	}
+	return nil
+}
+
+// Close releases the connections the queue owns.
+func (q *Queue) Close() error { return q.backend.Close() }
 
 // JobSpec describes a job to add through Add or AddBulk.
 type JobSpec struct {
@@ -65,416 +77,157 @@ type JobSpec struct {
 
 // Add inserts a single job into the queue.
 func (q *Queue) Add(ctx context.Context, name string, data any, opts *JobOptions) (*Job, error) {
-	return q.addJob(ctx, JobSpec{Name: name, Data: data, Opts: opts})
+	nj, err := q.prepareJob(JobSpec{Name: name, Data: data, Opts: opts})
+	if err != nil {
+		return nil, err
+	}
+	id, err := q.backend.AddJob(ctx, nj)
+	if err != nil {
+		return nil, err
+	}
+	return q.newAddedJob(id, nj), nil
 }
 
-// AddBulk submits all add* commands through one Redis transaction and returns
-// their results in one round trip. Redis does not roll back earlier scripts
-// when a later script returns an application-level error, so a failed batch
-// may contain jobs that were inserted before the failing command.
+// AddBulk inserts every job in one backend operation. For Redis that is a
+// single transaction, but Redis does not roll back earlier scripts when a
+// later script returns an application-level error, so a failed batch may
+// contain jobs that were inserted before the failing command.
 func (q *Queue) AddBulk(ctx context.Context, specs []JobSpec) ([]*Job, error) {
 	if len(specs) == 0 {
 		return nil, nil
 	}
 
-	prepared := make([]preparedJob, len(specs))
+	prepared := make([]NewJob, len(specs))
 	for i, spec := range specs {
-		p, err := q.prepareJob(spec)
+		nj, err := q.prepareJob(spec)
 		if err != nil {
 			return nil, err
 		}
-		prepared[i] = p
+		prepared[i] = nj
 	}
 
-	cmds := make([]*redis.Cmd, len(prepared))
-	_, err := q.c.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		for i, p := range prepared {
-			s, err := getScript(p.scriptName)
-			if err != nil {
-				return err
-			}
-			cmds[i] = s.run(ctx, pipe, p.keys, p.argv1, string(p.payload), packJobOptions(p.opts))
-		}
-		return nil
-	})
+	ids, err := q.backend.AddJobs(ctx, prepared)
 	if err != nil {
 		return nil, err
 	}
+	if len(ids) != len(prepared) {
+		return nil, configError("backend returned %d job ids for %d jobs", len(ids), len(prepared))
+	}
 
 	jobs := make([]*Job, len(prepared))
-	for i, p := range prepared {
-		res, err := cmds[i].Result()
-		if err != nil && err != redis.Nil {
-			return nil, err
-		}
-		job, err := p.toJob(res, q)
-		if err != nil {
-			return nil, err
-		}
-		jobs[i] = job
+	for i, nj := range prepared {
+		jobs[i] = q.newAddedJob(ids[i], nj)
 	}
 	return jobs, nil
 }
 
-// preparedJob holds everything needed to queue an add* command on a pipeline
-// and to turn its reply into a *Job once the pipeline has executed.
-type preparedJob struct {
-	spec       JobSpec
-	opts       *JobOptions
-	payload    []byte
-	timestamp  int64
-	scriptName string
-	keys       []string
-	argv1      []byte
-}
-
-// toJob validates the reply of the add* command and builds the resulting Job.
-func (p preparedJob) toJob(res any, q *Queue) (*Job, error) {
-	if code, ok := asInt64(res); ok && code < 0 {
-		return nil, scriptError(p.scriptName, code)
-	}
-	jobID, ok := asString(res)
-	if !ok {
-		return nil, configError("unexpected reply from %s", p.scriptName)
-	}
+// newAddedJob builds the Job returned to the caller of Add or AddBulk.
+func (q *Queue) newAddedJob(id string, nj NewJob) *Job {
 	return &Job{
-		ID:        jobID,
-		Name:      p.spec.Name,
-		Data:      p.payload,
-		Opts:      p.opts,
-		Timestamp: p.timestamp,
-		Delay:     p.opts.delayMs(),
-		Priority:  p.opts.priorityVal(),
+		ID:        id,
+		Name:      nj.Name,
+		Data:      nj.Data,
+		Opts:      nj.Opts,
+		Timestamp: nj.Opts.Timestamp,
+		Delay:     nj.Opts.delayMs(),
+		Priority:  nj.Opts.priorityVal(),
 		QueueName: q.Name(),
-		c:         q.c,
-	}, nil
+		backend:   q.backend,
+	}
 }
 
-// prepareJob validates and serializes a JobSpec, computing the script name,
-// keys and packed arguments needed to add the job without touching Redis.
-func (q *Queue) prepareJob(spec JobSpec) (preparedJob, error) {
+// prepareJob validates a JobSpec, merges the queue defaults and serializes the
+// payload. It never touches the datastore.
+func (q *Queue) prepareJob(spec JobSpec) (NewJob, error) {
 	opts := mergeJobOptions(spec.Opts, q.defaultJobOptions)
 	if opts.JobID != "" {
 		if opts.JobID == "0" || strings.HasPrefix(opts.JobID, "0:") {
-			return preparedJob{}, configError("job ID cannot be '0' or start with '0:'")
+			return NewJob{}, configError("job ID cannot be '0' or start with '0:'")
 		}
 		if n, err := strconv.ParseInt(opts.JobID, 10, 64); err == nil && strconv.FormatInt(n, 10) == opts.JobID {
-			return preparedJob{}, configError("custom job ID cannot be an integer")
+			return NewJob{}, configError("custom job ID cannot be an integer")
 		}
 		if strings.Contains(opts.JobID, ":") && len(strings.Split(opts.JobID, ":")) != 3 {
-			return preparedJob{}, configError("custom job ID cannot contain ':'")
+			return NewJob{}, configError("custom job ID cannot contain ':'")
 		}
 	}
 	if priority := opts.priorityVal(); priority < 0 || priority > priorityLimit {
-		return preparedJob{}, configError("priority should be between 0 and %d", priorityLimit)
+		return NewJob{}, configError("priority should be between 0 and %d", priorityLimit)
 	}
 	if opts.Backoff != nil {
 		if err := opts.Backoff.validate(); err != nil {
-			return preparedJob{}, err
+			return NewJob{}, err
+		}
+	}
+	if opts.Parent != nil {
+		enabled := 0
+		for _, v := range []bool{
+			opts.failParentOnFailureVal(), opts.ignoreDependencyOnFailureVal(),
+			opts.removeDependencyOnFailureVal(), opts.continueParentOnFailureVal(),
+		} {
+			if v {
+				enabled++
+			}
+		}
+		if enabled > 1 {
+			return NewJob{}, configError("parent failure options are mutually exclusive")
+		}
+	}
+	if opts.Deduplication != nil {
+		if opts.Deduplication.ID == "" {
+			return NewJob{}, configError("deduplication ID must be provided")
+		}
+		if opts.Parent != nil {
+			return NewJob{}, configError("deduplication and parent options cannot be used together")
 		}
 	}
 
 	payload, err := json.Marshal(spec.Data)
 	if err != nil {
-		return preparedJob{}, err
+		return NewJob{}, err
 	}
 	if opts.sizeLimitVal() > 0 && int64(len(payload)) > opts.sizeLimitVal() {
-		return preparedJob{}, configError("job data exceeds sizeLimit of %d bytes (was %d)",
+		return NewJob{}, configError("job data exceeds sizeLimit of %d bytes (was %d)",
 			opts.sizeLimitVal(), len(payload))
 	}
 
-	timestamp := opts.Timestamp
-	if timestamp == 0 {
-		timestamp = nowMillis()
-	}
 	// opts is a private copy, so record the effective timestamp in it; it is
 	// persisted in the stored opts and returned in Job.Opts.
-	opts.Timestamp = timestamp
-
-	var scriptName string
-	var keys []string
-	switch {
-	case opts.delayMs() > 0:
-		scriptName = "addDelayedJob"
-		keys = []string{
-			q.c.keys.Marker(), q.c.keys.Meta(), q.c.keys.ID(),
-			q.c.keys.Delayed(), q.c.keys.Completed(), q.c.keys.Events(),
-		}
-	case opts.priorityVal() > 0:
-		scriptName = "addPrioritizedJob"
-		keys = []string{
-			q.c.keys.Marker(), q.c.keys.Meta(), q.c.keys.ID(),
-			q.c.keys.Prioritized(), q.c.keys.Delayed(), q.c.keys.Completed(),
-			q.c.keys.Active(), q.c.keys.Events(), q.c.keys.PC(),
-		}
-	default:
-		scriptName = "addStandardJob"
-		keys = []string{
-			q.c.keys.Wait(), q.c.keys.Paused(), q.c.keys.Meta(), q.c.keys.ID(),
-			q.c.keys.Completed(), q.c.keys.Delayed(), q.c.keys.Active(),
-			q.c.keys.Events(), q.c.keys.Marker(),
-		}
+	if opts.Timestamp == 0 {
+		opts.Timestamp = nowMillis()
 	}
 
-	argv1, err := q.packAddArgs(opts, spec.Name, timestamp)
-	if err != nil {
-		return preparedJob{}, err
-	}
-
-	return preparedJob{
-		spec:       spec,
-		opts:       opts,
-		payload:    payload,
-		timestamp:  timestamp,
-		scriptName: scriptName,
-		keys:       keys,
-		argv1:      argv1,
-	}, nil
-}
-
-func (q *Queue) addJob(ctx context.Context, spec JobSpec) (*Job, error) {
-	p, err := q.prepareJob(spec)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := q.c.runScript(ctx, p.scriptName, p.keys,
-		p.argv1, string(p.payload), packJobOptions(p.opts))
-	if err != nil {
-		return nil, err
-	}
-	return p.toJob(res, q)
-}
-
-// packAddArgs builds ARGV[1] of the add* commands: a msgpack array of
-// [keyPrefix, customId, name, timestamp, parentKey, parentDepsKey, parent,
-// repeatJobKey, deduplicationKey].
-func (q *Queue) packAddArgs(opts *JobOptions, name string, timestamp int64) ([]byte, error) {
-	w := newMsgpackWriter(160)
-	w.ArrayLen(9)
-	w.Str(q.c.keys.KeyPrefix())
-	w.Str(opts.JobID)
-	w.Str(name)
-	w.Int(timestamp)
-
-	if opts.Parent != nil {
-		parentQueueKey, err := resolveParentQueueKey(q.c.keys.Prefix(), opts.Parent.Queue)
-		if err != nil {
-			return nil, err
-		}
-		parentKey := parentQueueKey + ":" + opts.Parent.ID
-		w.Str(parentKey)
-		w.Str(parentKey + ":dependencies")
-
-		flags := map[string]bool{
-			"fpof": opts.failParentOnFailureVal(),
-			"idof": opts.ignoreDependencyOnFailureVal(),
-			"rdof": opts.removeDependencyOnFailureVal(),
-			"cpof": opts.continueParentOnFailureVal(),
-		}
-		enabled := 0
-		for _, value := range flags {
-			if value {
-				enabled++
-			}
-		}
-		if enabled > 1 {
-			return nil, configError("parent failure options are mutually exclusive")
-		}
-		n := 2
-		for _, v := range flags {
-			if v {
-				n++
-			}
-		}
-		w.MapLen(n)
-		w.Str("id")
-		w.Str(opts.Parent.ID)
-		w.Str("queueKey")
-		w.Str(parentQueueKey)
-		// Iterated in a fixed order so the encoding is deterministic.
-		for _, k := range []string{"fpof", "idof", "rdof", "cpof"} {
-			if flags[k] {
-				w.Str(k)
-				w.Bool(true)
-			}
-		}
-	} else {
-		w.Nil()
-		w.Nil()
-		w.Nil()
-	}
-
-	// repeat job key: job schedulers are not supported by this port yet.
-	w.Nil()
-
-	if opts.Deduplication != nil {
-		if opts.Deduplication.ID == "" {
-			return nil, configError("deduplication ID must be provided")
-		}
-		if opts.Parent != nil {
-			return nil, configError("deduplication and parent options cannot be used together")
-		}
-		w.Str(q.c.keys.Base() + ":de:" + opts.Deduplication.ID)
-	} else {
-		w.Nil()
-	}
-	return w.Bytes(), nil
-}
-
-// packJobOptions builds ARGV[3] of the add* commands.
-func packJobOptions(opts *JobOptions) []byte {
-	type entry struct {
-		key   string
-		write func(*msgpackWriter)
-	}
-	var entries []entry
-
-	// This map is persisted verbatim (as JSON) in the job's "opts" field, so
-	// every option that was set is encoded, including explicit zero/false
-	// values, under the same keys JobOptions uses for JSON.
-	addInt := func(key string, v *int64) {
-		if v != nil {
-			val := *v
-			entries = append(entries, entry{key, func(w *msgpackWriter) { w.Int(val) }})
-		}
-	}
-	addBool := func(key string, v *bool) {
-		if v != nil {
-			val := *v
-			entries = append(entries, entry{key, func(w *msgpackWriter) { w.Bool(val) }})
-		}
-	}
-
-	if opts.JobID != "" {
-		id := opts.JobID
-		entries = append(entries, entry{"jobId", func(w *msgpackWriter) { w.Str(id) }})
-	}
-	if opts.Timestamp != 0 {
-		ts := opts.Timestamp
-		entries = append(entries, entry{"timestamp", func(w *msgpackWriter) { w.Int(ts) }})
-	}
-	addInt("delay", opts.Delay)
-	addInt("priority", opts.Priority)
-	addInt("attempts", opts.Attempts)
-	addBool("lifo", opts.LIFO)
-	addInt("kl", opts.KeepLogs)
-	addInt("sizeLimit", opts.SizeLimit)
-	if p := opts.Parent; p != nil {
-		entries = append(entries, entry{"parent", func(w *msgpackWriter) {
-			w.MapLen(2)
-			w.Str("id")
-			w.Str(p.ID)
-			w.Str("queue")
-			w.Str(p.Queue)
-		}})
-	}
-	if opts.RemoveOnComplete != nil {
-		roc := opts.RemoveOnComplete
-		entries = append(entries, entry{"removeOnComplete", func(w *msgpackWriter) { roc.writeMsgpack(w) }})
-	}
-	if opts.RemoveOnFail != nil {
-		rof := opts.RemoveOnFail
-		entries = append(entries, entry{"removeOnFail", func(w *msgpackWriter) { rof.writeMsgpack(w) }})
-	}
-	if opts.Backoff != nil {
-		b := opts.Backoff
-		entries = append(entries, entry{"backoff", func(w *msgpackWriter) { b.writeMsgpack(w) }})
-	}
-	addBool("fpof", opts.FailParentOnFailure)
-	addBool("cpof", opts.ContinueParentOnFailure)
-	addBool("idof", opts.IgnoreDependencyOnFailure)
-	addBool("rdof", opts.RemoveDependencyOnFailure)
-	if d := opts.Deduplication; d != nil {
-		entries = append(entries, entry{"de", func(w *msgpackWriter) {
-			n := 1
-			if d.TTL > 0 {
-				n++
-			}
-			if d.Extend {
-				n++
-			}
-			if d.Replace {
-				n++
-			}
-			w.MapLen(n)
-			w.Str("id")
-			w.Str(d.ID)
-			if d.TTL > 0 {
-				w.Str("ttl")
-				w.Uint(uint64(d.TTL))
-			}
-			if d.Extend {
-				w.Str("extend")
-				w.Bool(true)
-			}
-			if d.Replace {
-				w.Str("replace")
-				w.Bool(true)
-			}
-		}})
-	}
-
-	w := newMsgpackWriter(96)
-	w.MapLen(len(entries))
-	for _, e := range entries {
-		w.Str(e.key)
-		e.write(w)
-	}
-	return w.Bytes()
+	return NewJob{Name: spec.Name, Data: payload, Opts: opts}, nil
 }
 
 // Job fetches a job by id. It returns nil when the job does not exist.
 func (q *Queue) Job(ctx context.Context, jobID string) (*Job, error) {
-	fields, err := q.c.rdb.HGetAll(ctx, q.c.keys.Job(jobID)).Result()
-	if err != nil {
+	rec, err := q.backend.GetJob(ctx, jobID)
+	if err != nil || rec == nil {
 		return nil, err
 	}
-	if len(fields) == 0 {
-		return nil, nil
-	}
-	return jobFromHash(q.c, jobID, fields), nil
+	return newJob(q.backend, rec), nil
 }
 
 // JobState returns the state of a job.
 func (q *Queue) JobState(ctx context.Context, jobID string) (JobState, error) {
-	return jobState(ctx, q.c, jobID)
+	return q.backend.GetState(ctx, jobID)
 }
 
 // Pause stops workers from picking up new jobs. Jobs already active keep running.
 func (q *Queue) Pause(ctx context.Context) error {
-	return q.c.runScriptStatus(ctx, "pause", []string{
-		q.c.keys.Wait(), q.c.keys.Paused(), q.c.keys.Meta(), q.c.keys.Prioritized(),
-		q.c.keys.Events(), q.c.keys.Delayed(), q.c.keys.Marker(),
-	}, "paused", "1")
+	return q.backend.Pause(ctx, true)
 }
 
 // Resume lets workers pick up jobs again.
 func (q *Queue) Resume(ctx context.Context) error {
-	emitEvent := "1"
-	for {
-		res, err := q.c.runScript(ctx, "pause", []string{
-			q.c.keys.Paused(), q.c.keys.Wait(), q.c.keys.Meta(), q.c.keys.Prioritized(),
-			q.c.keys.Events(), q.c.keys.Delayed(), q.c.keys.Marker(),
-		}, "resumed", emitEvent)
-		if err != nil {
-			return err
-		}
-		remaining, _ := asInt64(res)
-		if remaining <= 0 {
-			return nil
-		}
-		emitEvent = "0"
-	}
+	return q.backend.Pause(ctx, false)
 }
 
 // IsPaused reports whether the queue is paused.
 func (q *Queue) IsPaused(ctx context.Context) (bool, error) {
-	val, err := q.c.rdb.HGet(ctx, q.c.keys.Meta(), "paused").Result()
-	if err == redis.Nil {
-		return false, nil
-	}
-	if err != nil {
+	val, ok, err := q.backend.GetQueueMetaField(ctx, "paused")
+	if err != nil || !ok {
 		return false, err
 	}
 	return val != "" && val != "0", nil
@@ -483,11 +236,7 @@ func (q *Queue) IsPaused(ctx context.Context) (bool, error) {
 // Drain removes all waiting and prioritized jobs. Active, completed and failed
 // jobs are left untouched. When delayed is true, delayed jobs are removed too.
 func (q *Queue) Drain(ctx context.Context, delayed bool) error {
-	_, err := q.c.runScript(ctx, "drain", []string{
-		q.c.keys.Wait(), q.c.keys.Paused(), q.c.keys.Delayed(),
-		q.c.keys.Prioritized(), q.c.keys.Repeat(),
-	}, q.c.keys.KeyPrefix(), boolToStr(delayed))
-	return err
+	return q.backend.Drain(ctx, delayed)
 }
 
 // Obliterate deletes the queue and every job in it.
@@ -501,30 +250,18 @@ func (q *Queue) Obliterate(ctx context.Context, force bool, count int64) error {
 	if err := q.Pause(ctx); err != nil {
 		return err
 	}
-	forceArg := ""
-	if force {
-		forceArg = "force"
-	}
 	for {
-		res, err := q.c.runScript(ctx, "obliterate",
-			[]string{q.c.keys.Meta(), q.c.keys.KeyPrefix()}, count, forceArg)
+		remaining, err := q.backend.Obliterate(ctx, force, count)
 		if err != nil {
 			return err
 		}
-		remaining, _ := asInt64(res)
-		switch {
-		case remaining == -1:
-			return configError("cannot obliterate a queue that is not paused")
-		case remaining == -2:
-			return configError("cannot obliterate a queue with active jobs")
-		case remaining <= 0:
+		if remaining <= 0 {
 			return nil
 		}
 	}
 }
 
-// cleanableStates are the states accepted by Clean, matching the key
-// suffixes cleanJobsInSet is allowed to operate on.
+// cleanableStates are the states accepted by Clean.
 var cleanableStates = map[JobState]bool{
 	JobState("wait"): true,
 	StateWaiting:     true,
@@ -536,9 +273,9 @@ var cleanableStates = map[JobState]bool{
 	"paused":         true,
 }
 
-// cleanMaxBatch bounds how many jobs a single cleanJobsInSet call may remove.
-// The script runs atomically, so an unbounded call on a large state would block
-// every Redis client; this matches the reference implementation.
+// cleanMaxBatch bounds how many jobs a single CleanJobsByState call may
+// remove. The operation runs atomically, so an unbounded call on a large state
+// could block every client; this matches the reference implementation.
 const cleanMaxBatch int64 = 10000
 
 // Clean removes finished (or waiting/delayed) jobs older than grace.
@@ -546,17 +283,12 @@ const cleanMaxBatch int64 = 10000
 // state must be one of wait, active, paused, prioritized, delayed, completed or
 // failed. A limit of 0 means unlimited. Removal runs in batches of at most
 // 10,000 jobs, repeating until limit jobs were removed or a batch comes back
-// short, so a large state never blocks Redis in a single call. It returns the
-// removed job ids.
+// short, so a large state never blocks the datastore in a single call. It
+// returns the removed job ids.
 func (q *Queue) Clean(ctx context.Context, grace time.Duration, limit int64, state JobState) ([]string, error) {
 	if !cleanableStates[state] {
 		return nil, configError("clean state must be one of wait, active, paused, prioritized, delayed, completed or failed, got %q", state)
 	}
-	name := string(state)
-	if state == StateWaiting {
-		name = "wait"
-	}
-	keys := []string{q.c.keys.Get(name), q.c.keys.Events(), q.c.keys.Repeat()}
 	timestamp := nowMillis() - grace.Milliseconds()
 
 	ids := make([]string, 0)
@@ -565,18 +297,12 @@ func (q *Queue) Clean(ctx context.Context, grace time.Duration, limit int64, sta
 		if limit > 0 {
 			batch = min(batch, limit-int64(len(ids)))
 		}
-		res, err := q.c.runScript(ctx, "cleanJobsInSet", keys,
-			q.c.keys.KeyPrefix(), timestamp, batch, name)
+		removed, err := q.backend.CleanJobsByState(ctx, state, timestamp, batch)
 		if err != nil {
 			return ids, err
 		}
-		arr, _ := res.([]any)
-		for _, v := range arr {
-			if s, ok := asString(v); ok {
-				ids = append(ids, s)
-			}
-		}
-		if int64(len(arr)) < batch {
+		ids = append(ids, removed...)
+		if int64(len(removed)) < batch {
 			break
 		}
 	}
@@ -589,38 +315,37 @@ func (q *Queue) RetryJobs(ctx context.Context, state JobState, count int64) (int
 	if state != StateCompleted && state != StateFailed {
 		return 0, configError("retry state must be %q or %q", StateCompleted, StateFailed)
 	}
-	return q.moveJobsToWait(ctx, string(state), count, nowMillis())
+	if count <= 0 {
+		count = 1000
+	}
+	timestamp := nowMillis()
+	return drainCursor(func() (int64, error) {
+		return q.backend.RetryFinishedJobs(ctx, state, count, timestamp)
+	})
 }
 
 // PromoteJobs moves delayed jobs to the wait list right away, looping until
 // every eligible job has been moved.
 func (q *Queue) PromoteJobs(ctx context.Context, count int64) (int64, error) {
-	// The delayed set is scored by dueTimestamp*4096 (plus a counter), not by a
-	// millisecond timestamp, so the cutoff must be the largest int64 to cover
-	// every delayed job regardless of how far in the future it is due.
-	return q.moveJobsToWait(ctx, "delayed", count, math.MaxInt64)
-}
-
-// moveJobsToWait repeatedly invokes the moveJobsToWait script until it
-// reports no batch remains. The script returns a cursor (1 when another
-// batch of up to count jobs remains, 0 once complete), not a remaining-count,
-// so a single call would leave jobs behind whenever more than count jobs are
-// eligible; see the reference Queue.retryJobs, which loops the same way.
-func (q *Queue) moveJobsToWait(ctx context.Context, state string, count, timestamp int64) (int64, error) {
 	if count <= 0 {
 		count = 1000
 	}
-	var cursor int64
+	return drainCursor(func() (int64, error) {
+		return q.backend.PromoteJobs(ctx, count)
+	})
+}
+
+// drainCursor repeatedly invokes a batched backend operation until its cursor
+// reports that no batch remains. The cursor is 1 when another batch of up to
+// count jobs remains and 0 once complete, not a remaining-count, so a single
+// call would leave jobs behind whenever more than count jobs are eligible; see
+// the reference Queue.retryJobs, which loops the same way.
+func drainCursor(step func() (int64, error)) (int64, error) {
 	for {
-		res, err := q.c.runScript(ctx, "moveJobsToWait", []string{
-			q.c.keys.KeyPrefix(), q.c.keys.Events(), q.c.keys.Get(state),
-			q.c.keys.Wait(), q.c.keys.Paused(), q.c.keys.Meta(),
-			q.c.keys.Active(), q.c.keys.Marker(),
-		}, count, timestamp, state)
+		cursor, err := step()
 		if err != nil {
 			return 0, err
 		}
-		cursor, _ = asInt64(res)
 		if cursor <= 0 {
 			return cursor, nil
 		}
@@ -646,20 +371,14 @@ func (q *Queue) JobCounts(ctx context.Context, states ...JobState) (JobCounts, e
 	if len(states) == 0 {
 		states = AllStates
 	}
-	args := make([]any, 0, len(states))
-	for _, s := range states {
-		args = append(args, luaStateName(s))
-	}
-	res, err := q.c.runScript(ctx, "getCounts", []string{q.c.keys.KeyPrefix()}, args...)
+	values, err := q.backend.GetCounts(ctx, states)
 	if err != nil {
 		return nil, err
 	}
-	arr, _ := res.([]any)
 	counts := make(JobCounts, len(states))
 	for i, s := range states {
-		if i < len(arr) {
-			n, _ := asInt64(arr[i])
-			counts[s] = n
+		if i < len(values) {
+			counts[s] = values[i]
 		}
 	}
 	return counts, nil
@@ -668,94 +387,41 @@ func (q *Queue) JobCounts(ctx context.Context, states ...JobState) (JobCounts, e
 // JobIDs returns job ids for the requested states, ordered by their position in
 // the underlying list or sorted set.
 func (q *Queue) JobIDs(ctx context.Context, state JobState, start, end int64, asc bool) ([]string, error) {
-	res, err := q.c.runScript(ctx, "getRanges", []string{q.c.keys.KeyPrefix()},
-		start, end, boolToStr(asc), luaStateName(state))
-	if err != nil {
-		return nil, err
-	}
-	groups, _ := res.([]any)
-	var ids []string
-	for _, group := range groups {
-		entries, ok := group.([]any)
-		if !ok {
-			continue
-		}
-		for _, entry := range entries {
-			if s, ok := asString(entry); ok {
-				ids = append(ids, s)
-			}
-		}
-	}
-	return ids, nil
+	return q.backend.GetRanges(ctx, state, start, end, asc)
 }
 
 // Jobs returns the jobs in the requested state.
-//
-// It uses the shared `getJobs` command, which reads ids and job hashes in the
-// same script, instead of `JobIDs` plus one `Job` lookup per id: besides
-// saving N round trips for a range of N jobs, it avoids the race where a
-// job's hash is removed after its id is read but before it would otherwise
-// have been fetched individually.
 func (q *Queue) Jobs(ctx context.Context, state JobState, start, end int64, asc bool) ([]*Job, error) {
-	res, err := q.c.runScript(ctx, "getJobs", []string{q.c.keys.KeyPrefix()},
-		start, end, boolToStr(asc), getJobsMaxBackfillIterations, luaStateName(state))
+	records, err := q.backend.GetJobs(ctx, state, start, end, asc)
 	if err != nil {
 		return nil, err
 	}
-	groups, _ := res.([]any)
-	jobs := make([]*Job, 0)
-	for _, group := range groups {
-		entries, ok := group.([]any)
-		if !ok {
-			continue
-		}
-		for _, entry := range entries {
-			pair, ok := entry.([]any)
-			if !ok || len(pair) != 2 {
-				continue
-			}
-			jobID, ok := asString(pair[0])
-			if !ok {
-				continue
-			}
-			fields := flatToMap(pair[1])
-			if len(fields) == 0 {
-				continue
-			}
-			jobs = append(jobs, jobFromHash(q.c, jobID, fields))
-		}
+	jobs := make([]*Job, 0, len(records))
+	for _, rec := range records {
+		jobs = append(jobs, newJob(q.backend, rec))
 	}
 	return jobs, nil
 }
 
 // IsMaxed reports whether the queue reached its global concurrency limit.
 func (q *Queue) IsMaxed(ctx context.Context) (bool, error) {
-	res, err := q.c.runScript(ctx, "isMaxed",
-		[]string{q.c.keys.Meta(), q.c.keys.Active()})
-	if err != nil {
-		return false, err
-	}
-	n, _ := asInt64(res)
-	return n == 1, nil
+	return q.backend.IsMaxed(ctx)
 }
 
 // SetGlobalConcurrency limits how many jobs may be active across all workers.
 // A value of 0 removes the limit.
 func (q *Queue) SetGlobalConcurrency(ctx context.Context, max int64) error {
 	if max <= 0 {
-		return q.c.rdb.HDel(ctx, q.c.keys.Meta(), "concurrency").Err()
+		return q.backend.RemoveQueueMetaFields(ctx, "concurrency")
 	}
-	return q.c.rdb.HSet(ctx, q.c.keys.Meta(), "concurrency", max).Err()
+	return q.backend.SetQueueMeta(ctx, map[string]any{"concurrency": max})
 }
 
 // GlobalConcurrency returns the configured global concurrency limit, or 0 when
 // no limit is set.
 func (q *Queue) GlobalConcurrency(ctx context.Context) (int64, error) {
-	val, err := q.c.rdb.HGet(ctx, q.c.keys.Meta(), "concurrency").Result()
-	if err == redis.Nil {
-		return 0, nil
-	}
-	if err != nil {
+	val, ok, err := q.backend.GetQueueMetaField(ctx, "concurrency")
+	if err != nil || !ok {
 		return 0, err
 	}
 	return parseInt(val), nil
@@ -770,20 +436,15 @@ func (q *Queue) SetGlobalRateLimit(ctx context.Context, max int64, duration time
 	if duration < time.Millisecond {
 		return configError("global rate limit duration must be at least 1ms")
 	}
-	return q.c.rdb.HSet(ctx, q.c.keys.Meta(),
-		"max", max,
-		"duration", duration.Milliseconds()).Err()
+	return q.backend.SetQueueMeta(ctx, map[string]any{
+		"max":      max,
+		"duration": duration.Milliseconds(),
+	})
 }
 
 // RateLimitTTL returns the remaining rate limit window in milliseconds.
 func (q *Queue) RateLimitTTL(ctx context.Context, maxJobs int64) (int64, error) {
-	res, err := q.c.runScript(ctx, "getRateLimitTtl",
-		[]string{q.c.keys.Limiter(), q.c.keys.Meta()}, strconv.FormatInt(maxJobs, 10))
-	if err != nil {
-		return 0, err
-	}
-	ttl, _ := asInt64(res)
-	return ttl, nil
+	return q.backend.GetRateLimitTTL(ctx, maxJobs)
 }
 
 // Metrics returns the collected metrics for the completed or failed state.
@@ -791,72 +452,27 @@ func (q *Queue) Metrics(ctx context.Context, state JobState, start, end int64) (
 	if state != StateCompleted && state != StateFailed {
 		return nil, configError("metrics state must be %q or %q", StateCompleted, StateFailed)
 	}
-	key := q.c.keys.Metrics(string(state))
-	res, err := q.c.runScript(ctx, "getMetrics", []string{key, key + ":data"}, start, end)
-	if err != nil {
-		return nil, err
-	}
-	arr, _ := res.([]any)
-	m := &Metrics{}
-	if len(arr) > 0 {
-		// HMGET replies positionally (count, prevTS, prevCount), not as
-		// field/value pairs, so it must be decoded by index rather than
-		// passed through flatToMap.
-		meta, _ := arr[0].([]any)
-		if len(meta) > 0 {
-			if s, ok := asString(meta[0]); ok {
-				m.Count = parseInt(s)
-			}
-		}
-		if len(meta) > 1 {
-			if s, ok := asString(meta[1]); ok {
-				m.PrevTS = parseInt(s)
-			}
-		}
-		if len(meta) > 2 {
-			if s, ok := asString(meta[2]); ok {
-				m.PrevCount = parseInt(s)
-			}
-		}
-	}
-	if len(arr) > 1 {
-		points, _ := arr[1].([]any)
-		m.Data = make([]int64, 0, len(points))
-		for _, p := range points {
-			n, _ := asInt64(p)
-			m.Data = append(m.Data, n)
-		}
-	}
-	if len(arr) > 2 {
-		m.NumPoints, _ = asInt64(arr[2])
-	}
-	return m, nil
+	return q.backend.GetMetrics(ctx, state, start, end)
 }
 
 // Workers returns the client names of the workers currently connected to this queue.
 func (q *Queue) Workers(ctx context.Context) ([]string, error) {
-	raw, err := q.c.rdb.ClientList(ctx).Result()
+	lists, err := q.backend.GetClientList(ctx)
 	if err != nil {
 		return nil, err
 	}
-	unnamed := q.c.keys.ClientName("")
-	namedPrefix := q.c.keys.ClientName(":w:")
+	unnamed := q.backend.ClientName("")
+	namedPrefix := q.backend.ClientName(":w:")
 	var names []string
-	for _, line := range strings.Split(raw, "\n") {
-		for _, field := range strings.Fields(line) {
-			name, ok := strings.CutPrefix(field, "name=")
-			if ok && (name == unnamed || strings.HasPrefix(name, namedPrefix)) {
-				names = append(names, name)
+	for _, raw := range lists {
+		for _, line := range strings.Split(raw, "\n") {
+			for _, field := range strings.Fields(line) {
+				name, ok := strings.CutPrefix(field, "name=")
+				if ok && (name == unnamed || strings.HasPrefix(name, namedPrefix)) {
+					names = append(names, name)
+				}
 			}
 		}
 	}
 	return names, nil
-}
-
-// luaStateName maps a JobState to the key suffix used by the Lua commands.
-func luaStateName(state JobState) string {
-	if state == StateWaiting {
-		return "wait"
-	}
-	return string(state)
 }

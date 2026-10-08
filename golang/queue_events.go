@@ -4,13 +4,11 @@ import (
 	"context"
 	"sync"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 )
 
-// QueueEvent is a single entry of the queue's Redis event stream.
+// QueueEvent is a single entry of the queue's event stream.
 type QueueEvent struct {
-	// ID is the Redis stream entry id.
+	// ID is the backend specific event id (a Redis stream entry id).
 	ID string
 	// Event is the event name, for example `added`, `active`, `completed`,
 	// `failed`, `progress`, `delayed`, `waiting`, `stalled`, `removed`,
@@ -31,20 +29,16 @@ func (e QueueEvent) FailedReason() string { return e.Data["failedReason"] }
 // QueueEvents streams the global events emitted by a queue, allowing a process
 // that does not run the worker to observe job progress.
 type QueueEvents struct {
-	c *client
-	// blocking is a dedicated single-connection client used for XREAD so that
-	// the long poll can never hold the only connection of a shared/pooled
-	// client (qe.c.rdb), starving other Redis commands. See
-	// RedisOptions.buildBlocking.
-	blocking      redis.UniversalClient
-	blockingOwned bool
-	opts          QueueEventsOptions
-	events        chan QueueEvent
-	errs          chan error
-	stop          chan struct{}
-	done          chan struct{}
-	runOnce       sync.Once
-	stopped       sync.Once
+	// backend owns a connection dedicated to the long poll of ReadEvents so it
+	// can never starve other operations.
+	backend Backend
+	opts    QueueEventsOptions
+	events  chan QueueEvent
+	errs    chan error
+	stop    chan struct{}
+	done    chan struct{}
+	runOnce sync.Once
+	stopped sync.Once
 }
 
 // NewQueueEvents creates an event listener for the given queue.
@@ -62,20 +56,22 @@ func NewQueueEvents(queueName string, opts *QueueEventsOptions) (*QueueEvents, e
 	if o.BufferSize <= 0 {
 		o.BufferSize = 128
 	}
-	c, err := newClient(queueName, o.Prefix, o.Redis)
+	backend, err := resolveBackend(o.Backend, o.Redis, queueName, BackendOptions{
+		Prefix:                 o.Prefix,
+		WithBlockingConnection: true,
+		ClientNameSuffix:       ":qe",
+		BlockTimeout:           o.BlockingTimeout,
+	})
 	if err != nil {
 		return nil, err
 	}
-	blocking, blockingOwned := o.Redis.buildBlocking(c.keys.ClientName(":qe"), o.BlockingTimeout+10*time.Second)
 	return &QueueEvents{
-		c:             c,
-		blocking:      blocking,
-		blockingOwned: blockingOwned,
-		opts:          o,
-		events:        make(chan QueueEvent, o.BufferSize),
-		errs:          make(chan error, 8),
-		stop:          make(chan struct{}),
-		done:          make(chan struct{}),
+		backend: backend,
+		opts:    o,
+		events:  make(chan QueueEvent, o.BufferSize),
+		errs:    make(chan error, 8),
+		stop:    make(chan struct{}),
+		done:    make(chan struct{}),
 	}, nil
 }
 
@@ -119,31 +115,21 @@ func (qe *QueueEvents) run(ctx context.Context) error {
 		}
 	}()
 
-	key := qe.c.keys.Events()
 	lastID := qe.opts.LastEventID
 	if lastID == "$" {
-		messages, err := qe.blocking.XRevRangeN(ctx, key, "+", "-", 1).Result()
+		id, err := qe.backend.LastEventID(ctx)
 		if err != nil {
 			return err
 		}
-		lastID = "0-0"
-		if len(messages) > 0 {
-			lastID = messages[0].ID
-		}
+		lastID = id
 	}
 
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		streams, err := qe.blocking.XRead(ctx, &redis.XReadArgs{
-			Streams: []string{key, lastID},
-			Block:   qe.opts.BlockingTimeout,
-		}).Result()
+		events, err := qe.backend.ReadEvents(ctx, lastID, qe.opts.BlockingTimeout)
 		if err != nil {
-			if err == redis.Nil {
-				continue
-			}
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -157,21 +143,12 @@ func (qe *QueueEvents) run(ctx context.Context) error {
 			continue
 		}
 
-		for _, stream := range streams {
-			for _, msg := range stream.Messages {
-				lastID = msg.ID
-				ev := QueueEvent{ID: msg.ID, Data: make(map[string]string, len(msg.Values))}
-				for k, v := range msg.Values {
-					s, _ := asString(v)
-					ev.Data[k] = s
-				}
-				ev.Event = ev.Data["event"]
-				ev.JobID = ev.Data["jobId"]
-				select {
-				case qe.events <- ev:
-				case <-ctx.Done():
-					return ctx.Err()
-				}
+		for _, ev := range events {
+			lastID = ev.ID
+			select {
+			case qe.events <- ev:
+			case <-ctx.Done():
+				return ctx.Err()
 			}
 		}
 	}
@@ -199,12 +176,5 @@ func (qe *QueueEvents) Close() error {
 		case <-time.After(qe.opts.BlockingTimeout + time.Second):
 		}
 	}
-	var firstErr error
-	if qe.blockingOwned {
-		firstErr = qe.blocking.Close()
-	}
-	if err := qe.c.close(); firstErr == nil {
-		firstErr = err
-	}
-	return firstErr
+	return qe.backend.Close()
 }

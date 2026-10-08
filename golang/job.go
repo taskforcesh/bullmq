@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 )
 
-// ParentKeys identifies the parent of a job as persisted in Redis.
+// ParentKeys identifies the parent of a job as persisted by the backend.
 type ParentKeys struct {
 	// ID is the parent job id.
 	ID string `json:"id"`
@@ -18,7 +17,7 @@ type ParentKeys struct {
 
 // Job is a unit of work stored in a queue.
 //
-// Values returned by Queue and Worker methods carry a live Redis context, so
+// Values returned by Queue and Worker methods carry a live [Backend], so
 // mutating methods such as UpdateProgress or Log can be called on them.
 type Job struct {
 	// ID is the job id.
@@ -51,7 +50,7 @@ type Job struct {
 	Stacktrace []string
 	// ReturnValue is the JSON encoded value returned by the processor.
 	ReturnValue json.RawMessage
-	// ParentKey is the Redis key of the parent job, if any.
+	// ParentKey is the key of the parent job, if any.
 	ParentKey string
 	// Parent identifies the parent job, if any.
 	Parent *ParentKeys
@@ -68,78 +67,40 @@ type Job struct {
 	// QueueName is the name of the owning queue.
 	QueueName string
 
-	c            *client
+	backend      Backend
 	worker       *Worker
 	token        string
 	lockDuration time.Duration
 	discarded    bool
 }
 
-// jobFromHash rebuilds a Job from its Redis hash representation.
-func jobFromHash(c *client, id string, fields map[string]string) *Job {
-	j := &Job{
-		ID:        id,
-		Name:      fields["name"],
-		Opts:      &JobOptions{},
-		c:         c,
-		QueueName: c.keys.Name(),
+// newJob builds a Job bound to backend from the record it returned.
+func newJob(b Backend, rec *JobRecord) *Job {
+	return &Job{
+		ID:              rec.ID,
+		Name:            rec.Name,
+		Data:            rec.Data,
+		Opts:            rec.Opts,
+		Progress:        rec.Progress,
+		AttemptsMade:    rec.AttemptsMade,
+		AttemptsStarted: rec.AttemptsStarted,
+		Timestamp:       rec.Timestamp,
+		ProcessedOn:     rec.ProcessedOn,
+		FinishedOn:      rec.FinishedOn,
+		FailedReason:    rec.FailedReason,
+		DeferredFailure: rec.DeferredFailure,
+		Stacktrace:      rec.Stacktrace,
+		ReturnValue:     rec.ReturnValue,
+		ParentKey:       rec.ParentKey,
+		Parent:          rec.Parent,
+		ProcessedBy:     rec.ProcessedBy,
+		StalledCounter:  rec.StalledCounter,
+		Delay:           rec.Delay,
+		Priority:        rec.Priority,
+		RepeatJobKey:    rec.RepeatJobKey,
+		QueueName:       b.QueueName(),
+		backend:         b,
 	}
-	if raw, ok := fields["data"]; ok && raw != "" {
-		j.Data = json.RawMessage(raw)
-	} else {
-		j.Data = json.RawMessage("null")
-	}
-	if raw, ok := fields["opts"]; ok && raw != "" {
-		_ = json.Unmarshal([]byte(raw), j.Opts)
-	}
-	if raw, ok := fields["progress"]; ok && raw != "" {
-		_ = j.Progress.UnmarshalJSON([]byte(raw))
-	}
-	if raw, ok := fields["returnvalue"]; ok && raw != "" {
-		j.ReturnValue = json.RawMessage(raw)
-	}
-	if raw, ok := fields["stacktrace"]; ok && raw != "" {
-		_ = json.Unmarshal([]byte(raw), &j.Stacktrace)
-	}
-	if raw, ok := fields["parent"]; ok && raw != "" {
-		var p ParentKeys
-		if json.Unmarshal([]byte(raw), &p) == nil {
-			j.Parent = &p
-		}
-	}
-	j.ParentKey = fields["parentKey"]
-	j.ProcessedBy = fields["pb"]
-	j.RepeatJobKey = fields["rjk"]
-	j.FailedReason = fields["failedReason"]
-	j.DeferredFailure = fields["defa"]
-	j.Timestamp = parseInt(fields["timestamp"])
-	j.AttemptsMade = parseInt(fields["atm"])
-	j.AttemptsStarted = parseInt(fields["ats"])
-	j.ProcessedOn = parseInt(fields["processedOn"])
-	j.FinishedOn = parseInt(fields["finishedOn"])
-	j.StalledCounter = parseInt(fields["stc"])
-	j.Priority = parseInt(fields["priority"])
-	if raw, ok := fields["delay"]; ok && raw != "" {
-		j.Delay = parseInt(raw)
-	} else {
-		j.Delay = j.Opts.delayMs()
-	}
-	return j
-}
-
-func parseInt(s string) int64 {
-	if s == "" {
-		return 0
-	}
-	n, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		f, ferr := strconv.ParseFloat(s, 64)
-		if ferr != nil {
-			return 0
-		}
-		return int64(f)
-	}
-	return n
 }
 
 // Token returns the lock token held by the worker currently processing the job.
@@ -167,25 +128,22 @@ func (j *Job) DecodeReturnValue(out any) error {
 	return json.Unmarshal(j.ReturnValue, out)
 }
 
-func (j *Job) ctx() (*client, error) {
-	if j.c == nil {
+func (j *Job) ctx() (Backend, error) {
+	if j.backend == nil {
 		return nil, ErrNoContext
 	}
-	return j.c, nil
+	return j.backend, nil
 }
 
 // UpdateProgress stores a new progress value and emits a `progress` event on
 // the owning Worker, mirroring how a per-job update is observed through
 // Worker.Events.
 func (j *Job) UpdateProgress(ctx context.Context, progress Progress) error {
-	c, err := j.ctx()
+	b, err := j.ctx()
 	if err != nil {
 		return err
 	}
-	if err := c.runScriptStatus(ctx, "updateProgress",
-		[]string{c.keys.Job(j.ID), c.keys.Events(), c.keys.Meta()},
-		j.ID, progress.Raw(),
-	); err != nil {
+	if err := b.UpdateProgress(ctx, j.ID, progress); err != nil {
 		return err
 	}
 	j.Progress = progress
@@ -197,7 +155,7 @@ func (j *Job) UpdateProgress(ctx context.Context, progress Progress) error {
 
 // UpdateData replaces the job payload.
 func (j *Job) UpdateData(ctx context.Context, data any) error {
-	c, err := j.ctx()
+	b, err := j.ctx()
 	if err != nil {
 		return err
 	}
@@ -205,8 +163,7 @@ func (j *Job) UpdateData(ctx context.Context, data any) error {
 	if err != nil {
 		return err
 	}
-	if err := c.runScriptStatus(ctx, "updateData",
-		[]string{c.keys.Job(j.ID)}, string(raw)); err != nil {
+	if err := b.UpdateData(ctx, j.ID, raw); err != nil {
 		return err
 	}
 	j.Data = raw
@@ -215,89 +172,46 @@ func (j *Job) UpdateData(ctx context.Context, data any) error {
 
 // Log appends a row to the job log and returns the total number of rows kept.
 func (j *Job) Log(ctx context.Context, message string) (int64, error) {
-	c, err := j.ctx()
+	b, err := j.ctx()
 	if err != nil {
 		return 0, err
 	}
-	keepLogs := ""
-	if j.Opts != nil && j.Opts.keepLogsVal() > 0 {
-		keepLogs = strconv.FormatInt(j.Opts.keepLogsVal(), 10)
+	var keepLogs int64
+	if j.Opts != nil {
+		keepLogs = j.Opts.keepLogsVal()
 	}
-	res, err := c.runScript(ctx, "addLog",
-		[]string{c.keys.Job(j.ID), c.keys.JobLogs(j.ID)},
-		j.ID, message, keepLogs)
-	if err != nil {
-		return 0, err
-	}
-	code, _ := asInt64(res)
-	if code < 0 {
-		return 0, scriptError("addLog", code)
-	}
-	return code, nil
+	return b.AddLog(ctx, j.ID, message, keepLogs)
 }
 
 // Logs returns the log rows of the job together with the total count.
 func (j *Job) Logs(ctx context.Context, start, end int64) ([]string, int64, error) {
-	c, err := j.ctx()
+	b, err := j.ctx()
 	if err != nil {
 		return nil, 0, err
 	}
-	key := c.keys.JobLogs(j.ID)
-	rows, err := c.rdb.LRange(ctx, key, start, end).Result()
-	if err != nil {
-		return nil, 0, err
-	}
-	count, err := c.rdb.LLen(ctx, key).Result()
-	if err != nil {
-		return nil, 0, err
-	}
-	return rows, count, nil
+	return b.GetJobLogs(ctx, j.ID, start, end)
 }
 
 // State returns the current state of the job.
 func (j *Job) State(ctx context.Context) (JobState, error) {
-	c, err := j.ctx()
+	b, err := j.ctx()
 	if err != nil {
 		return StateUnknown, err
 	}
-	return jobState(ctx, c, j.ID)
-}
-
-func jobState(ctx context.Context, c *client, jobID string) (JobState, error) {
-	res, err := c.runScript(ctx, "getState", []string{
-		c.keys.Completed(), c.keys.Failed(), c.keys.Delayed(), c.keys.Active(),
-		c.keys.Wait(), c.keys.Paused(), c.keys.WaitingChildren(), c.keys.Prioritized(),
-	}, jobID)
-	if err != nil {
-		return StateUnknown, err
-	}
-	s, ok := asString(res)
-	if !ok {
-		return StateUnknown, nil
-	}
-	return JobState(s), nil
+	return b.GetState(ctx, j.ID)
 }
 
 // Remove deletes the job and all of its data. Active jobs cannot be removed.
 func (j *Job) Remove(ctx context.Context, removeChildren bool) error {
-	c, err := j.ctx()
+	b, err := j.ctx()
 	if err != nil {
 		return err
 	}
-	res, err := c.runScript(ctx, "removeJob",
-		[]string{c.keys.Job(j.ID), c.keys.Repeat()},
-		j.ID, boolToStr(removeChildren), c.keys.KeyPrefix())
+	removed, err := b.Remove(ctx, j.ID, removeChildren)
 	if err != nil {
 		return err
 	}
-	code, ok := asInt64(res)
-	if !ok {
-		return nil
-	}
-	if code < 0 {
-		return scriptError("removeJob", code)
-	}
-	if code == 0 {
+	if !removed {
 		return fmt.Errorf("bullmq: job %s could not be removed because it is locked by another worker: %w", j.ID, ErrJobLocked)
 	}
 	return nil
@@ -305,29 +219,23 @@ func (j *Job) Remove(ctx context.Context, removeChildren bool) error {
 
 // Promote moves a delayed job to the wait list immediately.
 func (j *Job) Promote(ctx context.Context) error {
-	c, err := j.ctx()
+	b, err := j.ctx()
 	if err != nil {
 		return err
 	}
-	return c.runScriptStatus(ctx, "promote", []string{
-		c.keys.Delayed(), c.keys.Wait(), c.keys.Paused(), c.keys.Meta(),
-		c.keys.Prioritized(), c.keys.Active(), c.keys.PC(), c.keys.Events(), c.keys.Marker(),
-	}, c.keys.KeyPrefix(), j.ID)
+	return b.Promote(ctx, j.ID)
 }
 
 // ChangeDelay updates the delay of a job that is in the delayed set.
 func (j *Job) ChangeDelay(ctx context.Context, delay time.Duration) error {
-	c, err := j.ctx()
+	b, err := j.ctx()
 	if err != nil {
 		return err
 	}
-	ms := delay.Milliseconds()
-	if err := c.runScriptStatus(ctx, "changeDelay", []string{
-		c.keys.Delayed(), c.keys.Meta(), c.keys.Marker(), c.keys.Events(),
-	}, ms, nowMillis(), j.ID, c.keys.Job(j.ID)); err != nil {
+	if err := b.ChangeDelay(ctx, j.ID, delay); err != nil {
 		return err
 	}
-	j.Delay = ms
+	j.Delay = delay.Milliseconds()
 	return nil
 }
 
@@ -336,14 +244,11 @@ func (j *Job) ChangePriority(ctx context.Context, priority int64, lifo bool) err
 	if priority < 0 || priority > priorityLimit {
 		return configError("priority should be between 0 and %d", priorityLimit)
 	}
-	c, err := j.ctx()
+	b, err := j.ctx()
 	if err != nil {
 		return err
 	}
-	if err := c.runScriptStatus(ctx, "changePriority", []string{
-		c.keys.Wait(), c.keys.Paused(), c.keys.Meta(), c.keys.Prioritized(),
-		c.keys.Active(), c.keys.PC(), c.keys.Marker(),
-	}, priority, c.keys.KeyPrefix(), j.ID, boolToStr(lifo)); err != nil {
+	if err := b.ChangePriority(ctx, j.ID, priority, lifo); err != nil {
 		return err
 	}
 	j.Priority = priority
@@ -354,32 +259,14 @@ func (j *Job) ChangePriority(ctx context.Context, priority int64, lifo bool) err
 //
 // state must be either StateCompleted or StateFailed.
 func (j *Job) Retry(ctx context.Context, state JobState) error {
-	c, err := j.ctx()
+	b, err := j.ctx()
 	if err != nil {
 		return err
 	}
 	if state != StateCompleted && state != StateFailed {
 		return configError("retry state must be %q or %q", StateCompleted, StateFailed)
 	}
-	pushCmd := "LPUSH"
-	if j.Opts.isLIFO() {
-		pushCmd = "RPUSH"
-	}
-	propVal := "returnvalue"
-	if state == StateFailed {
-		propVal = "failedReason"
-	}
-	res, err := c.runScript(ctx, "reprocessJob", []string{
-		c.keys.Job(j.ID), c.keys.Events(), c.keys.Get(string(state)),
-		c.keys.Wait(), c.keys.Meta(), c.keys.Active(), c.keys.Marker(),
-	}, j.ID, pushCmd, propVal, string(state), "0", "0")
-	if err != nil {
-		return err
-	}
-	if code, _ := asInt64(res); code != 1 {
-		return scriptError("reprocessJob", code)
-	}
-	return nil
+	return b.RetryFinishedJob(ctx, j.ID, state, j.Opts.isLIFO())
 }
 
 // IsCompleted reports whether the job finished successfully.
@@ -396,23 +283,14 @@ func (j *Job) IsFailed(ctx context.Context) (bool, error) {
 
 // ExtendLock refreshes the lock held on an active job.
 func (j *Job) ExtendLock(ctx context.Context, duration time.Duration) error {
-	c, err := j.ctx()
+	b, err := j.ctx()
 	if err != nil {
 		return err
 	}
 	if j.token == "" {
 		return ErrJobLockNotExist
 	}
-	res, err := c.runScript(ctx, "extendLock",
-		[]string{c.keys.JobLock(j.ID), c.keys.Stalled()},
-		j.token, duration.Milliseconds(), j.ID)
-	if err != nil {
-		return err
-	}
-	if code, ok := asInt64(res); !ok || code != 1 {
-		return ErrJobLockNotExist
-	}
-	return nil
+	return b.ExtendLock(ctx, j.ID, j.token, duration)
 }
 
 // MoveToDelayed reschedules an active job. Processors should return [ErrDelayed]
@@ -426,33 +304,21 @@ func (j *Job) MoveToDelayed(ctx context.Context, delay time.Duration) error {
 // moveToDelayed reschedules an active job. When skipAttempt is false the
 // attemptsMade counter is incremented, which is what the worker needs when it
 // retries a failed job with a backoff.
-func (j *Job) moveToDelayed(ctx context.Context, delay time.Duration, skipAttempt bool, fieldsToUpdate []byte) error {
-	c, err := j.ctx()
+func (j *Job) moveToDelayed(ctx context.Context, delay time.Duration, skipAttempt bool, failure *FailureInfo) error {
+	b, err := j.ctx()
 	if err != nil {
 		return err
 	}
 	if j.token == "" {
 		return ErrJobLockNotExist
 	}
-	token := j.token
-	ms := delay.Milliseconds()
-	if ms < 0 {
-		ms = 0
-	}
-	if err := c.runScriptStatus(ctx, "moveToDelayed", []string{
-		c.keys.Marker(), c.keys.Active(), c.keys.Prioritized(), c.keys.Delayed(),
-		c.keys.Job(j.ID), c.keys.Events(), c.keys.Meta(), c.keys.Stalled(),
-		c.keys.Wait(), c.keys.Limiter(), c.keys.PC(),
-	},
-		c.keys.KeyPrefix(), nowMillis(), j.ID, token, ms,
-		boolToStr(skipAttempt),
-		fieldsArg(fieldsToUpdate),
-		"0", // do not fetch the next job
-		"",  // unused when not fetching
-	); err != nil {
+	if err := b.MoveToDelayed(ctx, j.ID, j.token, delay, MoveToDelayedOptions{
+		SkipAttempt: skipAttempt,
+		Failure:     failure,
+	}); err != nil {
 		return err
 	}
-	j.Delay = ms
+	j.Delay = max(delay.Milliseconds(), 0)
 	return nil
 }
 
@@ -461,41 +327,13 @@ func (j *Job) moveToDelayed(ctx context.Context, delay time.Duration, skipAttemp
 // dependencies. Processors should return [ErrWaitingChildren] when true.
 //
 // child identifies the job whose completion is being awaited. Its QueueKey
-// must be the fully qualified `{prefix}:{queueName}` key of the queue the
-// child belongs to, which may differ from the parent's own queue. Pass nil
-// if there is no specific child to check for.
+// must be the fully qualified queue name (see [Backend.QualifiedName]) of the
+// queue the child belongs to, which may differ from the parent's own queue.
+// Pass nil if there is no specific child to check for.
 func (j *Job) MoveToWaitingChildren(ctx context.Context, child *ParentKeys) (bool, error) {
-	c, err := j.ctx()
+	b, err := j.ctx()
 	if err != nil {
 		return false, err
 	}
-	token := j.token
-	if token == "" {
-		token = "0"
-	}
-	childKey := ""
-	if child != nil && child.ID != "" {
-		childKey = child.QueueKey + ":" + child.ID
-	}
-	res, err := c.runScript(ctx, "moveToWaitingChildren", []string{
-		c.keys.Active(), c.keys.WaitingChildren(), c.keys.Job(j.ID),
-		c.keys.Dependencies(j.ID), c.keys.Job(j.ID) + ":unsuccessful",
-		c.keys.Stalled(), c.keys.Events(),
-	}, token, childKey, nowMillis(), j.ID, c.keys.KeyPrefix())
-	if err != nil {
-		return false, err
-	}
-	code, _ := asInt64(res)
-	switch {
-	case code < 0:
-		return false, scriptError("moveToWaitingChildren", code)
-	case code == 1:
-		return false, nil
-	default:
-		return true, nil
-	}
-}
-
-func nowMillis() int64 {
-	return time.Now().UnixMilli()
+	return b.MoveToWaitingChildren(ctx, j.ID, j.token, child)
 }

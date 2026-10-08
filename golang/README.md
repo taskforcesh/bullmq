@@ -7,7 +7,12 @@ Jobs produced by this package are fully interoperable with the Node.js, Python,
 Rust and .NET implementations: every state transition is executed by the exact
 same Lua scripts, which live in `src/commands` at the root of this repository.
 
-> Redis is the only supported backend for now. See
+> Redis is the only bundled backend. `Queue`, `Worker`, `QueueEvents` and `Job`
+> depend only on the `Backend` interface (the counterpart of the Node.js
+> `IQueueBackend`), and `RedisBackend` is one implementation of it. Another
+> datastore, such as PostgreSQL, can be added by implementing `Backend` and
+> passing a `BackendFactory` through the `Backend` option of `QueueOptions`,
+> `WorkerOptions` and `QueueEventsOptions`. See
 > [FEATURE_PARITY.md](./FEATURE_PARITY.md) for what is and is not implemented.
 
 ## Requirements

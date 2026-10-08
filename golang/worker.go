@@ -5,17 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"math/rand/v2"
-	"net"
 	"runtime/debug"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 )
 
 // Processor handles a single job. The returned value is JSON encoded and stored
@@ -57,9 +53,9 @@ type Event struct {
 
 // Worker fetches jobs from a queue and hands them to a Processor.
 type Worker struct {
-	c    *client
-	opts WorkerOptions
-	proc Processor
+	backend Backend
+	opts    WorkerOptions
+	proc    Processor
 
 	id     string
 	tokens atomic.Uint64
@@ -77,16 +73,6 @@ type Worker struct {
 
 	mu     sync.Mutex
 	active map[string]*activeJob
-
-	// blocking is a dedicated single-connection client used for BZPOPMIN so
-	// that a blocked read never starves the shared pool, and so CLIENT
-	// SETNAME (set via RedisOptions.buildBlocking's ClientName option)
-	// reliably applies to the connection BZPOPMIN actually runs on. It is
-	// derived from a caller-supplied *redis.Client when possible; otherwise
-	// (blockingOwned == false) it is the caller's client and blocking reads
-	// must use the timeout-aware typed command.
-	blocking      redis.UniversalClient
-	blockingOwned bool
 }
 
 type activeJob struct {
@@ -94,17 +80,17 @@ type activeJob struct {
 	cancel context.CancelFunc
 }
 
-// blockingClientName returns the CLIENT SETNAME value for a worker's blocking
-// connection: the bare queue client name when no explicit WorkerOptions.Name
-// is configured (matching Queue.Workers' "unnamed" check and the other BullMQ
-// ports), or "<clientName>:w:<name>" when one is set. It intentionally does
-// not fall back to the worker's internally generated id, since that would
-// make every worker appear "named" and diverge from the other ports.
-func blockingClientName(c *client, name string) string {
+// clientNameSuffix returns the suffix of a worker's blocking connection name:
+// empty when no explicit WorkerOptions.Name is configured (matching
+// Queue.Workers' "unnamed" check and the other BullMQ ports), or ":w:<name>"
+// when one is set. It intentionally does not fall back to the worker's
+// internally generated id, since that would make every worker appear "named"
+// and diverge from the other ports.
+func clientNameSuffix(name string) string {
 	if name == "" {
-		return c.keys.ClientName("")
+		return ""
 	}
-	return c.keys.ClientName(":w:" + name)
+	return ":w:" + name
 }
 
 // NewWorker creates a worker for the given queue. Call Run to start processing.
@@ -120,24 +106,24 @@ func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, 
 		return nil, err
 	}
 
-	c, err := newClient(queueName, o.Prefix, o.Redis)
+	backend, err := resolveBackend(o.Backend, o.Redis, queueName, BackendOptions{
+		Prefix:                 o.Prefix,
+		WithBlockingConnection: true,
+		ClientNameSuffix:       clientNameSuffix(o.Name),
+		BlockTimeout:           o.DrainDelay,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	id := randomID()
-	blocking, blockingOwned := o.Redis.buildBlocking(blockingClientName(c, o.Name), o.DrainDelay+10*time.Second)
-
 	w := &Worker{
-		c:             c,
-		opts:          o,
-		proc:          proc,
-		id:            id,
-		events:        make(chan Event, 256),
-		stop:          make(chan struct{}),
-		active:        make(map[string]*activeJob),
-		blocking:      blocking,
-		blockingOwned: blockingOwned,
+		backend: backend,
+		opts:    o,
+		proc:    proc,
+		id:      randomID(),
+		events:  make(chan Event, 256),
+		stop:    make(chan struct{}),
+		active:  make(map[string]*activeJob),
 	}
 	return w, nil
 }
@@ -190,15 +176,12 @@ func (w *Worker) Run(ctx context.Context) error {
 }
 
 func (w *Worker) run(ctx context.Context) error {
-	if !w.blockingOwned {
-		// A caller-supplied client is (potentially) shared/pooled; naming it
-		// here is best-effort only; see RedisOptions.buildBlocking. Our own
-		// dedicated blocking client is already named via its OnConnect hook,
-		// on the exact connection BZPOPMIN will use.
-		name := blockingClientName(w.c, w.opts.Name)
-		if e := w.blocking.Do(ctx, "client", "setname", name).Err(); e != nil {
-			w.emitError(fmt.Errorf("bullmq: unable to set client name: %w", e))
-		}
+	// Backends that cannot name their dedicated blocking connection at creation
+	// time (for example when it shares a caller-supplied client) do it here,
+	// best-effort.
+	name := w.backend.ClientName(clientNameSuffix(w.opts.Name))
+	if e := w.backend.SetName(ctx, name); e != nil {
+		w.emitError(fmt.Errorf("bullmq: unable to set client name: %w", e))
 	}
 
 	// loopCtx drives the fetch loop and the background stalled-check loop: it
@@ -319,35 +302,17 @@ func (w *Worker) fetchLoop(loopCtx, jobCtx context.Context) error {
 	}
 }
 
-// waitForJob blocks on the marker key until a job shows up, a delayed job comes
-// due, or the drain delay elapses.
+// waitForJob blocks until a job shows up, a delayed job comes due, or the
+// drain delay elapses.
 func (w *Worker) waitForJob(ctx context.Context, waitFor time.Duration) bool {
 	timeout := w.opts.DrainDelay
 	if waitFor > 0 && waitFor < timeout {
 		timeout = waitFor
 	}
-	if timeout < time.Millisecond {
-		timeout = time.Millisecond
-	}
-	var err error
-	if w.blockingOwned {
-		// BZPOPMIN is issued through Do so that sub-second timeouts are
-		// preserved; the typed helper in go-redis rounds them up to a full
-		// second. The dedicated client's read timeout (DrainDelay + 10s)
-		// outlasts the block while still guarding against a dead socket.
-		err = w.blocking.Do(ctx, "bzpopmin", w.c.keys.Marker(), timeout.Seconds()).Err()
-	} else {
-		// A caller-supplied client we could not clone has its own read
-		// timeout, which raw commands would be subject to. The typed command
-		// carries the blocking timeout so go-redis extends the read deadline,
-		// but only supports whole seconds; shorter waits just sleep.
-		whole := timeout.Truncate(time.Second)
-		if whole < time.Second {
-			return sleepCtx(ctx, timeout)
+	if err := w.backend.WaitForJob(ctx, timeout); err != nil {
+		if ctx.Err() != nil {
+			return false
 		}
-		err = w.blocking.BZPopMin(ctx, whole, w.c.keys.Marker()).Err()
-	}
-	if err != nil && err != redis.Nil && ctx.Err() == nil {
 		w.emitError(err)
 		return sleepCtx(ctx, time.Second)
 	}
@@ -359,48 +324,23 @@ func (w *Worker) waitForJob(ctx context.Context, waitFor time.Duration) bool {
 // wait before the next attempt (rate limit or next delayed job).
 func (w *Worker) moveToActive(ctx context.Context) (*Job, time.Duration, error) {
 	token := w.nextToken()
-	res, err := w.c.runScript(ctx, "moveToActive", w.moveToActiveKeys(),
-		w.c.keys.KeyPrefix(), nowMillis(), w.packMoveToActiveOpts(token))
+	res, err := w.backend.MoveToActive(ctx, MoveToActiveOptions{
+		Token:        token,
+		LockDuration: w.opts.LockDuration,
+		WorkerName:   w.opts.Name,
+		Limiter:      w.opts.Limiter,
+	})
 	if err != nil {
 		return nil, 0, err
 	}
-	return w.parseFetchResult(res, token)
-}
-
-func (w *Worker) moveToActiveKeys() []string {
-	k := w.c.keys
-	return []string{
-		k.Wait(), k.Active(), k.Prioritized(), k.Events(), k.Stalled(),
-		k.Limiter(), k.Delayed(), k.Paused(), k.Meta(), k.PC(), k.Marker(),
-	}
-}
-
-// parseFetchResult decodes the `{jobData, jobId, limitUntil, delayUntil}` reply
-// shared by moveToActive and the fetch-next branch of moveToFinished.
-func (w *Worker) parseFetchResult(res any, token string) (*Job, time.Duration, error) {
-	arr, ok := res.([]any)
-	if !ok || len(arr) < 2 {
-		return nil, 0, nil
-	}
-	fields := flatToMap(arr[0])
-	jobID, _ := asString(arr[1])
-	if len(fields) == 0 || jobID == "" {
+	if res == nil || res.Job == nil {
 		var wait time.Duration
-		if len(arr) > 2 {
-			if ms, _ := asInt64(arr[2]); ms > 0 {
-				wait = time.Duration(ms) * time.Millisecond
-			}
-		}
-		if len(arr) > 3 && wait == 0 {
-			if ts, _ := asInt64(arr[3]); ts > 0 {
-				if d := time.Until(time.UnixMilli(ts)); d > 0 {
-					wait = d
-				}
-			}
+		if res != nil {
+			wait = res.Wait
 		}
 		return nil, wait, nil
 	}
-	job := jobFromHash(w.c, jobID, fields)
+	job := newJob(w.backend, res.Job)
 	job.token = token
 	job.lockDuration = w.opts.LockDuration
 	job.worker = w
@@ -409,31 +349,6 @@ func (w *Worker) parseFetchResult(res any, token string) (*Job, time.Duration, e
 
 func (w *Worker) nextToken() string {
 	return w.id + ":" + strconv.FormatUint(w.tokens.Add(1), 10)
-}
-
-func (w *Worker) packMoveToActiveOpts(token string) []byte {
-	n := 2
-	if w.opts.Name != "" {
-		n++
-	}
-	if w.opts.Limiter != nil {
-		n++
-	}
-	mp := newMsgpackWriter(96)
-	mp.MapLen(n)
-	mp.Str("token")
-	mp.Str(token)
-	mp.Str("lockDuration")
-	mp.Uint(uint64(w.opts.LockDuration.Milliseconds()))
-	if w.opts.Name != "" {
-		mp.Str("name")
-		mp.Str(w.opts.Name)
-	}
-	if l := w.opts.Limiter; l != nil {
-		mp.Str("limiter")
-		l.writeMsgpack(mp)
-	}
-	return mp.Bytes()
 }
 
 // processJob runs the processor and moves the job to its finished state.
@@ -534,7 +449,7 @@ var (
 	transitionRetryDelay = 5 * time.Second
 )
 
-// retryTransition runs a job-state transition, retrying transient Redis errors
+// retryTransition runs a job-state transition, retrying transient backend errors
 // (connection loss, timeouts, server loading/failover) like the Node worker's
 // retryIfFailed, so the lock keeps being renewed meanwhile. Other errors are
 // returned immediately. Each attempt runs detached from ctx's cancellation so
@@ -550,7 +465,7 @@ func (w *Worker) retryTransition(ctx context.Context, fn func(context.Context) e
 		attemptCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), transitionTimeout)
 		err := fn(attemptCtx)
 		cancel()
-		if err == nil || !isTransientRedisError(err) {
+		if err == nil || !w.backend.IsTransientError(err) {
 			return err
 		}
 
@@ -564,25 +479,6 @@ func (w *Worker) retryTransition(ctx context.Context, fn func(context.Context) e
 	}
 }
 
-// isTransientRedisError reports whether err is a connectivity or server
-// availability problem that is worth retrying, as opposed to a script or
-// logic error.
-func isTransientRedisError(err error) bool {
-	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-		return true
-	}
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return true
-	}
-	for _, prefix := range []string{"LOADING", "READONLY", "MASTERDOWN", "CLUSTERDOWN", "TRYAGAIN"} {
-		if redis.HasErrorPrefix(err, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
 // safeProcess invokes the processor, converting panics into job failures.
 func (w *Worker) safeProcess(ctx context.Context, job *Job) (result any, err error) {
 	defer func() {
@@ -594,18 +490,21 @@ func (w *Worker) safeProcess(ctx context.Context, job *Job) (result any, err err
 }
 
 func (w *Worker) moveToCompleted(ctx context.Context, job *Job, raw []byte) error {
-	_, err := w.moveToFinished(ctx, job, "completed", "returnvalue", string(raw), nil)
-	if err == nil {
-		job.ReturnValue = raw
+	finishedOn, err := w.backend.MoveToCompleted(ctx, job.ID, raw, w.finishOptions(job, StateCompleted))
+	if err != nil {
+		return err
 	}
-	return err
+	job.ReturnValue = raw
+	job.FinishedOn = finishedOn
+	job.AttemptsMade++
+	return nil
 }
 
 func (w *Worker) moveToFailed(ctx context.Context, job *Job, cause error) error {
 	reason := cause.Error()
-	fieldsToUpdate, stacktrace := packFailureFields(job, reason)
+	failure := newFailureInfo(job, reason)
 	job.FailedReason = reason
-	job.Stacktrace = stacktrace
+	job.Stacktrace = failure.Stacktrace
 
 	attempts := int64(0)
 	if job.Opts != nil {
@@ -623,35 +522,32 @@ func (w *Worker) moveToFailed(ctx context.Context, job *Job, cause error) error 
 			// loop, so report the problem and fail the job instead.
 			w.emitError(berr)
 		case delay >= 0:
-			return w.retryJob(ctx, job, delay, fieldsToUpdate)
+			return w.retryJob(ctx, job, delay, &failure)
 		}
 	}
 
-	_, err := w.moveToFinished(ctx, job, "failed", "failedReason", reason, fieldsToUpdate)
-	return err
+	finishedOn, err := w.backend.MoveToFailed(ctx, job.ID, failure, w.finishOptions(job, StateFailed))
+	if err != nil {
+		return err
+	}
+	job.FinishedOn = finishedOn
+	job.AttemptsMade++
+	return nil
 }
 
 // retryJob puts a failed job back into the wait list, either immediately or
 // after the backoff delay.
-func (w *Worker) retryJob(ctx context.Context, job *Job, delay time.Duration, fieldsToUpdate []byte) error {
+func (w *Worker) retryJob(ctx context.Context, job *Job, delay time.Duration, failure *FailureInfo) error {
 	var err error
 	if delay > 0 {
-		err = job.moveToDelayed(ctx, delay, false, fieldsToUpdate)
+		err = job.moveToDelayed(ctx, delay, false, failure)
 	} else {
-		pushCmd := "LPUSH"
-		if job.Opts.isLIFO() {
-			pushCmd = "RPUSH"
-		}
-		k := w.c.keys
-		err = w.c.runScriptStatus(ctx, "retryJob", []string{
-			k.Active(), k.Wait(), k.Paused(), k.Job(job.ID), k.Meta(), k.Events(),
-			k.Delayed(), k.Prioritized(), k.PC(), k.Marker(), k.Stalled(),
-		}, k.KeyPrefix(), nowMillis(), pushCmd, job.ID, job.token, fieldsArg(fieldsToUpdate))
+		err = w.backend.RetryJob(ctx, job.ID, job.token, job.Opts.isLIFO(), failure)
 	}
 	if err != nil {
 		return err
 	}
-	// Both scripts increment "atm" in Redis; mirror it locally only once the
+	// Both operations increment the attempts counter in the backend; mirror it locally only once the
 	// transition has succeeded so failed attempts that are retried don't
 	// drift the counter.
 	job.AttemptsMade++
@@ -701,124 +597,40 @@ func (w *Worker) backoffDelay(job *Job, cause error) (time.Duration, error) {
 	}
 }
 
-func packFailureFields(job *Job, reason string) ([]byte, []string) {
+// newFailureInfo builds the failure recorded for the current attempt: the
+// previous traces plus this reason, trimmed to the last 10 entries.
+func newFailureInfo(job *Job, reason string) FailureInfo {
 	trace := append(append([]string(nil), job.Stacktrace...), reason)
 	if len(trace) > 10 {
 		trace = trace[len(trace)-10:]
 	}
-	raw, _ := json.Marshal(trace)
-	fields := newMsgpackWriter(len(reason) + len(raw) + 32)
-	fields.ArrayLen(4)
-	fields.Str("failedReason")
-	fields.Str(reason)
-	fields.Str("stacktrace")
-	fields.Str(string(raw))
-	return fields.Bytes(), trace
+	return FailureInfo{Reason: reason, Stacktrace: trace}
 }
 
-func fieldsArg(fields []byte) any {
-	if len(fields) == 0 {
-		return ""
-	}
-	return fields
-}
-
-// moveToFinished moves an active job into the completed or failed set.
-func (w *Worker) moveToFinished(ctx context.Context, job *Job, target, field, value string, fieldsToUpdate []byte) (any, error) {
-	k := w.c.keys
-	keys := []string{
-		k.Wait(), k.Active(), k.Prioritized(), k.Events(), k.Stalled(),
-		k.Limiter(), k.Delayed(), k.Paused(), k.Meta(), k.PC(),
-		k.Get(target), k.Job(job.ID), k.Metrics(target), k.Marker(),
-	}
-
-	res, err := w.c.runScript(ctx, "moveToFinished", keys,
-		job.ID, nowMillis(), field, value, target,
-		"0", // never fetch the next job here; the fetch loop owns that
-		k.KeyPrefix(),
-		w.packMoveToFinishedOpts(job, target),
-		fieldsArg(fieldsToUpdate),
-	)
-	if err != nil {
-		return nil, err
-	}
-	if code, ok := asInt64(res); ok && code < 0 {
-		return nil, scriptError("moveToFinished", code)
-	}
-	job.FinishedOn = nowMillis()
-	job.AttemptsMade++
-	return res, nil
-}
-
-func (w *Worker) packMoveToFinishedOpts(job *Job, target string) []byte {
+// finishOptions resolves the settings needed to move job to a finished state:
+// the removal policy of the job overrides the worker default.
+func (w *Worker) finishOptions(job *Job, target JobState) FinishOptions {
 	keep := w.opts.RemoveOnComplete
-	if target == "failed" {
+	if target == StateFailed {
 		keep = w.opts.RemoveOnFail
 	}
 	if job.Opts != nil {
-		if target == "completed" && job.Opts.RemoveOnComplete != nil {
+		if target == StateCompleted && job.Opts.RemoveOnComplete != nil {
 			keep = job.Opts.RemoveOnComplete
 		}
-		if target == "failed" && job.Opts.RemoveOnFail != nil {
+		if target == StateFailed && job.Opts.RemoveOnFail != nil {
 			keep = job.Opts.RemoveOnFail
 		}
 	}
-
-	maxMetricsSize := ""
-	if w.opts.Metrics != nil && w.opts.Metrics.MaxDataPoints > 0 {
-		maxMetricsSize = strconv.FormatInt(w.opts.Metrics.MaxDataPoints, 10)
+	return FinishOptions{
+		Token:        job.token,
+		JobOpts:      job.Opts,
+		KeepJobs:     keep,
+		LockDuration: w.opts.LockDuration,
+		WorkerName:   w.opts.Name,
+		Limiter:      w.opts.Limiter,
+		Metrics:      w.opts.Metrics,
 	}
-
-	attempts := int64(0)
-	var opts *JobOptions
-	if job.Opts != nil {
-		opts = job.Opts
-		attempts = job.Opts.attemptsVal()
-	} else {
-		opts = &JobOptions{}
-	}
-
-	n := 9
-	if w.opts.Name != "" {
-		n++
-	}
-	if w.opts.Limiter != nil {
-		n++
-	}
-
-	mp := newMsgpackWriter(192)
-	mp.MapLen(n)
-	mp.Str("token")
-	mp.Str(job.token)
-	mp.Str("keepJobs")
-	if keep != nil {
-		keep.writeMsgpack(mp)
-	} else {
-		mp.MapLen(0)
-	}
-	mp.Str("lockDuration")
-	mp.Uint(uint64(w.opts.LockDuration.Milliseconds()))
-	mp.Str("attempts")
-	mp.Uint(uint64(attempts))
-	mp.Str("maxMetricsSize")
-	mp.Str(maxMetricsSize)
-	mp.Str("fpof")
-	mp.Bool(opts.failParentOnFailureVal())
-	mp.Str("cpof")
-	mp.Bool(opts.continueParentOnFailureVal())
-	mp.Str("idof")
-	mp.Bool(opts.ignoreDependencyOnFailureVal())
-	mp.Str("rdof")
-	mp.Bool(opts.removeDependencyOnFailureVal())
-	if w.opts.Name != "" {
-		mp.Str("name")
-		mp.Str(w.opts.Name)
-	}
-	if l := w.opts.Limiter; l != nil {
-		mp.Str("limiter")
-		l.writeMsgpack(mp)
-	}
-	return mp.Bytes()
 }
 
 // lockRenewalLoop periodically extends the locks of all active jobs.
@@ -889,33 +701,15 @@ func snapshotContains(snapshot []*activeJob, a *activeJob) bool {
 	return false
 }
 
-// extendLocks renews the locks of the given jobs with one script call and
+// extendLocks renews the locks of the given jobs with one backend call and
 // returns the ids whose lock could not be renewed (missing or owned by
 // another token).
 func (w *Worker) extendLocks(ctx context.Context, jobs []*activeJob) ([]string, error) {
-	tokens := newMsgpackWriter(16 * len(jobs))
-	tokens.ArrayLen(len(jobs))
-	ids := newMsgpackWriter(8 * len(jobs))
-	ids.ArrayLen(len(jobs))
+	locks := make([]JobLock, 0, len(jobs))
 	for _, a := range jobs {
-		tokens.Str(a.job.token)
-		ids.Str(a.job.ID)
+		locks = append(locks, JobLock{JobID: a.job.ID, Token: a.job.token})
 	}
-
-	k := w.c.keys
-	res, err := w.c.runScript(ctx, "extendLocks", []string{k.Stalled()},
-		k.KeyPrefix(), tokens.Bytes(), ids.Bytes(), w.opts.LockDuration.Milliseconds())
-	if err != nil {
-		return nil, err
-	}
-	arr, _ := res.([]any)
-	failed := make([]string, 0, len(arr))
-	for _, v := range arr {
-		if id, ok := asString(v); ok {
-			failed = append(failed, id)
-		}
-	}
-	return failed, nil
+	return w.backend.ExtendLocks(ctx, locks, w.opts.LockDuration)
 }
 
 // stalledCheckLoop moves jobs whose lock expired back to the wait list. It
@@ -933,27 +727,15 @@ func (w *Worker) stalledCheckLoop(ctx context.Context) {
 }
 
 func (w *Worker) checkStalledJobs(ctx context.Context) error {
-	k := w.c.keys
-	res, err := w.c.runScript(ctx, "moveStalledJobsToWait", []string{
-		k.Stalled(), k.Wait(), k.Active(), k.StalledCheck(), k.Meta(),
-		k.Paused(), k.Marker(), k.Events(), k.Repeat(),
-	},
-		w.opts.maxStalledCountVal(),
-		k.KeyPrefix(),
-		nowMillis(),
-		w.opts.StalledInterval.Milliseconds(),
-	)
+	ids, err := w.backend.MoveStalledJobsToWait(ctx, StalledOptions{
+		MaxStalledCount: w.opts.maxStalledCountVal(),
+		Interval:        w.opts.StalledInterval,
+	})
 	if err != nil {
 		return err
 	}
-	arr, ok := res.([]any)
-	if !ok || len(arr) == 0 {
-		return nil
-	}
-	for _, v := range arr {
-		if id, ok := asString(v); ok {
-			w.emit(Event{Type: EventStalled, Job: &Job{ID: id, c: w.c, QueueName: w.c.keys.Name()}})
-		}
+	for _, id := range ids {
+		w.emit(Event{Type: EventStalled, Job: &Job{ID: id, backend: w.backend, QueueName: w.backend.QueueName()}})
 	}
 	return nil
 }
@@ -973,12 +755,7 @@ func (w *Worker) Close() error {
 		// observes it as already closed and never touches the resources
 		// below. Either way, it is safe to close them once this returns.
 		w.runOnce.Do(func() {})
-		if w.blockingOwned {
-			w.closeErr = w.blocking.Close()
-		}
-		if err := w.c.close(); w.closeErr == nil {
-			w.closeErr = err
-		}
+		w.closeErr = w.backend.Close()
 		close(w.events)
 	})
 	return w.closeErr
@@ -1003,16 +780,4 @@ func (w *Worker) emitError(err error) {
 		go onError(err)
 	}
 	w.emit(Event{Type: EventError, Err: err})
-}
-
-// sleepCtx waits for d, returning false when ctx is cancelled first.
-func sleepCtx(ctx context.Context, d time.Duration) bool {
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return false
-	case <-t.C:
-		return true
-	}
 }

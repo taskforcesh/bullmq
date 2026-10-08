@@ -1,6 +1,6 @@
-// Package bullmq is a Go implementation of BullMQ, the Redis backed job queue.
+// Package bullmq is the official Go implementation of BullMQ, the Redis backed job queue.
 //
-// Jobs are fully interoperable with the Node.js, Python, Rust and .NET ports:
+// Jobs are fully interoperable with the Node.js, Python, PHP, Elixir, Rust and .NET ports:
 // every state transition is performed by the same shared Lua scripts, so a
 // queue may be produced by one language and consumed by another.
 //
@@ -24,6 +24,8 @@
 //
 //	yarn generate:raw:scripts && yarn copy:lua:golang
 //
-// Only the Redis backend is supported. See FEATURE_PARITY.md for the current
-// status relative to the reference implementation.
+// Queue, Worker, QueueEvents and Job only depend on the Backend interface.
+// The bundled implementation is RedisBackend; other datastores can be plugged
+// in through a BackendFactory. See FEATURE_PARITY.md for the current status
+// relative to the reference implementation.
 package bullmq
