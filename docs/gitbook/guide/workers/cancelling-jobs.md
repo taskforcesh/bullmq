@@ -388,6 +388,14 @@ const worker = new Worker('myQueue', async (job, token, signal) => {
 The cancellation feature is fully backward compatible. You only need to add signal handling when you want cancellation support.
 {% endhint %}
 
+## Cancelling jobs from another process
+
+`worker.cancelJob()` only reaches the jobs run by that `Worker` instance. To
+cancel a job from another process (typically the API server where a user
+clicked "cancel"), whichever worker runs it, use the
+[Relay](../relay/README.md): see
+[Cancelling jobs on other workers](../relay/examples/cancelling-jobs-on-other-workers.md).
+
 ## Best Practices
 
 1. **Use event-based cancellation** for immediate response
