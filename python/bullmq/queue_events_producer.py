@@ -9,12 +9,11 @@ uniformly with the framework-emitted events.
 
 from __future__ import annotations
 
-from typing import Optional, Union
-
-import redis.asyncio as redis
+from typing import Optional
 
 from bullmq.queue_keys import QueueKeys
 from bullmq.redis_connection import RedisConnection
+from bullmq.types.connection_options import ConnectionOptions
 from bullmq.types.queue_events_options import QueueEventsProducerOptions
 from bullmq.utils import isRedisVersionLowerThan
 
@@ -36,7 +35,7 @@ class QueueEventsProducer:
         self.opts = opts
         self.prefix = opts.get("prefix", "bull")
 
-        connection_opts: Union[dict, str, redis.Redis] = opts.get(
+        connection_opts: ConnectionOptions = opts.get(
             "connection", {}
         )
         self.redisConnection = RedisConnection(

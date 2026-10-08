@@ -1,4 +1,5 @@
 from bullmq.types.backoff_options import BackoffOptions
+from bullmq.types.connection_options import ConnectionOptions
 from bullmq.types.keep_jobs import KeepJobs
 from bullmq.types.job_options import JobOptions
 from bullmq.types.deduplication_options import DeduplicationOptions

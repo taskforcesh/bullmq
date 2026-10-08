@@ -1,11 +1,13 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from typing import get_args, get_type_hints
+from unittest.mock import AsyncMock, patch
 
 from redis.asyncio.cluster import RedisCluster
 
 from bullmq import Queue, Worker
 from bullmq.redis_connection import RedisConnection
+from bullmq.types import QueueBaseOptions, QueueEventsOptions, WorkerOptions
 
 
 class TestRedisConnectionCluster(unittest.IsolatedAsyncioTestCase):
@@ -65,3 +67,49 @@ class TestRedisConnectionCluster(unittest.IsolatedAsyncioTestCase):
         self.assertIs(queue.backend.connection.conn, cluster)
         self.assertIs(worker.backend.connection.conn, cluster)
         self.assertIs(worker.backend.blocking_connection.conn, cluster)
+
+    async def test_set_client_name_connects_a_lazy_cluster_client_first(self):
+        cluster = RedisCluster(host="localhost", port=7000)
+        connection = RedisConnection(cluster)
+        node = SimpleNamespace(connection_kwargs={}, execute_command=AsyncMock())
+        discovered = []
+
+        async def initialize():
+            discovered.append(node)
+            return cluster
+
+        with patch.object(cluster, "initialize", side_effect=initialize), patch.object(
+            cluster, "get_nodes", side_effect=lambda: list(discovered)
+        ):
+            await connection.set_client_name("bull:test-queue:w:worker")
+
+        node.execute_command.assert_awaited_once_with(
+            "CLIENT", "SETNAME", "bull:test-queue:w:worker"
+        )
+        # New connections on the node carry the name too.
+        self.assertEqual(node.connection_kwargs.get("client_name"), "bull:test-queue:w:worker")
+
+    async def test_client_list_connects_a_lazy_cluster_client_first(self):
+        cluster = RedisCluster(host="localhost", port=7000)
+        queue = Queue("test-queue", {"prefix": "{bull}", "connection": cluster})
+        listing = "id=1 name={bull}:test-queue:w:worker"
+        node = SimpleNamespace(client_list=AsyncMock(return_value=listing))
+        discovered = []
+
+        async def initialize():
+            discovered.append(node)
+            return cluster
+
+        with patch.object(cluster, "initialize", side_effect=initialize), patch.object(
+            cluster, "get_nodes", side_effect=lambda: list(discovered)
+        ):
+            self.assertEqual(await queue.backend.getClientList(), [listing])
+
+    def test_connection_option_types_accept_a_cluster_client(self):
+        for options in (QueueBaseOptions, WorkerOptions, QueueEventsOptions):
+            with self.subTest(options=options.__name__):
+                self.assertIn(RedisCluster, get_args(get_type_hints(options)["connection"]))
+
+
+if __name__ == "__main__":
+    unittest.main()
