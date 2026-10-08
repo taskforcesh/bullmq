@@ -15,13 +15,12 @@ That way, a single pattern can observe a whole branch of the hierarchy.
 
 ## Rules
 
-| Rule       | Value                                                      |
-| ---------- | ---------------------------------------------------------- |
-| Separator  | `.`                                                        |
-| Segment    | One or more of `A-Z a-z 0-9 _ - : %`                       |
-| Max length | 512 bytes                                                  |
-| Max depth  | 16 segments                                                |
-| Reserved   | Topics whose first segment starts with `$` (for the relay) |
+| Rule       | Value                                |
+| ---------- | ------------------------------------ |
+| Separator  | `.`                                  |
+| Segment    | One or more of `A-Z a-z 0-9 _ - : %` |
+| Max length | 512 bytes                            |
+| Max depth  | 16 segments                          |
 
 Empty segments (`a..b`, `.a`, `a.`) are invalid. Publishing to an invalid
 topic, or subscribing to an invalid pattern, rejects with a `RelayError`

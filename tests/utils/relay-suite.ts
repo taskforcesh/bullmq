@@ -61,9 +61,6 @@ function referenceParse(value: string, wildcards: boolean): string[] | null {
       }
       continue;
     }
-    if (i === 0 && /^\$[A-Za-z]+$/.test(s)) {
-      continue;
-    }
     if (!SEGMENT_RE.test(s)) {
       return null;
     }
@@ -96,8 +93,6 @@ const VALID_PATTERNS = [
   'a.*.c',
   'a.b.>',
   '*.>',
-  '$conn.x1',
-  '$conn.*',
   'q-1.jobs.%2E.progress',
   'x:y.z_1',
 ];
@@ -109,8 +104,6 @@ const TOPICS = [
   'a.b.c',
   'a.b.c.d',
   'x.b',
-  '$conn.x1',
-  '$conn.y',
   'q-1.jobs.%2E.progress',
   'x:y.z_1',
 ];
@@ -126,6 +119,7 @@ const INVALID_TOPICS = [
   'a.>',
   'ä',
   'a.$conn',
+  '$conn.x1',
   '$1.a',
   '$.a',
   'a'.repeat(513),
@@ -139,6 +133,7 @@ const INVALID_PATTERNS = [
   'a.b*',
   'a.>>',
   'a b',
+  '$conn.*',
   Array.from({ length: 17 }, () => '*').join('.'),
 ];
 
@@ -270,15 +265,15 @@ export function describeRelay(name: string, ctx: RelaySuiteContext): void {
         }
       });
 
-      it('subscribes and unsubscribes idempotently', async () => {
+      it('subscribes and removes endpoints idempotently', async () => {
         const ns = newNamespace();
         const backend = await newBackend(ns);
         await backend.registerNode('n1', 30_000);
         expect((await backend.subscribe('n1', 'e1', 'a.*')).added).toBe(true);
         expect((await backend.subscribe('n1', 'e1', 'a.*')).added).toBe(false);
         expect(await ctx.countSubscriptions(ns)).toBe(1);
-        expect(await backend.unsubscribe('n1', 'e1', 'a.*')).toBe(true);
-        expect(await backend.unsubscribe('n1', 'e1', 'a.*')).toBe(false);
+        expect(await backend.removeEndpoint('n1', 'e1')).toBe(1);
+        expect(await backend.removeEndpoint('n1', 'e1')).toBe(0);
         expect(await ctx.countSubscriptions(ns)).toBe(0);
       });
 
@@ -644,9 +639,7 @@ export function describeRelay(name: string, ctx: RelaySuiteContext): void {
         });
         expect(result.endpoints).toBe(50);
 
-        await Promise.all(
-          endpoints.map(e => backend.unsubscribe('n1', e, 'hot.*')),
-        );
+        await Promise.all(endpoints.map(e => backend.removeEndpoint('n1', e)));
         expect(await ctx.countSubscriptions(ns)).toBe(0);
         result = await backend.publish('hot.x', '1', {
           ts: 1,

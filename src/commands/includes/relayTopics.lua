@@ -4,7 +4,6 @@
   Topics are dot-separated keypaths, e.g. "queues.emails.jobs.42.progress".
     - Segments match [A-Za-z0-9_:%-]+ (other characters must be
       percent-encoded by the caller).
-    - The first segment may also be a system root: "$" followed by letters.
     - Max 512 characters and 16 segments.
   Patterns may also contain wildcards:
     - "*" matches exactly one segment.
@@ -45,8 +44,6 @@ local function parseRelayTopic(value, allowWildcards)
       if i ~= count then
         return nil
       end
-    elseif i == 1 and string.match(segment, "^%$%a+$") then
-      -- system root
     elseif not string.match(segment, "^[%w_:%%%-]+$") then
       return nil
     end
