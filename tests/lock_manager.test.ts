@@ -223,6 +223,51 @@ describe('LockManager', () => {
       lockManager.trackJob('', 'token-1', Date.now());
       expect(lockManager.getActiveJobCount()).toBe(0);
     });
+
+    describe('tracking a job again', () => {
+      const createLockManager = () =>
+        new LockManager(
+          {
+            extendJobLocks: async () => [],
+            emit: () => true,
+            trace: async (_, __, ___, callback) => callback(),
+            name: 'test-queue',
+          },
+          { lockRenewTime: 5000, lockDuration: 30000, workerId: 'worker-1' },
+        );
+
+      it('keeps the abort controller when the token is the same', () => {
+        const lockManager = createLockManager();
+        const first = lockManager.trackJob('job-1', 'token-1', 1, true);
+        const second = lockManager.trackJob('job-1', 'token-1', 2, true);
+        expect(second).toBe(first);
+        expect(lockManager.getActiveJobCount()).toBe(1);
+
+        // A cancellation before the second call reaches the same controller.
+        lockManager.cancelJob('job-1', 'early');
+        expect(second!.signal.aborted).toBe(true);
+        expect(second!.signal.reason).toBe('early');
+      });
+
+      it('creates the abort controller if the first call did not', () => {
+        const lockManager = createLockManager();
+        expect(lockManager.trackJob('job-1', 'token-1', 1)).toBeUndefined();
+        const controller = lockManager.trackJob('job-1', 'token-1', 2, true);
+        expect(controller).toBeInstanceOf(AbortController);
+        expect(lockManager.cancelJob('job-1')).toBe(true);
+        expect(controller!.signal.aborted).toBe(true);
+      });
+
+      it('replaces the tracking when the token is different', () => {
+        const lockManager = createLockManager();
+        const first = lockManager.trackJob('job-1', 'token-1', 1, true);
+        lockManager.cancelJob('job-1');
+        const second = lockManager.trackJob('job-1', 'token-2', 2, true);
+        expect(second).not.toBe(first);
+        expect(second!.signal.aborted).toBe(false);
+        expect(lockManager.getActiveJobCount()).toBe(1);
+      });
+    });
   });
 
   describe('lock renewal', () => {

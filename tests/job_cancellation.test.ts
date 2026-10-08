@@ -8,7 +8,13 @@ import {
   expect,
 } from 'vitest';
 
-import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
+import {
+  Queue,
+  QueueEvents,
+  Worker,
+  UnrecoverableError,
+  WaitingError,
+} from '../src/classes';
 import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
@@ -1086,6 +1092,152 @@ describe('Job Cancellation', () => {
       expect(errorEventCount).toBeGreaterThan(0);
       expect(errorMessage).toContain('could not lock job');
 
+      await worker.close();
+    });
+  });
+
+  describe('Cancellation timing', () => {
+    it('cancels a job from the active event listener', async () => {
+      let receivedReason: unknown;
+      const worker = new Worker(
+        queueName,
+        async (job, token, signal) =>
+          new Promise((resolve, reject) => {
+            const onAbort = () => {
+              receivedReason = signal!.reason;
+              reject(new UnrecoverableError('cancelled'));
+            };
+            if (signal!.aborted) {
+              return onAbort();
+            }
+            signal!.addEventListener('abort', onAbort);
+            setTimeout(() => resolve('not cancelled'), 5000);
+          }),
+        { connection, prefix },
+      );
+      const cancelled: boolean[] = [];
+      worker.on('active', job => {
+        cancelled.push(worker.cancelJob(job.id!, 'from active'));
+      });
+      const failed = new Promise<Error>(resolve =>
+        worker.on('failed', (_, err) => resolve(err)),
+      );
+      await worker.waitUntilReady();
+
+      await queue.add('test', {});
+      const err = await failed;
+
+      expect(cancelled).toEqual([true]);
+      expect(err.message).toBe('cancelled');
+      expect(receivedReason).toBe('from active');
+      await worker.close();
+    });
+
+    it('cancels a step job fetched again by the same worker', async () => {
+      // moveToWait + WaitingError makes the worker fetch the next job right
+      // away with the same token, which can be this same job again.
+      const steps: string[] = [];
+      const worker = new Worker(
+        queueName,
+        async (job, token, signal) => {
+          if (job.data.step === 'initial') {
+            steps.push('initial');
+            await job.moveToWait(token);
+            await job.updateData({ step: 'second' });
+            throw new WaitingError();
+          }
+          return new Promise((resolve, reject) => {
+            const onAbort = () => {
+              steps.push(`second: ${signal!.reason}`);
+              reject(new UnrecoverableError('cancelled'));
+            };
+            if (signal!.aborted) {
+              return onAbort();
+            }
+            signal!.addEventListener('abort', onAbort);
+            setTimeout(() => resolve('not cancelled'), 5000);
+          });
+        },
+        { connection, prefix, concurrency: 1 },
+      );
+      let actives = 0;
+      worker.on('active', job => {
+        actives++;
+        if (actives === 2) {
+          worker.cancelJob(job.id!, 'second step');
+        }
+      });
+      const failed = new Promise<Error>(resolve =>
+        worker.on('failed', (_, err) => resolve(err)),
+      );
+      await worker.waitUntilReady();
+
+      await queue.add('test', { step: 'initial' });
+      const err = await failed;
+
+      expect(err.message).toBe('cancelled');
+      expect(steps).toEqual(['initial', 'second: second step']);
+      await worker.close();
+    });
+
+    it('cancels the next attempt of a retried job', async () => {
+      const attempts: string[] = [];
+      const worker = new Worker(
+        queueName,
+        async (job, token, signal) => {
+          if (job.attemptsMade === 0) {
+            attempts.push('first: failed');
+            throw new Error('first attempt fails');
+          }
+          return new Promise((resolve, reject) => {
+            const onAbort = () => {
+              attempts.push(`second: ${signal!.reason}`);
+              reject(new UnrecoverableError('cancelled'));
+            };
+            if (signal!.aborted) {
+              return onAbort();
+            }
+            signal!.addEventListener('abort', onAbort);
+            setTimeout(() => resolve('not cancelled'), 5000);
+          });
+        },
+        { connection, prefix, concurrency: 1 },
+      );
+      let actives = 0;
+      worker.on('active', job => {
+        actives++;
+        if (actives === 2) {
+          worker.cancelJob(job.id!, 'second attempt');
+        }
+      });
+      const finallyFailed = new Promise<Error>(resolve =>
+        worker.on('failed', (job, err) => {
+          if (err.message === 'cancelled') {
+            resolve(err);
+          }
+        }),
+      );
+      await worker.waitUntilReady();
+
+      await queue.add('test', {}, { attempts: 2 });
+      await finallyFailed;
+
+      expect(attempts).toEqual(['first: failed', 'second: second attempt']);
+      await worker.close();
+    });
+
+    it('does not track jobs fetched manually with getNextJob', async () => {
+      const worker = new Worker(queueName, null, { connection, prefix });
+      await worker.waitUntilReady();
+      await queue.add('test', {});
+
+      const token = 'manual-token';
+      const job = await worker.getNextJob(token);
+      expect(job).toBeDefined();
+      expect(worker.cancelJob(job!.id!)).toBe(false);
+      expect((worker as any).lockManager.getActiveJobCount()).toBe(0);
+
+      await job!.moveToCompleted('done', token, false);
       await worker.close();
     });
   });

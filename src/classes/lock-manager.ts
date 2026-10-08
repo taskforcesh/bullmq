@@ -147,6 +147,11 @@ export class LockManager {
   /**
    * Adds a job to be tracked for lock renewal.
    * Returns an AbortController if shouldCreateController is true, undefined otherwise.
+   *
+   * Tracking a job again with the same token (e.g. the worker tracks a job as
+   * soon as it becomes active and again when processing starts) keeps the
+   * existing AbortController, so a cancellation requested in between still
+   * reaches the processor.
    */
   trackJob(
     jobId: string,
@@ -154,6 +159,15 @@ export class LockManager {
     ts: number,
     shouldCreateController = false,
   ): AbortController | undefined {
+    const tracked = this.trackedJobs.get(jobId);
+    if (tracked && tracked.token === token) {
+      tracked.ts = ts;
+      if (shouldCreateController && !tracked.abortController) {
+        tracked.abortController = new AbortController();
+      }
+      return tracked.abortController;
+    }
+
     const abortController = shouldCreateController
       ? new AbortController()
       : undefined;
