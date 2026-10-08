@@ -20,6 +20,7 @@ import {
   ConnectionClosedError,
   CONNECTION_CLOSED_ERROR_MSG,
 } from './errors/connection-closed-error';
+import { AbortController } from './abort-controller';
 
 const overrideMessage = [
   'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null',
@@ -179,10 +180,9 @@ export class RedisConnection extends EventEmitter {
   static clientFactory?: (opts: RedisOptions) => IRedisClient;
 
   closing: boolean;
-  // A socketless reconnecting client may never emit `end`, so close() rejects
+  // A socketless reconnecting client may never emit `end`, so close() aborts
   // this to release a reconnect() parked in waitUntilReady.
-  private closed?: Promise<never>;
-  private rejectClosed?: (error: Error) => void;
+  private closeController?: AbortController;
   capabilities: RedisCapabilities = {
     canDoubleTimeout: false,
     canBlockFor1Ms: true,
@@ -312,12 +312,16 @@ export class RedisConnection extends EventEmitter {
   /**
    * Waits for a redis client to be ready.
    * @param redis - client
-   * @param cancelled - if this rejects, stop waiting and drop the listeners
+   * @param signal - abort to stop waiting and drop the listeners
    */
   static async waitUntilReady(
     client: RedisClient,
-    cancelled?: Promise<unknown>,
+    signal?: AbortSignal,
   ): Promise<void> {
+    if (signal?.aborted) {
+      throw new ConnectionClosedError();
+    }
+
     if (client.status === 'ready') {
       return;
     }
@@ -341,6 +345,7 @@ export class RedisConnection extends EventEmitter {
     let handleReady: () => void;
     let handleEnd: () => void;
     let handleError: (e: Error) => void;
+    let handleAbort: (() => void) | undefined;
     try {
       await new Promise<void>((resolve, reject) => {
         let lastError: Error;
@@ -374,9 +379,15 @@ export class RedisConnection extends EventEmitter {
         client.once('ready', handleReady);
         client.on('end', handleEnd);
         client.once('error', handleError);
-        cancelled?.then(undefined, reject);
+        if (signal) {
+          handleAbort = () => reject(new ConnectionClosedError());
+          signal.addEventListener('abort', handleAbort);
+        }
       });
     } finally {
+      if (signal && handleAbort) {
+        signal.removeEventListener('abort', handleAbort);
+      }
       client.removeListener('end', handleEnd);
       client.removeListener('error', handleError);
       client.removeListener('ready', handleReady);
@@ -736,12 +747,8 @@ export class RedisConnection extends EventEmitter {
 
   async reconnect(): Promise<void> {
     const client = await this.client;
-    if (!this.closed) {
-      this.closed = new Promise<never>((_, reject) => {
-        this.rejectClosed = reject;
-      });
-      this.closed.catch(() => {});
-    }
+    this.closeController ??= new AbortController();
+    const { signal } = this.closeController;
 
     for (;;) {
       if (this.closing) {
@@ -758,13 +765,23 @@ export class RedisConnection extends EventEmitter {
       if (client.status === 'wait' || client.status === 'end') {
         const connecting = client.connect();
         connecting.catch(() => {});
+        if (signal.aborted) {
+          throw new ConnectionClosedError();
+        }
+        let onAbort: () => void;
+        const aborted = new Promise<never>((_, reject) => {
+          onAbort = () => reject(new ConnectionClosedError());
+          signal.addEventListener('abort', onAbort);
+        });
         try {
-          await Promise.race([connecting, this.closed]);
+          await Promise.race([connecting, aborted]);
         } catch (error) {
-          if (this.closing) {
+          if (this.closing || signal.aborted) {
             throw new ConnectionClosedError();
           }
           throw error;
+        } finally {
+          signal.removeEventListener('abort', onAbort!);
         }
         if (this.closing) {
           throw new ConnectionClosedError();
@@ -773,7 +790,7 @@ export class RedisConnection extends EventEmitter {
       }
 
       try {
-        await RedisConnection.waitUntilReady(client, this.closed);
+        await RedisConnection.waitUntilReady(client, signal);
       } catch (error) {
         if (this.closing) {
           throw new ConnectionClosedError();
@@ -794,7 +811,8 @@ export class RedisConnection extends EventEmitter {
       const status = this.status;
       this.status = 'closing';
       this.closing = true;
-      this.rejectClosed?.(new ConnectionClosedError());
+      this.closeController ??= new AbortController();
+      this.closeController.abort();
       this.disableBlockingClusterReconnect();
 
       try {

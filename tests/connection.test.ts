@@ -467,6 +467,42 @@ describe('RedisConnection', () => {
       expect(fakeCluster.connect.called).toBe(false);
       expect(fakeCluster.once.called).toBe(false);
     });
+
+    it('removes the abort listener when ready wins', async () => {
+      const client = new EventEmitter() as any;
+      client.status = 'reconnecting';
+      client.isCluster = false;
+      const controller = new AbortController();
+      const add = sinon.spy(controller.signal, 'addEventListener');
+      const remove = sinon.spy(controller.signal, 'removeEventListener');
+
+      const pending = RedisConnection.waitUntilReady(client, controller.signal);
+      await Promise.resolve();
+      client.status = 'ready';
+      client.emit('ready');
+      await pending;
+
+      expect(add.calledOnce).toBe(true);
+      expect(remove.calledOnce).toBe(true);
+    });
+
+    it('removes the abort listener when aborted', async () => {
+      const client = new EventEmitter() as any;
+      client.status = 'reconnecting';
+      client.isCluster = false;
+      const controller = new AbortController();
+      const remove = sinon.spy(controller.signal, 'removeEventListener');
+
+      const pending = RedisConnection.waitUntilReady(client, controller.signal);
+      await Promise.resolve();
+      controller.abort();
+
+      await expect(pending).rejects.toThrow(ConnectionClosedError);
+      expect(remove.calledOnce).toBe(true);
+      expect(client.listenerCount('ready')).toBe(0);
+      expect(client.listenerCount('end')).toBe(0);
+      expect(client.listenerCount('error')).toBe(0);
+    });
   });
 
   describe('reconnect()', () => {
