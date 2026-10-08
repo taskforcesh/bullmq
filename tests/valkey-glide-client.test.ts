@@ -919,6 +919,44 @@ describe('ValkeyGlideAdapter', () => {
     expect(info).toContain('valkey_version:');
   });
 
+  it('routes INFO to a single node on a duplicated cluster client', async () => {
+    class MockGlideClusterClient extends MockGlideClient {
+      static async createClient(config: any) {
+        return new MockGlideClusterClient(config);
+      }
+
+      async customCommand(
+        args: GlideArg[],
+        options?: GlideCommandOptions,
+      ): Promise<any> {
+        if (String(args[0]).toUpperCase() === 'INFO') {
+          this.infoOptions.push(options);
+          return options?.route
+            ? 'valkey_version:8.0.0'
+            : { 'node-1:6379': 'valkey_version:8.0.0' };
+        }
+
+        return super.customCommand(args, options);
+      }
+
+      readonly infoOptions: Array<GlideCommandOptions | undefined> = [];
+    }
+
+    const raw = new MockGlideClusterClient({ addresses: [] });
+    const client = createValkeyGlideClient(raw as any);
+    const duplicate = client.duplicate();
+
+    // Issued before the duplicated raw client has resolved.
+    const info = await duplicate.info();
+
+    const duplicatedRaw = MockGlideClient.instances.at(
+      -1,
+    ) as MockGlideClusterClient;
+    expect(duplicatedRaw).not.toBe(raw);
+    expect(duplicatedRaw.infoOptions).toEqual([{ route: 'randomNode' }]);
+    expect(info).toContain('valkey_version:');
+  });
+
   it('throws ConnectionClosedError for commands issued after disconnect', async () => {
     const raw = new MockGlideClient();
     const client = createValkeyGlideClient(raw as any);
