@@ -185,7 +185,7 @@ describe('PostgreSQL migrations', () => {
     }
   });
 
-  it.each([2, 4])(
+  it.each([2, 4, 5])(
     'upgrades a database already at schema version %i',
     async version => {
       // Simulate a database created by a previous release: apply only the

@@ -93,16 +93,42 @@ describe('Relay resilience', () => {
     expect(() => new Relay({} as any)).toThrow('Relay requires a connection');
   });
 
-  it.each(['leaseDuration', 'heartbeatInterval', 'sweepInterval'])(
-    'rejects invalid %s before creating a backend',
-    name => {
+  it.each([
+    'leaseDuration',
+    'heartbeatInterval',
+    'sweepInterval',
+    'blockTimeout',
+    'inboxMaxLength',
+    'maxMessageSize',
+  ])('rejects invalid %s before creating a backend', name => {
+    const backend = new FakeBackend();
+    const factory = vi.fn(() => backend);
+    for (const value of [0, -1, 0.5, NaN, Infinity, 2_147_483_648]) {
+      expect(() =>
+        createRelay(backend, { [name]: value, backend: factory }),
+      ).toThrow(`Invalid relay ${name}`);
+    }
+    expect(factory).not.toHaveBeenCalled();
+    expect(backend.calls).toEqual([]);
+  });
+
+  it.each([1, 2_147_483_647])(
+    'accepts positive integer option boundaries (%i)',
+    async value => {
       const backend = new FakeBackend();
-      for (const value of [0, -1, 0.5, NaN, Infinity, 2_147_483_648]) {
-        expect(() => createRelay(backend, { [name]: value })).toThrow(
-          `Invalid relay ${name}`,
-        );
+      const relay = createRelay(backend, {
+        blockTimeout: value,
+        inboxMaxLength: value,
+        maxMessageSize: value,
+      });
+      try {
+        await relay.waitUntilReady();
+        await expect(relay.publish('a', 1)).resolves.toMatchObject({
+          mid: '1',
+        });
+      } finally {
+        await relay.close();
       }
-      expect(backend.calls).toEqual([]);
     },
   );
 
@@ -343,6 +369,41 @@ describe('Relay resilience', () => {
     await (relay as any).heartbeat();
     expect(recovered).toBe(1);
     await relay.close();
+  });
+
+  it('removes an endpoint unsubscribed while recovery restores it', async () => {
+    const backend = new FakeBackend();
+    const relay = createRelay(backend);
+    let resume!: () => void;
+    try {
+      await relay.waitUntilReady();
+      const subscription = await relay.subscribe('a', () => undefined);
+      const endpoint = [...(relay as any).endpoints.keys()][0];
+      const removeEndpoint = vi.spyOn(backend, 'removeEndpoint');
+      backend.heartbeatResult = false;
+      backend.subscribe = async () => {
+        await new Promise<void>(resolve => {
+          resume = resolve;
+        });
+        return { added: true };
+      };
+
+      const recovering = (relay as any).heartbeat();
+      await waitFor(() => !!resume);
+      await subscription.unsubscribe();
+      expect(removeEndpoint).toHaveBeenCalledExactlyOnceWith(
+        relay.nodeId,
+        endpoint,
+      );
+      resume();
+      await recovering;
+      expect(removeEndpoint).toHaveBeenCalledTimes(2);
+      expect(removeEndpoint).toHaveBeenLastCalledWith(relay.nodeId, endpoint);
+      expect((relay as any).endpoints.size).toBe(0);
+    } finally {
+      resume?.();
+      await relay.close();
+    }
   });
 
   it('waits for recovery before dispatching an inbox batch', async () => {

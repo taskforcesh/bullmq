@@ -129,6 +129,9 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
       'leaseDuration',
       'heartbeatInterval',
       'sweepInterval',
+      'blockTimeout',
+      'inboxMaxLength',
+      'maxMessageSize',
     ] as const) {
       const value = opts[name];
       if (
@@ -307,6 +310,9 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     await this.backend.registerNode(this.nodeId, this.leaseDuration);
     for (const [endpointId, endpoint] of this.endpoints) {
       await this.backend.subscribe(this.nodeId, endpointId, endpoint.pattern);
+      if (!this.endpoints.has(endpointId)) {
+        await this.backend.removeEndpoint(this.nodeId, endpointId);
+      }
     }
     this.recoveryPending = false;
     this.emit('recovered');
