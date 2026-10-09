@@ -195,6 +195,45 @@ describe('PostgreSQL backend operations', () => {
     }
   });
 
+  it('assigns a unique idx to every log line under concurrent addLog calls', async () => {
+    const backend = newBackend();
+    try {
+      await backend.waitUntilReady();
+      const id = await backend.addJob(makeJob(), '');
+
+      const n = 20;
+      const counts = await Promise.all(
+        Array.from({ length: n }, (_, i) => backend.addLog(id, `line ${i}`)),
+      );
+
+      expect(new Set(counts).size).toBe(n);
+      expect([...counts].sort((a, b) => a - b)).toEqual(
+        Array.from({ length: n }, (_, i) => i + 1),
+      );
+
+      const { count } = await backend.getJobLogs(id, 0, -1, true);
+      expect(count).toBe(n);
+    } finally {
+      await backend.close();
+    }
+  });
+
+  it('addLog awaits connection readiness instead of racing migrations', async () => {
+    const freshSchema = `bullmq_ops_test_fresh_${randomUUID().replace(/-/g, '_')}`;
+    const backend = createPostgresBackend(`ops-${randomUUID()}`, {
+      connection: { connectionString: url, schema: freshSchema, migrate: true },
+    } as any);
+    try {
+      // No waitUntilReady() call here - addLog must gate on readiness itself.
+      await expect(backend.addLog('nonexistent-job', 'line')).rejects.toThrow(
+        'Missing key for job nonexistent-job',
+      );
+    } finally {
+      await backend.close();
+      await pool.query(`DROP SCHEMA IF EXISTS "${freshSchema}" CASCADE`);
+    }
+  });
+
   it('stores and reads queue metadata', async () => {
     const backend = newBackend();
     try {
