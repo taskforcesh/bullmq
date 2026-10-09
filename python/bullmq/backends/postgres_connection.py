@@ -2,9 +2,13 @@
 
 Owns:
 
-* an async connection used for regular queries (serialized behind a lock), and
+* an async connection used for regular queries (serialized behind a lock),
 * a dedicated, long-lived ``LISTEN`` connection used by the blocking
-  "wait for job" primitive (lazily established).
+  "wait for job" primitive (lazily established), and
+* a second dedicated ``LISTEN`` connection for the event stream (also lazy).
+  The two waits keep separate connections because ``notifies()`` *consumes* a
+  notification: sharing one connection would let the job wait swallow the
+  wakeups the event consumer is parked on, and vice versa.
 
 The connection-level ``schema`` is the namespace for all queues (the SQL-native
 replacement for the Redis key ``prefix``). It is pinned on every connection's
@@ -184,6 +188,8 @@ class PostgresConnection:
         self._ready_lock = asyncio.Lock()
         self._listen_conn: Optional[psycopg.AsyncConnection] = None
         self._job_channel_listening = False
+        self._events_conn: Optional[psycopg.AsyncConnection] = None
+        self._events_channel_listening = False
         self._application_name: Optional[str] = None
 
     async def wait_until_ready(self) -> None:
@@ -268,6 +274,35 @@ class PostgresConnection:
         self._listen_conn = None
         self._job_channel_listening = False
 
+    async def ensure_events_channel(self) -> "psycopg.AsyncConnection":
+        """Return the event-stream LISTEN connection, subscribed to
+        ``bullmq_events`` once. Kept separate from the jobs channel connection
+        so neither wait consumes the other's notifications."""
+        if self._events_conn is None or self._events_conn.closed:
+            self._events_conn = await psycopg.AsyncConnection.connect(
+                self.conninfo, autocommit=True, options=self._options
+            )
+            if self._application_name:
+                await self._events_conn.execute(
+                    "SELECT set_config('application_name', %s, false)",
+                    (self._application_name,),
+                )
+            self._events_channel_listening = False
+        if not self._events_channel_listening:
+            await self._events_conn.execute(sql_loader.load_command("listen_events"))
+            self._events_channel_listening = True
+        return self._events_conn
+
+    async def reset_events_channel(self) -> None:
+        """Drop the event-stream LISTEN connection so the next wait re-establishes it."""
+        if self._events_conn is not None:
+            try:
+                await self._events_conn.close()
+            except Exception:
+                pass
+        self._events_conn = None
+        self._events_channel_listening = False
+
     async def set_application_name(self, name: str) -> None:
         if not name:
             return
@@ -278,11 +313,12 @@ class PostgresConnection:
             conn = await self._get_conn()
             async with conn.cursor() as cur:
                 await cur.execute("SELECT set_config('application_name', %s, false)", (name,))
-        if self._listen_conn is not None and not self._listen_conn.closed:
-            await self._listen_conn.execute(
-                "SELECT set_config('application_name', %s, false)",
-                (name,),
-            )
+        for conn in (self._listen_conn, self._events_conn):
+            if conn is not None and not conn.closed:
+                await conn.execute(
+                    "SELECT set_config('application_name', %s, false)",
+                    (name,),
+                )
 
     async def close(self) -> None:
         if self._listen_conn is not None:
@@ -292,6 +328,13 @@ class PostgresConnection:
                 pass
             self._listen_conn = None
             self._job_channel_listening = False
+        if self._events_conn is not None:
+            try:
+                await self._events_conn.close()
+            except Exception:
+                pass
+            self._events_conn = None
+            self._events_channel_listening = False
         if self._conn is not None:
             try:
                 await self._conn.close()
