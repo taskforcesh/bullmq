@@ -1226,6 +1226,42 @@ describe('Job Cancellation', () => {
       await worker.close();
     });
 
+    it('tracks jobs fetched manually when the track option is enabled', async () => {
+      const worker = new Worker(
+        queueName,
+        async (job, token, signal) => {
+          expect(signal!.aborted).toBe(true);
+          expect(signal!.reason).toBe('from active');
+          return 'done';
+        },
+        { connection, prefix, autorun: false },
+      );
+      try {
+        await worker.waitUntilReady();
+        await queue.add('test', {});
+
+        const cancelled: boolean[] = [];
+        worker.on('active', job => {
+          cancelled.push(worker.cancelJob(job.id!, 'from active'));
+        });
+        const token = 'manual-token';
+        const job = await worker.getNextJob(token, {
+          block: false,
+          track: true,
+        });
+
+        expect(job).toBeDefined();
+        expect(cancelled).toEqual([true]);
+        expect((worker as any).lockManager.getActiveJobCount()).toBe(1);
+
+        await worker.processJob(job!, token, () => false);
+        expect(await job!.getState()).toBe('completed');
+        expect((worker as any).lockManager.getActiveJobCount()).toBe(0);
+      } finally {
+        await worker.close();
+      }
+    });
+
     it('does not track jobs fetched manually with getNextJob', async () => {
       const worker = new Worker(queueName, null, { connection, prefix });
       await worker.waitUntilReady();
