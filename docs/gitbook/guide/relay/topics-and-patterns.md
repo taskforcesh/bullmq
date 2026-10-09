@@ -102,5 +102,10 @@ from it could observe more than you intended.
   with the id in the payload) when receivers care about specific resources.
   Topics cost nothing until someone subscribes, and the datastore then only
   delivers what each receiver needs.
+- **Subscribe as narrowly as you need.** A wildcard subscription is
+  convenient (one `jobs.*.cancel` for every queue of a process), but every
+  matching message is written to the node's inbox, including the ones the
+  handler then ignores. On busy topics, prefer one subscription per resource
+  or queue the node actually handles, so the datastore does the filtering.
 - **Use namespaces, not topic prefixes, to isolate environments** (see
   [Getting started](getting-started.md#namespaces)).
