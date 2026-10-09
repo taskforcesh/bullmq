@@ -174,7 +174,7 @@ let worker = Worker::new("myQueueName", processor, WorkerOptions {
 
 ### Keep jobs based on their age
 
-Another possibility is to keep jobs up to a certain age. The `removeOn` option accepts a [`KeepJobs`](https://docs.bullmq.io/api/interfaces/v6.KeepJobs.html) object, that includes `age`, `count`, and `limit` fields. The `age` is used to specify how old jobs to keep (in seconds), the `count` can be used to limit the total amount to keep, and the `limit` controls how many jobs are removed per cleanup iteration. The `count` option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory. The `limit` option helps control the performance impact of cleanup operations by limiting how many jobs are processed at once.
+Another possibility is to keep jobs up to a certain age. The `removeOn` option accepts a [`KeepJobs`](https://docs.bullmq.io/api/types/v6.KeepJobs.html) object, that includes `age`, `count`, and `limit` fields. The `age` is used to specify how old jobs to keep (in seconds), the `count` can be used to limit the total amount to keep, and the `limit` controls how many jobs are removed per cleanup iteration. The `count` option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory. The `limit` option helps control the performance impact of cleanup operations by limiting how many jobs are processed at once.
 
 {% tabs %}
 {% tab title="TypeScript" %}
