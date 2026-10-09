@@ -22,6 +22,9 @@ A shorter lease detects dead nodes sooner, at the cost of more heartbeats. A
 longer lease tolerates longer pauses (garbage collection, a busy event loop,
 a slow network) before a node is considered dead.
 
+These options must be positive integer milliseconds, at most `2147483647`.
+The default heartbeat interval is rounded down, with a minimum of 1 ms.
+
 ## What happens when…
 
 | Situation                                                       | Result                                                                                                                             |
@@ -34,9 +37,9 @@ a slow network) before a node is considered dead.
 
 ## Recovery
 
-A node that was swept while still running notices it on its next heartbeat.
-It then registers again, restores all its subscriptions, and emits
-`'recovered'`:
+A node whose lease expired notices it on its next heartbeat, even if it has
+not been swept. It then registers again, restores all its subscriptions, and
+emits `'recovered'` before delivering further inbox messages:
 
 ```typescript
 relay.on('recovered', () => {

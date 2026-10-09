@@ -13,5 +13,5 @@ local function removeRelayNode(baseKey, nodesKey, nodeId)
   end
   rcall("DEL", endpointsKey, baseKey .. ":inbox:" .. nodeId,
     baseKey .. ":alive:" .. nodeId)
-  return rcall("SREM", nodesKey, nodeId)
+  return rcall("ZREM", nodesKey, nodeId)
 end

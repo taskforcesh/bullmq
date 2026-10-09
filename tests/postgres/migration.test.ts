@@ -185,79 +185,101 @@ describe('PostgreSQL migrations', () => {
     }
   });
 
-  it('upgrades a database already at an older schema version', async () => {
-    // Simulate a database created by a previous release: apply only the
-    // migrations up to version 2 and record them in the ledger by hand.
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
-      await client.query(`SET LOCAL search_path TO "${schema}"`);
-      await client.query(
-        `CREATE TABLE IF NOT EXISTS migration (
+  it.each([2, 4])(
+    'upgrades a database already at schema version %i',
+    async version => {
+      // Simulate a database created by a previous release: apply only the
+      // migrations up to that version and record them in the ledger by hand.
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
+        await client.query(`SET LOCAL search_path TO "${schema}"`);
+        await client.query(
+          `CREATE TABLE IF NOT EXISTS migration (
            version integer PRIMARY KEY,
            name text NOT NULL,
            min_client_version integer NOT NULL,
            applied_at timestamptz NOT NULL DEFAULT now()
          )`,
-      );
-      for (const migration of MIGRATIONS.filter(m => m.version <= 2)) {
-        await client.query(migration.load());
-        await client.query(
-          `INSERT INTO migration (version, name, min_client_version)
-           VALUES ($1, $2, $3)`,
-          [migration.version, migration.name, migration.minClientVersion],
         );
+        for (const migration of MIGRATIONS.filter(m => m.version <= version)) {
+          await client.query(migration.load());
+          await client.query(
+            `INSERT INTO migration (version, name, min_client_version)
+           VALUES ($1, $2, $3)`,
+            [migration.version, migration.name, migration.minClientVersion],
+          );
+        }
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
       }
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
 
-    const { rows: beforeRows } = await pool.query<{ version: number }>(
-      `SELECT COALESCE(MAX(version), 0)::int AS version FROM "${schema}".migration`,
-    );
-    expect(beforeRows[0].version).toBe(2);
-
-    const connection = new PostgresConnection({
-      connectionString: url,
-      migrate: true,
-    });
-    try {
-      await connection.waitUntilReady();
-
-      const { rows } = await pool.query<{ version: number }>(
+      const { rows: beforeRows } = await pool.query<{ version: number }>(
         `SELECT COALESCE(MAX(version), 0)::int AS version FROM "${schema}".migration`,
       );
-      expect(rows[0].version).toBe(LATEST_SCHEMA_VERSION);
+      expect(beforeRows[0].version).toBe(version);
 
-      // The pending migrations really ran against the existing schema: a
-      // deduplication key whose winner job is gone is now recovered instead of
-      // swallowing every subsequent add.
-      await pool.query(
-        `INSERT INTO "${schema}".dedup (queue, dedup_id, job_id, expire_at_ms)
+      const connection = new PostgresConnection({
+        connectionString: url,
+        migrate: true,
+      });
+      try {
+        await connection.waitUntilReady();
+
+        const { rows } = await pool.query<{ version: number }>(
+          `SELECT COALESCE(MAX(version), 0)::int AS version FROM "${schema}".migration`,
+        );
+        expect(rows[0].version).toBe(LATEST_SCHEMA_VERSION);
+
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query(`SET LOCAL search_path TO "${schema}"`);
+          await client.query(
+            `INSERT INTO relay_node (ns, node_id, lease_until)
+           VALUES ('upgrade', 'expired', clock_timestamp() - interval '1 second'),
+                  ('upgrade', 'live', clock_timestamp() + interval '1 minute')`,
+          );
+          const { rows } = await client.query(
+            `SELECT relay_heartbeat('upgrade', 'expired', 30000) AS expired,
+                  relay_heartbeat('upgrade', 'live', 30000) AS live`,
+          );
+          expect(rows[0]).toEqual({ expired: false, live: true });
+        } finally {
+          await client.query('ROLLBACK');
+          client.release();
+        }
+
+        // The pending migrations really ran against the existing schema: a
+        // deduplication key whose winner job is gone is now recovered instead of
+        // swallowing every subsequent add.
+        await pool.query(
+          `INSERT INTO "${schema}".dedup (queue, dedup_id, job_id, expire_at_ms)
          VALUES ('upgraded', 'dedup-id', 'gone', NULL)`,
-      );
-      const { rows: dedupRows } = await pool.query<{ winner: string | null }>(
-        `SELECT "${schema}".deduplicate_job(
+        );
+        const { rows: dedupRows } = await pool.query<{ winner: string | null }>(
+          `SELECT "${schema}".deduplicate_job(
            'upgraded', '{"id":"dedup-id"}'::jsonb, 'new-job', $1, 'test',
            '{}'::jsonb, '{}'::jsonb) AS winner`,
-        [Date.now()],
-      );
-      expect(dedupRows[0].winner).toBeNull();
+          [Date.now()],
+        );
+        expect(dedupRows[0].winner).toBeNull();
 
-      const { rows: keyRows } = await pool.query<{ job_id: string }>(
-        `SELECT job_id FROM "${schema}".dedup
+        const { rows: keyRows } = await pool.query<{ job_id: string }>(
+          `SELECT job_id FROM "${schema}".dedup
           WHERE queue = 'upgraded' AND dedup_id = 'dedup-id'`,
-      );
-      expect(keyRows[0].job_id).toBe('new-job');
-    } finally {
-      await connection.close();
-    }
-  });
+        );
+        expect(keyRows[0].job_id).toBe('new-job');
+      } finally {
+        await connection.close();
+      }
+    },
+  );
 
   it('accepts newer same-major schemas and rejects a newer required major', async () => {
     const bootstrap = new PostgresConnection({

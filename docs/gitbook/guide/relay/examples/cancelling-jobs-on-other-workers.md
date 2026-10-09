@@ -51,7 +51,8 @@ import { Queue, Relay } from 'bullmq';
 const queue = new Queue('exports', { connection });
 const relay = new Relay({ connection });
 
-type CancelResult = 'not_found' | 'finished' | 'removed' | 'signalled';
+type CancelResult =
+  'not_found' | 'finished' | 'removed' | 'not_delivered' | 'signalled';
 
 export async function cancelExport(
   jobId: string,
@@ -77,14 +78,19 @@ export async function cancelExport(
     }
   }
 
-  await relay.publish('jobs.exports.cancel', { jobId, reason });
-  return 'signalled';
+  const { endpoints } = await relay.publish('jobs.exports.cancel', {
+    jobId,
+    reason,
+  });
+  return endpoints === 0 ? 'not_delivered' : 'signalled';
 }
 ```
 
-`'signalled'` means that the request was delivered to the workers of the
-queue. The job then fails with your `UnrecoverableError`, unless it finishes
-first.
+`'not_delivered'` means no subscribed endpoints matched the request.
+`'signalled'` means the request was enqueued for at least one endpoint, not
+that the worker owning the job received it or cancelled the job. If that
+worker receives it and the processor observes the signal before finishing,
+the job fails with your `UnrecoverableError`.
 
 ## Why the Relay
 

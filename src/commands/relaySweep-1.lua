@@ -19,16 +19,16 @@ local baseKey = ARGV[1]
 local limit = tonumber(ARGV[2])
 local removed = {}
 
-local nodes = rcall("SMEMBERS", KEYS[1])
+local time = rcall("TIME")
+local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
+if limit <= 0 then
+  return removed
+end
+local nodes = rcall("ZRANGEBYSCORE", KEYS[1], "-inf", now, "LIMIT", 0, limit)
 for i = 1, #nodes do
-  if #removed >= limit then
-    break
-  end
   local nodeId = nodes[i]
-  if rcall("EXISTS", baseKey .. ":alive:" .. nodeId) == 0 then
-    removeRelayNode(baseKey, KEYS[1], nodeId)
-    removed[#removed + 1] = nodeId
-  end
+  removeRelayNode(baseKey, KEYS[1], nodeId)
+  removed[#removed + 1] = nodeId
 end
 
 return removed
