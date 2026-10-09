@@ -267,6 +267,22 @@ describe('LockManager', () => {
         expect(second!.signal.aborted).toBe(false);
         expect(lockManager.getActiveJobCount()).toBe(1);
       });
+
+      it('only untracks the attempt with the matching token', () => {
+        const lockManager = createLockManager();
+        lockManager.trackJob('job-1', 'token-1', 1, true);
+        const replacement = lockManager.trackJob('job-1', 'token-2', 2, true);
+
+        lockManager.untrackJob('job-1', 'token-1');
+        expect(lockManager.getActiveJobCount()).toBe(1);
+        expect(lockManager.cancelJob('job-1', 'replacement')).toBe(true);
+        expect(replacement!.signal.reason).toBe('replacement');
+
+        lockManager.untrackJob('job-1', 'token-2');
+        expect(lockManager.getActiveJobCount()).toBe(0);
+        lockManager.untrackJob('job-1', 'token-2');
+        expect(lockManager.getActiveJobCount()).toBe(0);
+      });
     });
   });
 

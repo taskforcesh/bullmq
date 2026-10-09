@@ -48,6 +48,10 @@ import {
 import { LockManager } from './lock-manager';
 import type { NoInferType } from '../types/no-infer';
 
+interface InternalGetNextJobOptions extends GetNextJobOptions {
+  track?: boolean;
+}
+
 // 10 seconds is the maximum time a BZPOPMIN can block, so it is the default
 // ceiling used when a backend does not delegate its own `maximumBlockTimeout`.
 const defaultMaximumBlockTimeout = 10;
@@ -757,14 +761,8 @@ export class Worker<
    * @param token - worker token to be assigned to retrieved job
    * @returns a Job or undefined if no job was available in the queue.
    */
-  async getNextJob(
-    token: string,
-    { block = true, track = false }: GetNextJobOptions = {},
-  ) {
-    if (track && !this.opts.skipLockRenewal && !this.lockManager.isRunning()) {
-      this.lockManager.start();
-    }
-    const nextJob = await this._getNextJob(token, { block, track });
+  async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
+    const nextJob = await this._getNextJob(token, { block });
 
     return this.trace<
       Job<DataType, ResultType, NameType, ProgressType> | undefined
@@ -777,7 +775,7 @@ export class Worker<
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.QueueName]: this.name,
           [TelemetryAttributes.WorkerName]: this.opts.name,
-          [TelemetryAttributes.WorkerOptions]: JSON.stringify({ block, track }),
+          [TelemetryAttributes.WorkerOptions]: JSON.stringify({ block }),
           [TelemetryAttributes.JobId]: nextJob?.id,
         });
 
@@ -789,7 +787,7 @@ export class Worker<
 
   private async _getNextJob(
     token: string,
-    { block = true, track = false }: GetNextJobOptions = {},
+    { block = true, track = false }: InternalGetNextJobOptions = {},
   ): Promise<Job<DataType, ResultType, NameType, ProgressType> | undefined> {
     if (this.paused) {
       return;
@@ -856,7 +854,7 @@ export class Worker<
   protected async moveToActive(
     token: string,
     name?: string,
-    options: GetNextJobOptions = {},
+    options: InternalGetNextJobOptions = {},
   ): Promise<Job<DataType, ResultType, NameType, ProgressType>> {
     const [jobData, id, rateLimitDelay, delayUntil] =
       await this.backend.moveToActive(token, name);
@@ -973,7 +971,7 @@ export class Worker<
     jobData?: JobJson,
     jobId?: string,
     token?: string,
-    { track = false }: GetNextJobOptions = {},
+    { track = false }: InternalGetNextJobOptions = {},
   ): Promise<Job<DataType, ResultType, NameType, ProgressType>> {
     if (!jobData) {
       if (!this.drained) {
@@ -1053,7 +1051,7 @@ export class Worker<
         // The job will not be processed: stop renewing its lock so it can be
         // recovered as stalled, as before it was tracked.
         if (track) {
-          this.lockManager.untrackJob(job.id);
+          this.lockManager.untrackJob(job.id, token);
         }
 
         // Return undefined to indicate no next job is available
@@ -1106,7 +1104,7 @@ export class Worker<
               ProgressType
             >>(
               () => {
-                this.lockManager.untrackJob(job.id);
+                this.lockManager.untrackJob(job.id, token);
                 return this.handleFailed(
                   new UnrecoverableError(unrecoverableErrorMessage),
                   job,
@@ -1134,7 +1132,7 @@ export class Worker<
             ProgressType
           >>(
             () => {
-              this.lockManager.untrackJob(job.id);
+              this.lockManager.untrackJob(job.id, token);
               return this.handleCompleted(
                 result,
                 job,
@@ -1154,7 +1152,7 @@ export class Worker<
             ProgressType
           >>(
             () => {
-              this.lockManager.untrackJob(job.id);
+              this.lockManager.untrackJob(job.id, token);
               return this.handleFailed(
                 <Error>err,
                 job,
@@ -1171,7 +1169,7 @@ export class Worker<
           // by this worker): its new attempt is already tracked and must stay
           // so.
           if (!next || next.id !== job.id) {
-            this.lockManager.untrackJob(job.id);
+            this.lockManager.untrackJob(job.id, token);
           }
           const now = Date.now();
 

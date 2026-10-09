@@ -174,12 +174,4 @@ export interface WorkerOptions<ConnectionOptionsType = ConnectionOptions>
 
 export interface GetNextJobOptions {
   block?: boolean;
-
-  /**
-   * Track the fetched job for lock renewal and cancellation as soon as it
-   * becomes active, before scheduler updates and the `active` event.
-   *
-   * @defaultValue false
-   */
-  track?: boolean;
 }

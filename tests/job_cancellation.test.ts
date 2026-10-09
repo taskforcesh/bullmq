@@ -1115,22 +1115,25 @@ describe('Job Cancellation', () => {
           }),
         { connection, prefix },
       );
-      const cancelled: boolean[] = [];
-      worker.on('active', job => {
-        cancelled.push(worker.cancelJob(job.id!, 'from active'));
-      });
-      const failed = new Promise<Error>(resolve =>
-        worker.on('failed', (_, err) => resolve(err)),
-      );
-      await worker.waitUntilReady();
+      try {
+        const cancelled: boolean[] = [];
+        worker.on('active', job => {
+          cancelled.push(worker.cancelJob(job.id!, 'from active'));
+        });
+        const failed = new Promise<Error>(resolve =>
+          worker.on('failed', (_, err) => resolve(err)),
+        );
+        await worker.waitUntilReady();
 
-      await queue.add('test', {});
-      const err = await failed;
+        await queue.add('test', {});
+        const err = await failed;
 
-      expect(cancelled).toEqual([true]);
-      expect(err.message).toBe('cancelled');
-      expect(receivedReason).toBe('from active');
-      await worker.close();
+        expect(cancelled).toEqual([true]);
+        expect(err.message).toBe('cancelled');
+        expect(receivedReason).toBe('from active');
+      } finally {
+        await worker.close();
+      }
     });
 
     it('cancels a step job fetched again by the same worker', async () => {
@@ -1160,24 +1163,27 @@ describe('Job Cancellation', () => {
         },
         { connection, prefix, concurrency: 1 },
       );
-      let actives = 0;
-      worker.on('active', job => {
-        actives++;
-        if (actives === 2) {
-          worker.cancelJob(job.id!, 'second step');
-        }
-      });
-      const failed = new Promise<Error>(resolve =>
-        worker.on('failed', (_, err) => resolve(err)),
-      );
-      await worker.waitUntilReady();
+      try {
+        let actives = 0;
+        worker.on('active', job => {
+          actives++;
+          if (actives === 2) {
+            worker.cancelJob(job.id!, 'second step');
+          }
+        });
+        const failed = new Promise<Error>(resolve =>
+          worker.on('failed', (_, err) => resolve(err)),
+        );
+        await worker.waitUntilReady();
 
-      await queue.add('test', { step: 'initial' });
-      const err = await failed;
+        await queue.add('test', { step: 'initial' });
+        const err = await failed;
 
-      expect(err.message).toBe('cancelled');
-      expect(steps).toEqual(['initial', 'second: second step']);
-      await worker.close();
+        expect(err.message).toBe('cancelled');
+        expect(steps).toEqual(['initial', 'second: second step']);
+      } finally {
+        await worker.close();
+      }
     });
 
     it('cancels the next attempt of a retried job', async () => {
@@ -1203,35 +1209,58 @@ describe('Job Cancellation', () => {
         },
         { connection, prefix, concurrency: 1 },
       );
-      let actives = 0;
-      worker.on('active', job => {
-        actives++;
-        if (actives === 2) {
-          worker.cancelJob(job.id!, 'second attempt');
-        }
-      });
-      const finallyFailed = new Promise<Error>(resolve =>
-        worker.on('failed', (job, err) => {
-          if (err.message === 'cancelled') {
-            resolve(err);
+      try {
+        let actives = 0;
+        worker.on('active', job => {
+          actives++;
+          if (actives === 2) {
+            worker.cancelJob(job.id!, 'second attempt');
           }
-        }),
-      );
-      await worker.waitUntilReady();
+        });
+        const finallyFailed = new Promise<Error>(resolve =>
+          worker.on('failed', (job, err) => {
+            if (err.message === 'cancelled') {
+              resolve(err);
+            }
+          }),
+        );
+        await worker.waitUntilReady();
 
-      await queue.add('test', {}, { attempts: 2 });
-      await finallyFailed;
+        await queue.add('test', {}, { attempts: 2 });
+        await finallyFailed;
 
-      expect(attempts).toEqual(['first: failed', 'second: second attempt']);
-      await worker.close();
+        expect(attempts).toEqual(['first: failed', 'second: second attempt']);
+      } finally {
+        await worker.close();
+      }
     });
 
-    it('tracks jobs fetched manually when the track option is enabled', async () => {
+    it('keeps a replacement attempt tracked when the previous processor exits', async () => {
+      let releaseFirst: () => void;
+      let releaseSecond: () => void;
+      let movedToWait: () => void;
+      let startedSecond: () => void;
+      let secondSignal: AbortSignal;
+      const firstGate = new Promise<void>(resolve => (releaseFirst = resolve));
+      const secondGate = new Promise<void>(
+        resolve => (releaseSecond = resolve),
+      );
+      const waiting = new Promise<void>(resolve => (movedToWait = resolve));
+      const processingSecond = new Promise<void>(
+        resolve => (startedSecond = resolve),
+      );
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
-          expect(signal!.aborted).toBe(true);
-          expect(signal!.reason).toBe('from active');
+          if (token === 'first-token') {
+            await job.moveToWait(token);
+            movedToWait();
+            await firstGate;
+            throw new WaitingError();
+          }
+          secondSignal = signal!;
+          startedSecond();
+          await secondGate;
           return 'done';
         },
         {
@@ -1242,49 +1271,71 @@ describe('Job Cancellation', () => {
           lockRenewTime: 50,
         },
       );
+      let firstProcessing: Promise<unknown> | undefined;
+      let secondProcessing: Promise<unknown> | undefined;
       try {
         await worker.waitUntilReady();
         await queue.add('test', {});
 
-        const cancelled: boolean[] = [];
-        worker.on('active', job => {
-          cancelled.push(worker.cancelJob(job.id!, 'from active'));
-        });
-        const locksRenewed = new Promise<string[]>(resolve =>
-          worker.once('locksRenewed', ({ jobIds }) => resolve(jobIds)),
-        );
-        const token = 'manual-token';
-        const job = await worker.getNextJob(token, {
+        const first = await worker.getNextJob('first-token', { block: false });
+        firstProcessing = worker.processJob(first!, 'first-token', () => false);
+        await waiting;
+        const second = await worker.getNextJob('second-token', {
           block: false,
-          track: true,
         });
+        expect(second!.id).toBe(first!.id);
+        secondProcessing = worker.processJob(
+          second!,
+          'second-token',
+          () => false,
+        );
+        await processingSecond;
 
-        expect(job).toBeDefined();
-        expect(cancelled).toEqual([true]);
+        releaseFirst!();
+        await firstProcessing;
+
         expect((worker as any).lockManager.getActiveJobCount()).toBe(1);
-        expect(await locksRenewed).toEqual([job!.id]);
+        expect(worker.cancelJob(second!.id!, 'replacement')).toBe(true);
+        expect(secondSignal!.aborted).toBe(true);
+        expect(secondSignal!.reason).toBe('replacement');
+        const locksRenewed = new Promise<string[]>(resolve => {
+          worker.once('locksRenewed', ({ jobIds }) => resolve(jobIds));
+        });
+        (worker as any).lockManager.start();
+        expect(await locksRenewed).toEqual([second!.id]);
 
-        await worker.processJob(job!, token, () => false);
-        expect(await job!.getState()).toBe('completed');
+        releaseSecond!();
+        await secondProcessing;
+        expect(await second!.getState()).toBe('completed');
         expect((worker as any).lockManager.getActiveJobCount()).toBe(0);
       } finally {
-        await worker.close();
+        releaseFirst!();
+        releaseSecond!();
+        try {
+          await Promise.all([firstProcessing, secondProcessing]);
+        } finally {
+          await worker.close();
+        }
       }
     });
 
     it('does not track jobs fetched manually with getNextJob', async () => {
       const worker = new Worker(queueName, null, { connection, prefix });
-      await worker.waitUntilReady();
-      await queue.add('test', {});
+      try {
+        await worker.waitUntilReady();
+        await queue.add('test', {});
 
-      const token = 'manual-token';
-      const job = await worker.getNextJob(token);
-      expect(job).toBeDefined();
-      expect(worker.cancelJob(job!.id!)).toBe(false);
-      expect((worker as any).lockManager.getActiveJobCount()).toBe(0);
+        const token = 'manual-token';
+        const job = await worker.getNextJob(token);
+        expect(job).toBeDefined();
+        expect(worker.cancelJob(job!.id!)).toBe(false);
+        expect((worker as any).lockManager.getActiveJobCount()).toBe(0);
 
-      await job!.moveToCompleted('done', token, false);
-      await worker.close();
+        await job!.moveToCompleted('done', token, false);
+        expect((worker as any).lockManager.getActiveJobCount()).toBe(0);
+      } finally {
+        await worker.close();
+      }
     });
   });
 });
