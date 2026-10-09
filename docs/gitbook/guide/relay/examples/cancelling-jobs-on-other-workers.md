@@ -1,13 +1,14 @@
 # Cancelling jobs on other workers
 
 **Scenario:** a user cancels a long-running export from your web app. The
-request reaches one of your API servers, but the job may be waiting in the
-queue, or already running on any worker of the fleet.
+request reaches one of your API servers, while the job runs on any worker of
+the fleet.
 
-`worker.cancelJob(jobId)` aborts a job, but only from the process that runs
-it. With the Relay, every worker subscribes to the cancellation topic of its
-queue, and the API server publishes the request there. Jobs that aren't
-running yet are simply removed.
+`worker.cancelJob(jobId)` aborts a running job, but only from the process
+that runs it. With the Relay, every worker subscribes to the cancellation
+topic of its queue, and the API server publishes the request there. The
+worker running the job aborts it; for every other worker, and for jobs that
+are not running, the request is a no-op, as `worker.cancelJob()` is.
 
 ## Every worker
 
@@ -45,57 +46,35 @@ react to the signal.
 
 ## Requesting a cancellation
 
+From any process, for example the API server:
+
 ```typescript
-import { Queue, Relay } from 'bullmq';
+import { Relay } from 'bullmq';
 
-const queue = new Queue('exports', { connection });
 const relay = new Relay({ connection });
-
-type CancelResult =
-  'not_found' | 'finished' | 'removed' | 'not_delivered' | 'signalled';
 
 export async function cancelExport(
   jobId: string,
   reason = 'cancelled by user',
-): Promise<CancelResult> {
-  const job = await queue.getJob(jobId);
-  if (!job) {
-    return 'not_found';
-  }
-
-  const state = await job.getState();
-  if (state === 'completed' || state === 'failed') {
-    return 'finished';
-  }
-
-  if (state !== 'active') {
-    try {
-      // Waiting, delayed, prioritized…: remove it before a worker takes it.
-      await job.remove();
-      return 'removed';
-    } catch {
-      // A worker took it in the meantime (the job is locked): signal it.
-    }
-  }
-
+): Promise<boolean> {
   const { endpoints } = await relay.publish('jobs.exports.cancel', {
     jobId,
     reason,
   });
-  return endpoints === 0 ? 'not_delivered' : 'signalled';
+  return endpoints > 0;
 }
 ```
 
-`'not_delivered'` means no subscribed endpoints matched the request.
-`'signalled'` means the request was enqueued for at least one endpoint, not
-that the worker owning the job received it or cancelled the job. If that
+`false` means that no worker is subscribed, so nobody received the request.
+`true` means the request was delivered to at least one worker's inbox, not
+that the worker running the job received it or cancelled the job. If that
 worker receives it and the processor observes the signal before finishing,
 the job fails with your `UnrecoverableError`.
 
 ## Why the Relay
 
-The documentation of earlier releases suggested broadcasting cancellations
-with Redis pub/sub. The Relay improves on it:
+A common way to reach every worker is broadcasting with Redis pub/sub. The
+Relay improves on it:
 
 - **A worker that is reconnecting doesn't miss the request.** It waits in
   the worker's inbox.
@@ -104,17 +83,15 @@ with Redis pub/sub. The Relay improves on it:
 
 ## Limitations
 
-This pattern covers the common case. Keep in mind:
-
+- **Only running jobs are cancelled.** A request for a job that is not
+  running when the workers receive it has no effect, even if the job starts
+  right after.
 - **Cancellation is cooperative.** A processor that ignores the signal runs
   to the end.
 - **A job can finish first.** A request that arrives once the job is
   completed has no effect.
-- **A job that is retried by a worker other than the one that received the
-  request is not cancelled.** This can only happen if the processor throws a
-  regular `Error` on abort, which is why it should throw an
-  `UnrecoverableError`.
+- **No confirmation.** `publish()` tells you how many workers received the
+  request, not whether one of them was running the job.
 - **A worker that is removed** (frozen or disconnected for longer than the
-  relay's `leaseDuration`) misses the request. Its job will most likely be
-  moved back to the queue as stalled by then; call `cancelExport` again if
-  you need to be sure.
+  relay's `leaseDuration`) misses the request. By then its job has most
+  likely been moved back to the queue as stalled.
