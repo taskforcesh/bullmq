@@ -42,8 +42,11 @@ await relay.waitUntilReady();
 `waitUntilReady()` resolves once the node is registered and reading its
 inbox. You don't have to await it: `subscribe` and `publish` wait for it.
 
-On PostgreSQL, the relay needs the tables and functions created by the
-`0004_relay` migration. Run your migrations as usual (see the
+On PostgreSQL, apply all current migrations, through `0006_relay_retained`.
+The relay requires `0004_relay` for its tables and functions,
+`0005_relay_expired_lease` for recovery after lease expiry, and
+`0006_relay_retained` for atomic retained subscriptions and expiry cleanup.
+Run your migrations as usual (see the
 [PostgreSQL backend](../postgresql.md#migrations) guide) after upgrading
 BullMQ, or pass `migrate: true` as above.
 
