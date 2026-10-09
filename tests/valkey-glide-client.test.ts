@@ -957,6 +957,49 @@ describe('ValkeyGlideAdapter', () => {
     expect(info).toContain('valkey_version:');
   });
 
+  it('rejects info() with ConnectionClosedError when closed while raw client is pending', async () => {
+    class PendingGlideClient extends MockGlideClient {
+      static async createClient() {
+        return new Promise<MockGlideClient>(() => {});
+      }
+    }
+
+    const raw = new PendingGlideClient();
+    const duplicate = createValkeyGlideClient(raw as any).duplicate();
+
+    duplicate.disconnect();
+
+    await expect(
+      Promise.race([
+        duplicate.info(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('info() hung')), 200),
+        ),
+      ]),
+    ).rejects.toBeInstanceOf(ConnectionClosedError);
+  });
+
+  it('normalizes a ClosingError from duplicated client creation in info()', async () => {
+    class FailingGlideClient extends MockGlideClient {
+      static async createClient(): Promise<MockGlideClient> {
+        // Reject after info() has started awaiting the raw client.
+        await new Promise(resolve => setTimeout(resolve, 0));
+        const error = new Error('closing');
+        error.name = 'ClosingError';
+        throw error;
+      }
+    }
+
+    const raw = new FailingGlideClient();
+    const duplicate = createValkeyGlideClient(raw as any).duplicate();
+    // The adapter also reports creation failures as 'error' events.
+    duplicate.on('error', () => {});
+
+    await expect(duplicate.info()).rejects.toBeInstanceOf(
+      ConnectionClosedError,
+    );
+  });
+
   it('throws ConnectionClosedError for commands issued after disconnect', async () => {
     const raw = new MockGlideClient();
     const client = createValkeyGlideClient(raw as any);
