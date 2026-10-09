@@ -178,10 +178,12 @@ export class LockManager {
   }
 
   /**
-   * Removes a job from lock renewal tracking.
+   * Removes a job from lock renewal tracking if the supplied token matches.
    */
-  untrackJob(jobId: string): void {
-    this.trackedJobs.delete(jobId);
+  untrackJob(jobId: string, token?: string): void {
+    if (token === undefined || this.trackedJobs.get(jobId)?.token === token) {
+      this.trackedJobs.delete(jobId);
+    }
   }
 
   /**
