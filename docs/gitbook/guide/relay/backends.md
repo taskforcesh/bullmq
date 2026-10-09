@@ -48,15 +48,15 @@ to spread unrelated traffic.
 
 For reference, when inspecting a Redis instance:
 
-| Key                                      | Type   | Content                                          |
-| ---------------------------------------- | ------ | ------------------------------------------------ |
-| `…:nodes`                                | Set    | Registered node ids                              |
-| `…:alive:{nodeId}`                       | String | A node's lease (expires with it)                 |
-| `…:inbox:{nodeId}`                       | Stream | A node's inbox                                   |
-| `…:eps:{nodeId}`, `…:ep:{nodeId}:{id}`   | Set    | A node's subscriptions                           |
-| `…:sub:i:{segment}`, `…:sub:p:{pattern}` | Set    | Subscription index, by first segment and pattern |
-| `…:ret:{topic}`                          | Hash   | A topic's retained message                       |
-| `…:mid`                                  | String | Message id counter                               |
+| Key                                      | Type       | Content                                                        |
+| ---------------------------------------- | ---------- | -------------------------------------------------------------- |
+| `…:nodes`                                | Sorted set | Registered node ids, scored by lease deadline (ms since epoch) |
+| `…:alive:{nodeId}`                       | String     | A node's lease (expires with it)                               |
+| `…:inbox:{nodeId}`                       | Stream     | A node's inbox                                                 |
+| `…:eps:{nodeId}`, `…:ep:{nodeId}:{id}`   | Set        | A node's subscriptions                                         |
+| `…:sub:i:{segment}`, `…:sub:p:{pattern}` | Set        | Subscription index, by first segment and pattern               |
+| `…:ret:{topic}`                          | Hash       | A topic's retained message                                     |
+| `…:mid`                                  | String     | Message id counter                                             |
 
 ## PostgreSQL
 
@@ -76,9 +76,11 @@ const relay = new Relay({
 [PostgreSQL backend](../postgresql.md) for queues: a connection string, a
 `pg` pool configuration, or an existing `pg.Pool`.
 
-- **Migration.** The relay needs the `0004_relay` migration. It only adds new
-  `relay_*` tables and functions, so it is compatible with instances still
-  running an older BullMQ 6 release.
+- **Migration.** Apply all current migrations, through `0006_relay_retained`.
+  These include `0004_relay` (tables and functions),
+  `0005_relay_expired_lease` (recovery after lease expiry), and
+  `0006_relay_retained` (atomic retained subscriptions and expiry cleanup).
+  They are compatible with instances still running an older BullMQ 6 release.
 - **Inboxes** are rows of the `relay_inbox` table. Publishers send a `NOTIFY`
   to wake the nodes involved; a node that misses a notification still reads
   its inbox after `blockTimeout` (default 5 seconds).
