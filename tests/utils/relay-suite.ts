@@ -599,19 +599,33 @@ export function describeRelay(name: string, ctx: RelaySuiteContext): void {
         expect(await backend.heartbeat('long', 30_000)).toBe(true);
       });
 
-      it('a heartbeat before the sweep revives an expired node', async () => {
+      it('an expired node must recover even before it is swept', async () => {
         const backend = await newBackend(newNamespace());
         await backend.registerNode('n1', 100);
         await backend.subscribe('n1', 'e1', 'a');
         await delay(250);
-        expect(await backend.heartbeat('n1', 30_000)).toBe(true);
-        expect(await backend.sweep(100)).toEqual([]);
+        expect(await backend.heartbeat('n1', 30_000)).toBe(false);
         const result = await backend.publish('a', '1', {
           ts: 1,
           retainMs: 0,
           maxSize: 10,
         });
-        expect(result.endpoints).toBe(1);
+        expect(result.endpoints).toBe(0);
+        expect(await backend.sweep(100)).toEqual(['n1']);
+      });
+
+      it('updates sweep deadlines on registration and heartbeat', async () => {
+        const backend = await newBackend(newNamespace());
+        await backend.registerNode('registered', 500);
+        await backend.registerNode('renewed', 500);
+        await backend.registerNode('expired', 100);
+        await backend.registerNode('removed', 100);
+        await backend.registerNode('registered', 30_000);
+        expect(await backend.heartbeat('renewed', 30_000)).toBe(true);
+        await backend.unregisterNode('removed');
+        await delay(600);
+        expect(await backend.sweep(1)).toEqual(['expired']);
+        expect(await backend.sweep(100)).toEqual([]);
       });
 
       it('sweeps at most the given number of nodes per call', async () => {
@@ -879,6 +893,41 @@ export function describeRelay(name: string, ctx: RelaySuiteContext): void {
         });
         await waitFor(() => received.length === 1);
         expect(received).toEqual(['back']);
+      });
+
+      it('emits recovered after an unswept lease expires before receiving again', async () => {
+        const ns = newNamespace();
+        const relay = await newRelay({
+          namespace: ns,
+          heartbeatInterval: 60_000,
+        });
+        const events: unknown[] = [];
+        relay.on('recovered', () => events.push('recovered'));
+        await relay.subscribe('a', message => {
+          events.push(message.data);
+        });
+        const backend = await newBackend(ns);
+        await backend.registerNode(relay.nodeId, 100);
+        await delay(250);
+        expect(
+          (
+            await backend.publish('a', '"missed"', {
+              ts: 1,
+              retainMs: 0,
+              maxSize: 100,
+            })
+          ).endpoints,
+        ).toBe(0);
+        await (relay as any).heartbeat();
+        expect(events).toEqual(['recovered']);
+        expect(await ctx.countSubscriptions(ns)).toBe(1);
+        await backend.publish('a', '"back"', {
+          ts: 2,
+          retainMs: 0,
+          maxSize: 100,
+        });
+        await waitFor(() => events.length === 2);
+        expect(events).toEqual(['recovered', 'back']);
       });
 
       it('sweeps nodes that stopped renewing their lease', async () => {
