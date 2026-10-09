@@ -44,6 +44,32 @@ await relay.subscribe('jobs.exports.cancel', message => {
 See [Cancelling jobs](../../workers/cancelling-jobs.md) for more ways to
 react to the signal.
 
+## Several queues in one process
+
+When a process runs workers for several queues, one subscription with a
+wildcard can serve all of them. Every message carries the concrete topic it
+was published on, so the handler reads the queue name from it:
+
+```typescript
+const workers = new Map<string, Worker>([
+  ['exports', exportsWorker],
+  ['reports', reportsWorker],
+]);
+
+await relay.subscribe('jobs.*.cancel', message => {
+  // message.topic is e.g. 'jobs.exports.cancel'
+  const queueName = decodeURIComponent(message.topic.split('.')[1]);
+  const { jobId, reason } = message.data as { jobId: string; reason: string };
+  workers.get(queueName)?.cancelJob(jobId, reason);
+});
+```
+
+Publishers keep publishing to `jobs.<queue>.cancel`. `decodeURIComponent`
+reverses the encoding of queue names that need it (see
+[Values in topics](../topics-and-patterns.md#values-in-topics)). The process
+also receives the requests of queues it doesn't run, and ignores them; use
+one subscription per queue if that traffic matters.
+
 ## Requesting a cancellation
 
 From any process, for example the API server:
