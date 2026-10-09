@@ -1,3 +1,10 @@
+## [3.3.2](https://github.com/taskforcesh/bullmq/compare/vpy3.3.1...vpy3.3.2) (2026-10-08)
+
+
+### Bug Fixes
+
+* **deps:** accept a compatible redis-py range instead of an exact pin [python] ([#4875](https://github.com/taskforcesh/bullmq/issues/4875)) ([ab38089](https://github.com/taskforcesh/bullmq/commit/ab38089d0af8bdab78741918fd35835149dd1082))
+
 ## [3.3.1](https://github.com/taskforcesh/bullmq/compare/vpy3.3.0...vpy3.3.1) (2026-10-07)
 
 
