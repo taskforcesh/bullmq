@@ -36,7 +36,7 @@ if not segments then
   return -2
 end
 
-if rcall("SISMEMBER", KEYS[1], nodeId) == 0 then
+if not rcall("ZSCORE", KEYS[1], nodeId) then
   return -3
 end
 

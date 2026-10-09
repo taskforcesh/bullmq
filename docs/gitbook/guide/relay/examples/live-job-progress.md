@@ -62,39 +62,59 @@ worker.on('failed', (job, err) => {
 
 ```typescript
 import express from 'express';
-import { Relay } from 'bullmq';
+import { Relay, RelaySubscription } from 'bullmq';
 
 const relay = new Relay({ connection: { host: 'redis.internal', port: 6379 } });
 const app = express();
 
 app.get('/videos/:jobId/events', async (req, res) => {
-  const { jobId } = req.params;
-  if (!/^\d+$/.test(jobId) || !(await userCanSeeJob(req.user, jobId))) {
-    return res.sendStatus(404);
+  let closed = false;
+  const subscriptions: RelaySubscription[] = [];
+  const unsubscribe = (subscription: RelaySubscription) => {
+    void subscription.unsubscribe().catch(console.error);
+  };
+  const cleanup = () => {
+    closed = true;
+    subscriptions.splice(0).forEach(unsubscribe);
+  };
+  res.once('close', cleanup);
+  res.once('error', cleanup);
+
+  try {
+    const { jobId } = req.params;
+    const authorized =
+      /^\d+$/.test(jobId) && (await userCanSeeJob(req.user, jobId));
+    if (closed) return;
+    if (!authorized) return res.sendStatus(404);
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+    const send = (event: string, data: unknown) => {
+      if (!closed) {
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      }
+    };
+
+    // Exact topics deliver retained values first, showing the current state.
+    for (const kind of ['progress', 'status']) {
+      const subscription = await relay.subscribe(
+        `jobs.transcode.${jobId}.${kind}`,
+        m => send(kind, m.data),
+      );
+      if (closed) {
+        unsubscribe(subscription);
+        return;
+      }
+      subscriptions.push(subscription);
+    }
+  } catch (err) {
+    console.error(err);
+    if (!closed) res.end();
+    cleanup();
   }
-
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-  });
-  const send = (event: string, data: unknown) =>
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-
-  // Two exact topics (not `jobs.transcode.${jobId}.>`), so each delivers its
-  // retained value first: the page shows the current state immediately.
-  const subscriptions = await Promise.all([
-    relay.subscribe(`jobs.transcode.${jobId}.progress`, m =>
-      send('progress', m.data),
-    ),
-    relay.subscribe(`jobs.transcode.${jobId}.status`, m =>
-      send('status', m.data),
-    ),
-  ]);
-
-  req.on('close', () => {
-    subscriptions.forEach(subscription => subscription.unsubscribe());
-  });
 });
 ```
 

@@ -10,7 +10,7 @@ const redisHost = process.env.REDIS_HOST || 'localhost';
 describe('Relay on ioredis', () => {
   let admin: IORedis;
   let namespace: string;
-  const relays: Relay[] = [];
+  const relays: Relay<any>[] = [];
 
   beforeAll(() => {
     admin = new IORedis(redisHost);
@@ -38,6 +38,24 @@ describe('Relay on ioredis', () => {
     await relay.waitUntilReady();
     return relay;
   };
+
+  it('accepts an existing client with default retry options without owning it', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    expect(admin.options.maxRetriesPerRequest).toBe(20);
+    const relay = new Relay({ connection: admin, prefix, namespace });
+    relays.push(relay);
+    await relay.waitUntilReady();
+    const received: unknown[] = [];
+    await relay.subscribe('a', message => {
+      received.push(message.data);
+    });
+    await relay.publish('a', 'hello');
+    await waitFor(() => received.length === 1);
+    expect(received).toEqual(['hello']);
+    await relay.close();
+    expect(admin.options.maxRetriesPerRequest).toBe(20);
+    expect(await admin.ping()).toBe('PONG');
+  });
 
   it('delivers messages published while its inbox connection was dropped', async () => {
     namespace = `t-${randomUUID().slice(0, 13)}`;

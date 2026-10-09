@@ -25,7 +25,7 @@ export interface RelayOptions<C = ConnectionOptions> {
    * that, any node may sweep it with its subscriptions. Default 30000.
    */
   leaseDuration?: number;
-  /** Default `leaseDuration / 3`. */
+  /** Default `leaseDuration / 3`, rounded down to at least 1 ms. */
   heartbeatInterval?: number;
   /** How often this node sweeps expired nodes (ms). Default `leaseDuration`. */
   sweepInterval?: number;
@@ -104,7 +104,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   private heartbeatTimer?: NodeJS.Timeout;
   private sweepTimer?: NodeJS.Timeout;
   private loop?: Promise<void>;
-  private heartbeating = false;
+  private heartbeating?: Promise<void>;
   private sweeping = false;
   private recoveryPending = false;
   private closing?: Promise<void>;
@@ -125,6 +125,19 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
       }
     }
     this.leaseDuration = opts.leaseDuration ?? 30_000;
+    for (const name of [
+      'leaseDuration',
+      'heartbeatInterval',
+      'sweepInterval',
+    ] as const) {
+      const value = opts[name];
+      if (
+        value !== undefined &&
+        (!Number.isInteger(value) || value <= 0 || value > 2_147_483_647)
+      ) {
+        throw new Error(`Invalid relay ${name}: ${value}`);
+      }
+    }
     this.maxMessageSize = opts.maxMessageSize ?? 512 * 1024;
     this.blockTimeout = opts.blockTimeout ?? 5_000;
 
@@ -223,9 +236,13 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   private async start(): Promise<void> {
     await this.backend.waitUntilReady();
     await this.backend.registerNode(this.nodeId, this.leaseDuration);
+    if (this.closing) {
+      return;
+    }
 
     const heartbeatInterval =
-      this.opts.heartbeatInterval ?? Math.floor(this.leaseDuration / 3);
+      this.opts.heartbeatInterval ??
+      Math.max(1, Math.floor(this.leaseDuration / 3));
     this.heartbeatTimer = setInterval(
       () => this.heartbeat().catch(err => this.emitError(err)),
       heartbeatInterval,
@@ -248,6 +265,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     this.endpoints.clear();
     this.backend.interruptInbox();
     await this.loop?.catch((): void => undefined);
+    await this.heartbeating?.catch((): void => undefined);
     try {
       await this.backend.unregisterNode(this.nodeId);
     } catch (err) {
@@ -256,14 +274,16 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     await this.backend.close();
   }
 
-  private async heartbeat(): Promise<void> {
+  private heartbeat(): Promise<void> {
     // A slow datastore must not pile up overlapping heartbeats (or run two
     // recoveries at once): skip the tick while the previous one runs.
-    if (this.closing || this.heartbeating) {
-      return;
+    if (this.closing) {
+      return Promise.resolve();
     }
-    this.heartbeating = true;
-    try {
+    if (this.heartbeating) {
+      return this.heartbeating;
+    }
+    this.heartbeating = (async () => {
       const alive = await this.backend.heartbeat(
         this.nodeId,
         this.leaseDuration,
@@ -271,13 +291,14 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
       if ((!alive || this.recoveryPending) && !this.closing) {
         await this.recover();
       }
-    } finally {
-      this.heartbeating = false;
-    }
+    })().finally(() => {
+      this.heartbeating = undefined;
+    });
+    return this.heartbeating;
   }
 
   /**
-   * The node's lease expired and it was swept: register again and restore
+   * The node's lease expired or it was swept: register again and restore
    * its subscriptions. Retained messages are not delivered again. If it fails
    * part way, the next heartbeat retries it.
    */
@@ -313,6 +334,11 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
           blockMs: this.blockTimeout,
           count: 100,
         });
+        if (batch.entries.length > 0 && !this.closing) {
+          // A lease may have expired while reading. Recover before listeners
+          // consume messages, so they can invalidate state after a routing gap.
+          await this.heartbeat();
+        }
         if (this.closing) {
           break;
         }

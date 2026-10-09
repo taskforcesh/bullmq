@@ -23,6 +23,8 @@ if not isValidRelayId(nodeId) then
   return -5
 end
 
-rcall("SADD", KEYS[1], nodeId)
+local time = rcall("TIME")
+local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
+rcall("ZADD", KEYS[1], now + tonumber(ARGV[3]), nodeId)
 rcall("SET", baseKey .. ":alive:" .. nodeId, "1", "PX", tonumber(ARGV[3]))
 return 1

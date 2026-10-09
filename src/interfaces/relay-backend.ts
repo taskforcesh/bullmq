@@ -89,8 +89,8 @@ export interface IRelayBackend {
   /**
    * Renews a node's lease.
    *
-   * @returns false when the node is not registered any more (its lease expired
-   * and it was swept). The caller must register again and restore its
+   * @returns false when the node is not registered or its lease expired,
+   * even if it was not swept. The caller must register again and restore its
    * subscriptions.
    */
   heartbeat(nodeId: string, leaseMs: number): Promise<boolean>;

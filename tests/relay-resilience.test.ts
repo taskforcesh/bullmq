@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   IRelayBackend,
   Relay,
@@ -92,6 +92,75 @@ describe('Relay resilience', () => {
     );
     expect(() => new Relay({} as any)).toThrow('Relay requires a connection');
   });
+
+  it.each(['leaseDuration', 'heartbeatInterval', 'sweepInterval'])(
+    'rejects invalid %s before creating a backend',
+    name => {
+      const backend = new FakeBackend();
+      for (const value of [0, -1, 0.5, NaN, Infinity, 2_147_483_648]) {
+        expect(() => createRelay(backend, { [name]: value })).toThrow(
+          `Invalid relay ${name}`,
+        );
+      }
+      expect(backend.calls).toEqual([]);
+    },
+  );
+
+  it.each([1, 2])(
+    'clamps the default heartbeat for a %i ms lease',
+    async leaseDuration => {
+      vi.useFakeTimers();
+      const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+      const backend = new FakeBackend();
+      const relay = createRelay(backend, { leaseDuration });
+      try {
+        await relay.waitUntilReady();
+        expect(setIntervalSpy).toHaveBeenNthCalledWith(
+          1,
+          expect.any(Function),
+          1,
+        );
+        await vi.advanceTimersByTimeAsync(1);
+        expect(backend.calls.filter(call => call === 'heartbeat')).toHaveLength(
+          1,
+        );
+      } finally {
+        await relay.close();
+        setIntervalSpy.mockRestore();
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each(['waitUntilReady', 'registerNode'] as const)(
+    'does not start timers when closed during %s',
+    async method => {
+      vi.useFakeTimers();
+      const backend = new FakeBackend();
+      let resume!: () => void;
+      backend[method] = () =>
+        new Promise<void>(resolve => {
+          resume = resolve;
+        });
+      const relay = createRelay(backend);
+      try {
+        await Promise.resolve();
+        const closing = relay.close();
+        resume();
+        await closing;
+        expect(vi.getTimerCount()).toBe(0);
+        expect(backend.calls).not.toContain('readInbox');
+        expect(backend.calls).toContain('unregisterNode');
+        expect(backend.calls).toContain('close');
+      } finally {
+        resume();
+        await relay.close();
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it('reports a failed start', async () => {
     const backend = new FakeBackend();
@@ -274,6 +343,56 @@ describe('Relay resilience', () => {
     await (relay as any).heartbeat();
     expect(recovered).toBe(1);
     await relay.close();
+  });
+
+  it('waits for recovery before dispatching an inbox batch', async () => {
+    const backend = new FakeBackend();
+    const relay = createRelay(backend);
+    const events: string[] = [];
+    let resume!: () => void;
+    try {
+      await relay.waitUntilReady();
+      await relay.subscribe('a', () => {
+        events.push('message');
+      });
+      relay.on('recovered', () => events.push('recovered'));
+      const endpoint = [...(relay as any).endpoints.keys()][0];
+      backend.heartbeatResult = false;
+      backend.subscribe = async () => {
+        await new Promise<void>(resolve => {
+          resume = resolve;
+        });
+        return { added: true };
+      };
+      const recovering = (relay as any).heartbeat();
+      await waitFor(() => !!resume);
+      const reads = backend.calls.filter(c => c === 'readInbox').length;
+      backend.inbox.push({
+        entries: [
+          {
+            kind: 'msg',
+            topic: 'a',
+            mid: '1',
+            ts: 1,
+            data: '1',
+            endpoints: [endpoint],
+          },
+        ],
+        cursor: '1',
+      });
+      await waitFor(
+        () => backend.calls.filter(c => c === 'readInbox').length > reads,
+      );
+      expect(events).toEqual([]);
+      backend.heartbeatResult = true;
+      resume();
+      await recovering;
+      await waitFor(() => events.length === 2);
+      expect(events).toEqual(['recovered', 'message']);
+    } finally {
+      resume?.();
+      await relay.close();
+    }
   });
 
   it('does not overlap sweeps', async () => {

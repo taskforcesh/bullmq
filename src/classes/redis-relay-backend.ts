@@ -51,7 +51,11 @@ export class RedisRelayBackend implements IRelayBackend {
       skipVersionCheck: opts.skipVersionCheck,
     });
     this.blockingConnection = new RedisConnection(
-      shared ? (opts.connection as IRedisClient).duplicate() : opts.connection,
+      shared
+        ? (opts.connection as IRedisClient).duplicate({
+            maxRetriesPerRequest: null,
+          })
+        : opts.connection,
       {
         shared: false,
         blocking: true,
