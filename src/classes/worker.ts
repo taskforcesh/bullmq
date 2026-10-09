@@ -746,6 +746,9 @@ export class Worker<
     token: string,
     { block = true, track = false }: GetNextJobOptions = {},
   ) {
+    if (track && !this.opts.skipLockRenewal && !this.lockManager.isRunning()) {
+      this.lockManager.start();
+    }
     const nextJob = await this._getNextJob(token, { block, track });
 
     return this.trace<

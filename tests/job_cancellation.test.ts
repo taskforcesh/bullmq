@@ -1234,7 +1234,13 @@ describe('Job Cancellation', () => {
           expect(signal!.reason).toBe('from active');
           return 'done';
         },
-        { connection, prefix, autorun: false },
+        {
+          connection,
+          prefix,
+          autorun: false,
+          lockDuration: 1000,
+          lockRenewTime: 50,
+        },
       );
       try {
         await worker.waitUntilReady();
@@ -1244,6 +1250,9 @@ describe('Job Cancellation', () => {
         worker.on('active', job => {
           cancelled.push(worker.cancelJob(job.id!, 'from active'));
         });
+        const locksRenewed = new Promise<string[]>(resolve =>
+          worker.once('locksRenewed', ({ jobIds }) => resolve(jobIds)),
+        );
         const token = 'manual-token';
         const job = await worker.getNextJob(token, {
           block: false,
@@ -1253,6 +1262,7 @@ describe('Job Cancellation', () => {
         expect(job).toBeDefined();
         expect(cancelled).toEqual([true]);
         expect((worker as any).lockManager.getActiveJobCount()).toBe(1);
+        expect(await locksRenewed).toEqual([job!.id]);
 
         await worker.processJob(job!, token, () => false);
         expect(await job!.getState()).toBe('completed');
