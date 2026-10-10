@@ -9,7 +9,7 @@ from bullmq.queue_keys import QueueKeys
 from bullmq.error_code import ErrorCode
 from bullmq.custom_errors import UnrecoverableError
 from bullmq.utils import isRedisVersionLowerThan, get_parent_key, object_to_flat_array
-from typing import Any, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from bullmq.job import Job
     from bullmq.redis_connection import RedisConnection
@@ -401,7 +401,7 @@ class Scripts:
         template_opts: dict,
         scheduler_opts: dict,
         delayed_job_opts: dict,
-        producer_id: str = None,
+        producer_id: Optional[str] = None,
     ):
         """
         Register or override a job scheduler and queue its next iteration.
@@ -449,7 +449,7 @@ class Scripts:
         next_millis: int,
         template_data: str,
         delayed_job_opts: dict,
-        producer_id: str = None,
+        producer_id: Optional[str] = None,
     ):
         """
         Advance a registered job scheduler to its next iteration. Returns the
@@ -803,7 +803,7 @@ class Scripts:
             return raw2NextJobData(result)
         return None
 
-    def extendLock(self, jobId: str, token: str, duration: int, client: Redis = None):
+    def extendLock(self, jobId: str, token: str, duration: int, client: Optional[Redis] = None):
         keys = [self.toKey(jobId) + ":lock", self.keys['stalled']]
         args = [token, duration, jobId]
         return self.commands["extendLock"](keys, args, client)
