@@ -1,3 +1,10 @@
+## [3.3.3](https://github.com/taskforcesh/bullmq/compare/vpy3.3.2...vpy3.3.3) (2026-10-10)
+
+
+### Bug Fixes
+
+* **job:** use Optional for parameters defaulting to None [python] ([#4908](https://github.com/taskforcesh/bullmq/issues/4908)) fixes [#4905](https://github.com/taskforcesh/bullmq/issues/4905) ([5232e19](https://github.com/taskforcesh/bullmq/commit/5232e1957b4c6d4da9e032593c760b9cfa1d1b79))
+
 ## [3.3.2](https://github.com/taskforcesh/bullmq/compare/vpy3.3.1...vpy3.3.2) (2026-10-08)
 
 
