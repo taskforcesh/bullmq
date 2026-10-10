@@ -22,6 +22,7 @@ import {
   QueueBase,
   FlowProducer,
   RedisConnection,
+  ConnectionClosedError,
 } from '../src/classes';
 import { randomUUID, removeAllQueueData } from '../src/utils';
 
@@ -466,6 +467,42 @@ describe('RedisConnection', () => {
       expect(fakeCluster.connect.called).toBe(false);
       expect(fakeCluster.once.called).toBe(false);
     });
+
+    it('removes the abort listener when ready wins', async () => {
+      const client = new EventEmitter() as any;
+      client.status = 'reconnecting';
+      client.isCluster = false;
+      const controller = new AbortController();
+      const add = sinon.spy(controller.signal, 'addEventListener');
+      const remove = sinon.spy(controller.signal, 'removeEventListener');
+
+      const pending = RedisConnection.waitUntilReady(client, controller.signal);
+      await Promise.resolve();
+      client.status = 'ready';
+      client.emit('ready');
+      await pending;
+
+      expect(add.calledOnce).toBe(true);
+      expect(remove.calledOnce).toBe(true);
+    });
+
+    it('removes the abort listener when aborted', async () => {
+      const client = new EventEmitter() as any;
+      client.status = 'reconnecting';
+      client.isCluster = false;
+      const controller = new AbortController();
+      const remove = sinon.spy(controller.signal, 'removeEventListener');
+
+      const pending = RedisConnection.waitUntilReady(client, controller.signal);
+      await Promise.resolve();
+      controller.abort();
+
+      await expect(pending).rejects.toThrow(ConnectionClosedError);
+      expect(remove.calledOnce).toBe(true);
+      expect(client.listenerCount('ready')).toBe(0);
+      expect(client.listenerCount('end')).toBe(0);
+      expect(client.listenerCount('error')).toBe(0);
+    });
   });
 
   describe('reconnect()', () => {
@@ -564,6 +601,7 @@ describe('RedisConnection', () => {
       client.emit('end');
       await Promise.resolve();
       await Promise.resolve();
+      await Promise.resolve();
 
       expect(reconnectResolved).toBe(false);
       expect(waitUntilReady.callCount).toBe(2);
@@ -574,6 +612,81 @@ describe('RedisConnection', () => {
       await Promise.all([reconnecting, concurrentReconnect!]);
       expect(client.connect.calledOnce).toBe(true);
       waitUntilReady.restore();
+    });
+
+    it('does not connect from status end once closing', async () => {
+      const client = createClient('end');
+      const connection = createConnection(client);
+      connection.closing = true;
+
+      await expect(connection.reconnect()).rejects.toThrow(
+        ConnectionClosedError,
+      );
+      expect(client.connect.called).toBe(false);
+    });
+
+    function createCloseableConnection(client: any) {
+      const connection = createConnection(client);
+      Object.assign(connection, {
+        extraOptions: { shared: true },
+        _client: client,
+        handleClientError: () => {},
+        handleClientClose: () => {},
+        handleClientReady: () => {},
+      });
+      return connection;
+    }
+
+    it('stops waiting when close() starts, even without an end event', async () => {
+      const client = createClient('reconnecting');
+      const connection = createCloseableConnection(client);
+
+      const reconnecting = connection.reconnect();
+      await Promise.resolve();
+      await connection.close();
+
+      await expect(reconnecting).rejects.toThrow(ConnectionClosedError);
+      expect(client.connect.called).toBe(false);
+    });
+
+    it('rejects an in-flight connect() when close starts', async () => {
+      const client = createClient('end');
+      let resolveConnect!: () => void;
+      client.connect = sinon.stub().callsFake(
+        () =>
+          new Promise<void>(resolve => {
+            resolveConnect = resolve;
+          }),
+      );
+      const connection = createCloseableConnection(client);
+
+      const reconnecting = connection.reconnect();
+      await Promise.resolve();
+      expect(client.connect.calledOnce).toBe(true);
+
+      await connection.close();
+      await expect(reconnecting).rejects.toThrow(ConnectionClosedError);
+
+      client.status = 'ready';
+      resolveConnect();
+    });
+
+    it('drops waitUntilReady listeners when close wins without an end event', async () => {
+      const client = createClient('reconnecting');
+      const connection = createCloseableConnection(client);
+
+      const reconnecting = connection.reconnect();
+      await Promise.resolve();
+      expect(client.listenerCount('ready')).toBe(1);
+      expect(client.listenerCount('end')).toBe(1);
+      expect(client.listenerCount('error')).toBe(1);
+
+      await connection.close();
+      await expect(reconnecting).rejects.toThrow(ConnectionClosedError);
+
+      expect(client.listenerCount('ready')).toBe(0);
+      expect(client.listenerCount('end')).toBe(0);
+      expect(client.listenerCount('error')).toBe(0);
     });
   });
 

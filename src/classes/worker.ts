@@ -784,6 +784,11 @@ export class Worker<
       try {
         this.blockUntil = await this.waiting;
 
+        // close() or pause() may have started during the wait.
+        if (this.closing || this.paused) {
+          return;
+        }
+
         if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
           job = await this.moveToActive(token, this.opts.name);
         }
