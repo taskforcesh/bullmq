@@ -1,0 +1,232 @@
+# BullMQ for Go
+
+A Go port of [BullMQ](https://github.com/taskforcesh/bullmq), the Redis-backed
+job queue.
+
+Jobs produced by this package are fully interoperable with the Node.js, Python,
+Rust and .NET implementations: every state transition is executed by the exact
+same Lua scripts, which live in `src/commands` at the root of this repository.
+
+> Redis is the only bundled backend. `Queue`, `Worker`, `QueueEvents` and `Job`
+> depend only on the `Backend` interface (the counterpart of the Node.js
+> `IQueueBackend`), and `RedisBackend` is one implementation of it. Another
+> datastore, such as PostgreSQL, can be added by implementing `Backend` and
+> passing a `BackendFactory` through the `Backend` option of `QueueOptions`,
+> `WorkerOptions` and `QueueEventsOptions`. See
+> [FEATURE_PARITY.md](./FEATURE_PARITY.md) for what is and is not implemented.
+
+## Requirements
+
+- Go 1.24 or newer
+- Redis 6.2 or newer
+
+## Installation
+
+```sh
+go get github.com/taskforcesh/bullmq/golang
+```
+
+## Building from this repository
+
+The Lua commands are **not** committed to the `golang` directory. They are
+generated from the shared sources so that every port stays byte-for-byte
+identical. Before building or testing, run from the repository root:
+
+```sh
+yarn install
+yarn generate:raw:scripts
+yarn copy:lua:golang
+```
+
+This resolves the `--- @include` directives in `src/commands/*.lua` into
+`rawScripts/` and copies the result into `golang/commands/`, where it is
+embedded into the binary with `go:embed`.
+
+## Usage
+
+### Adding jobs
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq/golang"
+)
+
+func main() {
+	ctx := context.Background()
+
+	queue, err := bullmq.NewQueue("emails", &bullmq.QueueOptions{
+		Redis: bullmq.RedisOptions{Addr: "127.0.0.1:6379"},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	job, err := queue.Add(ctx, "welcome", map[string]string{"to": "me@example.com"}, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("queued job %s", job.ID)
+}
+```
+
+### Processing jobs
+
+```go
+worker, err := bullmq.NewWorker("emails",
+	func(ctx context.Context, job *bullmq.Job) (any, error) {
+		var payload struct {
+			To string `json:"to"`
+		}
+		if err := job.DecodeData(&payload); err != nil {
+			return nil, err
+		}
+
+		progress, err := bullmq.NumberProgress(50)
+		if err != nil {
+			return nil, err
+		}
+		if err := job.UpdateProgress(ctx, progress); err != nil {
+			return nil, err
+		}
+
+		return map[string]string{"sent": payload.To}, nil
+	},
+	&bullmq.WorkerOptions{
+		Redis:       bullmq.RedisOptions{Addr: "127.0.0.1:6379"},
+		Concurrency: 8,
+	})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+// Run blocks until ctx is cancelled (processors see the cancellation) or
+// Close is called (in-flight jobs are allowed to finish).
+if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	log.Fatal(err)
+}
+```
+
+`Worker.Run` blocks until it is stopped, and the two ways of stopping it treat
+in-flight jobs differently:
+
+- **`Worker.Close`** (call it from another goroutine) is the graceful option:
+  the worker stops fetching new jobs and waits for in-flight jobs to finish;
+  their contexts are not cancelled.
+- **Cancelling the context passed to `Run`** is an immediate shutdown: the same
+  context is handed to every processor, so in-flight jobs observe the
+  cancellation through `ctx.Done()` and should return early.
+
+Cancelling the context only makes `Run` return; it does not release the
+worker's Redis connections, so `Close` must still be called afterwards (as
+`defer` does above) to avoid leaking connections in a long-lived process. To
+shut down gracefully on a signal, call `Close` from the signal handler and run
+the worker on a context that is not tied to the signal.
+
+### Job options
+
+```go
+queue.Add(ctx, "report", data, &bullmq.JobOptions{
+	JobID:            "daily-report",              // idempotency key
+	Delay:            bullmq.Int64(60_000),         // milliseconds
+	Priority:         bullmq.Int64(1),              // lower runs first
+	Attempts:         bullmq.Int64(5),
+	Backoff:          &bullmq.Backoff{Type: bullmq.BackoffExponential, Delay: 1000},
+	RemoveOnComplete: bullmq.KeepCount(100),
+	RemoveOnFail:     bullmq.KeepAge(24 * 60 * 60),
+})
+```
+
+Return a [`bullmq.UnrecoverableError`](./errors.go) from a processor to fail a
+job immediately without consuming the remaining attempts:
+
+```go
+return nil, bullmq.NewUnrecoverableError("invalid payload: %v", err)
+```
+
+### Worker events
+
+```go
+go func() {
+	for ev := range worker.Events() {
+		switch ev.Type {
+		case bullmq.EventCompleted:
+			log.Printf("job %s completed", ev.Job.ID)
+		case bullmq.EventFailed:
+			log.Printf("job %s failed: %v", ev.Job.ID, ev.Err)
+		case bullmq.EventError:
+			log.Printf("worker error: %v", ev.Err)
+		}
+	}
+}()
+```
+
+### Queue-wide events
+
+`QueueEvents` consumes the shared Redis stream, so it observes every worker
+attached to the queue regardless of the language it is written in.
+
+```go
+events, err := bullmq.NewQueueEvents("emails", &bullmq.QueueEventsOptions{
+	Redis: bullmq.RedisOptions{Addr: "127.0.0.1:6379"},
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer events.Close()
+
+go events.Run(ctx)
+
+for ev := range events.Events() {
+	log.Printf("%s: job %s", ev.Event, ev.JobID)
+}
+```
+
+### Rate limiting
+
+```go
+&bullmq.WorkerOptions{
+	Limiter: &bullmq.RateLimiter{Max: 100, Duration: time.Minute},
+}
+```
+
+### Sharing a Redis client
+
+Pass an existing `redis.UniversalClient` to reuse a connection pool. Blocking reads (`BZPOPMIN` in workers, `XREAD` in `QueueEvents`) never run on the shared pool: when the client is a `*redis.Client`, a dedicated single-connection client is derived from its options with a read timeout suited to blocking calls, and is closed by `Worker.Close`/`QueueEvents.Close`. Other client types (cluster, ring) are used as-is with go-redis's timeout-aware typed blocking commands.
+
+```go
+rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:6379"})
+queue, err := bullmq.NewQueue("emails", &bullmq.QueueOptions{
+	Redis: bullmq.RedisOptions{Client: rdb},
+})
+```
+
+Clients supplied this way are not closed by `Queue.Close` or `Worker.Close`.
+
+## Testing
+
+The tests need a Redis server. From the repository root:
+
+```sh
+docker compose up -d
+cd golang
+go test ./...
+```
+
+Set `REDIS_ADDR` to point at a different server:
+
+```sh
+REDIS_ADDR=127.0.0.1:6380 go test ./...
+```
+
+Tests that require Redis are skipped automatically when no server is reachable.
+
+## License
+
+MIT
