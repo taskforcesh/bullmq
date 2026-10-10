@@ -772,8 +772,15 @@ export interface IQueueBackend {
   /**
    * Interrupts the backend's in-flight blocking wait (so a worker can stop or
    * recover). No-op for backends without a dedicated blocking connection.
+   *
+   * @param wait - Wait until the blocking connection is fully disconnected.
+   * @param opts.closing - The caller is closing for good, so the backend must
+   * not try to recover the blocking connection after this cut.
    */
-  disconnectBlocking(wait?: boolean): Promise<void>;
+  disconnectBlocking(
+    wait?: boolean,
+    opts?: { closing?: boolean },
+  ): Promise<void>;
 
   /**
    * Re-establishes the backend's blocking connection after an interrupt.
