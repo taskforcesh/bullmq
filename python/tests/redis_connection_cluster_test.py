@@ -54,6 +54,7 @@ class TestRedisConnectionCluster(unittest.IsolatedAsyncioTestCase):
         cluster = RedisCluster(host="localhost", port=7000)
 
         queue = Queue("test-queue", {"prefix": "{bull}", "connection": cluster})
+        self.addAsyncCleanup(queue.close)
 
         async def process(job, token):
             return None
@@ -63,6 +64,7 @@ class TestRedisConnectionCluster(unittest.IsolatedAsyncioTestCase):
             process,
             {"prefix": "{bull}", "connection": cluster, "autorun": False},
         )
+        self.addAsyncCleanup(worker.close)
 
         self.assertIs(queue.backend.connection.conn, cluster)
         self.assertIs(worker.backend.connection.conn, cluster)
@@ -92,6 +94,7 @@ class TestRedisConnectionCluster(unittest.IsolatedAsyncioTestCase):
     async def test_client_list_connects_a_lazy_cluster_client_first(self):
         cluster = RedisCluster(host="localhost", port=7000)
         queue = Queue("test-queue", {"prefix": "{bull}", "connection": cluster})
+        self.addAsyncCleanup(queue.close)
         listing = "id=1 name={bull}:test-queue:w:worker"
         node = SimpleNamespace(client_list=AsyncMock(return_value=listing))
         discovered = []
