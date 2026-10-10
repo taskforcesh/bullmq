@@ -22,8 +22,9 @@ import {
   QueueBase,
   FlowProducer,
   RedisConnection,
+  RedisQueueBackend,
 } from '../src/classes';
-import { randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 import * as sinon from 'sinon';
 
@@ -218,6 +219,100 @@ describe('RedisConnection', () => {
 
       cluster.status = 'ready';
       await connection.close(true);
+    });
+
+    describe('when a closing worker cuts the blocking cluster connection', () => {
+      // Mimics ioredis Cluster.disconnect(): the status becomes 'disconnecting'
+      // and the node pool is emptied synchronously, so the in-flight bzpopmin
+      // rejects before the cluster reaches 'end'.
+      function createClusterRejectingOnCut() {
+        const events = new EventEmitter();
+        let hasNodes = true;
+        let rejectInFlight: ((error: Error) => void) | undefined;
+        const cluster: any = createMockClusterClient({
+          on: events.on.bind(events),
+          once: events.once.bind(events),
+          off: events.off.bind(events),
+          removeListener: events.removeListener.bind(events),
+          nodes: sinon.stub().callsFake(() => (hasNodes ? [{}] : [])),
+          bzpopmin: sinon.stub().callsFake(
+            () =>
+              new Promise((_, reject) => {
+                rejectInFlight = reject;
+              }),
+          ),
+          connect: sinon.stub().callsFake(async () => {
+            hasNodes = true;
+            cluster.status = 'ready';
+          }),
+          disconnect: sinon.stub().callsFake(() => {
+            cluster.status = 'disconnecting';
+            hasNodes = false;
+            rejectInFlight?.(new Error('Connection is closed.'));
+            rejectInFlight = undefined;
+            setImmediate(() => {
+              cluster.status = 'end';
+              events.emit('end');
+            });
+          }),
+        });
+        return cluster;
+      }
+
+      async function startBlockingWait(cluster: any) {
+        const connection = new RedisConnection(cluster, {
+          blocking: true,
+          skipVersionCheck: true,
+          skipWaitingForReady: true,
+        });
+        const client = await connection.client;
+        const backend = new RedisQueueBackend(
+          connection,
+          'test',
+          {} as any,
+          (type: string) => type,
+          {},
+          connection,
+          false,
+        );
+
+        const inFlight = (client as any).bzpopmin('marker', 1);
+        inFlight.catch(() => {});
+        // Let the patched bzpopmin reach the underlying command.
+        await new Promise(resolve => setImmediate(resolve));
+        expect(cluster.bzpopmin.calledOnce).toBe(true);
+
+        return { connection, backend, inFlight };
+      }
+
+      it('does not re-dial the cluster when the cut comes from close', async () => {
+        const cluster = createClusterRejectingOnCut();
+        const { connection, backend, inFlight } =
+          await startBlockingWait(cluster);
+
+        await backend.disconnectBlocking(true, { closing: true });
+
+        await expect(inFlight).rejects.toThrow('Connection is closed.');
+        expect(cluster.disconnect.calledOnce).toBe(true);
+        expect(cluster.disconnect.calledWith(false)).toBe(false);
+        expect(cluster.connect.called).toBe(false);
+
+        await connection.close(true);
+      });
+
+      it('still re-dials the cluster when the cut is not a close', async () => {
+        const cluster = createClusterRejectingOnCut();
+        const { connection, backend, inFlight } =
+          await startBlockingWait(cluster);
+
+        await backend.disconnectBlocking(true);
+
+        await expect(inFlight).rejects.toThrow('Connection is closed.');
+        expect(cluster.disconnect.calledWith(false)).toBe(true);
+        expect(cluster.connect.calledOnce).toBe(true);
+
+        await connection.close(true);
+      });
     });
 
     it('reconnects an ioredis cluster after bzpopmin command timeout', async () => {
@@ -955,6 +1050,29 @@ describe('connection', () => {
     await queue.close();
 
     expect(client.status).toEqual('end');
+  });
+
+  it('should disable the blocking cluster re-dial before cutting the blocking connection on close', async () => {
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
+    await worker.waitUntilReady();
+    // Let the main loop park on the blocking wait.
+    await delay(100);
+
+    const blockingConnection = getBlockingRedisConnection(worker);
+    const disableReconnect = sinon.spy(
+      blockingConnection,
+      'disableBlockingClusterReconnect',
+    );
+    const disconnect = sinon.spy(blockingConnection, 'disconnect');
+
+    await worker.close();
+
+    expect(disconnect.called).toBe(true);
+    expect(disableReconnect.called).toBe(true);
+    expect(disableReconnect.calledBefore(disconnect)).toBe(true);
   });
 
   it('should recover from a connection loss', async () => {
