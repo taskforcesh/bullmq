@@ -56,6 +56,9 @@ is:
 | Latest value for new listeners | –                 | –                        | –                     | [Retained messages](retained-messages.md) |
 | Datastores                     | Redis, PostgreSQL | Redis, PostgreSQL        | Redis                 | Redis, PostgreSQL                         |
 
+For a comparison with event-streaming platforms, see
+[Relay compared to Kafka](relay-vs-kafka.md).
+
 ## How it works
 
 Every process that creates a `Relay` is a **node**. A node registers itself in
@@ -89,6 +92,7 @@ Read more in [Nodes and failures](nodes-and-failures.md) and
 - [Nodes and failures](nodes-and-failures.md)
 - [Backends: Redis and PostgreSQL](backends.md)
 - [Reference](reference.md)
+- [Relay compared to Kafka](relay-vs-kafka.md)
 - Examples:
   - [Live job progress](examples/live-job-progress.md)
   - [Real-time notifications for WebSocket servers](examples/realtime-notifications.md)

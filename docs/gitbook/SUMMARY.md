@@ -72,6 +72,7 @@
   - [Nodes and failures](guide/relay/nodes-and-failures.md)
   - [Backends](guide/relay/backends.md)
   - [Reference](guide/relay/reference.md)
+  - [Relay compared to Kafka](guide/relay/relay-vs-kafka.md)
   - [Example: Live job progress](guide/relay/examples/live-job-progress.md)
   - [Example: Real-time notifications](guide/relay/examples/realtime-notifications.md)
   - [Example: Cache invalidation](guide/relay/examples/cache-invalidation.md)
