@@ -25,13 +25,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Optional, Union
-
-import redis.asyncio as redis
+from typing import Optional
 
 from bullmq.event_emitter import EventEmitter
 from bullmq.queue_keys import QueueKeys
 from bullmq.redis_connection import RedisConnection
+from bullmq.types.connection_options import ConnectionOptions
 from bullmq.types.queue_events_options import QueueEventsOptions
 from bullmq.utils import isRedisVersionLowerThan
 
@@ -69,7 +68,7 @@ class QueueEvents(EventEmitter):
         self.opts = opts
         self.prefix = opts.get("prefix", "bull")
 
-        connection_opts: Union[dict, str, redis.Redis] = opts.get(
+        connection_opts: ConnectionOptions = opts.get(
             "connection", {}
         )
         # `RedisConnection` calls `register_script` for every BullMQ

@@ -75,3 +75,15 @@ if __name__ == "__main__":
 {% hint style="warning" %}
 If Redis responses are in binary format, you should pass [decode_responses](https://redis.readthedocs.io/en/latest/examples/connection_examples.html#By-default-Redis-return-binary-responses,-to-decode-them-use-decode_responses=True) option as _True_.
 {% endhint %}
+
+## Redis Cluster
+
+Pass a `redis.asyncio.cluster.RedisCluster` client as the `connection`, and put a hash tag in the prefix so every key of a queue lands in one slot (see [Redis Cluster](../patterns/redis-cluster.md)):
+
+```python
+from redis.asyncio.cluster import RedisCluster
+
+connection = RedisCluster(host="<host>", port=6379, decode_responses=True)
+queue = Queue("myQueue", {"connection": connection, "prefix": "{myprefix}"})
+worker = Worker("myQueue", process, {"connection": connection, "prefix": "{myprefix}"})
+```

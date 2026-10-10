@@ -1,6 +1,6 @@
 
-from typing import TypedDict, Any, Union
-import redis.asyncio as redis
+from typing import TypedDict
+from bullmq.types.connection_options import ConnectionOptions
 
 
 class WorkerOptions(TypedDict, total=False):
@@ -64,7 +64,7 @@ class WorkerOptions(TypedDict, total=False):
     Prefix for all queue keys.
     """
 
-    connection: Union[dict[str, Any], redis.Redis, str]
+    connection: ConnectionOptions
     """
     Options for connecting to a Redis instance.
     """
