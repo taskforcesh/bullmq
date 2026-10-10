@@ -23,8 +23,9 @@ CREATE TABLE relay_subscription (
   node_id text NOT NULL,
   endpoint_id text NOT NULL,
   pattern text NOT NULL,
-  -- Literal first segment of the pattern, or '*' for wildcard roots.
-  root text NOT NULL,
+  -- Wildcard patterns only: their literal first segment, or '*' for wildcard
+  -- roots. NULL for exact topics, which publishes find by pattern directly.
+  root text,
   PRIMARY KEY (ns, pattern, node_id, endpoint_id),
   FOREIGN KEY (ns, node_id) REFERENCES relay_node (ns, node_id) ON DELETE CASCADE
 );

@@ -6,7 +6,7 @@
     :ep:{node}:{endpoint}   SET   patterns of the endpoint
     :eps:{node}             SET   endpoints of the node
     :sub:p:{pattern}        SET   "{node}/{endpoint}" members of a pattern
-    :sub:i:{root}           SET   patterns indexed by root ("*" = wildcard root)
+    :sub:i:{root}           SET   wildcard patterns indexed by root ("*" = wildcard root)
 
   Returns the number of removed subscriptions.
 ]]
