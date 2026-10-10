@@ -78,6 +78,11 @@ type Worker struct {
 type activeJob struct {
 	job    *Job
 	cancel context.CancelFunc
+	// lockLost is set once the job's lock could not be renewed. It is
+	// guarded by Worker.mu and keeps the entry out of later renewal
+	// snapshots, so a processor that is slow to honor cancellation cannot
+	// produce a stalled event on every tick.
+	lockLost bool
 }
 
 // clientNameSuffix returns the suffix of a worker's blocking connection name:
@@ -652,8 +657,9 @@ func (w *Worker) lockRenewalLoop(ctx context.Context) {
 		w.mu.Lock()
 		snapshot := make([]*activeJob, 0, len(w.active))
 		for _, a := range w.active {
-			// A job without a token holds no lock to renew.
-			if a.job.token != "" {
+			// A job without a token holds no lock to renew, and one whose
+			// lock was already lost has nothing left to renew either.
+			if a.job.token != "" && !a.lockLost {
 				snapshot = append(snapshot, a)
 			}
 		}
@@ -679,9 +685,19 @@ func (w *Worker) lockRenewalLoop(ctx context.Context) {
 		for _, id := range failed {
 			w.mu.Lock()
 			current, ok := w.active[id]
+			// Skip jobs that finished, or were replaced, since the snapshot,
+			// and those already reported as lock-lost.
+			if ok && current.lockLost {
+				ok = false
+			}
+			if ok {
+				ok = snapshotContains(snapshot, current)
+			}
+			if ok {
+				current.lockLost = true
+			}
 			w.mu.Unlock()
-			// Skip jobs that finished, or were replaced, since the snapshot.
-			if !ok || !snapshotContains(snapshot, current) {
+			if !ok {
 				continue
 			}
 			// The lock is gone: another worker owns the job now, so stop
