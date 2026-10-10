@@ -462,7 +462,8 @@ export class Queue<
    * Upserting a scheduler will create a new job scheduler or update an existing one.
    * It will also create the first job based on the repeat options and delayed accordingly.
    *
-   * @param key - Unique key for the repeatable job meta.
+   * @param jobSchedulerId - Unique id of the job scheduler. Upserting with an
+   * existing id updates that scheduler.
    * @param repeatOpts - Repeat options
    * @param jobTemplate - Job template. If provided it will be used for all the jobs
    * created by the scheduler.

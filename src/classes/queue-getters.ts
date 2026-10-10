@@ -413,7 +413,9 @@ export class QueueGetters<
    *
    * @param parentId - The id of the parent job
    * @param type - "processed" | "pending"
-   * @param opts - Options for the query.
+   * @param start - Zero-based index from where to start returning children.
+   * @param end - Zero-based index where to stop returning children (inclusive),
+   * or -1 to return all of them.
    *
    * @returns an object with the following shape:
    * `{ items: { id: string, v?: any, err?: string } [], jobs: JobJson[], total: number}`
