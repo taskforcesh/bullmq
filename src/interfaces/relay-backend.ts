@@ -131,7 +131,11 @@ export interface IRelayBackend {
     opts: { blockMs: number; count: number },
   ): Promise<RelayInboxBatch>;
 
-  /** Makes a blocked {@link readInbox} return promptly (e.g. on close). */
+  /**
+   * Makes a blocked {@link readInbox} return (or fail) promptly, and later
+   * reads stop waiting. Used on close, so an interrupt that lands while a read
+   * is still starting is not lost.
+   */
   interruptInbox(): void;
 }
 
