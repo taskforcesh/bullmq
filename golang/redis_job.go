@@ -269,9 +269,6 @@ func (b *RedisBackend) MoveToDelayed(ctx context.Context, jobID, token string, d
 // MoveToWaitingChildren parks an active parent job until its children finish.
 func (b *RedisBackend) MoveToWaitingChildren(ctx context.Context, jobID, token string, child *ParentKeys) (bool, error) {
 	k := b.keys
-	if token == "" {
-		token = "0"
-	}
 	childKey := ""
 	if child != nil && child.ID != "" {
 		childKey = child.QueueKey + ":" + child.ID
