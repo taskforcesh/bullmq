@@ -33,6 +33,8 @@ export class PostgresRelayBackend implements IRelayBackend {
   private readonly connection: PostgresConnection;
   private listening = false;
   private cancelWait?: () => void;
+  /** Set by interruptInbox: reads stop waiting from then on. */
+  private interrupted = false;
   private closing?: Promise<void>;
 
   constructor(opts: RelayBackendOptions<PostgresConnectionOptions>) {
@@ -154,7 +156,12 @@ export class PostgresRelayBackend implements IRelayBackend {
     try {
       const ack = cursor ? cursor.split(',') : [];
       let rows = await this.readRows(nodeId, ack, opts.count);
-      if (rows.length === 0 && !notified && opts.blockMs > 0 && !this.closing) {
+      if (
+        rows.length === 0 &&
+        !notified &&
+        opts.blockMs > 0 &&
+        !this.interrupted
+      ) {
         await new Promise<void>(resolve => {
           const timer = setTimeout(done, opts.blockMs);
           function done() {
@@ -165,7 +172,7 @@ export class PostgresRelayBackend implements IRelayBackend {
           this.cancelWait = done;
         });
         this.cancelWait = undefined;
-        if (!this.closing) {
+        if (!this.interrupted) {
           rows = await this.readRows(nodeId, [], opts.count);
         }
       }
@@ -185,7 +192,13 @@ export class PostgresRelayBackend implements IRelayBackend {
     }
   }
 
+  /**
+   * Makes a blocked readInbox return, and later reads return without
+   * waiting: an interrupt that lands while a read is still querying (before
+   * it starts waiting) must not be lost.
+   */
   interruptInbox(): void {
+    this.interrupted = true;
     this.cancelWait?.();
   }
 

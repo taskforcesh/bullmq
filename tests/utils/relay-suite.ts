@@ -492,6 +492,20 @@ export function describeRelay(name: string, ctx: RelaySuiteContext): void {
         expect(Date.now() - published).toBeLessThan(2000);
       });
 
+      it('an interrupt also stops reads that have not started waiting yet', async () => {
+        const backend = await newBackend(newNamespace());
+        await backend.registerNode('n1', 30_000);
+        backend.interruptInbox();
+        const start = Date.now();
+        await backend
+          .readInbox('n1', backend.initialInboxCursor, {
+            blockMs: 5000,
+            count: 10,
+          })
+          .catch((): undefined => undefined);
+        expect(Date.now() - start).toBeLessThan(1000);
+      });
+
       it('returns retained messages only to exact subscriptions', async () => {
         const backend = await newBackend(newNamespace());
         await backend.registerNode('n1', 30_000);
@@ -961,6 +975,17 @@ export function describeRelay(name: string, ctx: RelaySuiteContext): void {
         const other = await newRelay({ namespace: ns });
         const result = await other.publish('a', 1);
         expect(result.nodes).toBe(0);
+      });
+
+      it('close() returns promptly right after subscribing', async () => {
+        const ns = newNamespace();
+        for (let i = 0; i < 5; i++) {
+          const relay = await newRelay({ namespace: ns, blockTimeout: 5000 });
+          await relay.subscribe('a', () => undefined);
+          const start = Date.now();
+          await relay.close();
+          expect(Date.now() - start).toBeLessThan(2000);
+        }
       });
 
       it('close() returns promptly while the inbox read is blocked', async () => {
