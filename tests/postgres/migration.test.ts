@@ -185,79 +185,101 @@ describe('PostgreSQL migrations', () => {
     }
   });
 
-  it('upgrades a database already at an older schema version', async () => {
-    // Simulate a database created by a previous release: apply only the
-    // migrations up to version 2 and record them in the ledger by hand.
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
-      await client.query(`SET LOCAL search_path TO "${schema}"`);
-      await client.query(
-        `CREATE TABLE IF NOT EXISTS migration (
+  it.each([2, 4, 5])(
+    'upgrades a database already at schema version %i',
+    async version => {
+      // Simulate a database created by a previous release: apply only the
+      // migrations up to that version and record them in the ledger by hand.
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
+        await client.query(`SET LOCAL search_path TO "${schema}"`);
+        await client.query(
+          `CREATE TABLE IF NOT EXISTS migration (
            version integer PRIMARY KEY,
            name text NOT NULL,
            min_client_version integer NOT NULL,
            applied_at timestamptz NOT NULL DEFAULT now()
          )`,
-      );
-      for (const migration of MIGRATIONS.filter(m => m.version <= 2)) {
-        await client.query(migration.load());
-        await client.query(
-          `INSERT INTO migration (version, name, min_client_version)
-           VALUES ($1, $2, $3)`,
-          [migration.version, migration.name, migration.minClientVersion],
         );
+        for (const migration of MIGRATIONS.filter(m => m.version <= version)) {
+          await client.query(migration.load());
+          await client.query(
+            `INSERT INTO migration (version, name, min_client_version)
+           VALUES ($1, $2, $3)`,
+            [migration.version, migration.name, migration.minClientVersion],
+          );
+        }
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
       }
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
 
-    const { rows: beforeRows } = await pool.query<{ version: number }>(
-      `SELECT COALESCE(MAX(version), 0)::int AS version FROM "${schema}".migration`,
-    );
-    expect(beforeRows[0].version).toBe(2);
-
-    const connection = new PostgresConnection({
-      connectionString: url,
-      migrate: true,
-    });
-    try {
-      await connection.waitUntilReady();
-
-      const { rows } = await pool.query<{ version: number }>(
+      const { rows: beforeRows } = await pool.query<{ version: number }>(
         `SELECT COALESCE(MAX(version), 0)::int AS version FROM "${schema}".migration`,
       );
-      expect(rows[0].version).toBe(LATEST_SCHEMA_VERSION);
+      expect(beforeRows[0].version).toBe(version);
 
-      // The pending migrations really ran against the existing schema: a
-      // deduplication key whose winner job is gone is now recovered instead of
-      // swallowing every subsequent add.
-      await pool.query(
-        `INSERT INTO "${schema}".dedup (queue, dedup_id, job_id, expire_at_ms)
+      const connection = new PostgresConnection({
+        connectionString: url,
+        migrate: true,
+      });
+      try {
+        await connection.waitUntilReady();
+
+        const { rows } = await pool.query<{ version: number }>(
+          `SELECT COALESCE(MAX(version), 0)::int AS version FROM "${schema}".migration`,
+        );
+        expect(rows[0].version).toBe(LATEST_SCHEMA_VERSION);
+
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query(`SET LOCAL search_path TO "${schema}"`);
+          await client.query(
+            `INSERT INTO relay_node (ns, node_id, lease_until)
+           VALUES ('upgrade', 'expired', clock_timestamp() - interval '1 second'),
+                  ('upgrade', 'live', clock_timestamp() + interval '1 minute')`,
+          );
+          const { rows } = await client.query(
+            `SELECT relay_heartbeat('upgrade', 'expired', 30000) AS expired,
+                  relay_heartbeat('upgrade', 'live', 30000) AS live`,
+          );
+          expect(rows[0]).toEqual({ expired: false, live: true });
+        } finally {
+          await client.query('ROLLBACK');
+          client.release();
+        }
+
+        // The pending migrations really ran against the existing schema: a
+        // deduplication key whose winner job is gone is now recovered instead of
+        // swallowing every subsequent add.
+        await pool.query(
+          `INSERT INTO "${schema}".dedup (queue, dedup_id, job_id, expire_at_ms)
          VALUES ('upgraded', 'dedup-id', 'gone', NULL)`,
-      );
-      const { rows: dedupRows } = await pool.query<{ winner: string | null }>(
-        `SELECT "${schema}".deduplicate_job(
+        );
+        const { rows: dedupRows } = await pool.query<{ winner: string | null }>(
+          `SELECT "${schema}".deduplicate_job(
            'upgraded', '{"id":"dedup-id"}'::jsonb, 'new-job', $1, 'test',
            '{}'::jsonb, '{}'::jsonb) AS winner`,
-        [Date.now()],
-      );
-      expect(dedupRows[0].winner).toBeNull();
+          [Date.now()],
+        );
+        expect(dedupRows[0].winner).toBeNull();
 
-      const { rows: keyRows } = await pool.query<{ job_id: string }>(
-        `SELECT job_id FROM "${schema}".dedup
+        const { rows: keyRows } = await pool.query<{ job_id: string }>(
+          `SELECT job_id FROM "${schema}".dedup
           WHERE queue = 'upgraded' AND dedup_id = 'dedup-id'`,
-      );
-      expect(keyRows[0].job_id).toBe('new-job');
-    } finally {
-      await connection.close();
-    }
-  });
+        );
+        expect(keyRows[0].job_id).toBe('new-job');
+      } finally {
+        await connection.close();
+      }
+    },
+  );
 
   it('accepts newer same-major schemas and rejects a newer required major', async () => {
     const bootstrap = new PostgresConnection({
@@ -328,6 +350,131 @@ describe('PostgreSQL migrations', () => {
       `SELECT to_regclass('"${schema}".bullmq_scratch_atomic') IS NOT NULL AS exists`,
     );
     expect(rows[0].exists).toBe(false);
+  });
+});
+
+/**
+ * A migration may keep `minClientVersion` at the current major only if
+ * applying it does not break instances still running the previous library
+ * code: they keep working and simply lack the new features. The relay
+ * migration claims this by only adding new `relay_*` objects; this test
+ * proves it by comparing every pre-existing object before and after.
+ */
+describe('PostgreSQL relay migration (0004_relay)', () => {
+  const url = getPostgresUrl();
+  const before = 'bullmq_pre_relay_test';
+  const after = 'bullmq_post_relay_test';
+  let pool: Pool;
+
+  /** Every object of a schema, as normalized definition strings. */
+  const snapshot = async (schema: string): Promise<string[]> => {
+    const { rows } = await pool.query<{ item: string }>(
+      `SELECT 'column ' || c.table_name || '.' || c.column_name || ' ' || c.data_type
+              || ' default=' || COALESCE(c.column_default, '') || ' null=' || c.is_nullable AS item
+         FROM information_schema.columns c WHERE c.table_schema = $1
+       UNION ALL
+       SELECT 'index ' || indexname || ' ' || indexdef
+         FROM pg_indexes WHERE schemaname = $1
+       UNION ALL
+       SELECT 'constraint ' || cl.relname || ' ' || con.conname || ' ' || pg_get_constraintdef(con.oid)
+         FROM pg_constraint con
+         JOIN pg_class cl ON cl.oid = con.conrelid
+         JOIN pg_namespace n ON n.oid = cl.relnamespace
+        WHERE n.nspname = $1
+       UNION ALL
+       SELECT 'function ' || p.proname || ' ' || pg_get_functiondef(p.oid)
+         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = $1 AND p.prokind IN ('f', 'p')
+       UNION ALL
+       SELECT 'type ' || t.typname || ' ' || t.typtype::text || ' ' || COALESCE(
+                (SELECT string_agg(e.enumlabel, ',' ORDER BY e.enumsortorder)
+                   FROM pg_enum e WHERE e.enumtypid = t.oid), '')
+         FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE n.nspname = $1 AND t.typtype IN ('e', 'd', 'c')
+       UNION ALL
+       SELECT 'sequence ' || sequence_name
+         FROM information_schema.sequences WHERE sequence_schema = $1
+       UNION ALL
+       SELECT 'trigger ' || tg.tgname || ' ' || pg_get_triggerdef(tg.oid)
+         FROM pg_trigger tg
+         JOIN pg_class cl ON cl.oid = tg.tgrelid
+         JOIN pg_namespace n ON n.oid = cl.relnamespace
+        WHERE n.nspname = $1 AND NOT tg.tgisinternal`,
+      [schema],
+    );
+    return rows.map(row => row.item.split(schema).join('<schema>')).sort();
+  };
+
+  /** Applies the migrations before the relay one, as an older release did. */
+  const migrateBeforeRelay = async (schema: string) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`CREATE SCHEMA "${schema}"`);
+      await client.query(`SET LOCAL search_path TO "${schema}"`);
+      for (const migration of MIGRATIONS.filter(m => m.name < '0004_relay')) {
+        await client.query(migration.load());
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  };
+
+  beforeAll(async () => {
+    pool = new Pool({ connectionString: url });
+    for (const schema of [before, after]) {
+      await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+    }
+  });
+
+  afterAll(async () => {
+    for (const schema of [before, after]) {
+      await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+    }
+    await pool.end();
+  });
+
+  it('is marked compatible with the current major', () => {
+    const relay = MIGRATIONS.find(m => m.name === '0004_relay');
+    expect(relay?.minClientVersion).toBe(BULLMQ_MAJOR_VERSION);
+  });
+
+  it('leaves every pre-existing object unchanged and only adds relay_* objects', async () => {
+    await migrateBeforeRelay(before);
+    const client = await pool.connect();
+    try {
+      await runMigrations(client, after);
+    } finally {
+      client.release();
+    }
+
+    // The migration ledger is not part of the hand-applied schema.
+    const isLedger = (item: string) =>
+      /^(column migration\.|index migration_pkey |constraint migration |type migration )/.test(
+        item,
+      );
+    const pre = (await snapshot(before)).filter(item => !isLedger(item));
+    const post = (await snapshot(after)).filter(item => !isLedger(item));
+
+    // Nothing that existed before was altered, replaced or removed.
+    const postSet = new Set(post);
+    expect(pre.filter(item => !postSet.has(item))).toEqual([]);
+
+    // Everything added belongs to the relay.
+    const preSet = new Set(pre);
+    const added = post.filter(item => !preSet.has(item));
+    expect(added.length).toBeGreaterThan(0);
+    const foreign = added.filter(
+      item =>
+        !/^(column|index|constraint|function|type|sequence|trigger) relay_/.test(
+          item,
+        ),
+    );
+    expect(foreign).toEqual([]);
   });
 });
 
