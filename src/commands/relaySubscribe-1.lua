@@ -43,7 +43,10 @@ end
 rcall("SADD", baseKey .. ":eps:" .. nodeId, endpointId)
 local added = rcall("SADD", baseKey .. ":ep:" .. nodeId .. ":" .. endpointId, pattern)
 rcall("SADD", baseKey .. ":sub:p:" .. pattern, nodeId .. "/" .. endpointId)
-rcall("SADD", baseKey .. ":sub:i:" .. getRelayPatternRoot(segments), pattern)
+-- Only wildcard patterns are indexed: publishes find exact topics directly.
+if hasRelayWildcards(segments) then
+  rcall("SADD", baseKey .. ":sub:i:" .. getRelayPatternRoot(segments), pattern)
+end
 
 if not hasRelayWildcards(segments) then
   local retained = rcall("HMGET", baseKey .. ":ret:" .. pattern, "m", "ts", "d")

@@ -107,5 +107,9 @@ from it could observe more than you intended.
   matching message is written to the node's inbox, including the ones the
   handler then ignores. On busy topics, prefer one subscription per resource
   or queue the node actually handles, so the datastore does the filtering.
+- **Prefer exact topics for per-resource subscriptions.** A publish finds
+  the subscriptions to its exact topic with a direct lookup, however many
+  there are. Wildcard patterns are matched one by one against every publish
+  whose first segment they could match, so keep their number moderate.
 - **Use namespaces, not topic prefixes, to isolate environments** (see
   [Getting started](getting-started.md#namespaces)).

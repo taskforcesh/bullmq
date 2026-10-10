@@ -53,34 +53,40 @@ end
 local targets = {}
 local nodeOrder = {}
 
-local function collect(indexKey)
-  local patterns = rcall("SMEMBERS", indexKey)
-  for i = 1, #patterns do
-    local pattern = patterns[i]
-    local patternSegments = parseRelayTopic(pattern, true)
-    if patternSegments and matchRelayTopic(patternSegments, topicSegments) then
-      local members = rcall("SMEMBERS", baseKey .. ":sub:p:" .. pattern)
-      for j = 1, #members do
-        local slash = string.find(members[j], "/", 1, true)
-        local nodeId = string.sub(members[j], 1, slash - 1)
-        local endpointId = string.sub(members[j], slash + 1)
-        local target = targets[nodeId]
-        if not target then
-          target = { list = {}, seen = {} }
-          targets[nodeId] = target
-          nodeOrder[#nodeOrder + 1] = nodeId
-        end
-        if not target.seen[endpointId] then
-          target.seen[endpointId] = true
-          target.list[#target.list + 1] = endpointId
-        end
-      end
+local function addSubscribers(pattern)
+  local members = rcall("SMEMBERS", baseKey .. ":sub:p:" .. pattern)
+  for j = 1, #members do
+    local slash = string.find(members[j], "/", 1, true)
+    local nodeId = string.sub(members[j], 1, slash - 1)
+    local endpointId = string.sub(members[j], slash + 1)
+    local target = targets[nodeId]
+    if not target then
+      target = { list = {}, seen = {} }
+      targets[nodeId] = target
+      nodeOrder[#nodeOrder + 1] = nodeId
+    end
+    if not target.seen[endpointId] then
+      target.seen[endpointId] = true
+      target.list[#target.list + 1] = endpointId
     end
   end
 end
 
-collect(baseKey .. ":sub:i:" .. topicSegments[1])
-collect(baseKey .. ":sub:i:*")
+-- Wildcard patterns indexed under a first segment are matched one by one.
+local function addMatchingWildcards(indexKey)
+  local patterns = rcall("SMEMBERS", indexKey)
+  for i = 1, #patterns do
+    local patternSegments = parseRelayTopic(patterns[i], true)
+    if patternSegments and matchRelayTopic(patternSegments, topicSegments) then
+      addSubscribers(patterns[i])
+    end
+  end
+end
+
+-- Exact subscriptions: a direct lookup, whatever their number.
+addSubscribers(topic)
+addMatchingWildcards(baseKey .. ":sub:i:" .. topicSegments[1])
+addMatchingWildcards(baseKey .. ":sub:i:*")
 
 local nodeCount = 0
 local endpointCount = 0
