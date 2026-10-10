@@ -307,7 +307,7 @@ export class RedisConnection extends EventEmitter {
 
   /**
    * Waits for a redis client to be ready.
-   * @param redis - client
+   * @param client - Redis client to wait for.
    */
   static async waitUntilReady(client: RedisClient): Promise<void> {
     if (client.status === 'ready') {

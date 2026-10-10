@@ -34,7 +34,7 @@ await myQueue.add(
 
 ### Keep jobs based on their age
 
-Another possibility is to keep jobs up to a certain age. The `removeOn` option accepts a [`KeepJobs`](https://docs.bullmq.io/api/interfaces/v6.KeepJobs.html) object, that includes an `age` and a `count` fields. The `age` is used to specify how old jobs to keep (in seconds), and the `count` can be used to limit the total amount to keep. The `count` option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory.
+Another possibility is to keep jobs up to a certain age. The `removeOn` option accepts a [`KeepJobs`](https://docs.bullmq.io/api/types/v6.KeepJobs.html) object, that includes an `age` and a `count` fields. The `age` is used to specify how old jobs to keep (in seconds), and the `count` can be used to limit the total amount to keep. The `count` option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory.
 
 ```typescript
 await myQueue.add(

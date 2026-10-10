@@ -499,11 +499,11 @@ class Queue(EventEmitter):
         self,
         job_scheduler_id: str,
         repeat_opts: dict,
-        job_name: str = None,
+        job_name: Optional[str] = None,
         job_data=None,
-        opts: dict = None,
+        opts: Optional[dict] = None,
         override: bool = True,
-        producer_id: str = None,
+        producer_id: Optional[str] = None,
     ):
         """
         Create or update a job scheduler. See JobScheduler.upsertJobScheduler.
