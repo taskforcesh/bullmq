@@ -36,7 +36,11 @@ BEGIN
   INSERT INTO relay_subscription (ns, node_id, endpoint_id, pattern, root)
   VALUES (
     p_ns, p_node, p_endpoint, p_pattern,
-    CASE WHEN v_segments[1] IN ('*', '>') THEN '*' ELSE v_segments[1] END
+    CASE
+      WHEN NOT v_has_wildcards THEN NULL
+      WHEN v_segments[1] IN ('*', '>') THEN '*'
+      ELSE v_segments[1]
+    END
   )
   ON CONFLICT DO NOTHING;
   added := FOUND;
@@ -90,6 +94,13 @@ BEGIN
 
   FOR v_row IN
     WITH matched AS (
+      -- Exact subscriptions: a primary-key lookup, whatever their number.
+      SELECT s.node_id, s.endpoint_id
+        FROM relay_subscription s
+       WHERE s.ns = p_ns AND s.pattern = p_topic
+      UNION ALL
+      -- Wildcard subscriptions: only those indexed under the topic's first
+      -- segment (or a wildcard root) are matched one by one.
       SELECT s.node_id, s.endpoint_id
         FROM relay_subscription s
        WHERE s.ns = p_ns
