@@ -1,3 +1,10 @@
+## [6.3.12](https://github.com/taskforcesh/bullmq/compare/v6.3.11...v6.3.12) (2026-10-09)
+
+
+### Bug Fixes
+
+* **postgres:** inline SQL at build time to restore single-file bundler support ([#4822](https://github.com/taskforcesh/bullmq/issues/4822)) ([c6bc9a4](https://github.com/taskforcesh/bullmq/commit/c6bc9a4c869b3ea0d02ba4475b11de614bf3ecd7)), closes [#4603](https://github.com/taskforcesh/bullmq/issues/4603)
+
 ## [6.3.11](https://github.com/taskforcesh/bullmq/compare/v6.3.10...v6.3.11) (2026-10-01)
 
 

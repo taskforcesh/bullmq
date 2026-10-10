@@ -1,3 +1,10 @@
+# [2.3.0](https://github.com/taskforcesh/bullmq/compare/vex2.2.3...vex2.3.0) (2026-10-08)
+
+
+### Features
+
+* **connection:** allow injecting redis username [elixir] ([#4854](https://github.com/taskforcesh/bullmq/issues/4854)) ([4bb572c](https://github.com/taskforcesh/bullmq/commit/4bb572c67018e60fd0c82dfb9754f075ea934da6))
+
 ## [2.2.3](https://github.com/taskforcesh/bullmq/compare/vex2.2.2...vex2.2.3) (2026-09-18)
 
 
