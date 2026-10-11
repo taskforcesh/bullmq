@@ -438,6 +438,68 @@ describe(`Relay (${ctx.backend})`, () => {
       );
     });
 
+    it('trims consumed entries and reports the unread backlog', async () => {
+      const backend = await newBackend(newNamespace());
+      await backend.registerNode('n1', 30_000);
+      await backend.subscribe('n1', 'e1', 'a');
+      for (let i = 0; i < 30; i++) {
+        await backend.publish('a', String(i), {
+          ts: 1,
+          retainMs: 0,
+          maxSize: 10,
+        });
+      }
+      expect(
+        await backend.trimInbox('n1', backend.initialInboxCursor, 1000),
+      ).toBe(30);
+
+      const first = await backend.readInbox('n1', backend.initialInboxCursor, {
+        blockMs: 0,
+        count: 10,
+      });
+      expect(await backend.trimInbox('n1', first.cursor, 1000)).toBe(20);
+
+      // Unread entries are kept.
+      const next = await backend.readInbox('n1', first.cursor, {
+        blockMs: 0,
+        count: 100,
+      });
+      expect(next.entries.map(e => e.data)).toEqual(
+        Array.from({ length: 20 }, (_, i) => String(i + 10)),
+      );
+    });
+
+    it('caps the inbox by dropping the oldest unread entries', async () => {
+      const backend = await newBackend(newNamespace());
+      await backend.registerNode('n1', 30_000);
+      await backend.subscribe('n1', 'e1', 'a');
+      for (let i = 0; i < 50; i++) {
+        await backend.publish('a', String(i), {
+          ts: 1,
+          retainMs: 0,
+          maxSize: 10,
+        });
+      }
+      expect(
+        await backend.trimInbox('n1', backend.initialInboxCursor, 20),
+      ).toBe(20);
+      const { entries } = await readAll(backend, 'n1');
+      expect(entries.map(e => e.data)).toEqual(
+        Array.from({ length: 20 }, (_, i) => String(i + 30)),
+      );
+    });
+
+    it('reports an empty backlog for an empty or missing inbox', async () => {
+      const backend = await newBackend(newNamespace());
+      await backend.registerNode('n1', 30_000);
+      expect(
+        await backend.trimInbox('n1', backend.initialInboxCursor, 100),
+      ).toBe(0);
+      expect(
+        await backend.trimInbox('ghost', backend.initialInboxCursor, 100),
+      ).toBe(0);
+    });
+
     it('waits for new entries when the inbox is empty', async () => {
       const backend = await newBackend(newNamespace());
       await backend.registerNode('n1', 30_000);

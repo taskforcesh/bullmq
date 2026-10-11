@@ -132,6 +132,16 @@ export interface IRelayBackend {
   ): Promise<RelayInboxBatch>;
 
   /**
+   * Removes the entries of a node's inbox that were already consumed (up to
+   * `cursor`, as returned by {@link readInbox}) and the oldest entries beyond
+   * `maxLength`.
+   *
+   * @returns the number of entries left: the messages the node hasn't read
+   * yet (its backlog).
+   */
+  trimInbox(nodeId: string, cursor: string, maxLength: number): Promise<number>;
+
+  /**
    * Makes a blocked {@link readInbox} return (or fail) promptly, and later
    * reads stop waiting. Used on close, so an interrupt that lands while a read
    * is still starting is not lost.
@@ -144,7 +154,7 @@ export interface RelayBackendOptions<C = ConnectionOptions> {
   namespace: string;
   /** Key prefix (Redis only). */
   prefix?: string;
-  /** Approximate max inbox length per node (Redis only). */
+  /** Approximate max inbox length per node, applied on publish (Redis). */
   inboxMaxLength?: number;
   skipVersionCheck?: boolean;
 }
