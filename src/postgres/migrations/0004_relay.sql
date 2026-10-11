@@ -351,3 +351,38 @@ BEGIN
      LIMIT p_limit;
 END;
 $$;
+
+-- Removes the consumed entries of a node's inbox (the ids of its last read
+-- batch) and the oldest entries beyond p_max_len, and returns the number of
+-- entries left: the messages the node hasn't read yet.
+CREATE FUNCTION relay_trim_inbox(
+  p_ns text, p_node text, p_ack bigint[], p_max_len integer
+)
+RETURNS integer
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_oldest_kept bigint;
+  v_count integer;
+BEGIN
+  IF cardinality(p_ack) > 0 THEN
+    DELETE FROM relay_inbox
+     WHERE ns = p_ns AND node_id = p_node AND id = ANY (p_ack);
+  END IF;
+
+  SELECT id INTO v_oldest_kept
+    FROM relay_inbox
+   WHERE ns = p_ns AND node_id = p_node
+   ORDER BY id DESC
+  OFFSET p_max_len - 1
+   LIMIT 1;
+  IF v_oldest_kept IS NOT NULL THEN
+    DELETE FROM relay_inbox
+     WHERE ns = p_ns AND node_id = p_node AND id < v_oldest_kept;
+  END IF;
+
+  SELECT count(*)::integer INTO v_count
+    FROM relay_inbox
+   WHERE ns = p_ns AND node_id = p_node;
+  RETURN v_count;
+END;
+$$;

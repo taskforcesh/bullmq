@@ -17,6 +17,8 @@ class FakeBackend implements IRelayBackend {
   readonly initialInboxCursor = '0';
   fail: Partial<Record<keyof IRelayBackend, Error>> = {};
   heartbeatResult = true;
+  backlog = 0;
+  trimmed: [string, string, number][] = [];
   inbox: RelayInboxBatch[] = [];
   calls: string[] = [];
   private wake?: () => void;
@@ -71,6 +73,11 @@ class FakeBackend implements IRelayBackend {
       setTimeout(resolve, 20);
     });
     return { entries: [], cursor: '0' };
+  }
+  async trimInbox(nodeId: string, cursor: string, maxLength: number) {
+    this.check('trimInbox');
+    this.trimmed.push([nodeId, cursor, maxLength]);
+    return this.backlog;
   }
   interruptInbox() {
     this.wake?.();
@@ -463,5 +470,48 @@ describe('Relay resilience', () => {
     await Promise.all([(relay as any).sweep(), (relay as any).sweep()]);
     expect(backend.calls.filter(c => c === 'sweep')).toHaveLength(1);
     await relay.close();
+  });
+
+  it('trims its inbox on every heartbeat and emits lag past the threshold', async () => {
+    const backend = new FakeBackend();
+    const relay = createRelay(backend, {
+      inboxMaxLength: 100,
+      lagThreshold: 5,
+    });
+    await relay.waitUntilReady();
+    const lags: number[] = [];
+    relay.on('lag', backlog => lags.push(backlog));
+
+    backend.backlog = 3;
+    await (relay as any).heartbeat();
+    expect(lags).toEqual([]);
+    expect(backend.trimmed.at(-1)).toEqual([relay.nodeId, '0', 100]);
+
+    backend.backlog = 7;
+    await (relay as any).heartbeat();
+    expect(lags).toEqual([7]);
+    await relay.close();
+  });
+
+  it('defaults lagThreshold to half of inboxMaxLength', async () => {
+    const backend = new FakeBackend();
+    const relay = createRelay(backend, { inboxMaxLength: 10 });
+    await relay.waitUntilReady();
+    const lags: number[] = [];
+    relay.on('lag', backlog => lags.push(backlog));
+    backend.backlog = 4;
+    await (relay as any).heartbeat();
+    backend.backlog = 5;
+    await (relay as any).heartbeat();
+    expect(lags).toEqual([5]);
+    await relay.close();
+  });
+
+  it('rejects an invalid lagThreshold', () => {
+    for (const lagThreshold of [0, -1, 1.5]) {
+      expect(() => createRelay(new FakeBackend(), { lagThreshold })).toThrow(
+        'Invalid relay lagThreshold',
+      );
+    }
   });
 });

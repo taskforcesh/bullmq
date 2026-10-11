@@ -171,6 +171,14 @@ export class RedisRelayBackend implements IRelayBackend {
     return { entries, cursor: next };
   }
 
+  async trimInbox(
+    nodeId: string,
+    cursor: string,
+    maxLength: number,
+  ): Promise<number> {
+    return this.exec('relayTrimInbox', [nodeId, cursor, maxLength]);
+  }
+
   interruptInbox(): void {
     this.blockingConnection.client
       .then(client => client.disconnect())
