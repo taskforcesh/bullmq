@@ -16,6 +16,11 @@
  *                     them. Shows how the matching cost grows with the number
  *                     of subscriptions sharing a first segment.
  *   6. churn          Subscribe + unsubscribe pairs per second.
+ *   7. wildcards      `W` wildcard subscriptions under the same first segment
+ *                     (`cache.p<i>.*`) for each W in `WILDCARDS`; publish
+ *                     rate to topics matching one of them.
+ *   8. payloads       Throughput to one subscriber for each message size in
+ *                     `PAYLOADS` (bytes).
  *
  * This is a smoke benchmark: it gives an order of magnitude on your machine,
  * not a rigorous, warmed-up, multi-sample study. Publisher and subscribers run
@@ -37,6 +42,8 @@
  *   FANOUT_NODES   nodes in the fan-out scenario (default 5)
  *   FANOUT_SUBS    subscriptions per node in the fan-out scenario (default 10)
  *   SCALE          comma-separated subscription counts (default 100,1000,10000)
+ *   WILDCARDS      comma-separated wildcard counts (default 10,100,1000)
+ *   PAYLOADS       comma-separated message sizes (default 1024,16384,131072)
  */
 
 import IORedis from 'ioredis';
@@ -58,6 +65,8 @@ const PAYLOAD_BYTES = Number(env('PAYLOAD_BYTES', '256'));
 const FANOUT_NODES = Number(env('FANOUT_NODES', '5'));
 const FANOUT_SUBS = Number(env('FANOUT_SUBS', '10'));
 const SCALE = env('SCALE', '100,1000,10000').split(',').map(Number);
+const WILDCARDS = env('WILDCARDS', '10,100,1000').split(',').map(Number);
+const PAYLOADS = env('PAYLOADS', '1024,16384,131072').split(',').map(Number);
 
 const REDIS = {
   host: env('REDIS_HOST', '127.0.0.1'),
@@ -374,10 +383,74 @@ async function churn(h: Harness) {
   await h.reset();
 }
 
+async function wildcards(h: Harness) {
+  for (const count of WILDCARDS) {
+    const ns = h.namespace();
+    const nodes = await Promise.all([0, 1, 2, 3].map(() => h.relay(ns)));
+    let delivered = 0;
+    for (let i = 0; i < count; i++) {
+      await nodes[i % nodes.length].subscribe(`cache.p${i}.*`, () => {
+        delivered++;
+      });
+    }
+    const publisher = await h.relay(ns);
+    const messages = Math.min(MESSAGES, 1000);
+    const latencies: number[] = [];
+    const start = performance.now();
+    await runConcurrently(messages, CONCURRENCY, async i => {
+      const t = performance.now();
+      await publisher.publish(`cache.p${(i * 7919) % count}.x`, { padding });
+      latencies.push(performance.now() - t);
+    });
+    await waitUntil(() => delivered >= messages);
+    record(
+      h.backend,
+      `publish to 1 of ${count} wildcard subs`,
+      messages,
+      performance.now() - start,
+      latencies,
+    );
+    await h.reset();
+  }
+}
+
+async function payloads(h: Harness) {
+  for (const size of PAYLOADS) {
+    const ns = h.namespace();
+    const subscriber = await h.relay(ns);
+    const publisher = await h.relay(ns);
+    const body = 'x'.repeat(size);
+    const messages = Math.min(MESSAGES, 1000);
+    const latencies: number[] = [];
+    await subscriber.subscribe('bench.payload', message => {
+      latencies.push(performance.now() - (message.data as { t: number }).t);
+    });
+    const start = performance.now();
+    await runConcurrently(messages, CONCURRENCY, async () => {
+      await publisher.publish('bench.payload', { t: performance.now(), body });
+    });
+    await waitUntil(() => latencies.length >= messages);
+    record(
+      h.backend,
+      `throughput, ${Math.round(size / 1024)} KiB messages`,
+      messages,
+      performance.now() - start,
+      latencies,
+    );
+    await h.reset();
+  }
+}
+
 async function main() {
   console.log(
     `Relay benchmark: ${MESSAGES} messages, ${CONCURRENCY} in flight, ~${PAYLOAD_BYTES} bytes per message`,
   );
+  if (BACKENDS.includes('postgres')) {
+    // Start from a fresh schema, so the current migrations are applied.
+    const pool = new Pool({ connectionString: getPostgresUrl() });
+    await pool.query(`DROP SCHEMA IF EXISTS "${PG_SCHEMA}" CASCADE`);
+    await pool.end();
+  }
   for (const backend of BACKENDS) {
     console.log(`\n${backend}`);
     const h = new Harness(backend);
@@ -388,6 +461,8 @@ async function main() {
       fanOut,
       scaling,
       churn,
+      wildcards,
+      payloads,
     ]) {
       try {
         await scenario(h);
