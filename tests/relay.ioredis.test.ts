@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { default as IORedis } from 'ioredis';
 import { randomUUID } from 'crypto';
 import { Relay } from '../src';
-import { waitFor } from './utils/relay-suite';
+import { waitFor } from './utils/relay';
 
 const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 const redisHost = process.env.REDIS_HOST || 'localhost';

@@ -6,7 +6,7 @@ import {
   RelayPublishResult,
   RelaySubscribeResult,
 } from '../src';
-import { waitFor } from './utils/relay-suite';
+import { waitFor } from './utils/relay';
 
 /**
  * Scriptable in-memory backend used to exercise the Relay's error handling,
