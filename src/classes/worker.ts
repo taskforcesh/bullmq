@@ -1220,6 +1220,7 @@ export class Worker<
 
       this.emit('failed', job, err, 'active');
 
+      span?.recordException(err);
       span?.addEvent('job failed', {
         [TelemetryAttributes.JobFailedReason]: err.message,
       });
