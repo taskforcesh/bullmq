@@ -57,6 +57,9 @@ subscriptions. From there:
   (it crashed, or was frozen for longer than `leaseDuration`), it is removed
   with its subscriptions and inbox. See
   [Nodes and failures](nodes-and-failures.md).
+- **A node that can't keep up loses its oldest messages.** Each inbox keeps
+  at most `inboxMaxLength` unread messages. See
+  [Slow subscribers](#slow-subscribers).
 - **Subscriptions only see what comes after them.** Subscribing does not
   replay earlier messages, except the topic's
   [retained message](retained-messages.md).
@@ -80,6 +83,39 @@ relay.on('error', err => logger.error(err, 'relay listener failed'));
 
 await relay.subscribe('orders.>', async message => {
   await audit.record(message.topic, message.data); // may throw
+});
+```
+
+## Slow subscribers
+
+Publishers never wait for subscribers: one slow node must not slow down the
+rest of the system. Instead, each node's inbox holds a bounded backlog:
+
+- A node keeps at most `inboxMaxLength` unread messages (default `10000`).
+  When it falls further behind, its **oldest unread messages are dropped**.
+  The limit is enforced on every heartbeat (and, on Redis, approximately on
+  every publish), so the backlog may briefly exceed it.
+- On every heartbeat, a node with at least `lagThreshold` unread messages
+  (default: half of `inboxMaxLength`) emits `'lag'` with its backlog, before
+  anything is dropped:
+
+```typescript
+relay.on('lag', backlog => {
+  metrics.gauge('relay.backlog', backlog);
+  logger.warn({ backlog }, 'relay node is falling behind');
+});
+```
+
+A node falls behind when its listeners are slow. Keep them fast: since they
+are not awaited, slow `async` listeners also pile up in memory. When a
+message triggers real work, hand it to a [queue](../queues/README.md), which
+absorbs bursts durably, with retries and rate limits:
+
+```typescript
+const reports = new Queue('reports', { connection });
+
+await relay.subscribe('reports.*.requested', async message => {
+  await reports.add('generate', message.data);
 });
 ```
 

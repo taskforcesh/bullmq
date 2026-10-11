@@ -25,9 +25,9 @@ You can also pass an existing client instance as `connection`. The relay
 duplicates it for its blocking inbox reads and leaves the instance open when
 it closes.
 
-- **Inboxes** are Redis streams, read with `XREAD BLOCK`. Each inbox is capped
-  at about `inboxMaxLength` entries (default `10000`): a node that falls that
-  far behind loses its oldest messages.
+- **Inboxes** are Redis streams, read with `XREAD BLOCK`. Consumed entries are
+  removed on every heartbeat, and each inbox keeps at most `inboxMaxLength`
+  unread entries (see [Slow subscribers](messages.md#slow-subscribers)).
 - **Keys** live under `{prefix}:relay:{namespace}:`. A namespace with no nodes
   left only keeps its message id counter, plus the retained messages until
   they expire.
@@ -84,6 +84,7 @@ const relay = new Relay({
 - **Inboxes** are rows of the `relay_inbox` table. Publishers send a `NOTIFY`
   to wake the nodes involved; a node that misses a notification still reads
   its inbox after `blockTimeout` (default 5 seconds).
+  Like on Redis, each inbox keeps at most `inboxMaxLength` unread rows.
 - **Connections.** Each node uses the pool for commands, plus one dedicated
   connection for `LISTEN`. Account for it in `max_connections`.
 - **Throughput.** Every listening node receives every `NOTIFY` of the
