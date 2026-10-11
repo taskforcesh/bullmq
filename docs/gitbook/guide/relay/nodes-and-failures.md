@@ -27,13 +27,14 @@ The default heartbeat interval is rounded down, with a minimum of 1 ms.
 
 ## What happens when…
 
-| Situation                                                       | Result                                                                                                                             |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| The connection drops for less than the lease                    | Messages published meanwhile wait in the inbox and are delivered on reconnection.                                                  |
-| The process is paused or disconnected for longer than the lease | It stops receiving messages and is swept. When it comes back, it [recovers](#recovery); the messages published meanwhile are lost. |
-| The process crashes                                             | It is swept once its lease expires. Its subscriptions are removed.                                                                 |
-| The process calls `close()`                                     | It is removed at once, with its subscriptions and inbox.                                                                           |
-| The datastore is unreachable                                    | `publish` and `subscribe` fail; heartbeats and inbox reads fail and are retried, and are reported as `'error'` events.             |
+| Situation                                                       | Result                                                                                                                                                           |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The connection drops for less than the lease                    | Messages published meanwhile wait in the inbox and are delivered on reconnection.                                                                                |
+| The process is paused or disconnected for longer than the lease | It stops receiving messages and is swept. When it comes back, it [recovers](#recovery); the messages published meanwhile are lost.                               |
+| The process crashes                                             | It is swept once its lease expires. Its subscriptions are removed.                                                                                               |
+| The process calls `close()`                                     | It is removed at once, with its subscriptions and inbox.                                                                                                         |
+| Listeners can't keep up with the messages                       | The backlog grows, `'lag'` is emitted, and beyond `inboxMaxLength` the oldest unread messages are dropped. See [Slow subscribers](messages.md#slow-subscribers). |
+| The datastore is unreachable                                    | `publish` and `subscribe` fail; heartbeats and inbox reads fail and are retried, and are reported as `'error'` events.                                           |
 
 ## Recovery
 
