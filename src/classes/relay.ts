@@ -31,8 +31,17 @@ export interface RelayOptions<C = ConnectionOptions> {
   sweepInterval?: number;
   /** Max serialized message size (bytes). Default 512 KiB. */
   maxMessageSize?: number;
-  /** Approximate max inbox length per node (Redis only). Default 10000. */
+  /**
+   * Max number of unread messages kept in this node's inbox. When a slow node
+   * falls further behind, its oldest unread messages are dropped. Enforced on
+   * publish (Redis, approximately) and on every heartbeat. Default 10000.
+   */
   inboxMaxLength?: number;
+  /**
+   * Emit `'lag'` when this node has at least this many unread messages,
+   * checked on every heartbeat. Default `inboxMaxLength / 2`.
+   */
+  lagThreshold?: number;
   /** Max time an inbox read waits for new messages (ms). Default 5000. */
   blockTimeout?: number;
   /** Datastore backend. Default: Redis. */
@@ -85,7 +94,8 @@ interface Endpoint {
  * Patterns may use `*` (one segment) and `>` (one or more trailing segments).
  *
  * Events: `'error'` (Error), `'recovered'` (the node re-registered after its
- * lease expired), `'swept'` (string[] of removed node ids).
+ * lease expired), `'swept'` (string[] of removed node ids), `'lag'` (number
+ * of unread messages, when it reaches `lagThreshold`).
  *
  * @experimental The API may change in minor releases while the relay is
  * completed.
@@ -98,6 +108,8 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   private readonly leaseDuration: number;
   private readonly maxMessageSize: number;
   private readonly blockTimeout: number;
+  private readonly inboxMaxLength: number;
+  private readonly lagThreshold: number;
   private readonly endpoints = new Map<string, Endpoint>();
   private readonly ready: Promise<void>;
   private cursor: string;
@@ -131,6 +143,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
       'sweepInterval',
       'blockTimeout',
       'inboxMaxLength',
+      'lagThreshold',
       'maxMessageSize',
     ] as const) {
       const value = opts[name];
@@ -143,6 +156,9 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     }
     this.maxMessageSize = opts.maxMessageSize ?? 512 * 1024;
     this.blockTimeout = opts.blockTimeout ?? 5_000;
+    this.inboxMaxLength = opts.inboxMaxLength ?? 10_000;
+    this.lagThreshold =
+      opts.lagThreshold ?? Math.max(1, Math.floor(this.inboxMaxLength / 2));
 
     const factory = (opts.backend ??
       createRedisRelayBackend) as RelayBackendFactory<C>;
@@ -150,7 +166,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
       connection: opts.connection,
       namespace: this.namespace,
       prefix: opts.prefix,
-      inboxMaxLength: opts.inboxMaxLength,
+      inboxMaxLength: this.inboxMaxLength,
       skipVersionCheck: opts.skipVersionCheck,
     });
     this.cursor = this.backend.initialInboxCursor;
@@ -294,10 +310,28 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
       if ((!alive || this.recoveryPending) && !this.closing) {
         await this.recover();
       }
+      if (!this.closing) {
+        await this.checkBacklog();
+      }
     })().finally(() => {
       this.heartbeating = undefined;
     });
     return this.heartbeating;
+  }
+
+  /**
+   * Removes consumed inbox entries, caps the inbox at `inboxMaxLength`, and
+   * emits `'lag'` when the unread backlog reaches `lagThreshold`.
+   */
+  private async checkBacklog(): Promise<void> {
+    const backlog = await this.backend.trimInbox(
+      this.nodeId,
+      this.cursor,
+      this.inboxMaxLength,
+    );
+    if (backlog >= this.lagThreshold) {
+      this.emit('lag', backlog);
+    }
   }
 
   /**

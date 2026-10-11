@@ -192,6 +192,20 @@ export class PostgresRelayBackend implements IRelayBackend {
     }
   }
 
+  async trimInbox(
+    nodeId: string,
+    cursor: string,
+    maxLength: number,
+  ): Promise<number> {
+    const { rows } = await this.run('relay_trim_inbox', [
+      this.namespace,
+      nodeId,
+      cursor ? cursor.split(',') : [],
+      maxLength,
+    ]);
+    return rows[0].backlog;
+  }
+
   /**
    * Makes a blocked readInbox return, and later reads return without
    * waiting: an interrupt that lands while a read is still querying (before
