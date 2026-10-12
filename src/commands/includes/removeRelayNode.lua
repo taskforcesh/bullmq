@@ -1,17 +1,13 @@
 --[[
-  Removes a relay node completely: its subscriptions, endpoints, inbox and
-  liveness key.
+  Makes a relay node unroutable immediately and queues its subscriptions for
+  bounded cleanup. The inbox is freed asynchronously.
 ]]
 
---- @include "removeRelayEndpoint"
-
 local function removeRelayNode(baseKey, nodesKey, nodeId)
-  local endpointsKey = baseKey .. ":eps:" .. nodeId
-  local endpoints = rcall("SMEMBERS", endpointsKey)
-  for i = 1, #endpoints do
-    removeRelayEndpoint(baseKey, nodeId, endpoints[i])
+  local removed = rcall("ZREM", nodesKey, nodeId)
+  rcall("UNLINK", baseKey .. ":inbox:" .. nodeId, baseKey .. ":alive:" .. nodeId)
+  if rcall("EXISTS", baseKey .. ":eps:" .. nodeId) == 1 then
+    rcall("SADD", baseKey .. ":cleanup", nodeId)
   end
-  rcall("DEL", endpointsKey, baseKey .. ":inbox:" .. nodeId,
-    baseKey .. ":alive:" .. nodeId)
-  return rcall("ZREM", nodesKey, nodeId)
+  return removed
 end

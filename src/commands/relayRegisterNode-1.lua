@@ -10,17 +10,30 @@
 
   Output:
     1 - Registered.
+    0 - Old subscriptions still being pruned; retry before registering.
    -5 - Invalid id.
 ]]
 local rcall = redis.call
 
 --- @include "includes/relayTopics"
+--- @include "includes/removeRelayNode"
+--- @include "includes/pruneRelayNodes"
 
 local baseKey = ARGV[1]
 local nodeId = ARGV[2]
 
 if not isValidRelayId(nodeId) then
   return -5
+end
+
+-- Never reactivate stale routes, including when recovering before a sweep.
+-- Each retry releases Redis after at most 100 subscriptions/empty endpoints.
+if rcall("EXISTS", baseKey .. ":alive:" .. nodeId) == 0 then
+  removeRelayNode(baseKey, KEYS[1], nodeId)
+  pruneRelayNode(baseKey, nodeId, 100)
+  if rcall("SISMEMBER", baseKey .. ":cleanup", nodeId) == 1 then
+    return 0
+  end
 end
 
 local time = rcall("TIME")

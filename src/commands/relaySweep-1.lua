@@ -1,6 +1,7 @@
 --[[
-  Removes relay nodes whose liveness lease expired, together with their
-  subscriptions and inboxes. Any node may call it periodically.
+  Marks expired relay nodes dead and prunes at most 100 subscriptions/empty
+  endpoints, including cleanup left by earlier calls. Any node may call it
+  periodically.
 
   Input:
     KEYS[1] nodes key ({base}:nodes)
@@ -14,6 +15,7 @@
 local rcall = redis.call
 
 --- @include "includes/removeRelayNode"
+--- @include "includes/pruneRelayNodes"
 
 local baseKey = ARGV[1]
 local limit = tonumber(ARGV[2])
@@ -30,5 +32,7 @@ for i = 1, #nodes do
   removeRelayNode(baseKey, KEYS[1], nodeId)
   removed[#removed + 1] = nodeId
 end
+
+pruneRelayNodes(baseKey, 100)
 
 return removed
