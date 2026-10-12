@@ -26,6 +26,74 @@ afterAll(async () => {
 });
 
 describe('Relay (postgres) concurrency', () => {
+  it('rejects a supplied pool with max below 2 before using it', async () => {
+    const supplied = new Pool({
+      connectionString: getPostgresUrl(),
+      max: 1,
+    });
+    const connect = vi.spyOn(supplied, 'connect');
+    try {
+      expect(
+        () =>
+          new Relay({
+            connection: supplied,
+            backend: createPostgresRelayBackend,
+          }),
+      ).toThrow('Relay requires a supplied PostgreSQL pool with max >= 2');
+      expect(connect).not.toHaveBeenCalled();
+    } finally {
+      await supplied.end();
+    }
+  });
+
+  it.each(['supplied', 'owned'] as const)(
+    'reads and publishes with a minimally sized %s pool',
+    async kind => {
+      const namespace = `t-${randomUUID().slice(0, 13)}`;
+      const setup = createPostgresRelayBackend({
+        connection: {
+          ...connection(),
+          schema: kind === 'supplied' ? 'bullmq' : schema,
+        },
+        namespace,
+      });
+      await setup.waitUntilReady();
+      await setup.close();
+      const supplied =
+        kind === 'supplied'
+          ? new Pool({
+              connectionString: getPostgresUrl(),
+              options: '-c search_path=bullmq',
+              max: 2,
+              connectionTimeoutMillis: 1000,
+            })
+          : undefined;
+      const relay = new Relay({
+        connection: supplied ?? { ...connection(), max: 1 },
+        backend: createPostgresRelayBackend,
+        namespace,
+      });
+      try {
+        await relay.waitUntilReady();
+        const messages: unknown[] = [];
+        await relay.subscribe('a', message => {
+          messages.push(message.data);
+        });
+        await relay.publish('a', 1);
+        await vi.waitFor(() => expect(messages).toEqual([1]));
+        await relay.close();
+        if (supplied) {
+          await expect(supplied.query('SELECT 1 AS n')).resolves.toMatchObject({
+            rows: [{ n: 1 }],
+          });
+        }
+      } finally {
+        await relay.close();
+        await supplied?.end();
+      }
+    },
+  );
+
   it.each(['subscribe', 'publish'] as const)(
     'serializes retained delivery when %s commits first',
     async firstOperation => {

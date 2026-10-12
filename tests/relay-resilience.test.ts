@@ -139,6 +139,76 @@ describe('Relay resilience', () => {
     },
   );
 
+  it.each([{ lagThreshold: 10_001 }, { inboxMaxLength: 10, lagThreshold: 11 }])(
+    'rejects a lag threshold above the inbox cap (%j)',
+    opts => {
+      const backend = new FakeBackend();
+      const factory = vi.fn(() => backend);
+      expect(() => createRelay(backend, { ...opts, backend: factory })).toThrow(
+        'Relay lagThreshold must not exceed inboxMaxLength',
+      );
+      expect(factory).not.toHaveBeenCalled();
+      expect(backend.calls).toEqual([]);
+    },
+  );
+
+  it.each([1, 10_000])(
+    'accepts a lag threshold equal to the inbox cap (%i)',
+    async inboxMaxLength => {
+      const backend = new FakeBackend();
+      const relay = createRelay(backend, {
+        inboxMaxLength,
+        lagThreshold: inboxMaxLength,
+      });
+      const lag = vi.fn();
+      relay.on('lag', lag);
+      try {
+        await relay.waitUntilReady();
+        backend.backlog = inboxMaxLength;
+        await (relay as any).heartbeat();
+        expect(lag).toHaveBeenCalledExactlyOnceWith(inboxMaxLength);
+      } finally {
+        await relay.close();
+      }
+    },
+  );
+
+  it.each([-1, 0.5, NaN, Infinity, -Infinity, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid retention (%s) before publishing',
+    async retain => {
+      const backend = new FakeBackend();
+      const publish = vi.spyOn(backend, 'publish');
+      const relay = createRelay(backend);
+      try {
+        await expect(relay.publish('a', 1, { retain })).rejects.toThrow(
+          'Invalid relay retain',
+        );
+        expect(publish).not.toHaveBeenCalled();
+      } finally {
+        await relay.close();
+      }
+    },
+  );
+
+  it.each([undefined, 0, 1, Number.MAX_SAFE_INTEGER])(
+    'accepts retention boundaries (%s)',
+    async retain => {
+      const backend = new FakeBackend();
+      const publish = vi.spyOn(backend, 'publish');
+      const relay = createRelay(backend);
+      try {
+        await relay.publish('a', 1, { retain });
+        expect(publish).toHaveBeenCalledExactlyOnceWith(
+          'a',
+          '1',
+          expect.objectContaining({ retainMs: retain ?? 0 }),
+        );
+      } finally {
+        await relay.close();
+      }
+    },
+  );
+
   it.each([1, 2])(
     'clamps the default heartbeat for a %i ms lease',
     async leaseDuration => {
@@ -471,6 +541,56 @@ describe('Relay resilience', () => {
     expect(backend.calls.filter(c => c === 'sweep')).toHaveLength(1);
     await relay.close();
   });
+
+  it.each([false, true])(
+    'waits for an active sweep before closing (fails: %s)',
+    async fails => {
+      vi.useFakeTimers();
+      const backend = new FakeBackend();
+      let resume!: () => void;
+      const sweep = vi.spyOn(backend, 'sweep').mockImplementation(async () => {
+        await new Promise<void>(resolve => {
+          resume = resolve;
+        });
+        if (fails) {
+          throw new Error('sweep failed');
+        }
+        return ['expired'];
+      });
+      const relay = createRelay(backend, { sweepInterval: 10 });
+      const swept = vi.fn();
+      const error = vi.fn();
+      relay.on('swept', swept);
+      relay.on('error', error);
+      try {
+        await relay.waitUntilReady();
+        await vi.advanceTimersByTimeAsync(30);
+        expect(sweep).toHaveBeenCalledTimes(1);
+        const closed = vi.fn();
+        const closing = relay.close().then(closed);
+        await vi.advanceTimersByTimeAsync(30);
+        expect(closed).not.toHaveBeenCalled();
+        expect(backend.calls).not.toContain('unregisterNode');
+        expect(backend.calls).not.toContain('close');
+        resume();
+        await closing;
+        expect(backend.calls.slice(-2)).toEqual(['unregisterNode', 'close']);
+        expect(swept).toHaveBeenCalledTimes(fails ? 0 : 1);
+        expect(error).toHaveBeenCalledTimes(fails ? 1 : 0);
+        swept.mockClear();
+        error.mockClear();
+        await vi.advanceTimersByTimeAsync(30);
+        expect(sweep).toHaveBeenCalledTimes(1);
+        expect(swept).not.toHaveBeenCalled();
+        expect(error).not.toHaveBeenCalled();
+      } finally {
+        resume?.();
+        await relay.close();
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it('trims its inbox on every heartbeat and emits lag past the threshold', async () => {
     const backend = new FakeBackend();

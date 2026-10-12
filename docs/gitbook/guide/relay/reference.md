@@ -26,6 +26,8 @@ new Relay(options: RelayOptions)
 | `blockTimeout`      | `number` (ms)         | `5000`               | Max wait of one inbox read; on PostgreSQL, the polling fallback interval. |
 | `skipVersionCheck`  | `boolean`             | `false`              | Skip the Redis version check (on PostgreSQL, set it in `connection`).     |
 
+`lagThreshold` must not exceed `inboxMaxLength`.
+
 ## Methods
 
 | Method                              | Returns                       | Description                                                                      |
@@ -36,6 +38,9 @@ new Relay(options: RelayOptions)
 | `close()`                           | `Promise<void>`               | Unregisters the node and closes its connections. Idempotent.                     |
 
 `RelaySubscription`: `{ pattern, unsubscribe(): Promise<void> }`.
+
+`retain` must be a non-negative safe integer in milliseconds. Omit it or use
+`0` to publish without retention.
 
 `RelayPublishResult`: `{ mid, nodes, endpoints }`, the message id and how
 many nodes and subscriptions it was delivered to.

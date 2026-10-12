@@ -79,10 +79,15 @@ export class RedisRelayBackend implements IRelayBackend {
   }
 
   async registerNode(nodeId: string, leaseMs: number): Promise<void> {
-    checkRelayResult(
-      await this.exec('relayRegisterNode', [nodeId, leaseMs]),
-      nodeId,
-    );
+    // Reusing an expired/removed ID must finish its old indexes before it can
+    // receive messages again. Each call yields Redis after a bounded batch.
+    let result: number;
+    do {
+      result = checkRelayResult(
+        await this.exec('relayRegisterNode', [nodeId, leaseMs]),
+        nodeId,
+      );
+    } while (result === 0);
   }
 
   async heartbeat(nodeId: string, leaseMs: number): Promise<boolean> {

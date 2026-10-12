@@ -7,7 +7,12 @@ import {
   RelaySubscribeResult,
 } from '../interfaces';
 import { RelayError } from '../classes/relay-errors';
-import { PgListenClient, PgNotification, PgQueryResult } from './pg-types';
+import {
+  isPgPool,
+  PgListenClient,
+  PgNotification,
+  PgQueryResult,
+} from './pg-types';
 import {
   PostgresConnection,
   PostgresConnectionOptions,
@@ -38,6 +43,15 @@ export class PostgresRelayBackend implements IRelayBackend {
   private closing?: Promise<void>;
 
   constructor(opts: RelayBackendOptions<PostgresConnectionOptions>) {
+    if (isPgPool(opts.connection)) {
+      const max = (opts.connection as { options?: { max?: number } }).options
+        ?.max;
+      if (max !== undefined && max < 2) {
+        throw new Error(
+          'Relay requires a supplied PostgreSQL pool with max >= 2',
+        );
+      }
+    }
     this.namespace = opts.namespace;
     this.connection = new PostgresConnection(opts.connection);
     this.connection.on('listenerinvalidated', () => {

@@ -1,5 +1,6 @@
 --[[
-  Unregisters a relay node, removing its subscriptions and inbox.
+  Unregisters a relay node and unlinks its inbox immediately. Prunes at most
+  100 subscriptions/empty endpoints; subsequent sweeps finish the cleanup.
 
   Input:
     KEYS[1] nodes key ({base}:nodes)
@@ -14,5 +15,8 @@
 local rcall = redis.call
 
 --- @include "includes/removeRelayNode"
+--- @include "includes/pruneRelayNodes"
 
-return removeRelayNode(ARGV[1], KEYS[1], ARGV[2])
+local removed = removeRelayNode(ARGV[1], KEYS[1], ARGV[2])
+pruneRelayNodes(ARGV[1], 100)
+return removed
