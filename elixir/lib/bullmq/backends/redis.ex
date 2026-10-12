@@ -824,11 +824,20 @@ defmodule BullMQ.Backends.Redis do
   @impl true
   def wait_for_job(%__MODULE__{blocking_conn: nil}, _block_timeout), do: :timeout
 
-  def wait_for_job(%__MODULE__{context: ctx, blocking_conn: bconn}, block_timeout) do
+  def wait_for_job(%__MODULE__{connection: conn, context: ctx, blocking_conn: bconn}, block_timeout) do
+    # Redis below 6.0 rejects a fractional BZPOPMIN timeout, so round up to
+    # the nearest second on those servers (matches the Node.js port).
+    timeout =
+      if RedisConnection.can_double_timeout?(conn) do
+        block_timeout
+      else
+        ceil(block_timeout)
+      end
+
     # BZPOPMIN returns [key, member, score] or nil on timeout. The marker member
     # is "0" for an immediately-available job and "1" for a delayed job whose
     # score is the timestamp when it becomes ready.
-    case Redix.command(bconn, ["BZPOPMIN", Keys.marker(ctx), block_timeout], timeout: :infinity) do
+    case Redix.command(bconn, ["BZPOPMIN", Keys.marker(ctx), timeout], timeout: :infinity) do
       {:ok, nil} -> :timeout
       {:ok, [_key, "0", _score]} -> {:job_available, nil}
       {:ok, [_key, "1", score]} -> {:job_available, String.to_integer(score)}

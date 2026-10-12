@@ -139,12 +139,23 @@ defmodule BullMQ.RedisConnection do
   end
 
   @doc """
+  Whether the connected Redis server supports fractional `BZPOPMIN` timeouts
+  (Redis 6.0+). Servers below that version require an integer timeout, so
+  callers must round up (e.g. via `ceil/1`) before blocking.
+  """
+  @spec can_double_timeout?(connection()) :: boolean()
+  def can_double_timeout?(conn) do
+    :persistent_term.get({__MODULE__, :can_double_timeout, conn}, false)
+  end
+
+  @doc """
   Closes the Redis connection pool.
   """
   @spec close(connection(), timeout()) :: :ok | {:error, term()}
   def close(conn, timeout \\ 5000) do
     # Clean up persistent_term entries
     :persistent_term.erase({__MODULE__, :redis_opts, conn})
+    :persistent_term.erase({__MODULE__, :can_double_timeout, conn})
 
     # Stop the supervisor
     sup_name = Pool.supervisor_name(conn)
@@ -183,6 +194,11 @@ defmodule BullMQ.RedisConnection do
               "#{rec_major}.#{rec_minor}.#{rec_patch}. Current: #{major}.#{minor}.#{patch}"
           )
         end
+
+        :persistent_term.put(
+          {__MODULE__, :can_double_timeout, conn},
+          not version_lt?(version, {6, 0, 0})
+        )
 
         :ok
 
