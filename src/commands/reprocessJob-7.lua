@@ -26,6 +26,8 @@ local rcall = redis.call;
 
 -- Includes
 --- @include "includes/addJobInTargetList"
+--- @include "includes/addJobWithPriority"
+--- @include "includes/destructureJobKey"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/moveChildBackToParentDependencies"
@@ -47,7 +49,16 @@ if rcall("EXISTS", jobKey) == 1 then
     rcall("HDEL", jobKey, "finishedOn", "processedOn", ARGV[3], unpack(attributesToRemove))
 
     local isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[5], KEYS[6])
-    addJobInTargetList(KEYS[4], KEYS[7], ARGV[2], isPausedOrMaxed, jobId)
+    local priority = tonumber(rcall("HGET", jobKey, "priority")) or 0
+
+    -- Standard or priority add
+    if priority == 0 then
+      addJobInTargetList(KEYS[4], KEYS[7], ARGV[2], isPausedOrMaxed, jobId)
+    else
+      local queueKeyPrefix = getJobKeyPrefix(jobKey, jobId)
+      addJobWithPriority(KEYS[7], queueKeyPrefix .. "prioritized", priority, jobId,
+        queueKeyPrefix .. "pc", isPausedOrMaxed)
+    end
 
     moveChildBackToParentDependencies(jobKey, ARGV[4])
 
