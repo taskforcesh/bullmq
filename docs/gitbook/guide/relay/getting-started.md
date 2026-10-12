@@ -50,6 +50,11 @@ Run your migrations as usual (see the
 [PostgreSQL backend](../postgresql.md#migrations) guide) after upgrading
 BullMQ, or pass `migrate: true` as above.
 
+If you supply an existing `pg.Pool`, set `max >= 2`: the relay holds one
+connection for `LISTEN` and needs another for commands. Allow one listener
+connection per relay sharing that pool, plus capacity for queries. A pool
+configuration object can use `max: 1`, since its listener connects separately.
+
 ## Subscribing
 
 ```typescript
@@ -104,9 +109,11 @@ process.on('SIGTERM', async () => {
 });
 ```
 
-`close()` unregisters the node: its subscriptions are removed at once and no
-more messages are written to its inbox. If a process exits without closing,
-other nodes remove it once its lease expires (30 seconds by default). See
+`close()` unregisters the node: its subscriptions stop receiving at once and no
+more messages are written to its inbox. Redis prunes subscription indexes in
+bounded batches; subsequent sweeps finish any remaining cleanup. If a process
+exits without closing, other nodes remove it once its lease expires (30 seconds
+by default). See
 [Nodes and failures](nodes-and-failures.md).
 
 ## Namespaces

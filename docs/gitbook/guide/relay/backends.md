@@ -87,6 +87,9 @@ const relay = new Relay({
   Like on Redis, each inbox keeps at most `inboxMaxLength` unread rows.
 - **Connections.** Each node uses the pool for commands, plus one dedicated
   connection for `LISTEN`. Account for it in `max_connections`.
+  An existing `pg.Pool` must have `max >= 2`, since its listener occupies a pool
+  slot. When sharing a pool, reserve one slot per relay plus query capacity.
+  A pool configuration object can use `max: 1`; its listener is separate.
 - **Throughput.** Every listening node receives every `NOTIFY` of the
   namespace (it only reads its inbox when the notification is for it). That
   fits typical PostgreSQL deployments; for very large fleets with heavy

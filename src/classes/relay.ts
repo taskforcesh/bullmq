@@ -39,7 +39,8 @@ export interface RelayOptions<C = ConnectionOptions> {
   inboxMaxLength?: number;
   /**
    * Emit `'lag'` when this node has at least this many unread messages,
-   * checked on every heartbeat. Default `inboxMaxLength / 2`.
+   * checked on every heartbeat. Must not exceed `inboxMaxLength`.
+   * Default `inboxMaxLength / 2`.
    */
   lagThreshold?: number;
   /** Max time an inbox read waits for new messages (ms). Default 5000. */
@@ -65,7 +66,10 @@ export type RelayListener<T = unknown> = (
 ) => void | Promise<void>;
 
 export interface RelayPublishOpts {
-  /** Keep this message as the topic's retained value for this long (ms). */
+  /**
+   * Keep this message as the topic's retained value for this long (ms).
+   * Must be a non-negative safe integer; 0 disables retention.
+   */
   retain?: number;
 }
 
@@ -117,7 +121,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   private sweepTimer?: NodeJS.Timeout;
   private loop?: Promise<void>;
   private heartbeating?: Promise<void>;
-  private sweeping = false;
+  private sweeping?: Promise<void>;
   private recoveryPending = false;
   private closing?: Promise<void>;
 
@@ -159,6 +163,9 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     this.inboxMaxLength = opts.inboxMaxLength ?? 10_000;
     this.lagThreshold =
       opts.lagThreshold ?? Math.max(1, Math.floor(this.inboxMaxLength / 2));
+    if (this.lagThreshold > this.inboxMaxLength) {
+      throw new Error('Relay lagThreshold must not exceed inboxMaxLength');
+    }
 
     const factory = (opts.backend ??
       createRedisRelayBackend) as RelayBackendFactory<C>;
@@ -234,10 +241,14 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   ): Promise<RelayPublishResult> {
     await this.ready;
     this.assertOpen();
+    const retainMs = opts.retain ?? 0;
+    if (!Number.isSafeInteger(retainMs) || retainMs < 0) {
+      throw new Error(`Invalid relay retain: ${retainMs}`);
+    }
     const serialized = JSON.stringify(data === undefined ? null : data);
     return this.backend.publish(topic, serialized, {
       ts: Date.now(),
-      retainMs: opts.retain ?? 0,
+      retainMs,
       maxSize: this.maxMessageSize,
     });
   }
@@ -285,6 +296,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     this.backend.interruptInbox();
     await this.loop?.catch((): void => undefined);
     await this.heartbeating?.catch((): void => undefined);
+    await this.sweeping?.catch((): void => undefined);
     try {
       await this.backend.unregisterNode(this.nodeId);
     } catch (err) {
@@ -352,19 +364,19 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     this.emit('recovered');
   }
 
-  private async sweep(): Promise<void> {
+  private sweep(): Promise<void> {
     if (this.closing || this.sweeping) {
-      return;
+      return Promise.resolve();
     }
-    this.sweeping = true;
-    try {
+    this.sweeping = (async () => {
       const removed = await this.backend.sweep(100);
       if (removed.length > 0) {
         this.emit('swept', removed);
       }
-    } finally {
-      this.sweeping = false;
-    }
+    })().finally(() => {
+      this.sweeping = undefined;
+    });
+    return this.sweeping;
   }
 
   private async readLoop(): Promise<void> {
