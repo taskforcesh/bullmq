@@ -825,6 +825,14 @@ defmodule BullMQ.Backends.Redis do
   def wait_for_job(%__MODULE__{blocking_conn: nil}, _block_timeout), do: :timeout
 
   def wait_for_job(%__MODULE__{connection: conn, context: ctx, blocking_conn: bconn}, block_timeout) do
+    # Redis below 7.0.8 can block forever on a 1ms timeout, so use at least 2ms.
+    block_timeout =
+      if RedisConnection.can_block_for_1ms?(conn) do
+        block_timeout
+      else
+        max(block_timeout, 0.002)
+      end
+
     # Redis below 6.0 rejects a fractional BZPOPMIN timeout, so round up to
     # the nearest second on those servers (matches the Node.js port).
     timeout =

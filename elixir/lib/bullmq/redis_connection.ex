@@ -149,6 +149,16 @@ defmodule BullMQ.RedisConnection do
   end
 
   @doc """
+  Whether the connected Redis server handles a 1ms blocking timeout safely
+  (Redis 7.0.8+). Older servers can block forever on it, so callers must use
+  at least 2ms. Defaults to `true` when the version is unknown.
+  """
+  @spec can_block_for_1ms?(connection()) :: boolean()
+  def can_block_for_1ms?(conn) do
+    :persistent_term.get({__MODULE__, :can_block_for_1ms, conn}, true)
+  end
+
+  @doc """
   Closes the Redis connection pool.
   """
   @spec close(connection(), timeout()) :: :ok | {:error, term()}
@@ -156,6 +166,7 @@ defmodule BullMQ.RedisConnection do
     # Clean up persistent_term entries
     :persistent_term.erase({__MODULE__, :redis_opts, conn})
     :persistent_term.erase({__MODULE__, :can_double_timeout, conn})
+    :persistent_term.erase({__MODULE__, :can_block_for_1ms, conn})
 
     # Stop the supervisor
     sup_name = Pool.supervisor_name(conn)
@@ -198,6 +209,11 @@ defmodule BullMQ.RedisConnection do
         :persistent_term.put(
           {__MODULE__, :can_double_timeout, conn},
           not version_lt?(version, {6, 0, 0})
+        )
+
+        :persistent_term.put(
+          {__MODULE__, :can_block_for_1ms, conn},
+          not version_lt?(version, {7, 0, 8})
         )
 
         :ok
