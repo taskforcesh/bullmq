@@ -304,6 +304,66 @@ describe('Relay resilience', () => {
     await relay.close();
   });
 
+  it.each([
+    ['9007199254740991', '9007199254740992', true],
+    ['9007199254740992', '9007199254740993', true],
+    ['9007199254740993', '9007199254740992', false],
+    ['9007199254740993', '9007199254740993', false],
+  ])(
+    'compares live ID %s and retained ID %s without losing precision',
+    async (liveMid, retainedMid, deliverRetained) => {
+      const backend = new FakeBackend();
+      const relay = createRelay(backend);
+      const listener = vi.fn();
+      backend.subscribe = async () => {
+        const endpoint = [...(relay as any).endpoints.keys()][0];
+        backend.inbox.push({
+          entries: [
+            {
+              kind: 'msg',
+              topic: 'a',
+              mid: liveMid,
+              ts: 1,
+              data: '"live"',
+              endpoints: [endpoint],
+            },
+          ],
+          cursor: '1',
+        });
+        await waitFor(() => listener.mock.calls.length === 1);
+        return {
+          added: true,
+          retained: { mid: retainedMid, ts: 2, data: '"retained"' },
+        };
+      };
+      try {
+        await relay.subscribe('a', listener);
+        expect(listener.mock.calls.map(([message]) => message)).toEqual([
+          {
+            topic: 'a',
+            mid: liveMid,
+            ts: 1,
+            data: 'live',
+            retained: false,
+          },
+          ...(deliverRetained
+            ? [
+                {
+                  topic: 'a',
+                  mid: retainedMid,
+                  ts: 2,
+                  data: 'retained',
+                  retained: true,
+                },
+              ]
+            : []),
+        ]);
+      } finally {
+        await relay.close();
+      }
+    },
+  );
+
   it('retries the inbox after a read failure', async () => {
     const backend = new FakeBackend();
     const relay = createRelay(backend);
