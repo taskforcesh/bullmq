@@ -47,6 +47,7 @@ BullMQ is available natively in multiple languages:
 - **Rust** — [`rust/`](./rust) directory (`cargo add bullmq-official --rename bullmq`)
 - **Elixir** — [`elixir/`](./elixir) directory (`{:bullmq, "~> x.x"}`)
 - **.Net** — [`dotnet/`](./dotnet) directory (`dotnet add package BullMQ`)
+- **Go** — [`golang/`](./golang) directory (`go get github.com/taskforcesh/bullmq/golang`)
 - **PHP** — [`php/`](./php) directory
 
 For other platforms, check out the [BullMQ Proxy](https://github.com/taskforcesh/bullmq-proxy).
