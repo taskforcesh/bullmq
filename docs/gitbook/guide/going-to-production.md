@@ -77,6 +77,10 @@ queue.on('error', err => {
 });
 ```
 
+### Monitoring and alerts
+
+Once your queues run in production you will want to know when jobs start failing, when workers stop, or when jobs pile up faster than your workers can process them. You can build this yourself with the queue and worker events, the built-in [metrics](metrics/), [Prometheus](metrics/prometheus.md) or [OpenTelemetry](telemetry/), or use a dashboard with built-in monitors and alerts. The guide [How to monitor and manage BullMQ queues](https://bullmq.io/articles/guides/monitoring-bullmq-queues/) compares the options and when each one makes sense.
+
 ### Gracefully shut-down workers
 
 Since your workers will run on servers, it is unavoidable that these servers will need to be restarted from time to time. As your workers may be
