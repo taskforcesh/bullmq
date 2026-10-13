@@ -15,6 +15,7 @@ from bullmq.backends.postgres_connection import (
     run_migrations,
 )
 from bullmq.job import Job
+from bullmq.postgres import sql_loader
 
 
 class TestPostgresBackendJobMapping(unittest.TestCase):
@@ -197,6 +198,66 @@ class TestPostgresConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(connect.await_count, 2)
         first_conn.execute.assert_awaited_once_with("LISTEN bullmq_jobs")
         second_conn.execute.assert_awaited_once_with("LISTEN bullmq_jobs")
+
+    async def test_ensure_events_channel_listens_once_per_connection(self):
+        events_conn = SimpleNamespace(closed=False, execute=AsyncMock())
+        connection = PostgresConnection()
+
+        with patch(
+            "bullmq.backends.postgres_connection.psycopg.AsyncConnection.connect",
+            AsyncMock(return_value=events_conn),
+        ):
+            first = await connection.ensure_events_channel()
+            second = await connection.ensure_events_channel()
+
+        self.assertIs(first, second)
+        events_conn.execute.assert_awaited_once_with(
+            sql_loader.load_command("listen_events")
+        )
+
+    async def test_events_channel_uses_a_connection_of_its_own(self):
+        """The two waits must not share a connection: `notifies()` consumes a
+        notification, so one wait would swallow the other's wakeups."""
+        jobs_conn = SimpleNamespace(closed=False, execute=AsyncMock())
+        events_conn = SimpleNamespace(closed=False, execute=AsyncMock())
+        connect = AsyncMock(side_effect=[jobs_conn, events_conn])
+        connection = PostgresConnection()
+
+        with patch(
+            "bullmq.backends.postgres_connection.psycopg.AsyncConnection.connect",
+            connect,
+        ):
+            jobs = await connection.ensure_job_channel()
+            events = await connection.ensure_events_channel()
+
+        self.assertIsNot(jobs, events)
+        self.assertEqual(connect.await_count, 2)
+        jobs_conn.execute.assert_awaited_once_with("LISTEN bullmq_jobs")
+        events_conn.execute.assert_awaited_once_with(
+            sql_loader.load_command("listen_events")
+        )
+
+    async def test_reset_events_channel_forces_new_listen_connection(self):
+        first_conn = SimpleNamespace(
+            closed=False, execute=AsyncMock(), close=AsyncMock()
+        )
+        second_conn = SimpleNamespace(closed=False, execute=AsyncMock())
+        connect = AsyncMock(side_effect=[first_conn, second_conn])
+        connection = PostgresConnection()
+
+        with patch(
+            "bullmq.backends.postgres_connection.psycopg.AsyncConnection.connect",
+            connect,
+        ):
+            await connection.ensure_events_channel()
+            await connection.reset_events_channel()
+            await connection.ensure_events_channel()
+
+        first_conn.close.assert_awaited_once()
+        self.assertEqual(connect.await_count, 2)
+        second_conn.execute.assert_awaited_once_with(
+            sql_loader.load_command("listen_events")
+        )
 
     async def test_reset_job_channel_forces_new_listen_connection(self):
         first_conn = SimpleNamespace(closed=False, execute=AsyncMock(), close=AsyncMock())
@@ -388,6 +449,177 @@ class TestPostgresBackendWaitForJob(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(marker[2], expected_min)
         self.assertLessEqual(marker[2], expected_max)
         self.assertEqual(backend._next_delay_ms.await_count, 2)
+
+
+class _EventsFakeConnection:
+    """Minimal PostgresConnection stand-in for the event-stream tests."""
+
+    def __init__(self, notify_conns=None):
+        self.schema = "bullmq"
+        self.ensure_events_channel = (
+            AsyncMock(side_effect=notify_conns)
+            if notify_conns
+            else AsyncMock(return_value=_IdleNotifiesConnection())
+        )
+        self.reset_events_channel = AsyncMock()
+
+
+class TestPostgresBackendEventStream(unittest.IsolatedAsyncioTestCase):
+    async def test_publish_event_splits_the_event_name_from_the_payload(self):
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock(
+            return_value=SimpleNamespace(first_map=lambda: {"id": 42})
+        )
+
+        event_id = await backend.publishEvent(
+            {"event": "custom", "foo": "bar", "n": 7}, 1000
+        )
+
+        self.assertEqual(event_id, "42")
+        backend._run.assert_awaited_once_with(
+            "publish_event", ["queue", "custom", '{"foo":"bar","n":7}']
+        )
+
+    async def test_publish_event_rejects_a_payload_with_no_event_name(self):
+        """Both failure modes are silent -- Postgres would persist the literal
+        'None' as the event name -- so the contract is enforced up front."""
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock()
+
+        for payload in ({}, {"jobId": "1"}, {"event": None}, {"event": ""}):
+            with self.assertRaises(ValueError):
+                await backend.publishEvent(payload, 1000)
+        backend._run.assert_not_awaited()
+
+    async def test_read_events_resolves_the_dollar_cursor_to_the_current_max(self):
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock(
+            side_effect=[
+                SimpleNamespace(first_map=lambda: {"max": 7}),
+                SimpleNamespace(
+                    maps=lambda: [
+                        {"id": 8, "event": "completed", "data": {"jobId": "1"}}
+                    ]
+                ),
+            ]
+        )
+
+        data = await backend.readEvents("$", 10000)
+
+        self.assertEqual(data, [("events", [("8", {"event": "completed", "jobId": "1"})])])
+        self.assertEqual(backend._run.await_args_list[1].args[1][1], 7)
+
+    async def test_read_events_stringifies_non_string_payload_values(self):
+        """The Redis stream stores every field as a string; the Postgres
+        adapter must match so `QueueEvents` decodes identically on both."""
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock(
+            return_value=SimpleNamespace(
+                maps=lambda: [
+                    {
+                        "id": 3,
+                        "event": "delayed",
+                        "data": {"jobId": "1", "delay": 1700, "ok": True},
+                    }
+                ]
+            )
+        )
+
+        data = await backend.readEvents("2", 10000)
+
+        self.assertEqual(
+            data[0][1][0][1],
+            {"event": "delayed", "jobId": "1", "delay": "1700", "ok": "true"},
+        )
+
+    async def test_read_events_returns_none_when_the_block_timeout_elapses(self):
+        backend = PostgresBackend("queue", _EventsFakeConnection())
+        backend._fetch_events = AsyncMock(return_value=[])
+
+        self.assertIsNone(await backend.readEvents("1", 10))
+
+    async def test_read_events_reconnects_the_channel_after_a_psycopg_error(self):
+        connection = _EventsFakeConnection(
+            [_FailingNotifiesConnection(), _IdleNotifiesConnection()]
+        )
+        backend = PostgresBackend("queue", connection)
+        backend._fetch_events = AsyncMock(
+            side_effect=[[], [], [("9", {"event": "completed"})]]
+        )
+
+        data = await backend.readEvents("1", 2000)
+
+        self.assertEqual(data, [("events", [("9", {"event": "completed"})])])
+        connection.reset_events_channel.assert_awaited_once()
+        self.assertEqual(connection.ensure_events_channel.await_count, 2)
+
+    async def test_read_events_short_circuits_once_the_backend_is_closed(self):
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock()
+        backend._closing = True
+
+        self.assertIsNone(await backend.readEvents("$", 10000))
+        backend._run.assert_not_awaited()
+
+
+class TestPostgresBackendQueueMeta(unittest.IsolatedAsyncioTestCase):
+    async def test_set_queue_meta_sends_parallel_field_and_value_arrays(self):
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock(return_value=SimpleNamespace(rowcount=2))
+
+        written = await backend.setQueueMeta({"max": 100, "duration": 1000})
+
+        self.assertEqual(written, 2)
+        backend._run.assert_awaited_once_with(
+            "set_queue_meta",
+            ["queue", ["max", "duration"], ["100", "1000"]],
+        )
+
+    async def test_get_queue_meta_fields_preserves_order_and_fills_gaps(self):
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        # Rows come back in arbitrary order and omit fields that are unset.
+        backend._run = AsyncMock(
+            return_value=SimpleNamespace(
+                maps=lambda: [{"field": "duration", "value": "1000"}]
+            )
+        )
+
+        values = await backend.getQueueMetaFields(["max", "duration"])
+
+        self.assertEqual(values, [None, "1000"])
+
+    async def test_empty_field_lists_short_circuit_without_a_query(self):
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock()
+
+        self.assertEqual(await backend.setQueueMeta({}), 0)
+        self.assertEqual(await backend.getQueueMetaFields([]), [])
+        self.assertEqual(await backend.removeQueueMetaFields([]), 0)
+        backend._run.assert_not_awaited()
+
+
+class TestPostgresBackendAddFlow(unittest.IsolatedAsyncioTestCase):
+    async def test_add_flow_returns_negative_sentinels_as_ints(self):
+        """`add_flow` reports a not-inserted entry with a negative code in the
+        id column (-5 = missing parent). It must stay an int so `FlowProducer`
+        tells it apart from a (deduplicated) string job id, exactly as it does
+        for the Redis backend's Lua return value."""
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock(
+            return_value=SimpleNamespace(rows=[("-5",), ("7",), ("custom-id",)])
+        )
+        backend._batch_entry = lambda job, is_parent: {}
+        entries = [
+            {"job": SimpleNamespace(id=None)},
+            {"job": SimpleNamespace(id=None)},
+            {"job": SimpleNamespace(id=None)},
+        ]
+
+        ids = await backend.addFlow(entries)
+
+        self.assertEqual(ids, [-5, "7", "custom-id"])
+        self.assertIsInstance(ids[0], int)
+        self.assertIsInstance(ids[1], str)
 
 
 class TestPostgresBackendLockExtension(unittest.IsolatedAsyncioTestCase):

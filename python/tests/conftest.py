@@ -37,15 +37,17 @@ _POSTGRES_ONLY_FILES = [
 
 collect_ignore = _REDIS_ONLY_FILES if PG_ENABLED else _POSTGRES_ONLY_FILES
 
-# Individual tests that assert against the raw Redis client (event-stream
-# ``XLEN``, key enumeration) — the underlying operations are covered by other,
-# backend-agnostic tests, so these are skipped on the Postgres backend.
+# Individual tests that drive the raw Redis client (event-stream ``XLEN``, key
+# enumeration, deleting a job hash to simulate corruption) — the underlying
+# operations are covered by other, backend-agnostic tests, so these are skipped
+# on the Postgres backend.
 _REDIS_ONLY_TESTS = {
     "test_is_paused_with_custom_prefix",
     "test_trim_events_manually",
     "test_trim_events_manually_with_custom_prefix",
     "test_drain_count_added_unprocessed_jobs",
     "test_obliterate_with_force_true_should_succeed_with_active_jobs",
+    "test_get_jobs_skips_missing_hash_and_backfills_waiting_range",
 }
 
 
@@ -92,4 +94,8 @@ def _pg_backend(monkeypatch):
     monkeypatch.setattr("bullmq.queue.create_backend", _pg_create_backend)
     monkeypatch.setattr("bullmq.worker.create_backend", _pg_create_backend)
     monkeypatch.setattr("bullmq.flow_producer.create_backend", _pg_create_backend)
+    monkeypatch.setattr("bullmq.queue_events.create_backend", _pg_create_backend)
+    monkeypatch.setattr(
+        "bullmq.queue_events_producer.create_backend", _pg_create_backend
+    )
     yield

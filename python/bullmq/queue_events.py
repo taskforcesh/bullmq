@@ -1,23 +1,27 @@
 """
 QueueEvents — consume the global event stream of a BullMQ queue.
 
-Port of `src/classes/queue-events.ts`. The queue's Lua scripts and the
-worker XADD-publish lifecycle events (added/active/completed/failed/...)
-to a Redis stream at `{prefix}:{queueName}:events`. `QueueEvents`
-subscribes to that stream with a blocking XREAD and re-emits each
-entry through a Python `EventEmitter` so callers can wire listeners
-in a way that mirrors the Node API.
+Port of `src/classes/queue-events.ts`. Every datastore operation is routed
+through the :class:`~bullmq.backend.Backend` abstraction, so the same class
+serves both the Redis and the PostgreSQL backends: `opts["backend"]` selects
+which adapter is built, exactly as it does for `Queue` and `Worker`.
+
+The queue's operations publish lifecycle events (added/active/completed/
+failed/...) to the queue's event stream — a Redis stream at
+`{prefix}:{queueName}:events`, or the `event` table plus the shared
+`bullmq_events` notification channel on PostgreSQL. `QueueEvents` reads that
+stream with a blocking read and re-emits each entry through a Python
+`EventEmitter` so callers can wire listeners in a way that mirrors the Node API.
 
 Key design points:
-- The consumer must own a dedicated Redis connection. A blocking
-  `XREAD BLOCK` ties up the underlying socket, so reusing it for
-  other commands would deadlock.
+- The consumer must own a dedicated connection. A blocking read ties up the
+  underlying socket, so reusing it for other commands would deadlock.
 - Two emissions per event, mirroring Node: a generic channel
   (`'completed'`) and a per-job channel (`'completed:<jobId>'`).
   Callers can subscribe to either; the per-job channel is what makes
   the `Queue#waitUntilFinished` pattern work in Node.
 - `progress.data` and `completed.returnvalue` are JSON-encoded by the
-  scripts (so arbitrary payloads survive the stream) and decoded here
+  backend (so arbitrary payloads survive the stream) and decoded here
   to match Node's listener contract.
 """
 
@@ -25,18 +29,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Optional, Union
+from typing import Optional
 
-import redis.asyncio as redis
-
+from bullmq.backends import RedisBackend, create_backend
 from bullmq.event_emitter import EventEmitter
-from bullmq.queue_keys import QueueKeys
 from bullmq.redis_connection import RedisConnection
 from bullmq.types.queue_events_options import QueueEventsOptions
 from bullmq.utils import isRedisVersionLowerThan
 
 
-# Events whose payload is JSON-encoded by the Lua scripts and must be
+# Events whose payload is JSON-encoded by the backend and must be
 # decoded before being handed to listeners.
 _JSON_DECODE_FIELDS = {
     "progress": "data",
@@ -60,7 +62,7 @@ class QueueEvents(EventEmitter):
         super().__init__()
         opts = dict(opts or {})
         # Defaults mirror Node. blockingTimeout is in ms to keep parity
-        # with the JS surface; we convert at the call site.
+        # with the JS surface.
         opts.setdefault("blockingTimeout", 10000)
         opts.setdefault("lastEventId", "$")
         opts.setdefault("autorun", True)
@@ -69,24 +71,20 @@ class QueueEvents(EventEmitter):
         self.opts = opts
         self.prefix = opts.get("prefix", "bull")
 
-        connection_opts: Union[dict, str, redis.Redis] = opts.get(
-            "connection", {}
+        # A dedicated backend (and therefore a dedicated connection): the
+        # blocking stream read parks the socket, so it must not be shared with
+        # a Queue or Worker.
+        self.backend = create_backend(name, opts)
+        # Compatibility handles for tests / callers that read the raw client or
+        # connection directly (Redis backend only). All operations go through
+        # `backend`.
+        self.redisConnection = (
+            self.backend.connection if isinstance(self.backend, RedisBackend) else None
         )
-        # `RedisConnection` calls `register_script` for every BullMQ
-        # Lua script on construction. We don't use any of them here,
-        # but `register_script` in redis-py only computes/caches the
-        # SHA client-side -- there's no `SCRIPT LOAD` round-trip until
-        # someone actually calls `EVALSHA`. The extra work is therefore
-        # local, bounded, and dominated by the connection setup itself.
-        self.redisConnection = RedisConnection(
-            connection_opts,
-            skipVersionCheck=opts.get("skipVersionCheck", False),
-        )
-        self.client = self.redisConnection.conn
+        self.client = getattr(self.backend, "conn", None)
 
-        queue_keys = QueueKeys(self.prefix)
-        self.keys = queue_keys.getKeys(name)
-        self.qualifiedName = queue_keys.getQueueQualifiedName(name)
+        self.keys = self.backend.keys
+        self.qualifiedName = self.backend.qualifiedName
 
         self.running = False
         self.closing = False
@@ -118,14 +116,26 @@ class QueueEvents(EventEmitter):
             raise Exception("QueueEvents is already running.")
 
         # Register the current task so `close()` can interrupt the
-        # blocking XREAD even when the caller spawned the consumer
+        # blocking read even when the caller spawned the consumer
         # themselves (`autorun=False` + `asyncio.create_task(events.run())`).
         if self._consumer_task is None:
             self._consumer_task = asyncio.current_task()
 
-        # Validate Redis supports Streams (>= 5.0). `skipVersionCheck=True`
-        # bypasses the INFO round-trip for cases where the caller knows
-        # the server is compatible.
+        await self._validate_backend_version()
+
+        self.running = True
+        try:
+            await self._consume_events()
+        finally:
+            self.running = False
+
+    async def _validate_backend_version(self) -> None:
+        """Validate Redis supports Streams (>= 5.0). `skipVersionCheck=True`
+        bypasses the INFO round-trip for cases where the caller knows the
+        server is compatible. Non-Redis backends enforce their own minimum
+        version when their connection is established."""
+        if self.redisConnection is None:
+            return
         version = await self.redisConnection.getRedisVersion()
         if version and isRedisVersionLowerThan(
             version, RedisConnection.minimum_version
@@ -135,25 +145,14 @@ class QueueEvents(EventEmitter):
                 f"({RedisConnection.minimum_version}) for QueueEvents."
             )
 
-        self.running = True
-        try:
-            await self._consume_events()
-        finally:
-            self.running = False
-
     async def _consume_events(self) -> None:
         """Block on the events stream and re-emit each entry."""
-        key = self.keys["events"]
         last_id = self.opts.get("lastEventId") or "$"
-        # redis-py's xread takes block in ms with decode_responses on,
-        # matching ioredis' BLOCK argument.
         block_ms = int(self.opts.get("blockingTimeout", 10000))
 
         while not self.closing:
             try:
-                data = await self.client.xread(
-                    {key: last_id}, block=block_ms
-                )
+                data = await self.backend.readEvents(last_id, block_ms)
             except asyncio.CancelledError:
                 raise
             except Exception as err:
@@ -171,7 +170,8 @@ class QueueEvents(EventEmitter):
                 # re-check the closing flag so close() stays responsive.
                 continue
 
-            # redis-py returns: [(stream_name, [(id, {field: value, ...}), ...])]
+            # Backends return the Redis XREAD shape:
+            # [(stream_key, [(id, {field: value, ...}), ...])]
             _, entries = data[0]
             for entry_id, fields in entries:
                 last_id = entry_id
@@ -183,7 +183,7 @@ class QueueEvents(EventEmitter):
         if not event:
             return
 
-        # JSON-decode the fields the scripts encoded so listeners see
+        # JSON-decode the fields the backend encoded so listeners see
         # the same Python objects the producer side passed in.
         json_field = _JSON_DECODE_FIELDS.get(event)
         if json_field and json_field in args:
@@ -191,7 +191,7 @@ class QueueEvents(EventEmitter):
                 args[json_field] = json.loads(args[json_field])
             except (TypeError, ValueError):
                 # Leave the raw string in place: a malformed payload
-                # is a script-side bug we don't want to swallow into a
+                # is a producer-side bug we don't want to swallow into a
                 # KeyError downstream, but we also don't want to break
                 # the entire consumer for one bad entry.
                 pass
@@ -211,7 +211,7 @@ class QueueEvents(EventEmitter):
 
     async def close(self) -> None:
         """
-        Stop consuming events and release the Redis connection.
+        Stop consuming events and release the underlying connection.
         Idempotent: subsequent calls are no-ops. Works for both
         `autorun=True` (we own the task) and `autorun=False` (the
         caller spawned `events.run()` themselves — `run` auto-registers
@@ -231,7 +231,7 @@ class QueueEvents(EventEmitter):
             and not task.done()
             and task is not asyncio.current_task()
         ):
-            # XREAD BLOCK is parked on the socket; cancel forces it to
+            # The blocking read is parked on the socket; cancel forces it to
             # unwind. We swallow CancelledError because that's exactly
             # what we asked for.
             task.cancel()
@@ -245,6 +245,6 @@ class QueueEvents(EventEmitter):
                 pass
 
         try:
-            await self.redisConnection.close()
+            await self.backend.close()
         finally:
             self.closed = True
