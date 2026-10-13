@@ -9,6 +9,8 @@
     KEYS[5] meta
     KEYS[6] active key
     KEYS[7] marker key
+    KEYS[8] prioritized key
+    KEYS[9] priority counter key
 
     ARGV[1] job.id
     ARGV[2] (job.opts.lifo ? 'R' : 'L') + 'PUSH'
@@ -27,7 +29,6 @@ local rcall = redis.call;
 -- Includes
 --- @include "includes/addJobInTargetList"
 --- @include "includes/addJobWithPriority"
---- @include "includes/destructureJobKey"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/moveChildBackToParentDependencies"
@@ -55,9 +56,7 @@ if rcall("EXISTS", jobKey) == 1 then
     if priority == 0 then
       addJobInTargetList(KEYS[4], KEYS[7], ARGV[2], isPausedOrMaxed, jobId)
     else
-      local queueKeyPrefix = getJobKeyPrefix(jobKey, jobId)
-      addJobWithPriority(KEYS[7], queueKeyPrefix .. "prioritized", priority, jobId,
-        queueKeyPrefix .. "pc", isPausedOrMaxed)
+      addJobWithPriority(KEYS[7], KEYS[8], priority, jobId, KEYS[9], isPausedOrMaxed)
     end
 
     moveChildBackToParentDependencies(jobKey, ARGV[4])

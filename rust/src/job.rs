@@ -796,6 +796,8 @@ impl Job {
         let meta_key = ctx.keys.meta();
         let active_key = ctx.keys.active();
         let marker_key = ctx.keys.marker();
+        let prioritized_key = ctx.keys.prioritized();
+        let pc_key = ctx.keys.pc();
 
         let push_cmd = if self.opts.lifo.unwrap_or(false) {
             "RPUSH"
@@ -819,7 +821,15 @@ impl Job {
         };
 
         let keys = vec![
-            job_key, events_key, state_key, wait_key, meta_key, active_key, marker_key,
+            job_key,
+            events_key,
+            state_key,
+            wait_key,
+            meta_key,
+            active_key,
+            marker_key,
+            prioritized_key,
+            pc_key,
         ];
         let args: Vec<&[u8]> = vec![
             self.id.as_bytes(),
