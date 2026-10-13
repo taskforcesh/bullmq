@@ -8,3 +8,6 @@ BullMQ provides a Telemetry interface that can be used to integrate it with any 
 
 Telemetry is very useful for large applications where you want to get a detailed and general overview of the system. For BullMQ it helps to gain insight in the different statuses a job may be during its complete lifecycle. In a large application it helpts tracking the source of the jobs and all the interactions the jobs or messages may perform with other parts of the system.
 
+## Read more:
+
+* 💡 [How to monitor and manage BullMQ queues](https://bullmq.io/articles/guides/monitoring-bullmq-queues/), an overview of dashboards, metrics and alerts for BullMQ
