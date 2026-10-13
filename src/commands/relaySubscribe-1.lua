@@ -36,7 +36,8 @@ if not segments then
   return -2
 end
 
-if not rcall("ZSCORE", KEYS[1], nodeId) then
+if not rcall("ZSCORE", KEYS[1], nodeId) or
+  rcall("EXISTS", baseKey .. ":alive:" .. nodeId) == 0 then
   return -3
 end
 

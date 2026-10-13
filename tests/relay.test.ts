@@ -206,6 +206,31 @@ describe(`Relay (${ctx.backend})`, () => {
       );
     });
 
+    it('rejects subscriptions of expired nodes before they are swept', async () => {
+      const ns = newNamespace();
+      const backend = await newBackend(ns);
+      await backend.registerNode('n1', 30_000);
+      await backend.subscribe('n1', 'existing', 'a.b');
+      await backend.publish('a.b', 'retained', {
+        ts: 1,
+        retainMs: 30_000,
+        maxSize: 100,
+      });
+      expect(await backend.heartbeat('n1', 100)).toBe(true);
+      await delay(250);
+
+      for (const endpoint of ['existing', 'new']) {
+        for (const pattern of ['a.b', 'a.*', 'a.>']) {
+          await expectRelayError(
+            backend.subscribe('n1', endpoint, pattern),
+            RelayErrorCode.NodeNotRegistered,
+          );
+        }
+      }
+      expect(await ctx.countSubscriptions(ns)).toBe(1);
+      expect(await backend.heartbeat('n1', 30_000)).toBe(false);
+    });
+
     it.each(INVALID_PATTERNS)(
       'rejects the invalid pattern %j',
       async pattern => {
@@ -626,6 +651,61 @@ describe(`Relay (${ctx.backend})`, () => {
       await backend.registerNode('n1', 30_000);
       expect((await readAll(backend, 'n1')).entries).toHaveLength(0);
     });
+
+    it.each([false, true])(
+      're-registering a node resets state only if its lease expired (expired=%s)',
+      async expired => {
+        const ns = newNamespace();
+        const backend = await newBackend(ns);
+        await backend.registerNode('n1', 30_000);
+        for (const pattern of ['a.b', 'a.*', 'a.>']) {
+          await backend.subscribe('n1', 'old', pattern);
+        }
+        await backend.publish('a.b', 'old', {
+          ts: 1,
+          retainMs: 0,
+          maxSize: 100,
+        });
+        if (expired) {
+          expect(await backend.heartbeat('n1', 100)).toBe(true);
+          await delay(250);
+        }
+        // No sweep: the previous registration's state is still stored.
+        expect(await ctx.countSubscriptions(ns)).toBe(3);
+        expect((await readAll(backend, 'n1')).entries.map(e => e.data)).toEqual(
+          ['old'],
+        );
+
+        await backend.registerNode('n1', 30_000);
+        expect(await backend.heartbeat('n1', 30_000)).toBe(true);
+        expect(await ctx.countSubscriptions(ns)).toBe(expired ? 0 : 3);
+        expect((await readAll(backend, 'n1')).entries.map(e => e.data)).toEqual(
+          expired ? [] : ['old'],
+        );
+        const published = await backend.publish('a.b', 'after', {
+          ts: 2,
+          retainMs: 0,
+          maxSize: 100,
+        });
+        expect(published).toMatchObject({
+          nodes: expired ? 0 : 1,
+          endpoints: expired ? 0 : 1,
+        });
+        expect((await backend.subscribe('n1', 'new', 'fresh')).added).toBe(
+          true,
+        );
+        expect(
+          await backend.publish('fresh', 'new', {
+            ts: 3,
+            retainMs: 0,
+            maxSize: 100,
+          }),
+        ).toMatchObject({ nodes: 1, endpoints: 1 });
+        expect((await readAll(backend, 'n1')).entries.map(e => e.data)).toEqual(
+          expired ? ['new'] : ['old', 'after', 'new'],
+        );
+      },
+    );
 
     it('skips nodes whose lease expired, and sweeps them', async () => {
       const ns = newNamespace();
