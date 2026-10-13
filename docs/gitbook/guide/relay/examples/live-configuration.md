@@ -17,25 +17,34 @@ import { Relay } from 'bullmq';
 const relay = new Relay({ connection: { host: 'redis.internal', port: 6379 } });
 
 let flags: FeatureFlags = DEFAULT_FLAGS;
+let flagsGeneration = 0;
+
+async function reloadFlags() {
+  const generation = ++flagsGeneration;
+  const loaded = await db.settings.get('feature-flags');
+  // Ignore reads superseded by a message or a newer reload.
+  if (generation === flagsGeneration) {
+    flags = loaded;
+  }
+}
 
 async function loadFlags() {
   let received = false;
   await relay.subscribe('config.feature-flags', message => {
     received = true;
+    flagsGeneration++;
     flags = message.data as FeatureFlags;
   });
   // The retained value, if any, is delivered before subscribe() resolves.
   if (!received) {
-    flags = await db.settings.get('feature-flags');
+    await reloadFlags();
   }
 }
 
-await loadFlags();
-
 // Retained messages are not delivered again after a recovery.
-relay.on('recovered', async () => {
-  flags = await db.settings.get('feature-flags');
-});
+relay.on('recovered', reloadFlags);
+
+await loadFlags();
 
 export const isEnabled = (flag: keyof FeatureFlags) => flags[flag];
 ```

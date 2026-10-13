@@ -96,8 +96,9 @@ rest of the system. Instead, each node's inbox holds a bounded backlog:
   The limit is enforced on every heartbeat (and, on Redis, approximately on
   every publish), so the backlog may briefly exceed it.
 - On every heartbeat, a node with at least `lagThreshold` unread messages
-  (default: half of `inboxMaxLength`) emits `'lag'` with its backlog, before
-  anything is dropped:
+  (default: half of `inboxMaxLength`) emits `'lag'` with its **post-trim backlog**,
+  after overflow messages have been dropped. This count does not report how many
+  messages were lost:
 
 ```typescript
 relay.on('lag', backlog => {

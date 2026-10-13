@@ -81,7 +81,7 @@ export interface RelaySubscription {
 interface Endpoint {
   pattern: string;
   listener: RelayListener<any>;
-  lastMid: number;
+  lastMid: bigint;
 }
 
 /**
@@ -197,7 +197,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     await this.ready;
     this.assertOpen();
     const endpointId = randomUUID().replace(/-/g, '');
-    const endpoint: Endpoint = { pattern, listener, lastMid: 0 };
+    const endpoint: Endpoint = { pattern, listener, lastMid: BigInt(0) };
     // Registered first, so live messages are dispatched as soon as the
     // subscription exists.
     this.endpoints.set(endpointId, endpoint);
@@ -208,7 +208,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
         pattern,
       );
       // A live message newer than the retained one may already have arrived.
-      if (retained && Number(retained.mid) > endpoint.lastMid) {
+      if (retained && BigInt(retained.mid) > endpoint.lastMid) {
         this.deliver(endpoint, {
           topic: pattern,
           mid: retained.mid,
@@ -424,7 +424,10 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   }
 
   private deliver(endpoint: Endpoint, message: RelayMessage<string>): void {
-    endpoint.lastMid = Math.max(endpoint.lastMid, Number(message.mid));
+    const mid = BigInt(message.mid);
+    if (mid > endpoint.lastMid) {
+      endpoint.lastMid = mid;
+    }
     let data: unknown;
     try {
       data = JSON.parse(message.data);
