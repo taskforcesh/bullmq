@@ -71,7 +71,7 @@ if view == "nodes" then
   local nodes = rcall("ZRANGE", baseKey .. ":started", first, last, "WITHSCORES")
   for i = 1, #nodes, 2 do
     local nodeId = nodes[i]
-    local record = rcall("HMGET", baseKey .. ":node:" .. nodeId,
+    local record = rcall("HMGET", baseKey .. ":" .. nodeId .. ":node",
       "info", "hb", "backlog", "dropped")
     rows[#rows + 1] = { nodeId, nodes[i + 1],
       rcall("ZSCORE", KEYS[1], nodeId) or "", record[1] or "", record[2] or "",
@@ -111,7 +111,7 @@ elseif view == "retained" then
     local topics = rcall("ZRANGEBYSCORE", retainedKey, "(" .. getRelayTime(),
       "+inf", "WITHSCORES", "LIMIT", offset, count)
     for i = 1, #topics, 2 do
-      local value = rcall("HMGET", baseKey .. ":ret:" .. topics[i], "m", "ts", "d")
+      local value = rcall("HMGET", baseKey .. ":" .. topics[i] .. ":ret", "m", "ts", "d")
       if value[1] then
         rows[#rows + 1] = { topics[i], topics[i + 1], value[1], value[2], value[3] }
       end

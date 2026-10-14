@@ -195,7 +195,7 @@ class Harness {
     if (this.backend === 'redis') {
       const client = new IORedis(REDIS);
       for (const namespace of namespaces) {
-        const keys = await client.keys(`${PREFIX}:relay:${namespace}:*`);
+        const keys = await client.keys(`${PREFIX}::relay:{${namespace}}:*`);
         if (keys.length > 0) {
           await client.del(...keys);
         }

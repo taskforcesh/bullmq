@@ -7,7 +7,7 @@
   is updated in its own call.
 
   Input:
-    KEYS[1] registry key ({prefix}:relay:namespaces)
+    KEYS[1] registry key ({prefix}::relay:namespaces)
 
     ARGV[1] namespace
     ARGV[2] in use for (ms)

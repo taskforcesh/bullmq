@@ -75,7 +75,7 @@ end
 local function removeRelayNode(baseKey, nodesKey, nodeId, now)
   local removed = rcall("ZREM", nodesKey, nodeId)
   rcall("ZREM", baseKey .. ":started", nodeId)
-  rcall("UNLINK", baseKey .. ":inbox:" .. nodeId, baseKey .. ":node:" .. nodeId)
+  rcall("UNLINK", baseKey .. ":" .. nodeId .. ":inbox", baseKey .. ":" .. nodeId .. ":node")
   if relayHasMember(baseKey .. ":subs", "n|" .. nodeId .. "|") then
     rcall("ZADD", baseKey .. ":cleanup", now, nodeId)
   end

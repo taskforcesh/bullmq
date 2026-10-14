@@ -19,8 +19,8 @@ local rcall = redis.call
 
 --- @include "includes/batches"
 
-local inboxKey = ARGV[1] .. ":inbox:" .. ARGV[2]
-local nodeKey = ARGV[1] .. ":node:" .. ARGV[2]
+local inboxKey = ARGV[1] .. ":" .. ARGV[2] .. ":inbox"
+local nodeKey = ARGV[1] .. ":" .. ARGV[2] .. ":node"
 local cursor = ARGV[3]
 
 if cursor ~= "0-0" and cursor ~= "0" then

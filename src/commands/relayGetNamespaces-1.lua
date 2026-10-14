@@ -3,7 +3,7 @@
   or retained messages), sorted by name.
 
   Input:
-    KEYS[1] registry key ({prefix}:relay:namespaces)
+    KEYS[1] registry key ({prefix}::relay:namespaces)
 ]]
 local rcall = redis.call
 
