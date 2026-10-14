@@ -154,6 +154,38 @@ describe('Relay on ioredis', () => {
     expect(await admin.pttl(`${base()}:mid`)).toBeGreaterThan(30_000);
   });
 
+  it('opens its blocking connection only to read an inbox', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = await newBackend();
+    await backend.registerNode('n1', 30_000);
+    await backend.subscribe('n1', 'e1', 'a');
+    await backend.publish('a', '1', publishOptions);
+    // A dashboard only needs the getters.
+    expect(await backend.getCounts()).toMatchObject({ nodes: 1 });
+    expect(await backend.getNodes(0, -1)).toHaveLength(1);
+    expect((backend as any).blockingConnection).toBeUndefined();
+
+    const { entries } = await backend.readInbox('n1', '0-0', {
+      blockMs: 0,
+      count: 10,
+    });
+    expect(entries).toHaveLength(1);
+    expect((backend as any).blockingConnection).toBeDefined();
+  });
+
+  it('returns at once from inbox reads after an interrupt', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = await newBackend();
+    await backend.registerNode('n1', 30_000);
+    backend.interruptInbox();
+    const start = Date.now();
+    expect(
+      await backend.readInbox('n1', '0-0', { blockMs: 5_000, count: 10 }),
+    ).toEqual({ entries: [], cursor: '0-0' });
+    expect(Date.now() - start).toBeLessThan(1_000);
+    expect((backend as any).blockingConnection).toBeUndefined();
+  });
+
   it('refuses to share a namespace with nodes of another layout version', async () => {
     namespace = `t-${randomUUID().slice(0, 13)}`;
     const backend = await newBackend();
