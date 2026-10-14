@@ -1,5 +1,5 @@
 --[[
-  Renews a relay node's liveness lease.
+  Renews a relay node's liveness lease (and the expiry of its namespace).
 
   Input:
     KEYS[1] nodes key ({base}:nodes)
@@ -15,15 +15,21 @@
 ]]
 local rcall = redis.call
 
-local nodeId = ARGV[2]
+--- @include "includes/refreshRelayNamespace"
 
-if not rcall("ZSCORE", KEYS[1], nodeId) or
-  rcall("EXISTS", ARGV[1] .. ":alive:" .. nodeId) == 0 then
+local baseKey = ARGV[1]
+local nodeId = ARGV[2]
+local leaseMs = tonumber(ARGV[3])
+local nodeKey = baseKey .. ":node:" .. nodeId
+
+if not rcall("ZSCORE", KEYS[1], nodeId) or rcall("EXISTS", nodeKey) == 0 then
   return 0
 end
 
-local time = rcall("TIME")
-local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
-rcall("ZADD", KEYS[1], now + tonumber(ARGV[3]), nodeId)
-rcall("SET", ARGV[1] .. ":alive:" .. nodeId, "1", "PX", tonumber(ARGV[3]))
+local now = getRelayTime()
+rcall("ZADD", KEYS[1], now + leaseMs, nodeId)
+rcall("HSET", nodeKey, "hb", now)
+rcall("PEXPIRE", nodeKey, leaseMs)
+rcall("PEXPIRE", baseKey .. ":inbox:" .. nodeId, leaseMs)
+refreshRelayNamespace(baseKey, KEYS[1], now)
 return 1

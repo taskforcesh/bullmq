@@ -34,6 +34,16 @@ export interface RelayTestHarness {
   createBackend(namespace: string): IRelayBackend;
   /** Number of stored subscriptions in a namespace (to check cleanup). */
   countSubscriptions(namespace: string): Promise<number>;
+  /**
+   * What the datastore still holds for a namespace: Redis keys, or PostgreSQL
+   * rows as `table:key`.
+   */
+  leftovers(namespace: string): Promise<string[]>;
+  /**
+   * Whether the datastore expires a namespace on its own (Redis), rather than
+   * through the sweeps of other nodes (PostgreSQL).
+   */
+  readonly selfExpiring: boolean;
   /** Removes whatever a test left in the datastore for a namespace. */
   cleanup(namespace: string): Promise<void>;
 }
@@ -66,8 +76,11 @@ function redisHarness(): RelayTestHarness {
     return keys;
   };
 
+  const baseKey = (namespace: string) => `${prefix}:relay:{${namespace}}`;
+
   return {
     backend: 'redis',
+    selfExpiring: true,
     async setup() {
       connection = createTestConnection();
     },
@@ -78,16 +91,18 @@ function redisHarness(): RelayTestHarness {
     createBackend: namespace =>
       createRedisRelayBackend({ connection, namespace, prefix }),
     async countSubscriptions(namespace) {
-      let total = 0;
-      for (const key of await scanKeys(
-        `${prefix}:relay:${namespace}:sub:p:*`,
-      )) {
-        total += (await connection.smembers(key)).length;
-      }
-      return total;
+      const members = await connection.zrange(
+        `${baseKey(namespace)}:subs`,
+        0,
+        -1,
+      );
+      return members.filter(member => member.startsWith('n|')).length;
+    },
+    async leftovers(namespace) {
+      return (await scanKeys(`${baseKey(namespace)}:*`)).sort();
     },
     async cleanup(namespace) {
-      const keys = await scanKeys(`${prefix}:relay:${namespace}:*`);
+      const keys = await scanKeys(`${baseKey(namespace)}:*`);
       if (keys.length > 0) {
         await connection.del(...keys);
       }
@@ -105,6 +120,7 @@ function postgresHarness(schema: string): RelayTestHarness {
 
   return {
     backend: 'postgres',
+    selfExpiring: false,
     async setup() {
       pool = new Pool({ connectionString: getPostgresUrl() });
       await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
@@ -127,6 +143,20 @@ function postgresHarness(schema: string): RelayTestHarness {
         [namespace],
       );
       return rows[0].n;
+    },
+    async leftovers(namespace) {
+      const { rows } = await pool.query(
+        `SELECT 'relay_node:' || node_id AS row FROM "${schema}".relay_node WHERE ns = $1
+         UNION ALL
+         SELECT 'relay_subscription:' || node_id || '/' || endpoint_id || '/' || pattern
+           FROM "${schema}".relay_subscription WHERE ns = $1
+         UNION ALL
+         SELECT 'relay_inbox:' || id FROM "${schema}".relay_inbox WHERE ns = $1
+         UNION ALL
+         SELECT 'relay_retained:' || topic FROM "${schema}".relay_retained WHERE ns = $1`,
+        [namespace],
+      );
+      return rows.map(row => row.row).sort();
     },
     async cleanup(namespace) {
       // Subscriptions and inbox rows cascade from the node rows.

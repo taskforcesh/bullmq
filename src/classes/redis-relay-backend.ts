@@ -3,25 +3,62 @@ import {
   IRedisClient,
   IRelayBackend,
   RelayBackendOptions,
+  RelayCounts,
   RelayInboxBatch,
   RelayInboxEntry,
+  RelayNodeInfo,
+  RelayNodeState,
+  RelayPatternState,
   RelayPublishOptions,
   RelayPublishResult,
+  RelayRetainedState,
   RelaySubscribeResult,
+  RelaySubscriptionFilter,
+  RelaySubscriptionState,
 } from '../interfaces';
-import { isRedisInstance } from '../utils';
+import { isRedisInstance, isRedisVersionLowerThan } from '../utils';
 import { RedisConnection } from './redis-connection';
 import { checkRelayResult } from './relay-errors';
 import { version as packageVersion } from '../version';
 
 const DEFAULT_INBOX_MAX_LENGTH = 10_000;
 
+/** Minimum Redis version for the relay (queues still run on 5.0). */
+export const RELAY_MINIMUM_REDIS_VERSION = '6.2.0';
+
+/**
+ * Version of the relay's Redis data layout. Changes within a layout version
+ * are additive only (new keys, fields or entry kinds that older nodes
+ * ignore); anything else needs a new version, and nodes of different
+ * versions refuse to share a namespace.
+ */
+export const RELAY_LAYOUT_VERSION = '1';
+
 /**
  * Redis implementation of {@link IRelayBackend}. Every operation is one of the
  * `relay*` Lua scripts; this class only passes arguments and decodes results.
  *
- * Keys live under `{prefix}:relay:{namespace}`. On Redis Cluster, use a hash
- * tag in the prefix (as for queues) so they share one slot.
+ * Keys of a namespace live under `{prefix}:relay:{<namespace>}`: the
+ * namespace is a hash tag, so on Redis Cluster each namespace is one slot
+ * (the unit of scale) whatever the prefix.
+ *
+ * | Key | Type | Content |
+ * | --- | --- | --- |
+ * | `:meta` | hash | `layout` version |
+ * | `:nodes` | sorted set | node → lease deadline |
+ * | `:started` | sorted set | node → registration time |
+ * | `:node:{id}` | hash | `info`, `hb`, `backlog`, `dropped`; expires with the lease |
+ * | `:inbox:{id}` | stream | the node's messages; expires with the lease |
+ * | `:subs` | sorted set | subscription index (see `includes/relayIndex.lua`) |
+ * | `:cleanup` | sorted set | removed nodes whose subscriptions are being pruned |
+ * | `:retained` | sorted set | topic → expiry |
+ * | `:ret:{topic}` | hash | retained message (`m`, `ts`, `d`) |
+ * | `:mid` | string | message id counter |
+ *
+ * Every key expires on its own when the namespace has no live node (and no
+ * retained message), so nothing is left behind even if no node sweeps it.
+ * `{prefix}:relay:namespaces` (sorted set: namespace → in use until) lists
+ * the namespaces in use, and expires on its own as well.
  *
  * Each node's inbox is a stream, read with a blocking `XREAD` on a dedicated
  * connection. Entries published while that connection is reconnecting are
@@ -33,6 +70,8 @@ export class RedisRelayBackend implements IRelayBackend {
 
   private readonly baseKey: string;
   private readonly nodesKey: string;
+  private readonly registryKey: string;
+  private readonly skipVersionCheck: boolean;
   private readonly inboxMaxLength: number;
   private readonly connection: RedisConnection;
   private readonly blockingConnection: RedisConnection;
@@ -40,8 +79,11 @@ export class RedisRelayBackend implements IRelayBackend {
 
   constructor(opts: RelayBackendOptions<ConnectionOptions>) {
     this.namespace = opts.namespace;
-    this.baseKey = `${opts.prefix ?? 'bull'}:relay:${opts.namespace}`;
+    const prefix = opts.prefix ?? 'bull';
+    this.baseKey = `${prefix}:relay:{${opts.namespace}}`;
     this.nodesKey = `${this.baseKey}:nodes`;
+    this.registryKey = `${prefix}:relay:namespaces`;
+    this.skipVersionCheck = opts.skipVersionCheck === true;
     this.inboxMaxLength = opts.inboxMaxLength ?? DEFAULT_INBOX_MAX_LENGTH;
 
     const shared = isRedisInstance(opts.connection);
@@ -66,6 +108,19 @@ export class RedisRelayBackend implements IRelayBackend {
 
   async waitUntilReady(): Promise<void> {
     await Promise.all([this.connection.client, this.blockingConnection.client]);
+    if (
+      !this.skipVersionCheck &&
+      isRedisVersionLowerThan(
+        this.connection.redisVersion,
+        RELAY_MINIMUM_REDIS_VERSION,
+        this.connection.databaseType,
+      )
+    ) {
+      throw new Error(
+        `The relay requires Redis ${RELAY_MINIMUM_REDIS_VERSION} or newer. ` +
+          `Current: ${this.connection.redisVersion}`,
+      );
+    }
   }
 
   close(): Promise<void> {
@@ -78,20 +133,34 @@ export class RedisRelayBackend implements IRelayBackend {
     return this.closing;
   }
 
-  async registerNode(nodeId: string, leaseMs: number): Promise<void> {
+  async registerNode(
+    nodeId: string,
+    leaseMs: number,
+    info: RelayNodeInfo = {},
+  ): Promise<void> {
     // Reusing an expired/removed ID must finish its old indexes before it can
     // receive messages again. Each call yields Redis after a bounded batch.
     let result: number;
     do {
       result = checkRelayResult(
-        await this.exec('relayRegisterNode', [nodeId, leaseMs]),
+        await this.exec('relayRegisterNode', [
+          nodeId,
+          leaseMs,
+          JSON.stringify(info),
+          RELAY_LAYOUT_VERSION,
+        ]),
         nodeId,
       );
     } while (result === 0);
+    await this.touchNamespace(leaseMs);
   }
 
   async heartbeat(nodeId: string, leaseMs: number): Promise<boolean> {
-    return (await this.exec('relayHeartbeat', [nodeId, leaseMs])) === 1;
+    const alive = (await this.exec('relayHeartbeat', [nodeId, leaseMs])) === 1;
+    if (alive) {
+      await this.touchNamespace(leaseMs);
+    }
+    return alive;
   }
 
   async unregisterNode(nodeId: string): Promise<boolean> {
@@ -137,6 +206,9 @@ export class RedisRelayBackend implements IRelayBackend {
       ]),
       topic,
     );
+    if (opts.retainMs > 0) {
+      await this.touchNamespace(opts.retainMs);
+    }
     return { mid: String(mid), nodes, endpoints };
   }
 
@@ -184,10 +256,108 @@ export class RedisRelayBackend implements IRelayBackend {
     return this.exec('relayTrimInbox', [nodeId, cursor, maxLength]);
   }
 
+  async getCounts(): Promise<RelayCounts> {
+    const [nodes, subscriptions, patterns, retained] = await this.get('counts');
+    return { nodes, subscriptions, patterns, retained };
+  }
+
+  async getNodes(start: number, end: number): Promise<RelayNodeState[]> {
+    const rows = await this.get('nodes', start, end);
+    return rows.map(
+      ([id, registeredAt, leaseUntil, info, hb, backlog, dropped, subs]: [
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        number,
+      ]) => ({
+        id,
+        info: info ? JSON.parse(info) : {},
+        registeredAt: Number(registeredAt),
+        leaseUntil: Number(leaseUntil),
+        lastHeartbeat: hb ? Number(hb) : undefined,
+        backlog: Number(backlog),
+        dropped: Number(dropped),
+        subscriptions: subs,
+      }),
+    );
+  }
+
+  async getSubscriptions(
+    filter: RelaySubscriptionFilter | undefined,
+    start: number,
+    end: number,
+  ): Promise<RelaySubscriptionState[]> {
+    const [kind, value] =
+      filter && 'nodeId' in filter
+        ? ['node', filter.nodeId]
+        : filter && 'pattern' in filter
+          ? ['pattern', filter.pattern]
+          : ['', ''];
+    const rows = await this.get('subscriptions', start, end, kind, value);
+    return rows.map(([nodeId, endpointId, pattern]: string[]) => ({
+      nodeId,
+      endpointId,
+      pattern,
+    }));
+  }
+
+  async getPatterns(start: number, end: number): Promise<RelayPatternState[]> {
+    const rows = await this.get('patterns', start, end);
+    return rows.map(([pattern, subscriptions]: [string, number]) => ({
+      pattern,
+      subscriptions,
+    }));
+  }
+
+  async getRetained(start: number, end: number): Promise<RelayRetainedState[]> {
+    const rows = await this.get('retained', start, end);
+    return rows.map(([topic, expiresAt, mid, ts, data]: string[]) => ({
+      topic,
+      expiresAt: Number(expiresAt),
+      mid: String(mid),
+      ts: Number(ts),
+      data,
+    }));
+  }
+
+  async getNamespaces(): Promise<string[]> {
+    const client = await this.connection.client;
+    return client.runCommand(`relayGetNamespaces:${packageVersion}`, [
+      this.registryKey,
+    ]);
+  }
+
   interruptInbox(): void {
     this.blockingConnection.client
       .then(client => client.disconnect())
       .catch((): void => undefined);
+  }
+
+  private get(
+    view: string,
+    start = 0,
+    end = -1,
+    filter = '',
+    value = '',
+  ): Promise<any[]> {
+    return this.exec('relayGet', [view, start, end, filter, value]);
+  }
+
+  /**
+   * Lists the namespace in the prefix's registry. The registry is outside the
+   * namespace's hash tag, so this is a call of its own.
+   */
+  private async touchNamespace(forMs: number): Promise<void> {
+    const client = await this.connection.client;
+    await client.runCommand(`relayTouchNamespace:${packageVersion}`, [
+      this.registryKey,
+      this.namespace,
+      forMs,
+    ]);
   }
 
   private async exec(command: string, args: (string | number)[]) {

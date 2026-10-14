@@ -6,7 +6,11 @@ import { ConnectionOptions } from './redis-options';
  * datastore, so the runtime never matches topics itself.
  */
 export interface RelayInboxEntry {
-  kind: 'msg';
+  /**
+   * Entry kind. Only `'msg'` exists today; readers must skip kinds they don't
+   * know, so new kinds can be added without breaking older nodes.
+   */
+  kind: string;
   topic: string;
   /** Message id, unique and increasing per namespace. */
   mid: string;
@@ -59,6 +63,62 @@ export interface RelayPublishResult {
   endpoints: number;
 }
 
+/** Describes a node; stored as given and shown by dashboards. */
+export interface RelayNodeInfo {
+  /** A human-readable name, e.g. the service or connection name. */
+  name?: string;
+  host?: string;
+  pid?: number;
+  /** BullMQ version of the node. */
+  version?: string;
+}
+
+export interface RelayNodeState {
+  id: string;
+  info: RelayNodeInfo;
+  /** When the node registered (ms). */
+  registeredAt: number;
+  /**
+   * When its lease ends (ms). A node whose lease ended is removed by the next
+   * sweep; until then it's listed, without `lastHeartbeat`.
+   */
+  leaseUntil: number;
+  lastHeartbeat?: number;
+  /** Unread messages in its inbox, as of its last heartbeat. */
+  backlog: number;
+  /** Unread messages dropped because its inbox was full. */
+  dropped: number;
+  subscriptions: number;
+}
+
+export interface RelaySubscriptionState {
+  nodeId: string;
+  endpointId: string;
+  pattern: string;
+}
+
+/** Restricts {@link IRelayBackend.getSubscriptions} to a node or a pattern. */
+export type RelaySubscriptionFilter = { nodeId: string } | { pattern: string };
+
+export interface RelayPatternState {
+  pattern: string;
+  subscriptions: number;
+}
+
+export interface RelayRetainedState extends RelayRetainedMessage {
+  topic: string;
+  expiresAt: number;
+}
+
+export interface RelayCounts {
+  /** Registered nodes, including expired ones not swept yet. */
+  nodes: number;
+  subscriptions: number;
+  /** Distinct patterns with at least one subscription. */
+  patterns: number;
+  retained: number;
+}
+
 /**
  * IRelayBackend
  *
@@ -83,8 +143,12 @@ export interface IRelayBackend {
   /** Closes the backend's connections it owns. */
   close(): Promise<void>;
 
-  /** Registers (or refreshes) a node and its liveness lease. */
-  registerNode(nodeId: string, leaseMs: number): Promise<void>;
+  /** Registers (or refreshes) a node, its liveness lease and its info. */
+  registerNode(
+    nodeId: string,
+    leaseMs: number,
+    info?: RelayNodeInfo,
+  ): Promise<void>;
 
   /**
    * Renews a node's lease.
@@ -140,6 +204,34 @@ export interface IRelayBackend {
    * yet (its backlog).
    */
   trimInbox(nodeId: string, cursor: string, maxLength: number): Promise<number>;
+
+  /**
+   * Read-only getters, for dashboards. Lists are paginated like the queue
+   * getters: `start` and `end` are inclusive positions (from 0), and an `end`
+   * of -1 means "to the end". Orders are stable: nodes by registration,
+   * subscriptions and patterns by value (bytewise), retained messages by
+   * expiry.
+   */
+  getCounts(): Promise<RelayCounts>;
+
+  getNodes(start: number, end: number): Promise<RelayNodeState[]>;
+
+  /** All subscriptions, or those of a node or a pattern. */
+  getSubscriptions(
+    filter: RelaySubscriptionFilter | undefined,
+    start: number,
+    end: number,
+  ): Promise<RelaySubscriptionState[]>;
+
+  getPatterns(start: number, end: number): Promise<RelayPatternState[]>;
+
+  getRetained(start: number, end: number): Promise<RelayRetainedState[]>;
+
+  /**
+   * Namespaces of the datastore (or Redis prefix) with live nodes or
+   * retained messages, sorted by name.
+   */
+  getNamespaces(): Promise<string[]>;
 
   /**
    * Makes a blocked {@link readInbox} return (or fail) promptly, and later

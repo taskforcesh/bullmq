@@ -1,7 +1,8 @@
 --[[
   Removes the consumed entries of a relay node's inbox (up to the reader's
   cursor) and the oldest entries beyond the max length, and returns the number
-  of entries left: the messages the node hasn't read yet.
+  of entries left: the messages the node hasn't read yet. The backlog and the
+  number of dropped entries are recorded on the node.
 
   Input:
     KEYS[1] nodes key ({base}:nodes)
@@ -19,6 +20,7 @@ local rcall = redis.call
 --- @include "includes/batches"
 
 local inboxKey = ARGV[1] .. ":inbox:" .. ARGV[2]
+local nodeKey = ARGV[1] .. ":node:" .. ARGV[2]
 local cursor = ARGV[3]
 
 if cursor ~= "0-0" and cursor ~= "0" then
@@ -35,5 +37,14 @@ if cursor ~= "0-0" and cursor ~= "0" then
   end
 end
 
-rcall("XTRIM", inboxKey, "MAXLEN", tonumber(ARGV[4]))
-return rcall("XLEN", inboxKey)
+local dropped = rcall("XTRIM", inboxKey, "MAXLEN", tonumber(ARGV[4]))
+local backlog = rcall("XLEN", inboxKey)
+-- Only a live node has a record (writing to a missing one would create it
+-- without an expiry).
+if rcall("EXISTS", nodeKey) == 1 then
+  rcall("HSET", nodeKey, "backlog", backlog)
+  if dropped > 0 then
+    rcall("HINCRBY", nodeKey, "dropped", dropped)
+  end
+end
+return backlog

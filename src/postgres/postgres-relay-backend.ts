@@ -1,10 +1,17 @@
 import {
   IRelayBackend,
   RelayBackendOptions,
+  RelayCounts,
   RelayInboxBatch,
+  RelayNodeInfo,
+  RelayNodeState,
+  RelayPatternState,
   RelayPublishOptions,
   RelayPublishResult,
+  RelayRetainedState,
   RelaySubscribeResult,
+  RelaySubscriptionFilter,
+  RelaySubscriptionState,
 } from '../interfaces';
 import { RelayError } from '../classes/relay-errors';
 import {
@@ -25,6 +32,11 @@ const RELAY_CHANNEL = 'bullmq_relay';
  * PostgreSQL implementation of {@link IRelayBackend}. Every operation is one of
  * the `relay_*` SQL functions (migration `0004_relay`); this class only passes
  * arguments and decodes rows.
+ *
+ * Rows have no expiry in PostgreSQL: sweeps remove expired nodes (with their
+ * subscriptions and inboxes) and retained messages of every namespace, so a
+ * namespace whose nodes all vanished is cleaned by any node using the same
+ * schema.
  *
  * Each node's inbox is a table, read after a `NOTIFY` on the `bullmq_relay`
  * channel (or after the wait times out, so a missed notification only delays
@@ -72,8 +84,17 @@ export class PostgresRelayBackend implements IRelayBackend {
     return this.closing;
   }
 
-  async registerNode(nodeId: string, leaseMs: number): Promise<void> {
-    await this.run('relay_register_node', [this.namespace, nodeId, leaseMs]);
+  async registerNode(
+    nodeId: string,
+    leaseMs: number,
+    info: RelayNodeInfo = {},
+  ): Promise<void> {
+    await this.run('relay_register_node', [
+      this.namespace,
+      nodeId,
+      leaseMs,
+      JSON.stringify(info),
+    ]);
   }
 
   async heartbeat(nodeId: string, leaseMs: number): Promise<boolean> {
@@ -218,6 +239,78 @@ export class PostgresRelayBackend implements IRelayBackend {
       maxLength,
     ]);
     return rows[0].backlog;
+  }
+
+  async getCounts(): Promise<RelayCounts> {
+    const { rows } = await this.run('relay_get_counts', [this.namespace]);
+    return rows[0];
+  }
+
+  async getNodes(start: number, end: number): Promise<RelayNodeState[]> {
+    const { rows } = await this.run('relay_get_nodes', [
+      this.namespace,
+      start,
+      end,
+    ]);
+    return rows.map(row => ({
+      id: row.node_id,
+      info: row.info ?? {},
+      registeredAt: Number(row.registered_at),
+      leaseUntil: Number(row.lease_until),
+      lastHeartbeat:
+        row.last_heartbeat === null ? undefined : Number(row.last_heartbeat),
+      backlog: row.backlog,
+      dropped: Number(row.dropped),
+      subscriptions: row.subscriptions,
+    }));
+  }
+
+  async getSubscriptions(
+    filter: RelaySubscriptionFilter | undefined,
+    start: number,
+    end: number,
+  ): Promise<RelaySubscriptionState[]> {
+    const { rows } = await this.run('relay_get_subscriptions', [
+      this.namespace,
+      filter && 'nodeId' in filter ? filter.nodeId : null,
+      filter && 'pattern' in filter ? filter.pattern : null,
+      start,
+      end,
+    ]);
+    return rows.map(row => ({
+      nodeId: row.node_id,
+      endpointId: row.endpoint_id,
+      pattern: row.pattern,
+    }));
+  }
+
+  async getPatterns(start: number, end: number): Promise<RelayPatternState[]> {
+    const { rows } = await this.run('relay_get_patterns', [
+      this.namespace,
+      start,
+      end,
+    ]);
+    return rows;
+  }
+
+  async getRetained(start: number, end: number): Promise<RelayRetainedState[]> {
+    const { rows } = await this.run('relay_get_retained', [
+      this.namespace,
+      start,
+      end,
+    ]);
+    return rows.map(row => ({
+      topic: row.topic,
+      expiresAt: Number(row.expires_at),
+      mid: String(row.mid),
+      ts: Number(row.ts),
+      data: row.data,
+    }));
+  }
+
+  async getNamespaces(): Promise<string[]> {
+    const { rows } = await this.run('relay_get_namespaces', []);
+    return rows.map(row => row.ns);
   }
 
   /**
