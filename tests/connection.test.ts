@@ -260,6 +260,9 @@ describe('RedisConnection', () => {
       }
 
       async function startBlockingWait(cluster: any) {
+        // RedisConnection replaces cluster.bzpopmin with its wrapper, so keep
+        // a handle on the stub to assert on it.
+        const bzpopmin = cluster.bzpopmin;
         const connection = new RedisConnection(cluster, {
           blocking: true,
           skipVersionCheck: true,
@@ -280,7 +283,7 @@ describe('RedisConnection', () => {
         inFlight.catch(() => {});
         // Let the patched bzpopmin reach the underlying command.
         await new Promise(resolve => setImmediate(resolve));
-        expect(cluster.bzpopmin.calledOnce).toBe(true);
+        expect(bzpopmin.calledOnce).toBe(true);
 
         return { connection, backend, inFlight };
       }
