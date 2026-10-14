@@ -17,7 +17,7 @@
     "semantic-release": "25.0.9"
   },
   "release": {
-    "tagFormat": "vgo${version}",
+    "tagFormat": "golang/v${version}",
     "plugins": [
       [
         "@semantic-release/commit-analyzer",
