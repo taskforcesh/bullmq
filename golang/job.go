@@ -223,7 +223,11 @@ func (j *Job) Promote(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return b.Promote(ctx, j.ID)
+	if err := b.Promote(ctx, j.ID); err != nil {
+		return err
+	}
+	j.Delay = 0
+	return nil
 }
 
 // ChangeDelay updates the delay of a job that is in the delayed set.
