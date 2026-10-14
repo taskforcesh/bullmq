@@ -159,6 +159,16 @@ defmodule BullMQ.RedisConnection do
   end
 
   @doc """
+  Whether the connected Redis server supports `LPOS` (Redis 6.0.6+), which
+  lets scripts such as `getStateV2` skip scanning whole lists. Defaults to
+  `false` when the version is unknown.
+  """
+  @spec can_lpos?(connection()) :: boolean()
+  def can_lpos?(conn) do
+    :persistent_term.get({__MODULE__, :can_lpos, conn}, false)
+  end
+
+  @doc """
   Closes the Redis connection pool.
   """
   @spec close(connection(), timeout()) :: :ok | {:error, term()}
@@ -167,6 +177,7 @@ defmodule BullMQ.RedisConnection do
     :persistent_term.erase({__MODULE__, :redis_opts, conn})
     :persistent_term.erase({__MODULE__, :can_double_timeout, conn})
     :persistent_term.erase({__MODULE__, :can_block_for_1ms, conn})
+    :persistent_term.erase({__MODULE__, :can_lpos, conn})
 
     # Stop the supervisor
     sup_name = Pool.supervisor_name(conn)
@@ -214,6 +225,11 @@ defmodule BullMQ.RedisConnection do
         :persistent_term.put(
           {__MODULE__, :can_block_for_1ms, conn},
           not version_lt?(version, {7, 0, 8})
+        )
+
+        :persistent_term.put(
+          {__MODULE__, :can_lpos, conn},
+          not version_lt?(version, {6, 0, 6})
         )
 
         :ok
