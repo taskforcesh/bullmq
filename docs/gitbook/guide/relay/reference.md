@@ -17,6 +17,7 @@ new Relay(options: RelayOptions)
 | `prefix`            | `string`              | `'bull'`             | Key prefix (Redis only).                                                  |
 | `namespace`         | `string`              | `'default'`          | Relays only exchange messages within a namespace. `[A-Za-z0-9_-]{1,64}`.  |
 | `nodeId`            | `string`              | random               | Unique id of this node. `[A-Za-z0-9_-]{1,64}`.                            |
+| `name`              | `string`              | –                    | Human-readable name of the node (up to 256 characters), for dashboards.   |
 | `leaseDuration`     | `number` (ms)         | `30000`              | How long the node stays registered without a heartbeat.                   |
 | `heartbeatInterval` | `number` (ms)         | `leaseDuration / 3`  | How often the node renews its lease.                                      |
 | `sweepInterval`     | `number` (ms)         | `leaseDuration`      | How often the node removes nodes whose lease expired.                     |
@@ -47,6 +48,41 @@ many nodes and subscriptions it was delivered to.
 
 `RelayMessage<T>`: `{ topic, data: T, mid, ts, retained }`.
 
+## Inspecting a namespace
+
+Read-only getters, for dashboards and debugging. They read the datastore
+directly (one Lua script or SQL function call each), never the nodes, so they
+are cheap and safe to poll. Lists are paginated like the queue getters:
+`start` and `end` are inclusive positions from 0, and an `end` of -1 means
+"to the end". Orders are stable, so pages don't shift as nodes heartbeat.
+
+| Method                                    | Returns                                        | Order                       |
+| ----------------------------------------- | ---------------------------------------------- | --------------------------- |
+| `getCounts()`                             | `{ nodes, subscriptions, patterns, retained }` | –                           |
+| `getNodes(start?, end?)`                  | `RelayNodeState[]`                             | Registration                |
+| `getSubscriptions(filter?, start?, end?)` | `RelaySubscriptionState[]`                     | Node, subscription, pattern |
+| `getPatterns(start?, end?)`               | `RelayPatternState[]`                          | Pattern                     |
+| `getRetained(start?, end?)`               | `RelayRetainedState[]`                         | Expiry                      |
+| `getNamespaces()`                         | `string[]`                                     | Name                        |
+
+- `RelayNodeState`: `{ id, info: { name?, host?, pid?, version? },
+registeredAt, leaseUntil, lastHeartbeat?, backlog, dropped, subscriptions }`.
+  `backlog` and `dropped` are updated on each heartbeat. A node whose lease
+  expired is listed (without its info) until it is swept.
+- `filter` is `{ nodeId }` or `{ pattern }`; `RelaySubscriptionState` is
+  `{ nodeId, endpointId, pattern }` (one entry per subscription).
+- `RelayPatternState`: `{ pattern, subscriptions }`.
+- `RelayRetainedState`: `{ topic, mid, ts, data, expiresAt }`, with `data`
+  as serialized (JSON).
+- `getNamespaces()` lists the namespaces of the datastore (or Redis prefix)
+  with live nodes or retained messages.
+
+```typescript
+const { nodes, subscriptions } = await relay.getCounts();
+const firstPage = await relay.getNodes(0, 19);
+const subscribers = await relay.getSubscriptions({ pattern: 'jobs.*.cancel' });
+```
+
 ## Events
 
 | Event         | Arguments  | When                                                                                |
@@ -61,13 +97,14 @@ many nodes and subscriptions it was delivered to.
 Operations rejected by the datastore throw a `RelayError` with a `code` from
 `RelayErrorCode`:
 
-| Code                | Value | Meaning                                                             |
-| ------------------- | ----- | ------------------------------------------------------------------- |
-| `InvalidTopic`      | `-1`  | The topic doesn't follow the [rules](topics-and-patterns.md#rules). |
-| `InvalidPattern`    | `-2`  | The pattern doesn't follow the rules.                               |
-| `NodeNotRegistered` | `-3`  | The node was swept; it recovers on its next heartbeat.              |
-| `DataTooLarge`      | `-4`  | The serialized message is larger than `maxMessageSize`.             |
-| `InvalidId`         | `-5`  | Invalid node or subscription id.                                    |
+| Code                 | Value | Meaning                                                                     |
+| -------------------- | ----- | --------------------------------------------------------------------------- |
+| `InvalidTopic`       | `-1`  | The topic doesn't follow the [rules](topics-and-patterns.md#rules).         |
+| `InvalidPattern`     | `-2`  | The pattern doesn't follow the rules.                                       |
+| `NodeNotRegistered`  | `-3`  | The node was swept; it recovers on its next heartbeat.                      |
+| `DataTooLarge`       | `-4`  | The serialized message is larger than `maxMessageSize`.                     |
+| `InvalidId`          | `-5`  | Invalid node or subscription id.                                            |
+| `IncompatibleLayout` | `-6`  | The namespace is in use by nodes of an incompatible BullMQ version (Redis). |
 
 Using a relay after `close()` throws `Error('Relay is closed')`.
 
