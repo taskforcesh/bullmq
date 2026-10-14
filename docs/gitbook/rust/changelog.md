@@ -1,3 +1,10 @@
+## [1.3.6](https://github.com/taskforcesh/bullmq/compare/vrs1.3.5...vrs1.3.6) (2026-10-14)
+
+
+### Bug Fixes
+
+* **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+
 ## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vrs1.3.4...vrs1.3.5) (2026-10-08)
 
 
