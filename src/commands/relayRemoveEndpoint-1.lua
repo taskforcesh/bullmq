@@ -13,6 +13,6 @@
 ]]
 local rcall = redis.call
 
---- @include "includes/removeRelayEndpoint"
+--- @include "includes/relayIndex"
 
 return removeRelayEndpoint(ARGV[1], ARGV[2], ARGV[3])

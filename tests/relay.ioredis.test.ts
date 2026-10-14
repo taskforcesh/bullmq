@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { default as IORedis } from 'ioredis';
 import { randomUUID } from 'crypto';
-import { RedisRelayBackend, Relay } from '../src';
+import { RedisRelayBackend, Relay, RelayError, RelayErrorCode } from '../src';
 import { waitFor } from './utils/relay';
 
 const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -10,6 +10,7 @@ const redisHost = process.env.REDIS_HOST || 'localhost';
 describe('Relay on ioredis', () => {
   let admin: IORedis;
   let namespace: string;
+  const base = () => `${prefix}:relay:{${namespace}}`;
   const relays: Relay<any>[] = [];
   const backends: RedisRelayBackend[] = [];
 
@@ -20,7 +21,7 @@ describe('Relay on ioredis', () => {
   afterEach(async () => {
     await Promise.all(relays.splice(0).map(relay => relay.close()));
     await Promise.all(backends.splice(0).map(backend => backend.close()));
-    const keys = await admin.keys(`${prefix}:relay:${namespace}:*`);
+    const keys = await admin.keys(`${base()}:*`);
     if (keys.length > 0) {
       await admin.del(...keys);
     }
@@ -88,7 +89,7 @@ describe('Relay on ioredis', () => {
 
     // Kill every connection currently blocked reading this namespace's inboxes,
     // as a network failure would.
-    const inboxKey = `${prefix}:relay:${namespace}:inbox:${subscriber.nodeId}`;
+    const inboxKey = `${base()}:inbox:${subscriber.nodeId}`;
     await waitFor(async () => {
       const clients = (await admin.client('LIST')) as string;
       return clients.includes('cmd=xread');
@@ -119,16 +120,87 @@ describe('Relay on ioredis', () => {
     await relay.publish('a.1', 'x');
     await relay.close();
 
-    const keys = await admin.keys(`${prefix}:relay:${namespace}:*`);
-    expect(keys.sort()).toEqual([`${prefix}:relay:${namespace}:mid`]);
+    expect(await admin.keys(`${base()}:*`)).toEqual([]);
   });
+
+  it('keeps an expiry on every key', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const subscriber = await newRelay();
+    const publisher = await newRelay();
+    await subscriber.subscribe('a.*', () => undefined);
+    await subscriber.subscribe('a.b', () => undefined);
+    await publisher.publish('a.b', 'x', { retain: 60_000 });
+    await publisher.publish('a.c', 'y');
+
+    const keys = await admin.keys(`${base()}:*`);
+    expect(keys.map(key => key.slice(base().length)).sort()).toEqual(
+      [
+        `:inbox:${subscriber.nodeId}`,
+        ':meta',
+        ':mid',
+        `:node:${publisher.nodeId}`,
+        `:node:${subscriber.nodeId}`,
+        ':nodes',
+        ':ret:a.b',
+        ':retained',
+        ':started',
+        ':subs',
+      ].sort(),
+    );
+    for (const key of [...keys, `${prefix}:relay:namespaces`]) {
+      expect(await admin.pttl(key), key).toBeGreaterThan(0);
+    }
+    // Retained messages outlive the nodes, and so do the message ids.
+    expect(await admin.pttl(`${base()}:mid`)).toBeGreaterThan(30_000);
+  });
+
+  it('refuses to share a namespace with nodes of another layout version', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = await newBackend();
+    await backend.registerNode('n1', 30_000);
+    expect(await admin.hget(`${base()}:meta`, 'layout')).toBe('1');
+    await admin.hset(`${base()}:meta`, 'layout', '2');
+    const error = await backend.registerNode('n2', 30_000).catch(err => err);
+    expect(error).toBeInstanceOf(RelayError);
+    expect(error.code).toBe(RelayErrorCode.IncompatibleLayout);
+  });
+
+  it('requires Redis 6.2', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = await newBackend();
+    const connection = (backend as any).connection;
+    const version = connection.version;
+    try {
+      connection.version = '6.0.20';
+      await expect(backend.waitUntilReady()).rejects.toThrow(
+        'The relay requires Redis 6.2.0 or newer',
+      );
+      connection.version = '6.2.0';
+      await expect(backend.waitUntilReady()).resolves.toBeUndefined();
+    } finally {
+      connection.version = version;
+    }
+  });
+
+  // Marks a node dead as if its process vanished: its record expired.
+  const kill = async (node: string) => {
+    await admin.del(`${base()}:node:${node}`);
+    await admin.zadd(`${base()}:nodes`, 0, node);
+  };
+  const subscriptionsOf = async (node: string) =>
+    (
+      await admin.zrangebylex(
+        `${base()}:subs`,
+        `[n|${node}|`,
+        `[n|${node}|\xff`,
+      )
+    ).length;
 
   it.each(['endpoints', 'patterns'])(
     'bounds dead-node cleanup across many %s and continues on idle sweeps',
     async shape => {
       namespace = `t-${randomUUID().slice(0, 13)}`;
       const backend = await newBackend();
-      const base = `${prefix}:relay:${namespace}`;
       await backend.registerNode('dead', 30_000);
       await backend.registerNode('live', 30_000);
       await backend.subscribe('live', 'live-endpoint', 'jobs.p0.*');
@@ -142,36 +214,34 @@ describe('Relay on ioredis', () => {
         ),
       );
       await backend.publish('jobs.p0.done', 'before', publishOptions);
-      expect(await admin.exists(`${base}:inbox:dead`)).toBe(1);
-      await admin.del(`${base}:alive:dead`);
-      await admin.zadd(`${base}:nodes`, 0, 'dead');
+      expect(await admin.exists(`${base()}:inbox:dead`)).toBe(1);
+      await kill('dead');
 
       expect(await backend.sweep(1)).toEqual(['dead']);
-      expect(await admin.zscore(`${base}:nodes`, 'dead')).toBeNull();
-      expect(await admin.exists(`${base}:inbox:dead`)).toBe(0);
+      expect(await admin.zscore(`${base()}:nodes`, 'dead')).toBeNull();
+      expect(await admin.exists(`${base()}:inbox:dead`)).toBe(0);
       expect(await backend.heartbeat('dead', 30_000)).toBe(false);
-      const remainingKey =
-        shape === 'endpoints' ? `${base}:eps:dead` : `${base}:ep:dead:ep`;
-      expect(await admin.scard(remainingKey)).toBe(250);
-      expect(await admin.smembers(`${base}:cleanup`)).toEqual(['dead']);
+      expect(await subscriptionsOf('dead')).toBe(250);
+      expect(await admin.zrange(`${base()}:cleanup`, 0, -1)).toEqual(['dead']);
       expect(
         await backend.publish('jobs.p0.done', 'after', publishOptions),
       ).toMatchObject({ nodes: 1, endpoints: 1 });
-      expect(await admin.exists(`${base}:inbox:dead`)).toBe(0);
+      expect(await admin.exists(`${base()}:inbox:dead`)).toBe(0);
 
       expect(await backend.sweep(1)).toEqual([]);
-      expect(await admin.scard(remainingKey)).toBe(150);
+      expect(await subscriptionsOf('dead')).toBe(150);
       await backend.sweep(1);
-      expect(await admin.scard(remainingKey)).toBe(50);
+      expect(await subscriptionsOf('dead')).toBe(50);
       await backend.sweep(1);
-      expect(await admin.exists(`${base}:cleanup`, `${base}:eps:dead`)).toBe(0);
-      expect(await admin.keys(`${base}:ep:dead:*`)).toEqual([]);
-      expect(await admin.smembers(`${base}:sub:i:jobs`)).toEqual(['jobs.p0.*']);
-      expect(await admin.smembers(`${base}:sub:p:jobs.p0.*`)).toEqual([
-        'live/live-endpoint',
+      expect(await admin.exists(`${base()}:cleanup`)).toBe(0);
+      expect((await admin.zrange(`${base()}:subs`, 0, -1)).sort()).toEqual([
+        'n|live|live-endpoint|jobs.p0.*',
+        'p|jobs.p0.*|live|live-endpoint',
+        't|jobs.p0.*',
+        'w|jobs|jobs.p0.*',
       ]);
       await backend.unregisterNode('live');
-      expect(await admin.keys(`${base}:sub:*`)).toEqual([]);
+      expect(await admin.keys(`${base()}:*`)).toEqual([]);
     },
   );
 
@@ -180,7 +250,8 @@ describe('Relay on ioredis', () => {
     async removal => {
       namespace = `t-${randomUUID().slice(0, 13)}`;
       const backend = await newBackend();
-      const base = `${prefix}:relay:${namespace}`;
+      // Keeps the namespace alive: without live nodes it is dropped at once.
+      await backend.registerNode('anchor', 30_000);
       await backend.registerNode('reuse', 30_000);
       await Promise.all(
         Array.from({ length: 350 }, (_, i) =>
@@ -191,22 +262,26 @@ describe('Relay on ioredis', () => {
 
       if (removal === 'unregister') {
         expect(await backend.unregisterNode('reuse')).toBe(true);
-        expect(await admin.scard(`${base}:ep:reuse:same`)).toBe(250);
-        expect(await admin.zscore(`${base}:nodes`, 'reuse')).toBeNull();
+        expect(await subscriptionsOf('reuse')).toBe(250);
+        expect(await admin.zscore(`${base()}:nodes`, 'reuse')).toBeNull();
         expect(
-          await admin.exists(`${base}:alive:reuse`, `${base}:inbox:reuse`),
+          await admin.exists(`${base()}:node:reuse`, `${base()}:inbox:reuse`),
         ).toBe(0);
       } else {
         // Recover without a sweep having removed the expired registration.
-        await admin.del(`${base}:alive:reuse`);
-        await admin.zadd(`${base}:nodes`, 0, 'reuse');
+        await kill('reuse');
       }
 
       // Inspect one script call, before the backend's retry loop activates it.
       expect(
-        await (backend as any).exec('relayRegisterNode', ['reuse', 30_000]),
+        await (backend as any).exec('relayRegisterNode', [
+          'reuse',
+          30_000,
+          '{}',
+          '1',
+        ]),
       ).toBe(0);
-      expect(await admin.scard(`${base}:ep:reuse:same`)).toBe(
+      expect(await subscriptionsOf('reuse')).toBe(
         removal === 'unregister' ? 150 : 250,
       );
       expect(await backend.heartbeat('reuse', 30_000)).toBe(false);
@@ -215,11 +290,10 @@ describe('Relay on ioredis', () => {
       ).toMatchObject({ nodes: 0, endpoints: 0 });
 
       await backend.registerNode('reuse', 30_000);
-      expect(
-        await admin.exists(`${base}:cleanup`, `${base}:ep:reuse:same`),
-      ).toBe(0);
-      expect(await admin.keys(`${base}:sub:*`)).toEqual([]);
-      expect(await admin.exists(`${base}:inbox:reuse`)).toBe(0);
+      expect(await admin.exists(`${base()}:cleanup`)).toBe(0);
+      expect(await subscriptionsOf('reuse')).toBe(0);
+      expect(await admin.zcard(`${base()}:subs`)).toBe(0);
+      expect(await admin.exists(`${base()}:inbox:reuse`)).toBe(0);
       expect(
         await backend.publish('old.p0.done', 'stale', publishOptions),
       ).toMatchObject({ nodes: 0, endpoints: 0 });
@@ -243,7 +317,7 @@ describe('Relay on ioredis', () => {
   it('shares the pruning budget across all nodes removed by a sweep', async () => {
     namespace = `t-${randomUUID().slice(0, 13)}`;
     const backend = await newBackend();
-    const base = `${prefix}:relay:${namespace}`;
+    await backend.registerNode('anchor', 30_000);
     for (const node of ['first', 'second']) {
       await backend.registerNode(node, 30_000);
       await Promise.all(
@@ -251,15 +325,13 @@ describe('Relay on ioredis', () => {
           backend.subscribe(node, 'ep', `jobs.p${i}.*`),
         ),
       );
-      await admin.del(`${base}:alive:${node}`);
-      await admin.zadd(`${base}:nodes`, 0, node);
+      await kill(node);
     }
 
     expect((await backend.sweep(2)).sort()).toEqual(['first', 'second']);
-    expect(await admin.zcard(`${base}:nodes`)).toBe(0);
+    expect(await admin.zrange(`${base()}:nodes`, 0, -1)).toEqual(['anchor']);
     expect(
-      (await admin.scard(`${base}:ep:first:ep`)) +
-        (await admin.scard(`${base}:ep:second:ep`)),
+      (await subscriptionsOf('first')) + (await subscriptionsOf('second')),
     ).toBe(200);
     expect(
       await backend.publish('jobs.p0.done', 'after', publishOptions),
@@ -267,6 +339,23 @@ describe('Relay on ioredis', () => {
     for (let i = 0; i < 3; i++) {
       expect(await backend.sweep(2)).toEqual([]);
     }
-    expect(await admin.keys(`${base}:*`)).toEqual([`${base}:mid`]);
+    expect(await admin.zcard(`${base()}:subs`)).toBe(0);
+    expect(await admin.exists(`${base()}:cleanup`)).toBe(0);
+  });
+
+  it('drops a namespace at once when its last live node leaves', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = await newBackend();
+    await backend.registerNode('dead', 30_000);
+    await backend.registerNode('last', 30_000);
+    await Promise.all(
+      Array.from({ length: 500 }, (_, i) =>
+        backend.subscribe('dead', 'ep', `jobs.p${i}.*`),
+      ),
+    );
+    await kill('dead');
+    expect(await backend.unregisterNode('last')).toBe(true);
+    // No live node: every subscription left belongs to dead nodes.
+    expect(await admin.keys(`${base()}:*`)).toEqual([]);
   });
 });

@@ -37,19 +37,29 @@ if not segments then
 end
 
 if not rcall("ZSCORE", KEYS[1], nodeId) or
-  rcall("EXISTS", baseKey .. ":alive:" .. nodeId) == 0 then
+  rcall("EXISTS", baseKey .. ":node:" .. nodeId) == 0 then
   return -3
 end
 
-rcall("SADD", baseKey .. ":eps:" .. nodeId, endpointId)
-local added = rcall("SADD", baseKey .. ":ep:" .. nodeId .. ":" .. endpointId, pattern)
-rcall("SADD", baseKey .. ":sub:p:" .. pattern, nodeId .. "/" .. endpointId)
--- Only wildcard patterns are indexed: publishes find exact topics directly.
-if hasRelayWildcards(segments) then
-  rcall("SADD", baseKey .. ":sub:i:" .. getRelayPatternRoot(segments), pattern)
+-- See includes/relayIndex.lua for the views of the subscription index.
+local subsKey = baseKey .. ":subs"
+local hasWildcards = hasRelayWildcards(segments)
+local added = rcall("ZADD", subsKey, 0,
+  "n|" .. nodeId .. "|" .. endpointId .. "|" .. pattern)
+if added == 1 then
+  rcall("ZADD", subsKey, 0, "p|" .. pattern .. "|" .. nodeId .. "|" .. endpointId,
+    0, "t|" .. pattern)
+  -- Only wildcard patterns are indexed: publishes find exact topics directly.
+  if hasWildcards then
+    rcall("ZADD", subsKey, 0, "w|" .. getRelayPatternRoot(segments) .. "|" .. pattern)
+  end
+  -- A new index expires with the namespace's routing keys.
+  if rcall("PTTL", subsKey) == -1 then
+    rcall("PEXPIRE", subsKey, math.max(1, rcall("PTTL", KEYS[1])))
+  end
 end
 
-if not hasRelayWildcards(segments) then
+if not hasWildcards then
   local retained = rcall("HMGET", baseKey .. ":ret:" .. pattern, "m", "ts", "d")
   if retained[1] then
     return { added, retained[1], retained[2], retained[3] }

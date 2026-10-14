@@ -1,15 +1,24 @@
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
+import { hostname } from 'os';
 import {
   ConnectionOptions,
   IRelayBackend,
   RelayBackendFactory,
+  RelayCounts,
   RelayInboxEntry,
+  RelayNodeState,
+  RelayPatternState,
   RelayPublishResult,
+  RelayRetainedState,
+  RelaySubscriptionFilter,
+  RelaySubscriptionState,
 } from '../interfaces';
 import { createRedisRelayBackend } from './redis-relay-backend';
+import { version as packageVersion } from '../version';
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const MAX_NAME_LENGTH = 256;
 
 export interface RelayOptions<C = ConnectionOptions> {
   /** Connection to the datastore (Redis by default, see `backend`). */
@@ -20,6 +29,11 @@ export interface RelayOptions<C = ConnectionOptions> {
   namespace?: string;
   /** Unique id of this node. Default: random. */
   nodeId?: string;
+  /**
+   * Human-readable name of this node (e.g. the service it belongs to), shown
+   * by dashboards. Up to 256 characters.
+   */
+  name?: string;
   /**
    * How long this node stays registered without a heartbeat (ms). After
    * that, any node may sweep it with its subscriptions. Default 30000.
@@ -140,6 +154,12 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
         throw new Error(`Invalid relay ${name}: ${value}`);
       }
     }
+    if (
+      opts.name !== undefined &&
+      (typeof opts.name !== 'string' || opts.name.length > MAX_NAME_LENGTH)
+    ) {
+      throw new Error(`Invalid relay name: ${opts.name}`);
+    }
     this.leaseDuration = opts.leaseDuration ?? 30_000;
     for (const name of [
       'leaseDuration',
@@ -253,6 +273,52 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     });
   }
 
+  /** Totals of this namespace, for dashboards. */
+  async getCounts(): Promise<RelayCounts> {
+    await this.ready;
+    return this.backend.getCounts();
+  }
+
+  /**
+   * Nodes of this namespace, in registration order. `start` and `end` are
+   * inclusive positions; an `end` of -1 means "to the end".
+   */
+  async getNodes(start = 0, end = -1): Promise<RelayNodeState[]> {
+    await this.ready;
+    return this.backend.getNodes(...checkRange(start, end));
+  }
+
+  /**
+   * Subscriptions of this namespace (or of a node or pattern only), ordered
+   * by node and endpoint (or pattern), then pattern (or node and endpoint).
+   */
+  async getSubscriptions(
+    filter?: RelaySubscriptionFilter,
+    start = 0,
+    end = -1,
+  ): Promise<RelaySubscriptionState[]> {
+    await this.ready;
+    return this.backend.getSubscriptions(filter, ...checkRange(start, end));
+  }
+
+  /** Subscribed patterns, ordered by pattern, with their subscriptions. */
+  async getPatterns(start = 0, end = -1): Promise<RelayPatternState[]> {
+    await this.ready;
+    return this.backend.getPatterns(...checkRange(start, end));
+  }
+
+  /** Retained messages, by expiry (the data is as serialized). */
+  async getRetained(start = 0, end = -1): Promise<RelayRetainedState[]> {
+    await this.ready;
+    return this.backend.getRetained(...checkRange(start, end));
+  }
+
+  /** Namespaces in use in the datastore (or Redis prefix). */
+  async getNamespaces(): Promise<string[]> {
+    await this.ready;
+    return this.backend.getNamespaces();
+  }
+
   /**
    * Stops this node and unregisters it, removing its subscriptions.
    */
@@ -265,7 +331,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
 
   private async start(): Promise<void> {
     await this.backend.waitUntilReady();
-    await this.backend.registerNode(this.nodeId, this.leaseDuration);
+    await this.register();
     if (this.closing) {
       return;
     }
@@ -353,7 +419,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
    */
   private async recover(): Promise<void> {
     this.recoveryPending = true;
-    await this.backend.registerNode(this.nodeId, this.leaseDuration);
+    await this.register();
     for (const [endpointId, endpoint] of this.endpoints) {
       await this.backend.subscribe(this.nodeId, endpointId, endpoint.pattern);
       if (!this.endpoints.has(endpointId)) {
@@ -362,6 +428,15 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     }
     this.recoveryPending = false;
     this.emit('recovered');
+  }
+
+  private register(): Promise<void> {
+    return this.backend.registerNode(this.nodeId, this.leaseDuration, {
+      name: this.opts.name,
+      host: hostname(),
+      pid: process.pid,
+      version: packageVersion,
+    });
   }
 
   private sweep(): Promise<void> {
@@ -409,6 +484,10 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   }
 
   private dispatch(entry: RelayInboxEntry): void {
+    // Kinds added by newer versions are not for this node.
+    if (entry.kind !== 'msg') {
+      return;
+    }
     for (const endpointId of entry.endpoints) {
       const endpoint = this.endpoints.get(endpointId);
       if (endpoint) {
@@ -456,4 +535,16 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
       this.emit('error', err);
     }
   }
+}
+
+function checkRange(start: number, end: number): [number, number] {
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(end) ||
+    start < 0 ||
+    end < -1
+  ) {
+    throw new Error(`Invalid relay range: ${start}..${end}`);
+  }
+  return [start, end];
 }

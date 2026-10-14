@@ -1,5 +1,5 @@
 --[[
-  Registers (or refreshes) a relay node and its liveness lease.
+  Registers (or refreshes) a relay node, its liveness lease and its info.
 
   Input:
     KEYS[1] nodes key ({base}:nodes)
@@ -7,37 +7,51 @@
     ARGV[1] base key
     ARGV[2] node id
     ARGV[3] lease duration (ms)
+    ARGV[4] node info (JSON, opaque to the script)
+    ARGV[5] layout version of the caller
 
   Output:
     1 - Registered.
     0 - Old subscriptions still being pruned; retry before registering.
    -5 - Invalid id.
+   -6 - The namespace uses a different data layout version.
 ]]
 local rcall = redis.call
 
---- @include "includes/relayTopics"
---- @include "includes/removeRelayNode"
---- @include "includes/pruneRelayNodes"
+--- @include "includes/relayIndex"
+--- @include "includes/refreshRelayNamespace"
 
 local baseKey = ARGV[1]
 local nodeId = ARGV[2]
+local leaseMs = tonumber(ARGV[3])
+local nodeKey = baseKey .. ":node:" .. nodeId
 
 if not isValidRelayId(nodeId) then
   return -5
 end
 
+local layout = rcall("HGET", baseKey .. ":meta", "layout")
+if layout and layout ~= ARGV[5] then
+  return -6
+end
+
+local now = getRelayTime()
+
 -- Never reactivate stale routes, including when recovering before a sweep.
--- Each retry releases Redis after at most 100 subscriptions/empty endpoints.
-if rcall("EXISTS", baseKey .. ":alive:" .. nodeId) == 0 then
-  removeRelayNode(baseKey, KEYS[1], nodeId)
+-- Each retry releases Redis after at most 100 subscriptions.
+if rcall("EXISTS", nodeKey) == 0 then
+  removeRelayNode(baseKey, KEYS[1], nodeId, now)
+  refreshRelayNamespace(baseKey, KEYS[1], now)
   pruneRelayNode(baseKey, nodeId, 100)
-  if rcall("SISMEMBER", baseKey .. ":cleanup", nodeId) == 1 then
+  if rcall("ZSCORE", baseKey .. ":cleanup", nodeId) then
     return 0
   end
 end
 
-local time = rcall("TIME")
-local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
-rcall("ZADD", KEYS[1], now + tonumber(ARGV[3]), nodeId)
-rcall("SET", baseKey .. ":alive:" .. nodeId, "1", "PX", tonumber(ARGV[3]))
+rcall("HSET", baseKey .. ":meta", "layout", ARGV[5])
+rcall("ZADD", KEYS[1], now + leaseMs, nodeId)
+rcall("ZADD", baseKey .. ":started", "NX", now, nodeId)
+rcall("HSET", nodeKey, "info", ARGV[4], "hb", now)
+rcall("PEXPIRE", nodeKey, leaseMs)
+refreshRelayNamespace(baseKey, KEYS[1], now)
 return 1
