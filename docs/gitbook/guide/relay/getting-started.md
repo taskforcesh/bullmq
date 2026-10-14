@@ -42,11 +42,9 @@ await relay.waitUntilReady();
 `waitUntilReady()` resolves once the node is registered and reading its
 inbox. You don't have to await it: `subscribe` and `publish` wait for it.
 
-On PostgreSQL, apply all current migrations, through `0006_relay_retained`.
-The relay requires `0004_relay` for its tables and functions,
-`0005_relay_expired_lease` for recovery after lease expiry, and
-`0006_relay_retained` for atomic retained subscriptions and expiry cleanup.
-Run your migrations as usual (see the
+On Redis, the relay requires Redis 6.2 or newer (or a compatible server).
+On PostgreSQL, it requires the `0004_relay` migration, for its tables and
+functions. Run your migrations as usual (see the
 [PostgreSQL backend](../postgresql.md#migrations) guide) after upgrading
 BullMQ, or pass `migrate: true` as above.
 
@@ -113,7 +111,8 @@ process.on('SIGTERM', async () => {
 more messages are written to its inbox. Redis prunes subscription indexes in
 bounded batches; subsequent sweeps finish any remaining cleanup. If a process
 exits without closing, other nodes remove it once its lease expires (30 seconds
-by default). See
+by default); on Redis, if it was the namespace's last node, the namespace
+expires by itself. See
 [Nodes and failures](nodes-and-failures.md).
 
 ## Namespaces
