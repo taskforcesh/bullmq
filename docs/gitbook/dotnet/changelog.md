@@ -1,3 +1,10 @@
+## [1.2.2](https://github.com/taskforcesh/bullmq/compare/vnet1.2.1...vnet1.2.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+
 ## [1.2.1](https://github.com/taskforcesh/bullmq/compare/vnet1.2.0...vnet1.2.1) (2026-09-18)
 
 
