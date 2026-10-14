@@ -270,7 +270,14 @@ func (j *Job) Retry(ctx context.Context, state JobState) error {
 	if state != StateCompleted && state != StateFailed {
 		return configError("retry state must be %q or %q", StateCompleted, StateFailed)
 	}
-	return b.RetryFinishedJob(ctx, j.ID, state, j.Opts.isLIFO())
+	if err := b.RetryFinishedJob(ctx, j.ID, state, j.Opts.isLIFO()); err != nil {
+		return err
+	}
+	j.FailedReason = ""
+	j.FinishedOn = 0
+	j.ProcessedOn = 0
+	j.ReturnValue = nil
+	return nil
 }
 
 // IsCompleted reports whether the job finished successfully.
