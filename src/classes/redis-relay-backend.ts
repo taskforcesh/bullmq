@@ -73,8 +73,11 @@ export class RedisRelayBackend implements IRelayBackend {
   private readonly registryKey: string;
   private readonly skipVersionCheck: boolean;
   private readonly inboxMaxLength: number;
+  private readonly connectionOpts: ConnectionOptions;
   private readonly connection: RedisConnection;
-  private readonly blockingConnection: RedisConnection;
+  /** Created on the first inbox read: getters alone need one connection. */
+  private blockingConnection?: RedisConnection;
+  private interrupted = false;
   private closing?: Promise<void>;
 
   constructor(opts: RelayBackendOptions<ConnectionOptions>) {
@@ -86,28 +89,16 @@ export class RedisRelayBackend implements IRelayBackend {
     this.skipVersionCheck = opts.skipVersionCheck === true;
     this.inboxMaxLength = opts.inboxMaxLength ?? DEFAULT_INBOX_MAX_LENGTH;
 
-    const shared = isRedisInstance(opts.connection);
+    this.connectionOpts = opts.connection;
     this.connection = new RedisConnection(opts.connection, {
-      shared,
+      shared: isRedisInstance(opts.connection),
       blocking: false,
       skipVersionCheck: opts.skipVersionCheck,
     });
-    this.blockingConnection = new RedisConnection(
-      shared
-        ? (opts.connection as IRedisClient).duplicate({
-            maxRetriesPerRequest: null,
-          })
-        : opts.connection,
-      {
-        shared: false,
-        blocking: true,
-        skipVersionCheck: opts.skipVersionCheck,
-      },
-    );
   }
 
   async waitUntilReady(): Promise<void> {
-    await Promise.all([this.connection.client, this.blockingConnection.client]);
+    await this.connection.client;
     if (
       !this.skipVersionCheck &&
       isRedisVersionLowerThan(
@@ -126,7 +117,8 @@ export class RedisRelayBackend implements IRelayBackend {
   close(): Promise<void> {
     if (!this.closing) {
       this.closing = (async () => {
-        await this.blockingConnection.close(true);
+        this.interrupted = true;
+        await this.blockingConnection?.close(true);
         await this.connection.close();
       })();
     }
@@ -217,7 +209,10 @@ export class RedisRelayBackend implements IRelayBackend {
     cursor: string,
     opts: { blockMs: number; count: number },
   ): Promise<RelayInboxBatch> {
-    const client = await this.blockingConnection.client;
+    if (this.interrupted) {
+      return { entries: [], cursor };
+    }
+    const client = await this.getBlockingConnection().client;
     // BLOCK 0 would wait forever; the contract's 0 means "don't wait".
     const result = await client.xread(
       [{ key: `${this.baseKey}:inbox:${nodeId}`, id: cursor }],
@@ -332,9 +327,29 @@ export class RedisRelayBackend implements IRelayBackend {
   }
 
   interruptInbox(): void {
-    this.blockingConnection.client
+    this.interrupted = true;
+    this.blockingConnection?.client
       .then(client => client.disconnect())
       .catch((): void => undefined);
+  }
+
+  private getBlockingConnection(): RedisConnection {
+    if (!this.blockingConnection) {
+      const shared = isRedisInstance(this.connectionOpts);
+      this.blockingConnection = new RedisConnection(
+        shared
+          ? (this.connectionOpts as IRedisClient).duplicate({
+              maxRetriesPerRequest: null,
+            })
+          : this.connectionOpts,
+        {
+          shared: false,
+          blocking: true,
+          skipVersionCheck: this.skipVersionCheck,
+        },
+      );
+    }
+    return this.blockingConnection;
   }
 
   private get(
