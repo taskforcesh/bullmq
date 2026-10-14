@@ -774,8 +774,8 @@ export interface IQueueBackend {
    * recover). No-op for backends without a dedicated blocking connection.
    *
    * @param wait - Wait until the blocking connection is fully disconnected.
-   * @param opts.closing - The caller is closing for good, so the backend must
-   * not try to recover the blocking connection after this cut.
+   * @param opts - Set `closing` when the caller is closing for good, so the
+   * backend must not try to recover the blocking connection after this cut.
    */
   disconnectBlocking(
     wait?: boolean,
