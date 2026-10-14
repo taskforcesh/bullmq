@@ -579,6 +579,8 @@ public sealed class RedisBackend : IQueueBackend
             _keys["meta"],
             _keys["active"],
             _keys["marker"],
+            _keys["prioritized"],
+            _keys["pc"],
         };
 
         var pushCmd = (job.Opts.Lifo ?? false) ? "RPUSH" : "LPUSH";
