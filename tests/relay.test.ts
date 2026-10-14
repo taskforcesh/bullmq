@@ -209,6 +209,9 @@ describe(`Relay (${ctx.backend})`, () => {
     it('rejects subscriptions of expired nodes before they are swept', async () => {
       const ns = newNamespace();
       const backend = await newBackend(ns);
+      // A live node keeps the namespace alive (on Redis, a namespace whose
+      // nodes all expired expires as a whole).
+      await backend.registerNode('anchor', 30_000);
       await backend.registerNode('n1', 30_000);
       await backend.subscribe('n1', 'existing', 'a.b');
       await backend.publish('a.b', 'retained', {
@@ -657,6 +660,7 @@ describe(`Relay (${ctx.backend})`, () => {
       async expired => {
         const ns = newNamespace();
         const backend = await newBackend(ns);
+        await backend.registerNode('anchor', 30_000);
         await backend.registerNode('n1', 30_000);
         for (const pattern of ['a.b', 'a.*', 'a.>']) {
           await backend.subscribe('n1', 'old', pattern);
@@ -670,11 +674,14 @@ describe(`Relay (${ctx.backend})`, () => {
           expect(await backend.heartbeat('n1', 100)).toBe(true);
           await delay(250);
         }
-        // No sweep: the previous registration's state is still stored.
+        // No sweep: the previous registration's subscriptions are still
+        // stored (its inbox may already be gone: it expires with the lease).
         expect(await ctx.countSubscriptions(ns)).toBe(3);
-        expect((await readAll(backend, 'n1')).entries.map(e => e.data)).toEqual(
-          ['old'],
-        );
+        if (!expired) {
+          expect(
+            (await readAll(backend, 'n1')).entries.map(e => e.data),
+          ).toEqual(['old']);
+        }
 
         await backend.registerNode('n1', 30_000);
         expect(await backend.heartbeat('n1', 30_000)).toBe(true);
@@ -733,6 +740,9 @@ describe(`Relay (${ctx.backend})`, () => {
 
     it('an expired node must recover even before it is swept', async () => {
       const backend = await newBackend(newNamespace());
+      // A live node keeps the namespace alive (on Redis, a namespace whose
+      // nodes all expired expires as a whole).
+      await backend.registerNode('anchor', 30_000);
       await backend.registerNode('n1', 100);
       await backend.subscribe('n1', 'e1', 'a');
       await delay(250);
@@ -762,6 +772,9 @@ describe(`Relay (${ctx.backend})`, () => {
 
     it('sweeps at most the given number of nodes per call', async () => {
       const backend = await newBackend(newNamespace());
+      // A live node keeps the namespace alive (on Redis, a namespace whose
+      // nodes all expired expires as a whole).
+      await backend.registerNode('anchor', 30_000);
       for (let i = 0; i < 5; i++) {
         await backend.registerNode(`n${i}`, 50);
       }
@@ -808,6 +821,275 @@ describe(`Relay (${ctx.backend})`, () => {
       });
       expect(result.nodes).toBe(0);
       expect((await readAll(a, 'n1')).entries).toHaveLength(0);
+    });
+  });
+
+  describe('getters', () => {
+    const publish = (
+      backend: IRelayBackend,
+      topic: string,
+      data: string,
+      retainMs = 0,
+    ) => backend.publish(topic, data, { ts: 7, retainMs, maxSize: 100 });
+
+    it('lists nodes in registration order, with their info and stats', async () => {
+      const ns = newNamespace();
+      const backend = await newBackend(ns);
+      const info = { name: 'api', host: 'h1', pid: 1, version: '6.0.0' };
+      const before = Date.now();
+      await backend.registerNode('b', 30_000, info);
+      await delay(5);
+      await backend.registerNode('a', 30_000);
+      await backend.subscribe('b', 'e1', 'x.y');
+      await backend.subscribe('b', 'e2', 'x.*');
+      await backend.subscribe('a', 'e1', 'x.y');
+      for (let i = 0; i < 3; i++) {
+        await publish(backend, 'x.y', `${i}`);
+      }
+      expect(await backend.trimInbox('a', backend.initialInboxCursor, 1)).toBe(
+        1,
+      );
+      // Refreshing a registration keeps its place.
+      await backend.registerNode('b', 30_000, { ...info, pid: 2 });
+
+      expect(await backend.getCounts()).toEqual({
+        nodes: 2,
+        subscriptions: 3,
+        patterns: 2,
+        retained: 0,
+      });
+      const nodes = await backend.getNodes(0, -1);
+      expect(nodes.map(node => node.id)).toEqual(['b', 'a']);
+      expect(nodes[0]).toMatchObject({
+        info: { ...info, pid: 2 },
+        backlog: 0,
+        dropped: 0,
+        subscriptions: 2,
+      });
+      expect(nodes[1]).toMatchObject({
+        info: {},
+        backlog: 1,
+        dropped: 2,
+        subscriptions: 1,
+      });
+      for (const node of nodes) {
+        // Datastore and test clocks may differ slightly.
+        expect(node.registeredAt).toBeGreaterThan(before - 1000);
+        expect(node.registeredAt).toBeLessThan(Date.now() + 1000);
+        expect(node.lastHeartbeat).toBeGreaterThanOrEqual(node.registeredAt);
+        expect(node.leaseUntil).toBeGreaterThan(Date.now() + 28_000);
+      }
+      expect(nodes[0].registeredAt).toBeLessThan(nodes[1].registeredAt);
+
+      expect((await backend.getNodes(1, 1)).map(node => node.id)).toEqual([
+        'a',
+      ]);
+      expect((await backend.getNodes(0, 0)).map(node => node.id)).toEqual([
+        'b',
+      ]);
+      expect(await backend.getNodes(2, 10)).toEqual([]);
+    });
+
+    it('lists an expired node not swept yet without its info', async () => {
+      const backend = await newBackend(newNamespace());
+      await backend.registerNode('anchor', 30_000);
+      await backend.registerNode('gone', 100, { name: 'gone' });
+      await delay(250);
+      const [, gone] = await backend.getNodes(0, -1);
+      expect(gone).toMatchObject({
+        id: 'gone',
+        info: {},
+        lastHeartbeat: undefined,
+      });
+      expect(gone.leaseUntil).toBeLessThan(Date.now() + 1000);
+      expect(await backend.sweep(10)).toEqual(['gone']);
+      expect((await backend.getNodes(0, -1)).map(node => node.id)).toEqual([
+        'anchor',
+      ]);
+    });
+
+    it('lists subscriptions and patterns in a stable order, with pagination', async () => {
+      const backend = await newBackend(newNamespace());
+      await backend.registerNode('n1', 30_000);
+      await backend.registerNode('n2', 30_000);
+      for (const [node, endpoint, pattern] of [
+        ['n2', 'e1', 'c.>'],
+        ['n1', 'e2', 'a.b'],
+        ['n1', 'e1', 'a.b'],
+        ['n2', 'e1', 'a.b'],
+        ['n1', 'e1', 'a.*'],
+      ]) {
+        await backend.subscribe(node, endpoint, pattern);
+      }
+      const all = [
+        { nodeId: 'n1', endpointId: 'e1', pattern: 'a.*' },
+        { nodeId: 'n1', endpointId: 'e1', pattern: 'a.b' },
+        { nodeId: 'n1', endpointId: 'e2', pattern: 'a.b' },
+        { nodeId: 'n2', endpointId: 'e1', pattern: 'a.b' },
+        { nodeId: 'n2', endpointId: 'e1', pattern: 'c.>' },
+      ];
+      expect(await backend.getSubscriptions(undefined, 0, -1)).toEqual(all);
+      expect(await backend.getSubscriptions(undefined, 1, 2)).toEqual(
+        all.slice(1, 3),
+      );
+      expect(await backend.getSubscriptions({ nodeId: 'n1' }, 0, -1)).toEqual(
+        all.slice(0, 3),
+      );
+      expect(await backend.getSubscriptions({ pattern: 'a.b' }, 0, -1)).toEqual(
+        [all[1], all[2], all[3]],
+      );
+      expect(await backend.getSubscriptions({ pattern: 'a.b' }, 2, 2)).toEqual([
+        all[3],
+      ]);
+      expect(await backend.getSubscriptions({ nodeId: 'none' }, 0, -1)).toEqual(
+        [],
+      );
+
+      expect(await backend.getPatterns(0, -1)).toEqual([
+        { pattern: 'a.*', subscriptions: 1 },
+        { pattern: 'a.b', subscriptions: 3 },
+        { pattern: 'c.>', subscriptions: 1 },
+      ]);
+      expect(await backend.getPatterns(1, 1)).toEqual([
+        { pattern: 'a.b', subscriptions: 3 },
+      ]);
+
+      await backend.removeEndpoint('n1', 'e1');
+      expect(await backend.getPatterns(0, -1)).toEqual([
+        { pattern: 'a.b', subscriptions: 2 },
+        { pattern: 'c.>', subscriptions: 1 },
+      ]);
+      expect(await backend.getCounts()).toMatchObject({
+        subscriptions: 3,
+        patterns: 2,
+      });
+      expect((await backend.getNodes(0, -1))[0].subscriptions).toBe(1);
+    });
+
+    it('lists retained messages by expiry, without expired ones', async () => {
+      const backend = await newBackend(newNamespace());
+      await backend.registerNode('n1', 30_000);
+      const first = await publish(backend, 't.1', '"one"', 30_000);
+      await publish(backend, 't.2', '"two"', 10_000);
+      await publish(backend, 't.3', '"three"', 100);
+
+      const retained = await backend.getRetained(0, -1);
+      expect(retained.map(message => message.topic)).toEqual([
+        't.3',
+        't.2',
+        't.1',
+      ]);
+      expect(retained[2]).toMatchObject({
+        mid: first.mid,
+        ts: 7,
+        data: '"one"',
+      });
+      expect(retained[2].expiresAt).toBeGreaterThan(Date.now() + 28_000);
+
+      await delay(250);
+      expect(
+        (await backend.getRetained(0, -1)).map(message => message.topic),
+      ).toEqual(['t.2', 't.1']);
+      expect(
+        (await backend.getRetained(1, -1)).map(message => message.topic),
+      ).toEqual(['t.1']);
+      expect((await backend.getCounts()).retained).toBe(2);
+    });
+
+    it('lists the namespaces in use', async () => {
+      const [live, expired, retained] = [
+        newNamespace(),
+        newNamespace(),
+        newNamespace(),
+      ];
+      const a = await newBackend(live);
+      await a.registerNode('n1', 30_000);
+      const b = await newBackend(expired);
+      await b.registerNode('n1', 100);
+      // Retained messages keep a namespace in use without nodes.
+      await publish(await newBackend(retained), 'r', '1', 30_000);
+      await delay(250);
+
+      const namespaces = await a.getNamespaces();
+      expect(namespaces).toEqual(expect.arrayContaining([live, retained]));
+      expect(namespaces).not.toContain(expired);
+      expect(namespaces).toEqual(
+        [...namespaces].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0)),
+      );
+    });
+  });
+
+  describe('leaves nothing behind', () => {
+    // Another namespace's node: on PostgreSQL, sweeps clean every namespace.
+    const sweepFromElsewhere = async () => {
+      if (!ctx.selfExpiring) {
+        const other = await newBackend(newNamespace());
+        await other.sweep(100);
+      }
+    };
+
+    it('when the last node closes, keeping only retained messages until they expire', async () => {
+      const ns = newNamespace();
+      const backend = await newBackend(ns);
+      await backend.registerNode('n1', 30_000);
+      await backend.subscribe('n1', 'e1', 'a.b');
+      await backend.subscribe('n1', 'e1', 'a.*');
+      await backend.publish('a.b', '1', { ts: 1, retainMs: 300, maxSize: 10 });
+      await backend.publish('a.c', '2', { ts: 1, retainMs: 0, maxSize: 10 });
+      expect(await backend.unregisterNode('n1')).toBe(true);
+
+      const left = await ctx.leftovers(ns);
+      expect(left.length).toBeGreaterThan(0);
+      for (const item of left) {
+        expect(item).toMatch(
+          /(:mid|:meta|:retained|:ret:a\.b|^relay_retained:a\.b)$/,
+        );
+      }
+
+      await delay(500);
+      await sweepFromElsewhere();
+      expect(await ctx.leftovers(ns)).toEqual([]);
+    });
+
+    it('when every node of a namespace crashes', async () => {
+      const ns = newNamespace();
+      const backend = await newBackend(ns);
+      for (const node of ['n1', 'n2']) {
+        await backend.registerNode(node, 200);
+        await backend.subscribe(node, 'e1', 'a.b');
+        await backend.subscribe(node, 'e2', '*.>');
+      }
+      await backend.publish('a.b', '1', { ts: 1, retainMs: 200, maxSize: 10 });
+      await backend.publish('a.c', '2', { ts: 1, retainMs: 0, maxSize: 10 });
+      expect(await ctx.leftovers(ns)).not.toEqual([]);
+
+      // Nobody unregisters or sweeps this namespace.
+      await delay(500);
+      await sweepFromElsewhere();
+      expect(await ctx.leftovers(ns)).toEqual([]);
+    });
+
+    it('when a node crashes and the others carry on', async () => {
+      const ns = newNamespace();
+      const backend = await newBackend(ns);
+      await backend.registerNode('live', 30_000);
+      await backend.subscribe('live', 'e1', 'a.b');
+      await backend.registerNode('dead', 100);
+      await backend.subscribe('dead', 'e1', 'a.b');
+      await backend.subscribe('dead', 'e1', 'only.dead.*');
+      await backend.publish('a.b', '1', { ts: 1, retainMs: 0, maxSize: 10 });
+      await delay(250);
+      expect(await backend.sweep(100)).toEqual(['dead']);
+
+      expect(await backend.getSubscriptions(undefined, 0, -1)).toEqual([
+        { nodeId: 'live', endpointId: 'e1', pattern: 'a.b' },
+      ]);
+      expect(await backend.getPatterns(0, -1)).toEqual([
+        { pattern: 'a.b', subscriptions: 1 },
+      ]);
+      expect(
+        (await ctx.leftovers(ns)).filter(item => item.includes('dead')),
+      ).toEqual([]);
     });
   });
 

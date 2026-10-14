@@ -24,13 +24,15 @@
 ]]
 local rcall = redis.call
 
---- @include "includes/relayTopics"
+--- @include "includes/relayIndex"
+--- @include "includes/refreshRelayNamespace"
 
 local baseKey = ARGV[1]
 local topic = ARGV[2]
 local data = ARGV[3]
 local timestamp = ARGV[4]
 local retainMs = tonumber(ARGV[5])
+local subsKey = baseKey .. ":subs"
 
 local topicSegments = parseRelayTopic(topic, false)
 if not topicSegments then
@@ -41,12 +43,23 @@ if #data > tonumber(ARGV[6]) then
   return -4
 end
 
-local mid = rcall("INCR", baseKey .. ":mid")
+local midKey = baseKey .. ":mid"
+local mid = rcall("INCR", midKey)
+if mid == 1 then
+  -- A new counter expires with the namespace (see refreshRelayNamespace).
+  rcall("PEXPIRE", midKey, math.max(1, rcall("PTTL", KEYS[1])))
+end
 
 if retainMs > 0 then
+  local now = getRelayTime()
   local retainedKey = baseKey .. ":ret:" .. topic
   rcall("HSET", retainedKey, "m", mid, "ts", timestamp, "d", data)
   rcall("PEXPIRE", retainedKey, retainMs)
+  local indexKey = baseKey .. ":retained"
+  rcall("ZADD", indexKey, now + retainMs, topic)
+  rcall("ZREMRANGEBYSCORE", indexKey, "-inf", now)
+  rcall("PEXPIREAT", indexKey, getRelayLastScore(indexKey))
+  refreshRelayNamespace(baseKey, KEYS[1], now)
 end
 
 -- node id -> { list of endpoint ids, set of endpoint ids }
@@ -54,11 +67,12 @@ local targets = {}
 local nodeOrder = {}
 
 local function addSubscribers(pattern)
-  local members = rcall("SMEMBERS", baseKey .. ":sub:p:" .. pattern)
+  local prefix = "p|" .. pattern .. "|"
+  local min, max = relayRange(prefix)
+  local members = rcall("ZRANGEBYLEX", subsKey, min, max)
   for j = 1, #members do
-    local slash = string.find(members[j], "/", 1, true)
-    local nodeId = string.sub(members[j], 1, slash - 1)
-    local endpointId = string.sub(members[j], slash + 1)
+    local nodeId, endpointId =
+      splitRelayEndpointPattern(string.sub(members[j], #prefix + 1))
     local target = targets[nodeId]
     if not target then
       target = { list = {}, seen = {} }
@@ -72,21 +86,24 @@ local function addSubscribers(pattern)
   end
 end
 
--- Wildcard patterns indexed under a first segment are matched one by one.
-local function addMatchingWildcards(indexKey)
-  local patterns = rcall("SMEMBERS", indexKey)
+-- Wildcard patterns indexed under a root are matched one by one.
+local function addMatchingWildcards(root)
+  local prefix = "w|" .. root .. "|"
+  local min, max = relayRange(prefix)
+  local patterns = rcall("ZRANGEBYLEX", subsKey, min, max)
   for i = 1, #patterns do
-    local patternSegments = parseRelayTopic(patterns[i], true)
+    local pattern = string.sub(patterns[i], #prefix + 1)
+    local patternSegments = parseRelayTopic(pattern, true)
     if patternSegments and matchRelayTopic(patternSegments, topicSegments) then
-      addSubscribers(patterns[i])
+      addSubscribers(pattern)
     end
   end
 end
 
 -- Exact subscriptions: a direct lookup, whatever their number.
 addSubscribers(topic)
-addMatchingWildcards(baseKey .. ":sub:i:" .. topicSegments[1])
-addMatchingWildcards(baseKey .. ":sub:i:*")
+addMatchingWildcards(topicSegments[1])
+addMatchingWildcards("*")
 
 local nodeCount = 0
 local endpointCount = 0
@@ -94,11 +111,15 @@ local maxLen = tonumber(ARGV[7])
 
 for i = 1, #nodeOrder do
   local nodeId = nodeOrder[i]
-  if rcall("EXISTS", baseKey .. ":alive:" .. nodeId) == 1 then
+  -- The inbox lives exactly as long as its node's record.
+  local ttl = rcall("PTTL", baseKey .. ":node:" .. nodeId)
+  if ttl > 0 then
+    local inboxKey = baseKey .. ":inbox:" .. nodeId
     local endpoints = targets[nodeId].list
-    rcall("XADD", baseKey .. ":inbox:" .. nodeId, "MAXLEN", "~", maxLen, "*",
+    rcall("XADD", inboxKey, "MAXLEN", "~", maxLen, "*",
       "k", "msg", "t", topic, "m", mid, "ts", timestamp, "d", data,
       "e", table.concat(endpoints, ","))
+    rcall("PEXPIRE", inboxKey, ttl)
     nodeCount = nodeCount + 1
     endpointCount = endpointCount + #endpoints
   end

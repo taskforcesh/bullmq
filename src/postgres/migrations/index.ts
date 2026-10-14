@@ -60,24 +60,6 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0004_relay.sql'),
   },
-  {
-    version: 5,
-    name: '0005_relay_expired_lease',
-    minClientVersion: 6,
-    load: () => loadMigrationSql('0005_relay_expired_lease.sql'),
-  },
-  {
-    version: 6,
-    name: '0006_relay_retained',
-    minClientVersion: 6,
-    load: () => loadMigrationSql('0006_relay_retained.sql'),
-  },
-  {
-    version: 7,
-    name: '0007_relay_node_reuse',
-    minClientVersion: 6,
-    load: () => loadMigrationSql('0007_relay_node_reuse.sql'),
-  },
 ];
 
 /**

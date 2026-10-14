@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
+import { hostname } from 'os';
 import {
   IRelayBackend,
   Relay,
   RelayInboxBatch,
+  RelayNodeInfo,
   RelayPublishResult,
   RelaySubscribeResult,
 } from '../src';
+import { version } from '../src/version';
 import { waitFor } from './utils/relay';
 
 /**
@@ -35,8 +38,10 @@ class FakeBackend implements IRelayBackend {
   async close() {
     this.check('close');
   }
-  async registerNode() {
+  registrations: RelayNodeInfo[] = [];
+  async registerNode(_nodeId: string, _leaseMs: number, info?: RelayNodeInfo) {
     this.check('registerNode');
+    this.registrations.push(info!);
   }
   async heartbeat() {
     this.check('heartbeat');
@@ -78,6 +83,24 @@ class FakeBackend implements IRelayBackend {
     this.check('trimInbox');
     this.trimmed.push([nodeId, cursor, maxLength]);
     return this.backlog;
+  }
+  async getCounts() {
+    return { nodes: 0, subscriptions: 0, patterns: 0, retained: 0 };
+  }
+  async getNodes() {
+    return [];
+  }
+  async getSubscriptions() {
+    return [];
+  }
+  async getPatterns() {
+    return [];
+  }
+  async getRetained() {
+    return [];
+  }
+  async getNamespaces() {
+    return [];
   }
   interruptInbox() {
     this.wake?.();
@@ -394,6 +417,79 @@ describe('Relay resilience', () => {
     });
     await waitFor(() => received.length === 1, 4000);
     expect(received).toEqual(['after retry']);
+    await relay.close();
+  });
+
+  it('skips inbox entries of kinds it does not know', async () => {
+    const backend = new FakeBackend();
+    const relay = createRelay(backend);
+    const errors: Error[] = [];
+    relay.on('error', err => errors.push(err));
+    const received: unknown[] = [];
+    await relay.waitUntilReady();
+    await relay.subscribe('a', m => {
+      received.push(m.data);
+    });
+    const endpoint = [...(relay as any).endpoints.keys()][0];
+    backend.inbox.push({
+      entries: [
+        {
+          kind: 'reply',
+          topic: 'a',
+          mid: '1',
+          ts: 1,
+          data: '"from a newer node"',
+          endpoints: [endpoint],
+        },
+        {
+          kind: 'msg',
+          topic: 'a',
+          mid: '2',
+          ts: 1,
+          data: '"ok"',
+          endpoints: [endpoint],
+        },
+      ],
+      cursor: '2',
+    });
+    await waitFor(() => received.length === 1);
+    expect(received).toEqual(['ok']);
+    expect(errors).toEqual([]);
+    await relay.close();
+  });
+
+  it('registers with its name, host, pid and version', async () => {
+    const backend = new FakeBackend();
+    const relay = createRelay(backend, { name: 'api' });
+    await relay.waitUntilReady();
+    expect(backend.registrations).toEqual([
+      {
+        name: 'api',
+        host: hostname(),
+        pid: process.pid,
+        version,
+      },
+    ]);
+    await relay.close();
+  });
+
+  it('validates the name and getter ranges', async () => {
+    const backend = new FakeBackend();
+    expect(() => createRelay(backend, { name: 'x'.repeat(257) })).toThrow(
+      'Invalid relay name',
+    );
+    const relay = createRelay(backend, { name: 'x'.repeat(256) });
+    await relay.waitUntilReady();
+    for (const [start, end] of [
+      [-1, 0],
+      [0, -2],
+      [0.5, 1],
+    ]) {
+      await expect(relay.getNodes(start, end)).rejects.toThrow(
+        'Invalid relay range',
+      );
+    }
+    await expect(relay.getNodes(0, -1)).resolves.toEqual([]);
     await relay.close();
   });
 

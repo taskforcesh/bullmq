@@ -7,6 +7,7 @@ export enum RelayErrorCode {
   NodeNotRegistered = -3,
   DataTooLarge = -4,
   InvalidId = -5,
+  IncompatibleLayout = -6,
 }
 
 const MESSAGES: Record<number, string> = {
@@ -15,6 +16,8 @@ const MESSAGES: Record<number, string> = {
   [RelayErrorCode.NodeNotRegistered]: 'Relay node is not registered',
   [RelayErrorCode.DataTooLarge]: 'Message data is too large',
   [RelayErrorCode.InvalidId]: 'Invalid relay node or endpoint id',
+  [RelayErrorCode.IncompatibleLayout]:
+    'The relay namespace is in use by nodes with an incompatible BullMQ version',
 };
 
 export class RelayError extends Error {
