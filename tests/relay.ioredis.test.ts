@@ -1,7 +1,13 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { default as IORedis } from 'ioredis';
 import { randomUUID } from 'crypto';
-import { RedisRelayBackend, Relay, RelayError, RelayErrorCode } from '../src';
+import {
+  Queue,
+  RedisRelayBackend,
+  Relay,
+  RelayError,
+  RelayErrorCode,
+} from '../src';
 import { waitFor } from './utils/relay';
 
 const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -10,7 +16,7 @@ const redisHost = process.env.REDIS_HOST || 'localhost';
 describe('Relay on ioredis', () => {
   let admin: IORedis;
   let namespace: string;
-  const base = () => `${prefix}:relay:{${namespace}}`;
+  const base = () => `${prefix}::relay:{${namespace}}`;
   const relays: Relay<any>[] = [];
   const backends: RedisRelayBackend[] = [];
 
@@ -89,7 +95,7 @@ describe('Relay on ioredis', () => {
 
     // Kill every connection currently blocked reading this namespace's inboxes,
     // as a network failure would.
-    const inboxKey = `${base()}:inbox:${subscriber.nodeId}`;
+    const inboxKey = `${base()}:${subscriber.nodeId}:inbox`;
     await waitFor(async () => {
       const clients = (await admin.client('LIST')) as string;
       return clients.includes('cmd=xread');
@@ -135,19 +141,19 @@ describe('Relay on ioredis', () => {
     const keys = await admin.keys(`${base()}:*`);
     expect(keys.map(key => key.slice(base().length)).sort()).toEqual(
       [
-        `:inbox:${subscriber.nodeId}`,
-        ':meta',
+        `:${subscriber.nodeId}:inbox`,
+        ':layout',
         ':mid',
-        `:node:${publisher.nodeId}`,
-        `:node:${subscriber.nodeId}`,
+        `:${publisher.nodeId}:node`,
+        `:${subscriber.nodeId}:node`,
         ':nodes',
-        ':ret:a.b',
+        ':a.b:ret',
         ':retained',
         ':started',
         ':subs',
       ].sort(),
     );
-    for (const key of [...keys, `${prefix}:relay:namespaces`]) {
+    for (const key of [...keys, `${prefix}::relay:namespaces`]) {
       expect(await admin.pttl(key), key).toBeGreaterThan(0);
     }
     // Retained messages outlive the nodes, and so do the message ids.
@@ -186,12 +192,96 @@ describe('Relay on ioredis', () => {
     expect((backend as any).blockingConnection).toBeUndefined();
   });
 
+  it('never shares keys with queues nor looks like one, whatever the names', async () => {
+    const isolated = `relay-names-${randomUUID().slice(0, 8)}`;
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    // A queue named "relay", with job ids shaped like relay keys.
+    const queue = new Queue('relay', {
+      connection: { host: redisHost },
+      prefix: isolated,
+    });
+    for (const jobId of ['namespaces', '{id}', 'layout']) {
+      await queue.add('job', { jobId }, { jobId });
+    }
+    const queueKeys = new Set(await admin.keys(`${isolated}:*`));
+
+    const relayBackends: RedisRelayBackend[] = [];
+    try {
+      for (const ns of ['id', 'meta', 'relay']) {
+        const backend = new RedisRelayBackend({
+          connection: { host: redisHost },
+          prefix: isolated,
+          namespace: ns,
+        });
+        relayBackends.push(backend);
+        await backend.waitUntilReady();
+        for (const node of ['id', 'meta']) {
+          await backend.registerNode(node, 30_000);
+          for (const topic of ['id', 'x:id', 'meta', 'jobs.*']) {
+            await backend.subscribe(node, 'e1', topic);
+          }
+        }
+        for (const topic of ['id', 'x:id', 'meta', 'jobs.id']) {
+          await backend.publish(topic, '1', {
+            ...publishOptions,
+            retainMs: 60_000,
+          });
+        }
+      }
+
+      const relayKeys = (await admin.keys(`${isolated}:*`)).filter(
+        key => !queueKeys.has(key),
+      );
+      expect(relayKeys.length).toBeGreaterThan(30);
+      for (const key of relayKeys) {
+        expect(key.startsWith(`${isolated}::relay:`), key).toBe(true);
+      }
+
+      // Both ways dashboards discover queues: Taskforce.sh's "*:*:id" scan and
+      // the connector's "id"/"meta" key suffixes.
+      const discovered = new Set<string>();
+      for (const key of await admin.keys(`${isolated}:*`)) {
+        const suffix = key.slice(key.lastIndexOf(':') + 1);
+        if (suffix === 'id' || suffix === 'meta') {
+          const rest = key.slice(0, key.lastIndexOf(':'));
+          discovered.add(
+            `${rest.slice(0, rest.lastIndexOf(':'))} / ${rest.slice(rest.lastIndexOf(':') + 1)}`,
+          );
+        }
+      }
+      expect([...discovered]).toEqual([`${isolated} / relay`]);
+
+      expect(await queue.getJobCounts('waiting')).toEqual({ waiting: 3 });
+      expect((await queue.getJob('namespaces'))!.data).toEqual({
+        jobId: 'namespaces',
+      });
+      expect(await relayBackends[0].getNamespaces()).toEqual([
+        'id',
+        'meta',
+        'relay',
+      ]);
+      expect(await relayBackends[0].getCounts()).toEqual({
+        nodes: 2,
+        subscriptions: 8,
+        patterns: 4,
+        retained: 4,
+      });
+    } finally {
+      await Promise.all(relayBackends.map(backend => backend.close()));
+      await queue.close();
+      const keys = await admin.keys(`${isolated}:*`);
+      if (keys.length > 0) {
+        await admin.del(...keys);
+      }
+    }
+  });
+
   it('refuses to share a namespace with nodes of another layout version', async () => {
     namespace = `t-${randomUUID().slice(0, 13)}`;
     const backend = await newBackend();
     await backend.registerNode('n1', 30_000);
-    expect(await admin.hget(`${base()}:meta`, 'layout')).toBe('1');
-    await admin.hset(`${base()}:meta`, 'layout', '2');
+    expect(await admin.hget(`${base()}:layout`, 'layout')).toBe('1');
+    await admin.hset(`${base()}:layout`, 'layout', '2');
     const error = await backend.registerNode('n2', 30_000).catch(err => err);
     expect(error).toBeInstanceOf(RelayError);
     expect(error.code).toBe(RelayErrorCode.IncompatibleLayout);
@@ -216,7 +306,7 @@ describe('Relay on ioredis', () => {
 
   // Marks a node dead as if its process vanished: its record expired.
   const kill = async (node: string) => {
-    await admin.del(`${base()}:node:${node}`);
+    await admin.del(`${base()}:${node}:node`);
     await admin.zadd(`${base()}:nodes`, 0, node);
   };
   const subscriptionsOf = async (node: string) =>
@@ -246,19 +336,19 @@ describe('Relay on ioredis', () => {
         ),
       );
       await backend.publish('jobs.p0.done', 'before', publishOptions);
-      expect(await admin.exists(`${base()}:inbox:dead`)).toBe(1);
+      expect(await admin.exists(`${base()}:dead:inbox`)).toBe(1);
       await kill('dead');
 
       expect(await backend.sweep(1)).toEqual(['dead']);
       expect(await admin.zscore(`${base()}:nodes`, 'dead')).toBeNull();
-      expect(await admin.exists(`${base()}:inbox:dead`)).toBe(0);
+      expect(await admin.exists(`${base()}:dead:inbox`)).toBe(0);
       expect(await backend.heartbeat('dead', 30_000)).toBe(false);
       expect(await subscriptionsOf('dead')).toBe(250);
       expect(await admin.zrange(`${base()}:cleanup`, 0, -1)).toEqual(['dead']);
       expect(
         await backend.publish('jobs.p0.done', 'after', publishOptions),
       ).toMatchObject({ nodes: 1, endpoints: 1 });
-      expect(await admin.exists(`${base()}:inbox:dead`)).toBe(0);
+      expect(await admin.exists(`${base()}:dead:inbox`)).toBe(0);
 
       expect(await backend.sweep(1)).toEqual([]);
       expect(await subscriptionsOf('dead')).toBe(150);
@@ -297,7 +387,7 @@ describe('Relay on ioredis', () => {
         expect(await subscriptionsOf('reuse')).toBe(250);
         expect(await admin.zscore(`${base()}:nodes`, 'reuse')).toBeNull();
         expect(
-          await admin.exists(`${base()}:node:reuse`, `${base()}:inbox:reuse`),
+          await admin.exists(`${base()}:reuse:node`, `${base()}:reuse:inbox`),
         ).toBe(0);
       } else {
         // Recover without a sweep having removed the expired registration.
@@ -325,7 +415,7 @@ describe('Relay on ioredis', () => {
       expect(await admin.exists(`${base()}:cleanup`)).toBe(0);
       expect(await subscriptionsOf('reuse')).toBe(0);
       expect(await admin.zcard(`${base()}:subs`)).toBe(0);
-      expect(await admin.exists(`${base()}:inbox:reuse`)).toBe(0);
+      expect(await admin.exists(`${base()}:reuse:inbox`)).toBe(0);
       expect(
         await backend.publish('old.p0.done', 'stale', publishOptions),
       ).toMatchObject({ nodes: 0, endpoints: 0 });

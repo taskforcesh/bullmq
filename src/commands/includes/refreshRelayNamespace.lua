@@ -4,7 +4,7 @@
   sweeps it:
     - node records and inboxes expire with their node's lease;
     - routing keys (nodes, started, subs, cleanup) with the longest lease;
-    - :mid and :meta with the longest lease or the last retained message,
+    - :mid and :layout with the longest lease or the last retained message,
       whichever ends later;
     - retained messages and their index with their own expiry.
   Called after every change to the node set or to retained messages.
@@ -29,8 +29,8 @@ local function refreshRelayNamespace(baseKey, nodesKey, now)
     getRelayLastScore(baseKey .. ":retained"))
   if keepUntil > now then
     rcall("PEXPIREAT", baseKey .. ":mid", keepUntil)
-    rcall("PEXPIREAT", baseKey .. ":meta", keepUntil)
+    rcall("PEXPIREAT", baseKey .. ":layout", keepUntil)
   else
-    rcall("UNLINK", baseKey .. ":mid", baseKey .. ":meta")
+    rcall("UNLINK", baseKey .. ":mid", baseKey .. ":layout")
   end
 end

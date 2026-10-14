@@ -37,7 +37,7 @@ if not segments then
 end
 
 if not rcall("ZSCORE", KEYS[1], nodeId) or
-  rcall("EXISTS", baseKey .. ":node:" .. nodeId) == 0 then
+  rcall("EXISTS", baseKey .. ":" .. nodeId .. ":node") == 0 then
   return -3
 end
 
@@ -60,7 +60,7 @@ if added == 1 then
 end
 
 if not hasWildcards then
-  local retained = rcall("HMGET", baseKey .. ":ret:" .. pattern, "m", "ts", "d")
+  local retained = rcall("HMGET", baseKey .. ":" .. pattern .. ":ret", "m", "ts", "d")
   if retained[1] then
     return { added, retained[1], retained[2], retained[3] }
   end
