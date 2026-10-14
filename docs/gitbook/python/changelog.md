@@ -1,3 +1,10 @@
+## [3.3.4](https://github.com/taskforcesh/bullmq/compare/vpy3.3.3...vpy3.3.4) (2026-10-14)
+
+
+### Bug Fixes
+
+* **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+
 ## [3.3.3](https://github.com/taskforcesh/bullmq/compare/vpy3.3.2...vpy3.3.3) (2026-10-10)
 
 
