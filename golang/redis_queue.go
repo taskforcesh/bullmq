@@ -149,8 +149,15 @@ func (b *RedisBackend) GetRanges(ctx context.Context, state JobState, start, end
 	}
 	groups, _ := res.([]any)
 	var ids []string
+	stateName := luaStateName(state)
 	for _, group := range groups {
-		ids = append(ids, asStrings(group)...)
+		groupIDs := asStrings(group)
+		if asc && (stateName == "wait" || stateName == "paused" || stateName == "active") {
+			for i, j := 0, len(groupIDs)-1; i < j; i, j = i+1, j-1 {
+				groupIDs[i], groupIDs[j] = groupIDs[j], groupIDs[i]
+			}
+		}
+		ids = append(ids, groupIDs...)
 	}
 	return ids, nil
 }
