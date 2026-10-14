@@ -1042,7 +1042,7 @@ describe(`Relay (${ctx.backend})`, () => {
       expect(left.length).toBeGreaterThan(0);
       for (const item of left) {
         expect(item).toMatch(
-          /(:mid|:meta|:retained|:ret:a\.b|^relay_retained:a\.b)$/,
+          /(:mid|:layout|:retained|:a\.b:ret|^relay_retained:a\.b)$/,
         );
       }
 

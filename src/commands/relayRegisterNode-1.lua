@@ -24,13 +24,13 @@ local rcall = redis.call
 local baseKey = ARGV[1]
 local nodeId = ARGV[2]
 local leaseMs = tonumber(ARGV[3])
-local nodeKey = baseKey .. ":node:" .. nodeId
+local nodeKey = baseKey .. ":" .. nodeId .. ":node"
 
 if not isValidRelayId(nodeId) then
   return -5
 end
 
-local layout = rcall("HGET", baseKey .. ":meta", "layout")
+local layout = rcall("HGET", baseKey .. ":layout", "layout")
 if layout and layout ~= ARGV[5] then
   return -6
 end
@@ -48,7 +48,7 @@ if rcall("EXISTS", nodeKey) == 0 then
   end
 end
 
-rcall("HSET", baseKey .. ":meta", "layout", ARGV[5])
+rcall("HSET", baseKey .. ":layout", "layout", ARGV[5])
 rcall("ZADD", KEYS[1], now + leaseMs, nodeId)
 rcall("ZADD", baseKey .. ":started", "NX", now, nodeId)
 rcall("HSET", nodeKey, "info", ARGV[4], "hb", now)

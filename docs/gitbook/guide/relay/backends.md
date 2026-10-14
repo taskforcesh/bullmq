@@ -29,7 +29,13 @@ it closes.
 - **Inboxes** are Redis streams, read with `XREAD BLOCK`. Consumed entries are
   removed on every heartbeat, and each inbox keeps at most `inboxMaxLength`
   unread entries (see [Slow subscribers](messages.md#slow-subscribers)).
-- **Keys** live under `{prefix}:relay:{<namespace>}:`.
+- **Keys** live under `{prefix}::relay:{<namespace>}:`. The empty segment
+  after the prefix keeps them out of the queues' keys: every queue key is
+  `{prefix}:{queue name}:…` with a non-empty name, so no queue (even one
+  named `relay`) or job can ever collide with the relay. And every relay key
+  ends with a fixed word that no queue key uses, never with a node id or a
+  topic, so tools that discover queues by their keys never mistake relay keys
+  for queues.
 - **Nothing is left behind.** Every key expires on its own: a node's record
   and inbox with its lease, the subscription index with the longest lease of
   the namespace, and retained messages when they expire. A namespace whose
@@ -55,21 +61,21 @@ precedence and every namespace shares the prefix's slot.)
 ### Keys
 
 For reference, when inspecting a Redis instance (`…` is
-`{prefix}:relay:{<namespace>}`):
+`{prefix}::relay:{<namespace>}`):
 
-| Key                         | Type       | Content                                                                    |
-| --------------------------- | ---------- | -------------------------------------------------------------------------- |
-| `…:meta`                    | Hash       | Data layout version                                                        |
-| `…:nodes`                   | Sorted set | Node ids, scored by lease deadline (ms since epoch)                        |
-| `…:started`                 | Sorted set | Node ids, scored by registration time                                      |
-| `…:node:{nodeId}`           | Hash       | A node's info, last heartbeat, backlog and dropped messages (its lease)    |
-| `…:inbox:{nodeId}`          | Stream     | A node's inbox                                                             |
-| `…:subs`                    | Sorted set | Subscription index: by node, by pattern, subscribed patterns and wildcards |
-| `…:cleanup`                 | Sorted set | Removed nodes whose subscriptions are still being pruned                   |
-| `…:retained`                | Sorted set | Topics with a retained message, scored by expiry                           |
-| `…:ret:{topic}`             | Hash       | A topic's retained message                                                 |
-| `…:mid`                     | String     | Message id counter                                                         |
-| `{prefix}:relay:namespaces` | Sorted set | Namespaces in use, scored by how long (for dashboards)                     |
+| Key                          | Type       | Content                                                                    |
+| ---------------------------- | ---------- | -------------------------------------------------------------------------- |
+| `…:layout`                   | Hash       | Data layout version                                                        |
+| `…:nodes`                    | Sorted set | Node ids, scored by lease deadline (ms since epoch)                        |
+| `…:started`                  | Sorted set | Node ids, scored by registration time                                      |
+| `…:{nodeId}:node`            | Hash       | A node's info, last heartbeat, backlog and dropped messages (its lease)    |
+| `…:{nodeId}:inbox`           | Stream     | A node's inbox                                                             |
+| `…:subs`                     | Sorted set | Subscription index: by node, by pattern, subscribed patterns and wildcards |
+| `…:cleanup`                  | Sorted set | Removed nodes whose subscriptions are still being pruned                   |
+| `…:retained`                 | Sorted set | Topics with a retained message, scored by expiry                           |
+| `…:{topic}:ret`              | Hash       | A topic's retained message                                                 |
+| `…:mid`                      | String     | Message id counter                                                         |
+| `{prefix}::relay:namespaces` | Sorted set | Namespaces in use, scored by how long (for dashboards)                     |
 
 Nodes refuse to join a namespace written with an incompatible data layout
 (`RelayErrorCode.IncompatibleLayout`), so a rolling upgrade never mixes

@@ -38,26 +38,34 @@ export const RELAY_LAYOUT_VERSION = '1';
  * Redis implementation of {@link IRelayBackend}. Every operation is one of the
  * `relay*` Lua scripts; this class only passes arguments and decodes results.
  *
- * Keys of a namespace live under `{prefix}:relay:{<namespace>}`: the
- * namespace is a hash tag, so on Redis Cluster each namespace is one slot
- * (the unit of scale) whatever the prefix.
+ * Keys of a namespace live under `{prefix}::relay:{<namespace>}`:
+ *
+ * - The empty segment after the prefix keeps the relay out of the queues'
+ *   keyspace: every queue key (jobs included) is `{prefix}:{queue}:...` with
+ *   a non-empty queue name, so no queue (not even one named "relay") nor any
+ *   of its jobs can ever collide with a relay key.
+ * - Every key ends with a fixed word that is not a queue key suffix, never
+ *   with a node id or topic, so tools that discover queues by key suffix
+ *   (`*:*:id`, `*:*:meta`) never mistake relay keys for queues.
+ * - The namespace is a hash tag, so on Redis Cluster each namespace is one
+ *   slot (the unit of scale) whatever the prefix.
  *
  * | Key | Type | Content |
  * | --- | --- | --- |
- * | `:meta` | hash | `layout` version |
+ * | `:layout` | hash | `layout` version |
  * | `:nodes` | sorted set | node → lease deadline |
  * | `:started` | sorted set | node → registration time |
- * | `:node:{id}` | hash | `info`, `hb`, `backlog`, `dropped`; expires with the lease |
- * | `:inbox:{id}` | stream | the node's messages; expires with the lease |
+ * | `:{id}:node` | hash | `info`, `hb`, `backlog`, `dropped`; expires with the lease |
+ * | `:{id}:inbox` | stream | the node's messages; expires with the lease |
  * | `:subs` | sorted set | subscription index (see `includes/relayIndex.lua`) |
  * | `:cleanup` | sorted set | removed nodes whose subscriptions are being pruned |
  * | `:retained` | sorted set | topic → expiry |
- * | `:ret:{topic}` | hash | retained message (`m`, `ts`, `d`) |
+ * | `:{topic}:ret` | hash | retained message (`m`, `ts`, `d`) |
  * | `:mid` | string | message id counter |
  *
  * Every key expires on its own when the namespace has no live node (and no
  * retained message), so nothing is left behind even if no node sweeps it.
- * `{prefix}:relay:namespaces` (sorted set: namespace → in use until) lists
+ * `{prefix}::relay:namespaces` (sorted set: namespace → in use until) lists
  * the namespaces in use, and expires on its own as well.
  *
  * Each node's inbox is a stream, read with a blocking `XREAD` on a dedicated
@@ -83,9 +91,9 @@ export class RedisRelayBackend implements IRelayBackend {
   constructor(opts: RelayBackendOptions<ConnectionOptions>) {
     this.namespace = opts.namespace;
     const prefix = opts.prefix ?? 'bull';
-    this.baseKey = `${prefix}:relay:{${opts.namespace}}`;
+    this.baseKey = `${prefix}::relay:{${opts.namespace}}`;
     this.nodesKey = `${this.baseKey}:nodes`;
-    this.registryKey = `${prefix}:relay:namespaces`;
+    this.registryKey = `${prefix}::relay:namespaces`;
     this.skipVersionCheck = opts.skipVersionCheck === true;
     this.inboxMaxLength = opts.inboxMaxLength ?? DEFAULT_INBOX_MAX_LENGTH;
 
@@ -215,7 +223,7 @@ export class RedisRelayBackend implements IRelayBackend {
     const client = await this.getBlockingConnection().client;
     // BLOCK 0 would wait forever; the contract's 0 means "don't wait".
     const result = await client.xread(
-      [{ key: `${this.baseKey}:inbox:${nodeId}`, id: cursor }],
+      [{ key: `${this.baseKey}:${nodeId}:inbox`, id: cursor }],
       opts.blockMs > 0
         ? { BLOCK: opts.blockMs, COUNT: opts.count }
         : { COUNT: opts.count },

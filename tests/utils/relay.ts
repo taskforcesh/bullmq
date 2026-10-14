@@ -76,7 +76,7 @@ function redisHarness(): RelayTestHarness {
     return keys;
   };
 
-  const baseKey = (namespace: string) => `${prefix}:relay:{${namespace}}`;
+  const baseKey = (namespace: string) => `${prefix}::relay:{${namespace}}`;
 
   return {
     backend: 'redis',

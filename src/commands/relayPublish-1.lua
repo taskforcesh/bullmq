@@ -52,7 +52,7 @@ end
 
 if retainMs > 0 then
   local now = getRelayTime()
-  local retainedKey = baseKey .. ":ret:" .. topic
+  local retainedKey = baseKey .. ":" .. topic .. ":ret"
   rcall("HSET", retainedKey, "m", mid, "ts", timestamp, "d", data)
   rcall("PEXPIRE", retainedKey, retainMs)
   local indexKey = baseKey .. ":retained"
@@ -112,9 +112,9 @@ local maxLen = tonumber(ARGV[7])
 for i = 1, #nodeOrder do
   local nodeId = nodeOrder[i]
   -- The inbox lives exactly as long as its node's record.
-  local ttl = rcall("PTTL", baseKey .. ":node:" .. nodeId)
+  local ttl = rcall("PTTL", baseKey .. ":" .. nodeId .. ":node")
   if ttl > 0 then
-    local inboxKey = baseKey .. ":inbox:" .. nodeId
+    local inboxKey = baseKey .. ":" .. nodeId .. ":inbox"
     local endpoints = targets[nodeId].list
     rcall("XADD", inboxKey, "MAXLEN", "~", maxLen, "*",
       "k", "msg", "t", topic, "m", mid, "ts", timestamp, "d", data,
