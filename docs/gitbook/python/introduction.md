@@ -81,6 +81,7 @@ If Redis responses are in binary format, you should pass [decode_responses](http
 Pass a `redis.asyncio.cluster.RedisCluster` client as the `connection`, and put a hash tag in the prefix so every key of a queue lands in one slot (see [Redis Cluster](../patterns/redis-cluster.md)):
 
 ```python
+from bullmq import Queue, Worker
 from redis.asyncio.cluster import RedisCluster
 
 connection = RedisCluster(host="<host>", port=6379, decode_responses=True)
