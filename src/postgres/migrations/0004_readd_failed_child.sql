@@ -8,7 +8,8 @@
 -- continueParentOnFailure or failParentOnFailure. Such a dependency is now
 -- recorded the way the child's failure would have resolved it
 -- (`handle_child_failure`), mirroring the Redis `updateExistingJobsParent`
--- include.
+-- include. A pending dependency an add before this fix left for the child is
+-- settled and uncounted, so re-adding it also releases a parent already stuck.
 --
 -- Like the completed-child branch, it never registers a pending dependency for
 -- the failed child and takes no parent advisory lock: taking that lock after the
@@ -41,6 +42,7 @@ DECLARE
   v_cpof      boolean;
   v_idof      boolean;
   v_rdof      boolean;
+  v_settled   boolean;
 BEGIN
   -- No new parent to attach: still a duplicate add, so announce it.
   IF p_parent_id IS NULL OR p_parent_queue IS NULL THEN
@@ -88,7 +90,22 @@ BEGIN
   ELSIF v_state = 'failed' AND (v_fpof OR v_cpof OR v_idof OR v_rdof) THEN
     -- Already failed and not re-run by this add: record the dependency the way
     -- handle_child_failure resolves a live failure, without a pending increment.
-    IF v_fpof OR v_cpof OR v_idof THEN
+    -- A pending row an earlier add left is settled the same way, and its count
+    -- is taken off the parent exactly once.
+    IF v_rdof THEN
+      DELETE FROM job_dependency
+       WHERE parent_queue = p_parent_queue AND parent_id = p_parent_id
+         AND child_key = p_queue || ':' || p_id AND status = 'pending';
+      v_settled := FOUND;
+    ELSE
+      UPDATE job_dependency
+         SET status = CASE WHEN v_fpof THEN 'failed'::dep_status
+                           ELSE 'ignored'::dep_status END,
+             value = to_jsonb(v_reason)
+       WHERE parent_queue = p_parent_queue AND parent_id = p_parent_id
+         AND child_key = p_queue || ':' || p_id AND status = 'pending';
+      v_settled := FOUND;
+
       INSERT INTO job_dependency (
         parent_queue, parent_id, child_queue, child_id, child_key, status, value
       ) VALUES (
@@ -99,19 +116,22 @@ BEGIN
       ON CONFLICT (parent_queue, parent_id, child_key) DO NOTHING;
     END IF;
 
+    IF v_settled THEN
+      UPDATE job SET pending_deps = GREATEST(pending_deps - 1, 0)
+       WHERE queue = p_parent_queue AND id = p_parent_id
+      RETURNING pending_deps INTO v_remaining;
+    ELSE
+      SELECT pending_deps INTO v_remaining
+        FROM job WHERE queue = p_parent_queue AND id = p_parent_id;
+    END IF;
+
     IF v_fpof THEN
       UPDATE job
          SET deferred_failure = 'child ' || p_queue || ':' || p_id || ' failed'
        WHERE queue = p_parent_queue AND id = p_parent_id;
       PERFORM move_parent_to_wait(p_parent_queue, p_parent_id, p_now);
-    ELSIF v_cpof THEN
+    ELSIF v_cpof OR COALESCE(v_remaining, 0) = 0 THEN
       PERFORM move_parent_to_wait(p_parent_queue, p_parent_id, p_now);
-    ELSE
-      SELECT pending_deps INTO v_remaining
-        FROM job WHERE queue = p_parent_queue AND id = p_parent_id;
-      IF COALESCE(v_remaining, 0) = 0 THEN
-        PERFORM move_parent_to_wait(p_parent_queue, p_parent_id, p_now);
-      END IF;
     END IF;
   ELSE
     -- Still pending: register a pending dependency and count it on the parent.

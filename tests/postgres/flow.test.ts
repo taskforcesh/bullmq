@@ -10,6 +10,8 @@ import {
   WaitingChildrenError,
   Worker,
 } from '../../src';
+import { runMigrations } from '../../src/postgres';
+import { MIGRATIONS } from '../../src/postgres/migrations';
 import { delay } from '../../src/utils';
 import { getPostgresUrl } from './utils/postgres-url';
 
@@ -18,19 +20,22 @@ describe('PostgreSQL flows (end-to-end)', () => {
   const schema = 'bullmq_flow_test';
   let pool: Pool;
 
-  beforeAll(async () => {
-    pool = new Pool({ connectionString: url });
-    await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+  const useSchema = (backendSchema: string, migrate: boolean) =>
     setDefaultBackendFactory((name, opts, options) =>
       createPostgresBackend(
         name,
         {
           ...opts,
-          connection: { connectionString: url, schema, migrate: true },
+          connection: { connectionString: url, schema: backendSchema, migrate },
         },
         options,
       ),
     );
+
+  beforeAll(async () => {
+    pool = new Pool({ connectionString: url });
+    await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+    useSchema(schema, true);
   });
 
   afterAll(async () => {
@@ -179,6 +184,199 @@ describe('PostgreSQL flows (end-to-end)', () => {
         await childQueue.close();
         await parentQueue.close();
       }
+    });
+  });
+
+  describe('when a child re-added on schema version 3 is re-added after the upgrade', () => {
+    // On schema version 3 a re-added failed child was registered as a pending
+    // dependency, leaving its parent in waiting-children. Re-adding it after
+    // migrating must settle that row instead of keeping the parent stuck.
+    const v3Schema = 'bullmq_flow_v3_test';
+
+    const createSchemaAtVersion3 = async () => {
+      await pool.query(`DROP SCHEMA IF EXISTS "${v3Schema}" CASCADE`);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`CREATE SCHEMA "${v3Schema}"`);
+        await client.query(`SET LOCAL search_path TO "${v3Schema}"`);
+        await client.query(
+          `CREATE TABLE migration (
+             version integer PRIMARY KEY,
+             name text NOT NULL,
+             min_client_version integer NOT NULL,
+             applied_at timestamptz NOT NULL DEFAULT now()
+           )`,
+        );
+        for (const migration of MIGRATIONS.filter(m => m.version <= 3)) {
+          await client.query(migration.load());
+          await client.query(
+            `INSERT INTO migration (version, name, min_client_version)
+             VALUES ($1, $2, $3)`,
+            [migration.version, migration.name, migration.minClientVersion],
+          );
+        }
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    };
+
+    const schemaVersion = async () => {
+      const { rows } = await pool.query<{ version: number }>(
+        `SELECT MAX(version)::int AS version FROM "${v3Schema}".migration`,
+      );
+      return rows[0].version;
+    };
+
+    const upgrade = async () => {
+      const client = await pool.connect();
+      try {
+        await runMigrations(client, v3Schema);
+      } finally {
+        client.release();
+      }
+    };
+
+    const pendingDeps = async (queueName: string) => {
+      const { rows } = await pool.query<{ pending_deps: number }>(
+        `SELECT pending_deps FROM "${v3Schema}".job
+          WHERE queue = $1 AND id = 'tue'`,
+        [queueName],
+      );
+      return rows[0].pending_deps;
+    };
+
+    const readdAcrossUpgrade = async (
+      childOpts: Record<string, boolean>,
+      sibling?: { name: string; queueName: string; opts: object },
+    ) => {
+      await createSchemaAtVersion3();
+      // Clients from before migration 4 run against the version-3 functions.
+      useSchema(v3Schema, false);
+
+      const queueName = `fq-${randomUUID()}`;
+      const queue = new Queue(queueName, { connection: {} });
+      const worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          if (job.name === 'mon') {
+            throw new Error('mon failed');
+          }
+        },
+        { connection: {}, drainDelay: 1 },
+      );
+      const flow = new FlowProducer({ connection: {} });
+
+      const flowTree = (parentOpts: Record<string, boolean> = {}) => ({
+        queueName,
+        name: 'tue',
+        opts: { jobId: 'tue', ...parentOpts },
+        children: [
+          {
+            name: 'mon',
+            queueName,
+            opts: { jobId: 'mon', ...childOpts },
+          },
+        ],
+      });
+      const readdTree = () => {
+        const tree = flowTree();
+        if (sibling) {
+          tree.children.push({ ...sibling, queueName } as any);
+        }
+        return tree;
+      };
+
+      const parentFinished = new Promise<void>(resolve => {
+        const onFinished = (job: Job) => {
+          if (job.id === 'tue') {
+            worker.off('completed', onFinished);
+            worker.off('failed', onFinished);
+            resolve();
+          }
+        };
+        worker.on('completed', onFinished);
+        worker.on('failed', onFinished);
+      });
+
+      try {
+        await worker.waitUntilReady();
+        await flow.add(
+          flowTree({ removeOnComplete: true, removeOnFail: true }),
+        );
+        await parentFinished;
+
+        await flow.add(readdTree());
+        await delay(500);
+        expect(await schemaVersion()).toBe(3);
+        expect(await queue.getJobState('tue')).toBe('waiting-children');
+
+        await upgrade();
+        expect(await schemaVersion()).toBe(4);
+
+        await flow.add(readdTree());
+        await delay(1000);
+
+        return {
+          state: await queue.getJobState('tue'),
+          pendingDeps: await pendingDeps(queueName),
+        };
+      } finally {
+        await worker.close();
+        await flow.close();
+        await queue.close();
+        useSchema(schema, true);
+      }
+    };
+
+    it('moves parent to wait when child has ignoreDependencyOnFailure', async () => {
+      const { state, pendingDeps } = await readdAcrossUpgrade({
+        ignoreDependencyOnFailure: true,
+      });
+
+      expect(state).toBe('completed');
+      expect(pendingDeps).toBe(0);
+    });
+
+    it('moves parent to wait when child has removeDependencyOnFailure', async () => {
+      const { state, pendingDeps } = await readdAcrossUpgrade({
+        removeDependencyOnFailure: true,
+      });
+
+      expect(state).toBe('completed');
+      expect(pendingDeps).toBe(0);
+    });
+
+    it('moves parent to wait when child has continueParentOnFailure', async () => {
+      const { state, pendingDeps } = await readdAcrossUpgrade({
+        continueParentOnFailure: true,
+      });
+
+      expect(state).toBe('completed');
+      expect(pendingDeps).toBe(0);
+    });
+
+    it('fails parent when child has failParentOnFailure', async () => {
+      const { state, pendingDeps } = await readdAcrossUpgrade({
+        failParentOnFailure: true,
+      });
+
+      expect(state).toBe('failed');
+      expect(pendingDeps).toBe(0);
+    });
+
+    it('takes the settled child off the pending count only once', async () => {
+      const { state, pendingDeps } = await readdAcrossUpgrade(
+        { ignoreDependencyOnFailure: true },
+        { name: 'fri', queueName: '', opts: { jobId: 'fri', delay: 60000 } },
+      );
+
+      expect(state).toBe('waiting-children');
+      expect(pendingDeps).toBe(1);
     });
   });
 });
