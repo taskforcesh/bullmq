@@ -10,6 +10,7 @@
 -- (`handle_child_failure`), mirroring the Redis `updateExistingJobsParent`
 -- include. A pending dependency an add before this fix left for the child is
 -- settled and uncounted, so re-adding it also releases a parent already stuck.
+-- An already-failed parent does not get its deferred failure back.
 --
 -- Like the completed-child branch, it never registers a pending dependency for
 -- the failed child and takes no parent advisory lock: taking that lock after the
@@ -126,9 +127,11 @@ BEGIN
     END IF;
 
     IF v_fpof THEN
+      -- A parent that already failed cleared its deferred failure; restoring it
+      -- would fail the parent again on retry (mirrors the Redis helper).
       UPDATE job
          SET deferred_failure = 'child ' || p_queue || ':' || p_id || ' failed'
-       WHERE queue = p_parent_queue AND id = p_parent_id;
+       WHERE queue = p_parent_queue AND id = p_parent_id AND state <> 'failed';
       PERFORM move_parent_to_wait(p_parent_queue, p_parent_id, p_now);
     ELSIF v_cpof OR COALESCE(v_remaining, 0) = 0 THEN
       PERFORM move_parent_to_wait(p_parent_queue, p_parent_id, p_now);

@@ -185,6 +185,75 @@ describe('PostgreSQL flows (end-to-end)', () => {
         await parentQueue.close();
       }
     });
+
+    it('lets a failed parent run when retried after its child is re-added and retried', async () => {
+      const queueName = `fq-${randomUUID()}`;
+      const queue = new Queue(queueName, { connection: {} });
+      let failMon = true;
+      let tueProcessed = false;
+      const worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          if (job.name === 'mon' && failMon) {
+            throw new Error('mon failed');
+          }
+          if (job.name === 'tue') {
+            tueProcessed = true;
+          }
+        },
+        { connection: {}, drainDelay: 1 },
+      );
+      const flow = new FlowProducer({ connection: {} });
+      const flowTree = {
+        queueName,
+        name: 'tue',
+        opts: { jobId: 'tue' },
+        children: [
+          {
+            name: 'mon',
+            queueName,
+            opts: { jobId: 'mon', failParentOnFailure: true },
+          },
+        ],
+      };
+      const finished = (jobId: string) =>
+        new Promise<void>(resolve => {
+          const onFinished = (job: Job) => {
+            if (job.id === jobId) {
+              worker.off('completed', onFinished);
+              worker.off('failed', onFinished);
+              resolve();
+            }
+          };
+          worker.on('completed', onFinished);
+          worker.on('failed', onFinished);
+        });
+
+      try {
+        await worker.waitUntilReady();
+        const tueFailed = finished('tue');
+        await flow.add(flowTree);
+        await tueFailed;
+
+        await flow.add(flowTree);
+
+        failMon = false;
+        const monCompleted = finished('mon');
+        await (await queue.getJob('mon'))!.retry();
+        await monCompleted;
+
+        const tueFinished = finished('tue');
+        await (await queue.getJob('tue'))!.retry();
+        await tueFinished;
+
+        expect(await queue.getJobState('tue')).toBe('completed');
+        expect(tueProcessed).toBe(true);
+      } finally {
+        await worker.close();
+        await flow.close();
+        await queue.close();
+      }
+    });
   });
 
   describe('when a child re-added on schema version 3 is re-added after the upgrade', () => {
