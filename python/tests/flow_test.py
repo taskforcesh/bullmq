@@ -149,18 +149,20 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         children_data = [
             {"bar": None},
             {"baz": 12.93},
-            {"qux": "string value"}
+            {"qux": "string value"},
+            2500,
+            False,
+            None,
+            "",
+            "2500",
+            "true",
+            "null",
+            '{"cost":2500}',
+            [1, "two", None],
         ]
         parent_queue_name = f"__test_parent_queue__{uuid4().hex}"
 
-        processing_children = Future()
-
-        processed_children = 0
         async def process1(job: Job, token: str):
-            nonlocal processed_children
-            processed_children+=1
-            if processed_children == len(children_data):
-                processing_children.set_result(None)
             return children_data[job.data.get("idx")]
 
         processing_parent = Future()
@@ -174,32 +176,31 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         children_worker = Worker(queue_name, process1, {"prefix": prefix})
 
         flow = FlowProducer({"prefix": prefix})
-        await flow.add(
+        tree = await flow.add(
             {
                 "name": 'parent-job',
                 "queueName": parent_queue_name,
                 "data": {},
                 "children": [
-                    {"name": child_job_name, "data": {"idx": 0, "foo": 'bar'}, "queueName": queue_name},
-                    {"name": child_job_name, "data": {"idx": 1, "foo": 'baz'}, "queueName": queue_name},
-                    {"name": child_job_name, "data": {"idx": 2, "foo": 'qux'}, "queueName": queue_name}
+                    {"name": child_job_name, "data": {"idx": idx}, "queueName": queue_name}
+                    for idx in range(len(children_data))
                 ]
             }
         )
 
-        await processing_children
-        await processing_parent
-
-        def on_parent_processed(future):
-            self.assertIn(children_data[0], future.result().values())
-            self.assertIn(children_data[1], future.result().values())
-            self.assertIn(children_data[2], future.result().values())
-
-        processing_parent.add_done_callback(on_parent_processed)
-
-        await parent_worker.close()
-        await children_worker.close()
-        await flow.close()
+        try:
+            values = await asyncio.wait_for(processing_parent, timeout=5)
+            self.assertEqual(len(values), len(children_data))
+            for child, expected in zip(tree["children"], children_data):
+                job = child["job"]
+                key = f"{job.queueQualifiedName}:{job.id}"
+                with self.subTest(value=expected):
+                    self.assertIs(type(values[key]), type(expected))
+                    self.assertEqual(values[key], expected)
+        finally:
+            await parent_worker.close()
+            await children_worker.close()
+            await flow.close()
 
         parent_queue = Queue(parent_queue_name, {"prefix": prefix})
         await parent_queue.pause()

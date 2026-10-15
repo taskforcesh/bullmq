@@ -429,7 +429,7 @@ class PostgresBackend(Backend):
             result = await self._run(
                 "move_to_completed_fetch",
                 [
-                    self.queue_name, job.id, token, _jsonb(_return_value(return_value)),
+                    self.queue_name, job.id, token, _jsonb(return_value),
                     finished_on, remove_all, keep_age, keep_count,
                     lock_duration, now, name, limiter_max, limiter_duration,
                 ],
@@ -440,7 +440,7 @@ class PostgresBackend(Backend):
             return {"result": nxt, "finishedOn": finished_on}
         await self._run(
             "move_to_completed",
-            [self.queue_name, job.id, token, _jsonb(_return_value(return_value)),
+            [self.queue_name, job.id, token, _jsonb(return_value),
              finished_on, remove_all, keep_age, keep_count],
             op="moveToFinished", job_id=job.id, state="active",
         )
@@ -736,7 +736,8 @@ class PostgresBackend(Backend):
         for m in result.maps():
             key = m.get("child_key") or m.get("k")
             value = m.get("value") if m.get("value") is not None else m.get("v")
-            out[key] = _json(value)
+            # The shared query returns JSON text, like the Redis processed hash.
+            out[key] = value if isinstance(value, str) else _json(value)
         return out
 
     async def isPaused(self) -> bool:
@@ -951,18 +952,3 @@ def create_postgres_backend(
     _validate_prefix(opts.get("prefix"))
     connection = PostgresConnection(opts)
     return PostgresBackend(name, connection)
-
-
-def _return_value(value: Any) -> Any:
-    """Normalize a completed job's return value for jsonb storage.
-
-    Most call paths now pass raw Python objects, but older/legacy callers may
-    still pass a JSON string. Decode JSON strings so values are stored as real
-    jsonb rather than quoted string literals.
-    """
-    if isinstance(value, str):
-        try:
-            return json.loads(value)
-        except (ValueError, TypeError):
-            return value
-    return value

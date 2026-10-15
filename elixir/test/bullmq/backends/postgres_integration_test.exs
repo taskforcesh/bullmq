@@ -256,6 +256,46 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     Worker.close(worker)
   end
 
+  test "parent sums numeric results from its child workers", %{conn: conn, queue: queue} do
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue,
+        connection: conn,
+        processor: fn job ->
+          if job.name == "parent" do
+            {:ok, values} = Job.get_children_values(job)
+            {:ok, values |> Map.values() |> Enum.sum()}
+          else
+            {:ok, job.data["cost"]}
+          end
+        end
+      )
+
+    try do
+      {:ok, tree} =
+        FlowProducer.add(
+          %{
+            name: "parent",
+            queue_name: queue,
+            children:
+              for cost <- [2500, 1750, 0] do
+                %{name: "child", queue_name: queue, data: %{cost: cost}}
+              end
+          },
+          connection: conn
+        )
+
+      assert eventually(fn ->
+               Queue.get_job_state(queue, tree.job.id, connection: conn) == {:ok, "completed"}
+             end)
+
+      assert {:ok, parent} = Queue.get_job(queue, tree.job.id, connection: conn)
+      assert parent.return_value === 4250
+    after
+      Worker.close(worker)
+    end
+  end
+
   test "FlowProducer honors a per-call backend override", %{conn: conn, queue: queue} do
     previous = Application.get_env(:bullmq, :backend)
     Application.put_env(:bullmq, :backend, Backends.Redis)

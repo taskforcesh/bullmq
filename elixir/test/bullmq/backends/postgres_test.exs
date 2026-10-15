@@ -95,6 +95,44 @@ defmodule BullMQ.Backends.PostgresTest do
     assert {:ok, [1, 0, 1]} = Backend.get_counts_by_types(b, [:waiting, :active, :completed])
   end
 
+  for fetch_next <- [false, true],
+      value <- [
+        "done",
+        "2500",
+        "true",
+        "null",
+        ~s({"cost":2500}),
+        "",
+        2500,
+        false,
+        nil,
+        [1, "two", nil],
+        %{"cost" => 2500}
+      ] do
+    test "completed job preserves #{inspect(value)} with fetch_next=#{fetch_next}",
+         %{backend: b, queue: q} do
+      value = unquote(Macro.escape(value))
+      {:ok, id} = Backend.add_job(b, Job.new(q, "result", %{}, []))
+      assert {:ok, [_, ^id, 0, 0]} = Backend.move_to_active(b, "token", [])
+
+      assert {:ok, _} =
+               Backend.move_to_completed(b, id, "token", value, fetch_next: unquote(fetch_next))
+
+      assert {:ok, "completed"} = Backend.get_state(b, id)
+
+      result =
+        Postgrex.query!(
+          Backends.Postgres.Connection.pool(b.connection),
+          "SELECT return_value FROM job WHERE queue = $1 AND id = $2",
+          [q, id]
+        )
+
+      assert result.rows === [[value]]
+      assert {:ok, data} = Backend.get_job_data(b, id)
+      assert Job.from_redis(id, q, data).return_value === value
+    end
+  end
+
   test "move_to_active fetches job data as a flat kv list", %{backend: b, queue: q} do
     {:ok, id} = Backend.add_job(b, Job.new(q, "flat", %{"n" => 1}, []))
     assert {:ok, [kv, ^id, 0, 0]} = Backend.move_to_active(b, "tok", [])

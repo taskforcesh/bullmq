@@ -1,4 +1,5 @@
 import asyncio
+import json
 import unittest
 import time
 from types import SimpleNamespace
@@ -68,6 +69,60 @@ class TestPostgresBackendJobMapping(unittest.TestCase):
 
         self.assertEqual(backend.clientName(), "tenant_a:queue")
         self.assertEqual(backend.clientName(":w:worker"), "tenant_a:queue:w:worker")
+
+
+class TestPostgresBackendChildValues(unittest.IsolatedAsyncioTestCase):
+    async def test_child_values_preserve_json_types(self):
+        values = {
+            "cost": 2500,
+            "fraction": 17.5,
+            "zero": 0,
+            "true": True,
+            "false": False,
+            "null": None,
+            "text": "报价已更新 🌍",
+            "empty": "",
+            "numeric_text": "2500",
+            "json_text": '{"cost":2500}',
+            "list": [1, "two", None],
+            "object": {"cost": 2500, "approved": False},
+        }
+        expected = {f"queue:{key}": value for key, value in values.items()}
+        # get_processed_children_values.sql returns value::text, matching the
+        # serialized values in a Redis processed-children hash.
+        rows = [{"child_key": key, "value": json.dumps(value)}
+                for key, value in expected.items()]
+        backend = PostgresBackend(
+            "queue", cast(PostgresConnection, SimpleNamespace(schema="bullmq"))
+        )
+        backend._run = AsyncMock(return_value=SimpleNamespace(maps=lambda: rows))
+        queue = SimpleNamespace(backend=backend, qualifiedName="queue")
+        job = Job(queue, "parent", {}, job_id="parent")
+
+        actual = await job.getChildrenValues()
+
+        self.assertEqual(actual.keys(), expected.keys())
+        for key, value in expected.items():
+            with self.subTest(key=key):
+                self.assertIs(type(actual[key]), type(value))
+                self.assertEqual(actual[key], value)
+
+    async def test_completion_preserves_json_like_strings(self):
+        backend = PostgresBackend(
+            "queue", cast(PostgresConnection, SimpleNamespace(schema="bullmq"))
+        )
+        backend._run = AsyncMock(return_value=SimpleNamespace(maps=lambda: []))
+        backend._collect_metrics = AsyncMock()
+        backend._next_job_result = AsyncMock(return_value=None)
+        job = cast(Job, SimpleNamespace(id="child", queue=SimpleNamespace(opts={})))
+
+        for fetch_next in (False, True):
+            for value in ("2500", "true", "null", '{"cost":2500}', '["item"]', '"quoted"'):
+                with self.subTest(fetch_next=fetch_next, value=value):
+                    await backend.moveToCompleted(job, value, False, "token", fetch_next)
+                    stored = json.loads(backend._run.await_args.args[1][3])
+                    self.assertIs(type(stored), str)
+                    self.assertEqual(stored, value)
 
 
 class TestPostgresBackendFailedReason(unittest.IsolatedAsyncioTestCase):
