@@ -4,22 +4,23 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"io/fs"
-	"path"
-	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/redis/go-redis/v9"
+
+	"github.com/taskforcesh/bullmq/golang/internal/lua"
 )
 
 // commandsFS holds the shared BullMQ Lua commands.
 //
-// The files are generated from the repository root with
-// `yarn generate:raw:scripts && yarn copy:lua:golang`; they are intentionally
-// not committed so that every port consumes the same single source of truth.
+// This directory is the canonical home of the scripts used by every port: the
+// Go module proxy serves whatever is committed under golang/ at a tag, and
+// //go:embed cannot reach outside its module or run a generation step first.
+// The sources keep their `--- @include` directives, which the internal/lua
+// package interpolates at runtime to produce the same scripts as
+// `yarn generate:raw:scripts`.
 //
-//go:embed commands/*.lua
+//go:embed commands/*.lua commands/includes/*.lua
 var commandsFS embed.FS
 
 // luaScript is a single Lua command together with its declared key count.
@@ -35,51 +36,21 @@ var (
 	scriptsErr  error
 )
 
-// loadScripts parses the embedded `<name>-<numKeys>.lua` files once.
+// loadScripts resolves the embedded commands once, on first use.
 func loadScripts() (map[string]*luaScript, error) {
 	scriptsOnce.Do(func() {
-		entries, err := fs.ReadDir(commandsFS, "commands")
+		resolved, err := lua.LoadScripts(commandsFS, "commands")
 		if err != nil {
-			scriptsErr = fmt.Errorf("bullmq: unable to read embedded commands: %w", err)
+			scriptsErr = fmt.Errorf("bullmq: unable to load Lua commands: %w", err)
 			return
 		}
-		loaded := make(map[string]*luaScript, len(entries))
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".lua") {
-				continue
-			}
-			base := strings.TrimSuffix(entry.Name(), ".lua")
-			idx := strings.LastIndex(base, "-")
-			if idx < 0 {
-				continue
-			}
-			numKeys, err := strconv.Atoi(base[idx+1:])
-			if err != nil {
-				continue
-			}
-			body, err := commandsFS.ReadFile(path.Join("commands", entry.Name()))
-			if err != nil {
-				scriptsErr = fmt.Errorf("bullmq: unable to read %s: %w", entry.Name(), err)
-				return
-			}
-			name := base[:idx]
-			if previous, dup := loaded[name]; dup {
-				scriptsErr = fmt.Errorf(
-					"bullmq: command %q is embedded twice (%d and %d keys); "+
-						"delete the stale file and re-run `yarn generate:raw:scripts && yarn copy:lua:golang`",
-					name, previous.numKeys, numKeys)
-				return
-			}
+		loaded := make(map[string]*luaScript, len(resolved))
+		for name, command := range resolved {
 			loaded[name] = &luaScript{
 				name:    name,
-				numKeys: numKeys,
-				script:  redis.NewScript(string(body)),
+				numKeys: command.NumKeys,
+				script:  redis.NewScript(command.Source),
 			}
-		}
-		if len(loaded) == 0 {
-			scriptsErr = fmt.Errorf("bullmq: no Lua commands were embedded; " +
-				"run `yarn generate:raw:scripts && yarn copy:lua:golang` from the repository root")
-			return
 		}
 		scripts = loaded
 	})

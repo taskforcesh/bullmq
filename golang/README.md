@@ -5,7 +5,7 @@ job queue.
 
 Jobs produced by this package are fully interoperable with the Node.js, Python,
 Rust and .NET implementations: every state transition is executed by the exact
-same Lua scripts, which live in `src/commands` at the root of this repository.
+same Lua scripts, which live in [`commands`](./commands) in this directory.
 
 > Redis is the only bundled backend. `Queue`, `Worker`, `QueueEvents` and `Job`
 > depend only on the `Backend` interface (the counterpart of the Node.js
@@ -26,21 +26,22 @@ same Lua scripts, which live in `src/commands` at the root of this repository.
 go get github.com/taskforcesh/bullmq/golang
 ```
 
-## Building from this repository
+## The shared Lua commands
 
-The Lua commands are **not** committed to the `golang` directory. They are
-generated from the shared sources so that every port stays byte-for-byte
-identical. Before building or testing, run from the repository root:
+`golang/commands/` is the canonical home of the Redis Lua scripts shared by
+every BullMQ port. They are stored here, rather than alongside the TypeScript
+sources, because the Go module proxy publishes whatever is committed under
+`golang/` at a git tag: `//go:embed` cannot reach outside its own module,
+follow symlinks, or run a generation step first, so the scripts have to be
+committed in place for `go get` to compile.
 
-```sh
-yarn install
-yarn generate:raw:scripts
-yarn copy:lua:golang
-```
+The files keep their `--- @include "<path>"` directives; they are interpolated
+in memory the first time a script is used, producing exactly the same Lua that
+`yarn generate:raw:scripts` writes to `rawScripts/` for the other ports. The
+parity test in `redis_scripts_test.go` asserts that equivalence whenever
+`rawScripts/` is present.
 
-This resolves the `--- @include` directives in `src/commands/*.lua` into
-`rawScripts/` and copies the result into `golang/commands/`, where it is
-embedded into the binary with `go:embed`.
+No generation or copying step is needed to build this module.
 
 ## Usage
 

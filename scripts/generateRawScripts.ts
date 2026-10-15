@@ -38,7 +38,8 @@ export class RawScriptLoader extends ScriptLoader {
 
 const scriptLoader = new RawScriptLoader();
 
+// The shared Lua commands live in golang/commands; see src/commands/README.md.
 scriptLoader.transpileScripts(
-  path.join(__dirname, '../src/commands'),
+  path.join(__dirname, '../golang/commands'),
   path.join(__dirname, '../rawScripts'),
 );

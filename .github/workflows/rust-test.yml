@@ -29,7 +29,7 @@ jobs:
           filters: |
             rust:
               - 'rust/**'
-              - 'src/commands/**'
+              - 'golang/commands/**'
               - '.github/workflows/rust-test.yml'
 
   test:

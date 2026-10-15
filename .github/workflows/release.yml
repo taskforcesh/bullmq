@@ -573,9 +573,6 @@ jobs:
         with:
           go-version: '1.25'
           cache-dependency-path: golang/go.sum
-      - name: Copy Lua scripts for Go
-        if: ${{ contains(env.commitmsg, '[golang]') || contains(env.commitmsg, '(golang)') }}
-        run: yarn copy:lua:golang
       - name: Install Node dependencies for Go
         if: ${{ contains(env.commitmsg, '[golang]') || contains(env.commitmsg, '(golang)') }}
         working-directory: golang

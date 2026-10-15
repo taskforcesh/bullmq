@@ -20,9 +20,10 @@
 //	}
 //
 // The Lua commands are embedded at build time from the commands directory,
-// which is generated from the repository root with:
-//
-//	yarn generate:raw:scripts && yarn copy:lua:golang
+// which is the canonical home of the scripts shared by every port. They are
+// committed with their @include directives intact and interpolated in memory
+// on first use, so `go get` yields a package that compiles without any Node.js
+// tooling.
 //
 // Queue, Worker, QueueEvents and Job only depend on the Backend interface.
 // The bundled implementation is RedisBackend; other datastores can be plugged
