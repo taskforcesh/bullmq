@@ -2695,6 +2695,141 @@ describe('flows', () => {
             await cleanupQueue(parentQueueName);
           }
         });
+
+        const flowTree = (childOpts: Record<string, boolean> = {}) => ({
+          queueName,
+          name: 'tue',
+          opts: { jobId: 'tue' },
+          children: [
+            {
+              name: 'mon',
+              queueName,
+              opts: { jobId: 'mon', ...childOpts },
+            },
+          ],
+        });
+
+        const finished = (worker: Worker, jobId: string) =>
+          new Promise<void>(resolve => {
+            const onFinished = (job: Job) => {
+              if (job.id === jobId) {
+                worker.off('completed', onFinished);
+                worker.off('failed', onFinished);
+                resolve();
+              }
+            };
+            worker.on('completed', onFinished);
+            worker.on('failed', onFinished);
+          });
+
+        it('waits for a child without failure options until it is retried', async () => {
+          let failMon = true;
+          const worker = new Worker(
+            queueName,
+            async (job: Job) => {
+              if (job.name === 'mon' && failMon) {
+                throw new Error('mon failed');
+              }
+            },
+            { connection, prefix },
+          );
+          const flow = new FlowProducer({ connection, prefix });
+
+          try {
+            const monFailed = finished(worker, 'mon');
+            const first = await flow.add(flowTree());
+            await monFailed;
+            // Recreate the parent around the retained failed child.
+            await first.job.remove({ removeChildren: false });
+
+            const tree = await flow.add(flowTree());
+            await delay(500);
+            expect(await tree.job.getState()).toBe('waiting-children');
+
+            failMon = false;
+            await (await queue.getJob('mon'))!.retry();
+            await delay(1000);
+
+            expect(await tree.job.getState()).toBe('completed');
+          } finally {
+            await worker.close();
+            await flow.close();
+          }
+        });
+
+        it('settles a dependency an earlier add left pending', async () => {
+          const worker = new Worker(
+            queueName,
+            async (job: Job) => {
+              if (job.name === 'mon') {
+                throw new Error('mon failed');
+              }
+            },
+            { connection, prefix },
+          );
+          const flow = new FlowProducer({ connection, prefix });
+
+          try {
+            // Without failure options the failed child stays a pending
+            // dependency, which is what an add before this fix left for any
+            // re-added failed child.
+            const monFailed = finished(worker, 'mon');
+            const tree = await flow.add(flowTree());
+            await monFailed;
+            expect(await tree.job.getState()).toBe('waiting-children');
+
+            await flow.add(flowTree({ ignoreDependencyOnFailure: true }));
+            await delay(1000);
+
+            expect(await tree.job.getState()).toBe('completed');
+          } finally {
+            await worker.close();
+            await flow.close();
+          }
+        });
+
+        it('lets a failed parent run when retried after its child is re-added and retried', async () => {
+          let failMon = true;
+          let tueProcessed = false;
+          const worker = new Worker(
+            queueName,
+            async (job: Job) => {
+              if (job.name === 'mon' && failMon) {
+                throw new Error('mon failed');
+              }
+              if (job.name === 'tue') {
+                tueProcessed = true;
+              }
+            },
+            { connection, prefix },
+          );
+          const flow = new FlowProducer({ connection, prefix });
+
+          try {
+            const tueFailed = finished(worker, 'tue');
+            const tree = await flow.add(
+              flowTree({ failParentOnFailure: true }),
+            );
+            await tueFailed;
+
+            await flow.add(flowTree({ failParentOnFailure: true }));
+
+            failMon = false;
+            const monCompleted = finished(worker, 'mon');
+            await (await queue.getJob('mon'))!.retry();
+            await monCompleted;
+
+            const tueFinished = finished(worker, 'tue');
+            await tree.job.retry();
+            await tueFinished;
+
+            expect(await tree.job.getState()).toBe('completed');
+            expect(tueProcessed).toBe(true);
+          } finally {
+            await worker.close();
+            await flow.close();
+          }
+        });
       });
     });
   });

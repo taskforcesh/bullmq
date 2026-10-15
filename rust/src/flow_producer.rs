@@ -708,7 +708,7 @@ impl FlowProducer {
             .ok_or_else(|| Error::InvalidConfig("addParentJob script not found".to_string()))?
             .clone();
 
-        // KEYS[1..6]: meta, id, delayed, waiting-children, completed, events
+        // KEYS[1..7]: meta, id, delayed, waiting-children, completed, events, failed
         let script_keys = [
             keys.meta(),
             keys.id(),
@@ -716,6 +716,7 @@ impl FlowProducer {
             keys.waiting_children(),
             keys.completed(),
             keys.events(),
+            keys.failed(),
         ];
 
         // ARGV[1]: msgpack args, ARGV[2]: json data, ARGV[3]: msgpack opts
@@ -733,6 +734,7 @@ impl FlowProducer {
             .arg(script_keys[3].as_str())
             .arg(script_keys[4].as_str())
             .arg(script_keys[5].as_str())
+            .arg(script_keys[6].as_str())
             .arg(argv1.as_slice())
             .arg(argv2.as_bytes())
             .arg(argv3.as_slice());
@@ -800,6 +802,7 @@ impl FlowProducer {
                 keys.active(),
                 keys.events(),
                 keys.marker(),
+                keys.failed(),
             ],
             "addDelayedJob" => vec![
                 keys.marker(),
@@ -808,6 +811,7 @@ impl FlowProducer {
                 keys.delayed(),
                 keys.completed(),
                 keys.events(),
+                keys.failed(),
             ],
             "addPrioritizedJob" => vec![
                 keys.marker(),
@@ -819,6 +823,7 @@ impl FlowProducer {
                 keys.active(),
                 keys.events(),
                 keys.pc(),
+                keys.failed(),
             ],
             _ => vec![],
         }

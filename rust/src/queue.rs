@@ -415,6 +415,7 @@ impl Queue {
                 self.keys.active(),
                 self.keys.events(),
                 self.keys.marker(),
+                self.keys.failed(),
             ],
             "addDelayedJob" => vec![
                 self.keys.marker(),
@@ -423,6 +424,7 @@ impl Queue {
                 self.keys.delayed(),
                 self.keys.completed(),
                 self.keys.events(),
+                self.keys.failed(),
             ],
             "addPrioritizedJob" => vec![
                 self.keys.marker(),
@@ -434,6 +436,7 @@ impl Queue {
                 self.keys.active(),
                 self.keys.events(),
                 self.keys.pc(),
+                self.keys.failed(),
             ],
             _ => vec![],
         }

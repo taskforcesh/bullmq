@@ -6,31 +6,30 @@
 ]]
 
 -- Includes
---- @include "destructureJobKey"
---- @include "moveChildFromDependenciesIfNeeded"
+--- @include "handleChildFailure"
 --- @include "updateParentDepsIfNeeded"
 
 local function updateExistingJobsParent(parentKey, parent, parentData,
                                         parentDependenciesKey, completedKey,
-                                        jobIdKey, jobId, timestamp)
+                                        failedKey, jobIdKey, jobId, timestamp)
     if parentKey ~= nil then
         if rcall("ZSCORE", completedKey, jobId) then
             local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
             updateParentDepsIfNeeded(parentKey, parent['queueKey'],
                                      parentDependenciesKey, parent['id'],
                                      jobIdKey, returnvalue, timestamp)
-        else
-            if parentDependenciesKey ~= nil then
+        elseif parentDependenciesKey ~= nil then
+            if rcall("ZSCORE", failedKey, jobId) and
+                (parent['fpof'] or parent['cpof'] or parent['idof'] or parent['rdof']) then
+                -- A failed job is not re-run by a duplicated add, so resolve it
+                -- the way its failure did instead of adding it to the
+                -- dependencies. Drop a pending dependency an earlier add left.
+                rcall("SREM", parentDependenciesKey, jobIdKey)
+                local failedReason = rcall("HGET", jobIdKey, "failedReason")
+                handleChildFailure(parent, parentKey, jobIdKey, failedReason,
+                                   timestamp)
+            else
                 rcall("SADD", parentDependenciesKey, jobIdKey)
-
-                -- A failed job is not re-run by a duplicated add, so resolve the
-                -- dependency the same way its failure would have.
-                local failedKey = getJobKeyPrefix(jobIdKey, jobId) .. "failed"
-                if rcall("ZSCORE", failedKey, jobId) then
-                    local failedReason = rcall("HGET", jobIdKey, "failedReason")
-                    moveChildFromDependenciesIfNeeded(parentData, jobIdKey,
-                                                      failedReason, timestamp)
-                end
             end
         end
         rcall("HMSET", jobIdKey, "parentKey", parentKey, "parent", parentData)

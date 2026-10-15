@@ -137,11 +137,11 @@ class Scripts
      */
     private function addStandardJobToTransaction(mixed $transaction, Job $job, int $timestamp): void
     {
-        $keys = $this->getKeys(['wait', 'paused', 'meta', 'id', 'completed', 'delayed', 'active', 'events', 'marker']);
+        $keys = $this->getKeys(['wait', 'paused', 'meta', 'id', 'completed', 'delayed', 'active', 'events', 'marker', 'failed']);
         $args = $this->addJobArgs($job);
         $args[] = $timestamp;
 
-        $this->execScriptOnTransaction($transaction, 'addStandardJob-9.lua', $keys, $args);
+        $this->execScriptOnTransaction($transaction, 'addStandardJob-10.lua', $keys, $args);
     }
 
     /**
@@ -149,11 +149,11 @@ class Scripts
      */
     private function addDelayedJobToTransaction(mixed $transaction, Job $job, int $delay): void
     {
-        $keys = $this->getKeys(['marker', 'meta', 'id', 'delayed', 'completed', 'events']);
+        $keys = $this->getKeys(['marker', 'meta', 'id', 'delayed', 'completed', 'events', 'failed']);
         $args = $this->addJobArgs($job);
         $args[] = $job->timestamp + $delay;
 
-        $this->execScriptOnTransaction($transaction, 'addDelayedJob-6.lua', $keys, $args);
+        $this->execScriptOnTransaction($transaction, 'addDelayedJob-7.lua', $keys, $args);
     }
 
     /**
@@ -161,11 +161,11 @@ class Scripts
      */
     private function addPrioritizedJobToTransaction(mixed $transaction, Job $job, int $priority): void
     {
-        $keys = $this->getKeys(['marker', 'meta', 'id', 'prioritized', 'delayed', 'completed', 'active', 'events', 'pc']);
+        $keys = $this->getKeys(['marker', 'meta', 'id', 'prioritized', 'delayed', 'completed', 'active', 'events', 'pc', 'failed']);
         $args = $this->addJobArgs($job);
         $args[] = $priority;
 
-        $this->execScriptOnTransaction($transaction, 'addPrioritizedJob-9.lua', $keys, $args);
+        $this->execScriptOnTransaction($transaction, 'addPrioritizedJob-10.lua', $keys, $args);
     }
 
     /**
@@ -242,11 +242,11 @@ class Scripts
      */
     public function addStandardJob(Job $job, int $timestamp): mixed
     {
-        $keys = $this->getKeys(['wait', 'paused', 'meta', 'id', 'completed', 'delayed', 'active', 'events', 'marker']);
+        $keys = $this->getKeys(['wait', 'paused', 'meta', 'id', 'completed', 'delayed', 'active', 'events', 'marker', 'failed']);
         $args = $this->addJobArgs($job);
         $args[] = $timestamp;
 
-        return $this->execScript('addStandardJob-9.lua', $keys, $args);
+        return $this->execScript('addStandardJob-10.lua', $keys, $args);
     }
 
     /**
@@ -258,11 +258,11 @@ class Scripts
      */
     public function addDelayedJob(Job $job, int $delay): mixed
     {
-        $keys = $this->getKeys(['marker', 'meta', 'id', 'delayed', 'completed', 'events']);
+        $keys = $this->getKeys(['marker', 'meta', 'id', 'delayed', 'completed', 'events', 'failed']);
         $args = $this->addJobArgs($job);
         $args[] = $job->timestamp + $delay;
 
-        return $this->execScript('addDelayedJob-6.lua', $keys, $args);
+        return $this->execScript('addDelayedJob-7.lua', $keys, $args);
     }
 
     /**
@@ -274,11 +274,11 @@ class Scripts
      */
     public function addPrioritizedJob(Job $job, int $priority): mixed
     {
-        $keys = $this->getKeys(['marker', 'meta', 'id', 'prioritized', 'delayed', 'completed', 'active', 'events', 'pc']);
+        $keys = $this->getKeys(['marker', 'meta', 'id', 'prioritized', 'delayed', 'completed', 'active', 'events', 'pc', 'failed']);
         $args = $this->addJobArgs($job);
         $args[] = $priority;
 
-        return $this->execScript('addPrioritizedJob-9.lua', $keys, $args);
+        return $this->execScript('addPrioritizedJob-10.lua', $keys, $args);
     }
 
     /**

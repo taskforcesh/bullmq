@@ -130,7 +130,7 @@ class Scripts:
         Add a standard job to the queue
         """
         keys = self.getKeys(['wait', 'paused', 'meta', 'id', 'completed',
-                             'delayed', 'active', 'events', 'marker'])
+                             'delayed', 'active', 'events', 'marker', 'failed'])
         args = self.addJobArgs(job)
         args.append(timestamp)
 
@@ -141,7 +141,7 @@ class Scripts:
         Add a delayed job to the queue
         """
         keys = self.getKeys(['marker', 'meta', 'id',
-                            'delayed', 'completed', 'events'])
+                            'delayed', 'completed', 'events', 'failed'])
         args = self.addJobArgs(job)
         args.append(timestamp)
 
@@ -152,7 +152,8 @@ class Scripts:
         Add a prioritized job to the queue
         """
         keys = self.getKeys(['marker', 'meta', 'id', 'prioritized',
-                             'delayed', 'completed', 'active', 'events', 'pc'])
+                             'delayed', 'completed', 'active', 'events', 'pc',
+                             'failed'])
         args = self.addJobArgs(job)
         args.append(timestamp)
 
@@ -162,7 +163,8 @@ class Scripts:
         """
         Add a job to the queue that is a parent
         """
-        keys = self.getKeys(['meta', 'id', 'delayed', 'waiting-children', 'completed', 'events'])
+        keys = self.getKeys(['meta', 'id', 'delayed', 'waiting-children', 'completed', 'events',
+                             'failed'])
 
         args = self.addJobArgs(job)
 

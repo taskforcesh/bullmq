@@ -337,11 +337,12 @@ defmodule BullMQ.Scripts do
           Keys.delayed(ctx),
           Keys.active(ctx),
           Keys.events(ctx),
-          Keys.marker(ctx)
+          Keys.marker(ctx),
+          Keys.failed(ctx)
         ]
 
         key_prefix = Keys.key_prefix(ctx)
-        num_keys = 9
+        num_keys = 10
 
         # Build commands efficiently
         results =
@@ -478,7 +479,9 @@ defmodule BullMQ.Scripts do
       # KEYS[8] events stream key
       Keys.events(ctx),
       # KEYS[9] marker key
-      Keys.marker(ctx)
+      Keys.marker(ctx),
+      # KEYS[10] 'failed'
+      Keys.failed(ctx)
     ]
 
     timestamp = get_job_timestamp(job) || System.system_time(:millisecond)
@@ -541,7 +544,8 @@ defmodule BullMQ.Scripts do
       Keys.delayed(ctx),
       Keys.active(ctx),
       Keys.events(ctx),
-      Keys.marker(ctx)
+      Keys.marker(ctx),
+      Keys.failed(ctx)
     ]
 
     timestamp = get_job_timestamp(job) || System.system_time(:millisecond)
@@ -637,7 +641,9 @@ defmodule BullMQ.Scripts do
       # KEYS[5] 'completed'
       Keys.completed(ctx),
       # KEYS[6] events stream key
-      Keys.events(ctx)
+      Keys.events(ctx),
+      # KEYS[7] 'failed'
+      Keys.failed(ctx)
     ]
 
     timestamp = get_job_timestamp(job) || System.system_time(:millisecond)
@@ -712,7 +718,9 @@ defmodule BullMQ.Scripts do
       # KEYS[8] events stream key
       Keys.events(ctx),
       # KEYS[9] 'pc' priority counter
-      Keys.pc(ctx)
+      Keys.pc(ctx),
+      # KEYS[10] 'failed'
+      Keys.failed(ctx)
     ]
 
     timestamp = get_job_timestamp(job) || System.system_time(:millisecond)
@@ -778,7 +786,9 @@ defmodule BullMQ.Scripts do
       # KEYS[5] 'completed'
       Keys.completed(ctx),
       # KEYS[6] events stream key
-      Keys.events(ctx)
+      Keys.events(ctx),
+      # KEYS[7] 'failed'
+      Keys.failed(ctx)
     ]
 
     timestamp = get_job_timestamp(job) || System.system_time(:millisecond)
@@ -819,13 +829,14 @@ defmodule BullMQ.Scripts do
   """
   @spec add_parent_job(atom(), queue_context(), map() | struct(), map()) :: script_result()
   def add_parent_job(conn, ctx, job, opts) do
-    # KEYS in order expected by addParentJob-6.lua:
+    # KEYS in order expected by addParentJob-7.lua:
     # KEYS[1] 'meta'
     # KEYS[2] 'id'
     # KEYS[3] 'delayed'
     # KEYS[4] 'waiting-children'
     # KEYS[5] 'completed'
     # KEYS[6] events stream key
+    # KEYS[7] 'failed'
     keys = [
       # KEYS[1] 'meta'
       Keys.meta(ctx),
@@ -838,7 +849,9 @@ defmodule BullMQ.Scripts do
       # KEYS[5] 'completed'
       Keys.completed(ctx),
       # KEYS[6] events stream key
-      Keys.events(ctx)
+      Keys.events(ctx),
+      # KEYS[7] 'failed'
+      Keys.failed(ctx)
     ]
 
     timestamp = get_job_timestamp(job) || System.system_time(:millisecond)

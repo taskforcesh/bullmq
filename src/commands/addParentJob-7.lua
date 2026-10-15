@@ -1,23 +1,21 @@
 --[[
-  Adds a delayed job to the queue by doing the following:
+  Adds a parent job to the queue by doing the following:
     - Increases the job counter if needed.
     - Creates a new job key with the job data.
+    - adds the job to the waiting-children zset
 
-    - computes timestamp.
-    - adds to delayed zset.
-    - Emits a global event 'delayed' if the job is delayed.
-    
     Input:
-      KEYS[1] 'marker',
-      KEYS[2] 'meta'
-      KEYS[3] 'id'
-      KEYS[4] 'delayed'
+      KEYS[1] 'meta'
+      KEYS[2] 'id'
+      KEYS[3] 'delayed'
+      KEYS[4] 'waiting-children'
       KEYS[5] 'completed'
       KEYS[6] events stream key
+      KEYS[7] 'failed'
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
-            [2]  custom id (use custom instead of one generated automatically)
+            [2]  custom id (will not generate one automatically)
             [3]  name
             [4]  timestamp
             [5]  parentKey?
@@ -33,12 +31,13 @@
         jobId  - OK
         -5     - Missing parent key
 ]]
-local metaKey = KEYS[2]
-local idKey = KEYS[3]
-local delayedKey = KEYS[4]
+local metaKey = KEYS[1]
+local idKey = KEYS[2]
+local delayedKey = KEYS[3]
 
 local completedKey = KEYS[5]
 local eventsKey = KEYS[6]
+local failedKey = KEYS[7]
 
 local jobId
 local jobIdKey
@@ -47,6 +46,7 @@ local rcall = redis.call
 local args = cmsgpack.unpack(ARGV[1])
 
 local data = ARGV[2]
+local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
 local parent = args[7]
@@ -55,8 +55,7 @@ local deduplicationKey = args[9]
 local parentData
 
 -- Includes
---- @include "includes/addDelayedJob"
---- @include "includes/deduplicateJob"
+--- @include "includes/deduplicateJobWithoutReplace"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/handleDuplicatedJob"
 --- @include "includes/storeJob"
@@ -70,11 +69,9 @@ end
 local jobCounter = rcall("INCR", idKey)
 
 local maxEvents = getOrSetMaxEvents(metaKey)
-local opts = cmsgpack.unpack(ARGV[3])
 
 local parentDependenciesKey = args[6]
 local timestamp = args[4]
-
 if args[2] == "" then
     jobId = jobCounter .. "" -- convert to string
     jobIdKey = args[1] .. jobId
@@ -83,22 +80,29 @@ else
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
         return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
-            parentData, parentDependenciesKey, completedKey, eventsKey,
+            parentData, parentDependenciesKey, completedKey, failedKey, eventsKey,
             maxEvents, timestamp)
     end
 end
 
-local deduplicationJobId = deduplicateJob(opts['de'], jobId, delayedKey, deduplicationKey,
-  eventsKey, maxEvents, args[1], args[3], ARGV[2], opts,
-  parentKey, parentData, parentDependenciesKey, repeatJobKey)
-if deduplicationJobId then
-  return deduplicationJobId
+local deduplicationId = opts['de'] and opts['de']['id']
+if deduplicationId then
+    local deduplicationJobId = deduplicateJobWithoutReplace(deduplicationId, opts['de'],
+        jobId, deduplicationKey, eventsKey, maxEvents, args[1], args[3], ARGV[2], opts,
+        parentKey, parentData, parentDependenciesKey, repeatJobKey)
+    if deduplicationJobId then
+        return deduplicationJobId
+    end
 end
 
-local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
-    opts, timestamp, parentKey, parentData, repeatJobKey)
+-- Store the job.
+storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2], opts, timestamp,
+         parentKey, parentData, repeatJobKey)
 
-addDelayedJob(jobId, delayedKey, eventsKey, timestamp, maxEvents, KEYS[1], delay)
+local waitChildrenKey = KEYS[4]
+rcall("ZADD", waitChildrenKey, timestamp, jobId)
+rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
+      "waiting-children", "jobId", jobId)
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
 if parentDependenciesKey ~= nil then

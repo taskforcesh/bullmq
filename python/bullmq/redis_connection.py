@@ -15,11 +15,11 @@ basePath = os.path.dirname(os.path.realpath(__file__))
 
 # Script definitions mapping script names to their file names
 SCRIPT_DEFINITIONS = {
-    "addStandardJob": "addStandardJob-9.lua",
-    "addDelayedJob": "addDelayedJob-6.lua",
+    "addStandardJob": "addStandardJob-10.lua",
+    "addDelayedJob": "addDelayedJob-7.lua",
     "addJobScheduler": "addJobScheduler-11.lua",
-    "addParentJob": "addParentJob-6.lua",
-    "addPrioritizedJob": "addPrioritizedJob-9.lua",
+    "addParentJob": "addParentJob-7.lua",
+    "addPrioritizedJob": "addPrioritizedJob-10.lua",
     "getJobScheduler": "getJobScheduler-1.lua",
     "changePriority": "changePriority-7.lua",
     "cleanJobsInSet": "cleanJobsInSet-3.lua",
