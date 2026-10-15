@@ -1,5 +1,6 @@
 import redis.asyncio as redis
-from typing import Optional, Union
+from redis.asyncio.cluster import RedisCluster
+from typing import Optional
 from redis.backoff import ExponentialBackoff
 from redis.asyncio.retry import Retry
 from redis.exceptions import (
@@ -9,6 +10,7 @@ from redis.exceptions import (
 )
 import warnings
 import os
+from bullmq.types.connection_options import ConnectionOptions
 from bullmq.utils import isRedisVersionLowerThan, is_redis_cluster, get_cluster_nodes, get_node_client
 
 basePath = os.path.dirname(os.path.realpath(__file__))
@@ -76,7 +78,7 @@ class RedisConnection:
 
     def __init__(
         self,
-        redisOpts: Union[dict, str, redis.Redis] = {},
+        redisOpts: ConnectionOptions = {},
         skipVersionCheck: bool = False,
         skipWaitingForReady: bool = False,
     ):
@@ -91,7 +93,7 @@ class RedisConnection:
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
-        if isinstance(redisOpts, redis.Redis):
+        if isinstance(redisOpts, (redis.Redis, RedisCluster)):
             self.conn = redisOpts
         elif isinstance(redisOpts, dict):
             defaultOpts = {
@@ -161,6 +163,15 @@ class RedisConnection:
         }
         return self.version
 
+    async def cluster_nodes(self) -> list:
+        """
+        The nodes of a cluster client, connecting first: a fresh redis-py
+        RedisCluster only discovers its nodes when it first connects.
+        """
+        if isinstance(self.conn, RedisCluster):
+            await self.conn.initialize()
+        return get_cluster_nodes(self.conn)
+
     async def set_client_name(self, name: str) -> None:
         if not name:
             return
@@ -168,8 +179,7 @@ class RedisConnection:
         self.client_name = name
 
         if is_redis_cluster(self.conn):
-            nodes = get_cluster_nodes(self.conn)
-            for node in nodes:
+            for node in await self.cluster_nodes():
                 node_client = get_node_client(node)
                 self._set_client_name_on_pool(node_client, name)
                 await self._set_client_name_on_client(node_client, name)
@@ -184,10 +194,8 @@ class RedisConnection:
             await client.execute_command("CLIENT", "SETNAME", name)
 
     def _set_client_name_on_pool(self, client, name: str) -> None:
-        pool = getattr(client, "connection_pool", None)
-        if pool is None:
-            return
-
+        # Cluster nodes hold their connection settings directly, without a pool.
+        pool = getattr(client, "connection_pool", client)
         connection_kwargs = getattr(pool, "connection_kwargs", None)
         if isinstance(connection_kwargs, dict):
             connection_kwargs["client_name"] = name
