@@ -1,3 +1,10 @@
+# [3.4.0](https://github.com/taskforcesh/bullmq/compare/vpy3.3.4...vpy3.4.0) (2026-10-15)
+
+
+### Features
+
+* **connection:** accept a redis-py RedisCluster client [python] ([#4873](https://github.com/taskforcesh/bullmq/issues/4873)) ([10396b5](https://github.com/taskforcesh/bullmq/commit/10396b5248930309e6f832e4342d8c84a365a86e))
+
 ## [3.3.4](https://github.com/taskforcesh/bullmq/compare/vpy3.3.3...vpy3.3.4) (2026-10-14)
 
 
