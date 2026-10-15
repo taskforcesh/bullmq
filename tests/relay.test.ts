@@ -1019,6 +1019,33 @@ describe(`Relay (${ctx.backend})`, () => {
     });
   });
 
+  describe('node connections', () => {
+    it('shows where a node is connected from, as the datastore sees it', async () => {
+      const ns = newNamespace();
+      const relay = await newRelay({ namespace: ns });
+      const other = await newRelay({ namespace: ns });
+
+      // The inbox connection opens with the node's first read.
+      let connections: Awaited<ReturnType<Relay['getNodeConnections']>> = [];
+      await waitFor(async () => {
+        connections = await relay.getNodeConnections();
+        return connections.length === 1;
+      });
+      expect(connections[0].address).toMatch(/\S/);
+      expect(connections[0].age).toBeGreaterThanOrEqual(0);
+      expect(connections[0].idle).toBeGreaterThanOrEqual(0);
+
+      // Any node (or dashboard) of the namespace can look it up.
+      expect(await other.getNodeConnections(relay.nodeId)).toHaveLength(1);
+      expect(await other.getNodeConnections('nobody')).toEqual([]);
+
+      await relay.close();
+      await waitFor(
+        async () => (await other.getNodeConnections(relay.nodeId)).length === 0,
+      );
+    });
+  });
+
   describe('leaves nothing behind', () => {
     // Another namespace's node: on PostgreSQL, sweeps clean every namespace.
     const sweepFromElsewhere = async () => {
