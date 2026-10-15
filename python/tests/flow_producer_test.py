@@ -84,6 +84,8 @@ class TestRedisBackendFlowInsertion(unittest.IsolatedAsyncioTestCase):
         )
         parent_job = SimpleNamespace(
             id=None,
+            parentKey=None,
+            parent=None,
             queue=SimpleNamespace(
                 name="parent",
                 backend=SimpleNamespace(scripts=parent_scripts),
@@ -91,6 +93,8 @@ class TestRedisBackendFlowInsertion(unittest.IsolatedAsyncioTestCase):
         )
         child_job = SimpleNamespace(
             id=None,
+            parentKey=None,
+            parent=None,
             queue=SimpleNamespace(
                 name="child",
                 backend=SimpleNamespace(scripts=child_scripts),

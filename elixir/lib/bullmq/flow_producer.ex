@@ -127,7 +127,7 @@ defmodule BullMQ.FlowProducer do
     case build_flow_commands(flow, nil, prefix, [], backend) do
       {:ok, commands, job_tree} ->
         # Execute the whole flow atomically through the backend
-        case Backend.add_flow(backend, commands) do
+        case Backend.add_flow(backend, commands, parents: flow_parents([job_tree])) do
           {:ok, results} ->
             # Check for errors in results
             errors = Enum.filter(results, &match?({:error, _}, &1))
@@ -193,7 +193,7 @@ defmodule BullMQ.FlowProducer do
       {:error, {:build_failed, errors}}
     else
       # Execute all commands atomically through the backend
-      case Backend.add_flow(backend, all_commands) do
+      case Backend.add_flow(backend, all_commands, parents: flow_parents(all_trees)) do
         {:ok, results} ->
           # Check for errors in results
           result_errors = Enum.filter(results, &match?({:error, _}, &1))
@@ -439,6 +439,24 @@ defmodule BullMQ.FlowProducer do
       end)
 
     populated
+  end
+
+  # Keep parents blocked until every command in the batch has registered its
+  # dependencies.
+  defp flow_parents(trees) do
+    trees
+    |> Enum.flat_map(&collect_flow_parents/1)
+    |> Enum.uniq_by(fn {key, _, _} -> key end)
+  end
+
+  defp collect_flow_parents(tree) do
+    children = Enum.flat_map(tree.children, &collect_flow_parents/1)
+
+    if tree.parent_key do
+      [{tree.parent_key, tree.parent, tree.timestamp} | children]
+    else
+      children
+    end
   end
 
   # Helper functions

@@ -157,6 +157,11 @@ impl ScriptRegistry {
                 6,
                 include_str!("commands/addParentJob-6.lua"),
             ),
+            (
+                "updateFlowDependencies",
+                1,
+                include_str!("commands/updateFlowDependencies-1.lua"),
+            ),
             ("addLog", 2, include_str!("commands/addLog-2.lua")),
             (
                 "moveToActive",

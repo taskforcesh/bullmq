@@ -50,6 +50,7 @@ SCRIPT_DEFINITIONS = {
     "moveJobsToWait": "moveJobsToWait-8.lua",
     "saveStacktrace": "saveStacktrace-1.lua",
     "updateData": "updateData-1.lua",
+    "updateFlowDependencies": "updateFlowDependencies-1.lua",
     "updateJobScheduler": "updateJobScheduler-12.lua",
     "updateProgress": "updateProgress-3.lua",
 }

@@ -754,6 +754,27 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   ): Promise<[Error | null, string | number][]> {
     const client = await this.queue.client;
     const multi = client.multi();
+    const parents = new Map<string, (string | number)[]>();
+
+    for (const entry of entries) {
+      const parentKey = entry.parentKeyOpts.parentKey;
+      const parent = entry.jobData.parent;
+      if (parentKey && parent && !parents.has(parentKey)) {
+        parents.set(parentKey, [
+          parentKey,
+          parent.queueKey,
+          parent.id,
+          entry.jobData.timestamp,
+        ]);
+      }
+    }
+
+    // Keep a temporary dependency until the whole transaction is registered.
+    // A completed duplicate must not release its parent before later siblings
+    // have added their dependencies.
+    for (const args of parents.values()) {
+      await this.execCommand(multi, 'updateFlowDependencies', [...args, '1']);
+    }
 
     for (const entry of entries) {
       const keys = new QueueKeys(entry.prefix).getKeys(entry.queueName);
@@ -766,7 +787,22 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       );
     }
 
-    return (await multi.exec()) as [Error | null, string | number][];
+    for (const args of parents.values()) {
+      await this.execCommand(multi, 'updateFlowDependencies', [...args, '0']);
+    }
+
+    const results = (await multi.exec()) as [Error | null, string | number][];
+    if (!results) {
+      return results;
+    }
+    const start = parents.size;
+    const end = start + entries.length;
+    for (const [error] of [...results.slice(0, start), ...results.slice(end)]) {
+      if (error) {
+        throw error;
+      }
+    }
+    return results.slice(start, end);
   }
 
   protected pauseArgs(pause: boolean, emitEvent = true): (string | number)[] {

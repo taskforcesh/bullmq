@@ -180,7 +180,18 @@ class RedisBackend(Backend):
         return job_ids
 
     async def addFlow(self, entries: list[dict]) -> list[str]:
+        parents = {}
+        for entry in entries:
+            job = entry["job"]
+            if job.parentKey and job.parent and job.parentKey not in parents:
+                parents[job.parentKey] = [
+                    job.parent["queueKey"], job.parent["id"], job.timestamp
+                ]
         async with self.connection.conn.pipeline(transaction=True) as pipe:
+            for parent_key, args in parents.items():
+                await self.scripts.commands["updateFlowDependencies"](
+                    keys=[parent_key], args=[*args, "1"], client=pipe
+                )
             for entry in entries:
                 job = entry["job"]
                 scripts = getattr(getattr(job.queue, "backend", None), "scripts", self.scripts)
@@ -188,7 +199,12 @@ class RedisBackend(Backend):
                     await scripts.addParentJob(job, pipe)
                 else:
                     await scripts.addJob(job, pipe)
+            for parent_key, args in parents.items():
+                await self.scripts.commands["updateFlowDependencies"](
+                    keys=[parent_key], args=[*args, "0"], client=pipe
+                )
             results = await pipe.execute()
+        results = results[len(parents):len(parents) + len(entries)]
         for index, job_id in enumerate(results):
             entries[index]["job"].id = job_id
         return results
