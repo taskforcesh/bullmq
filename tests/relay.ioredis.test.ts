@@ -200,13 +200,14 @@ describe('Relay on ioredis', () => {
       connection: { host: redisHost },
       prefix: isolated,
     });
-    for (const jobId of ['namespaces', '{id}', 'layout']) {
-      await queue.add('job', { jobId }, { jobId });
-    }
-    const queueKeys = new Set(await admin.keys(`${isolated}:*`));
-
     const relayBackends: RedisRelayBackend[] = [];
+    // Everything runs inside try, so a failure never leaves the queue behind.
     try {
+      for (const jobId of ['namespaces', '{id}', 'layout']) {
+        await queue.add('job', { jobId }, { jobId });
+      }
+      const queueKeys = new Set(await admin.keys(`${isolated}:*`));
+
       for (const ns of ['id', 'meta', 'relay']) {
         const backend = new RedisRelayBackend({
           connection: { host: redisHost },
