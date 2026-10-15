@@ -3,6 +3,7 @@ import {
   RelayBackendOptions,
   RelayCounts,
   RelayInboxBatch,
+  RelayNodeConnection,
   RelayNodeInfo,
   RelayNodeState,
   RelayPatternState,
@@ -27,6 +28,8 @@ import {
 import { loadCommandSql } from './sql-loader';
 
 const RELAY_CHANNEL = 'bullmq_relay';
+/** PostgreSQL truncates `application_name` to 63 bytes. */
+const MAX_APPLICATION_NAME = 63;
 
 /**
  * PostgreSQL implementation of {@link IRelayBackend}. Every operation is one of
@@ -48,6 +51,7 @@ export class PostgresRelayBackend implements IRelayBackend {
   readonly initialInboxCursor = '';
 
   private readonly connection: PostgresConnection;
+  private readonly nodeId?: string;
   private listening = false;
   private cancelWait?: () => void;
   /** Set by interruptInbox: reads stop waiting from then on. */
@@ -65,6 +69,7 @@ export class PostgresRelayBackend implements IRelayBackend {
       }
     }
     this.namespace = opts.namespace;
+    this.nodeId = opts.nodeId;
     this.connection = new PostgresConnection(opts.connection);
     this.connection.on('listenerinvalidated', () => {
       this.listening = false;
@@ -313,6 +318,17 @@ export class PostgresRelayBackend implements IRelayBackend {
     return rows.map(row => row.ns);
   }
 
+  async getNodeConnections(nodeId: string): Promise<RelayNodeConnection[]> {
+    const { rows } = await this.run('relay_get_node_connections', [
+      this.inboxConnectionName(nodeId),
+    ]);
+    return rows.map(row => ({
+      address: row.address,
+      age: Number(row.age),
+      idle: Number(row.idle),
+    }));
+  }
+
   /**
    * Makes a blocked readInbox return, and later reads return without
    * waiting: an interrupt that lands while a read is still querying (before
@@ -321,6 +337,13 @@ export class PostgresRelayBackend implements IRelayBackend {
   interruptInbox(): void {
     this.interrupted = true;
     this.cancelWait?.();
+  }
+
+  /** `application_name` of a node's inbox connection. */
+  private inboxConnectionName(nodeId: string) {
+    return Buffer.from(`bullmq:relay:${this.namespace}:${nodeId}`)
+      .subarray(0, MAX_APPLICATION_NAME)
+      .toString();
   }
 
   private async readRows(nodeId: string, ack: string[], count: number) {
@@ -338,6 +361,13 @@ export class PostgresRelayBackend implements IRelayBackend {
     const client = await this.connection.getListenClient();
     if (!this.listening) {
       await client.query(loadCommandSql('listen_relay'));
+      if (this.nodeId) {
+        // Named after the node (re-applied if the connection is rebuilt) so
+        // getNodeConnections can find it.
+        await this.connection.setListenClientName(
+          this.inboxConnectionName(this.nodeId),
+        );
+      }
       this.listening = true;
     }
     return client;

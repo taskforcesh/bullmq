@@ -110,6 +110,19 @@ export interface RelayRetainedState extends RelayRetainedMessage {
   expiresAt: number;
 }
 
+/**
+ * A node's inbox connection (the long-lived connection on which it receives
+ * its messages), as the datastore sees it.
+ */
+export interface RelayNodeConnection {
+  /** Client address, as seen by the datastore ("ip:port", or "local"). */
+  address: string;
+  /** Seconds since the connection was opened. */
+  age: number;
+  /** Seconds since its last command (or state change, on PostgreSQL). */
+  idle: number;
+}
+
 export interface RelayCounts {
   /** Registered nodes, including expired ones not swept yet. */
   nodes: number;
@@ -234,6 +247,14 @@ export interface IRelayBackend {
   getNamespaces(): Promise<string[]>;
 
   /**
+   * The inbox connection of a node, as the datastore sees it (from `CLIENT
+   * LIST` or `pg_stat_activity`): where it connects from, and for how long.
+   * Empty when the node isn't connected. Lists every client connection of
+   * the datastore, so use it on demand rather than polling it.
+   */
+  getNodeConnections(nodeId: string): Promise<RelayNodeConnection[]>;
+
+  /**
    * Makes a blocked {@link readInbox} return (or fail) promptly, and later
    * reads stop waiting. Used on close, so an interrupt that lands while a read
    * is still starting is not lost.
@@ -244,6 +265,11 @@ export interface IRelayBackend {
 export interface RelayBackendOptions<C = ConnectionOptions> {
   connection: C;
   namespace: string;
+  /**
+   * The node this backend serves, if any: its inbox connection is named
+   * after it, so getNodeConnections can find it.
+   */
+  nodeId?: string;
   /** Key prefix (Redis only). */
   prefix?: string;
   /** Approximate max inbox length per node, applied on publish (Redis). */
