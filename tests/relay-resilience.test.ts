@@ -102,6 +102,9 @@ class FakeBackend implements IRelayBackend {
   async getNamespaces() {
     return [];
   }
+  async getNodeConnections() {
+    return [];
+  }
   interruptInbox() {
     this.wake?.();
   }

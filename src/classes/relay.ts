@@ -7,6 +7,7 @@ import {
   RelayBackendFactory,
   RelayCounts,
   RelayInboxEntry,
+  RelayNodeConnection,
   RelayNodeState,
   RelayPatternState,
   RelayPublishResult,
@@ -192,6 +193,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     this.backend = factory({
       connection: opts.connection,
       namespace: this.namespace,
+      nodeId: this.nodeId,
       prefix: opts.prefix,
       inboxMaxLength: this.inboxMaxLength,
       skipVersionCheck: opts.skipVersionCheck,
@@ -311,6 +313,22 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   async getRetained(start = 0, end = -1): Promise<RelayRetainedState[]> {
     await this.ready;
     return this.backend.getRetained(...checkRange(start, end));
+  }
+
+  /**
+   * A node's inbox connection (this node's by default), as the datastore sees
+   * it: its address and how long it has been open and idle. Empty when the
+   * node isn't connected. Lists every client of the datastore: use it on
+   * demand, not on a timer.
+   */
+  async getNodeConnections(
+    nodeId = this.nodeId,
+  ): Promise<RelayNodeConnection[]> {
+    await this.ready;
+    if (!ID_RE.test(nodeId)) {
+      throw new Error(`Invalid relay nodeId: ${nodeId}`);
+    }
+    return this.backend.getNodeConnections(nodeId);
   }
 
   /** Namespaces in use in the datastore (or Redis prefix). */

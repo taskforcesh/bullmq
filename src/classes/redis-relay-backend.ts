@@ -6,6 +6,7 @@ import {
   RelayCounts,
   RelayInboxBatch,
   RelayInboxEntry,
+  RelayNodeConnection,
   RelayNodeInfo,
   RelayNodeState,
   RelayPatternState,
@@ -79,6 +80,7 @@ export class RedisRelayBackend implements IRelayBackend {
   private readonly baseKey: string;
   private readonly nodesKey: string;
   private readonly registryKey: string;
+  private readonly nodeId?: string;
   private readonly skipVersionCheck: boolean;
   private readonly inboxMaxLength: number;
   private readonly connectionOpts: ConnectionOptions;
@@ -94,6 +96,7 @@ export class RedisRelayBackend implements IRelayBackend {
     this.baseKey = `${prefix}::relay:{${opts.namespace}}`;
     this.nodesKey = `${this.baseKey}:nodes`;
     this.registryKey = `${prefix}::relay:namespaces`;
+    this.nodeId = opts.nodeId;
     this.skipVersionCheck = opts.skipVersionCheck === true;
     this.inboxMaxLength = opts.inboxMaxLength ?? DEFAULT_INBOX_MAX_LENGTH;
 
@@ -334,6 +337,41 @@ export class RedisRelayBackend implements IRelayBackend {
     ]);
   }
 
+  async getNodeConnections(nodeId: string): Promise<RelayNodeConnection[]> {
+    const client = await this.connection.client;
+    // Every node of a cluster: the connection may be to any of them.
+    const lists: string[] =
+      client.isCluster && typeof client.nodes === 'function'
+        ? await Promise.all(
+            (client.nodes() || []).map((node: any) =>
+              typeof node.clientList === 'function'
+                ? node.clientList()
+                : node.client('LIST'),
+            ),
+          )
+        : [await client.clientList()];
+
+    const name = this.inboxConnectionName(nodeId);
+    const connections: RelayNodeConnection[] = [];
+    for (const line of lists.join('\n').split('\n')) {
+      const fields: Record<string, string> = {};
+      for (const pair of line.trim().split(' ')) {
+        const eq = pair.indexOf('=');
+        if (eq > 0) {
+          fields[pair.slice(0, eq)] = pair.slice(eq + 1);
+        }
+      }
+      if (fields.name === name) {
+        connections.push({
+          address: fields.addr,
+          age: Number(fields.age),
+          idle: Number(fields.idle),
+        });
+      }
+    }
+    return connections;
+  }
+
   interruptInbox(): void {
     this.interrupted = true;
     this.blockingConnection?.client
@@ -344,12 +382,18 @@ export class RedisRelayBackend implements IRelayBackend {
   private getBlockingConnection(): RedisConnection {
     if (!this.blockingConnection) {
       const shared = isRedisInstance(this.connectionOpts);
+      // Named after the node (CLIENT SETNAME, re-applied on reconnects) so
+      // getNodeConnections can find it.
+      const naming = this.nodeId
+        ? { connectionName: this.inboxConnectionName(this.nodeId) }
+        : {};
       this.blockingConnection = new RedisConnection(
         shared
           ? (this.connectionOpts as IRedisClient).duplicate({
               maxRetriesPerRequest: null,
+              ...naming,
             })
-          : this.connectionOpts,
+          : { ...(this.connectionOpts as object), ...naming },
         {
           shared: false,
           blocking: true,
@@ -358,6 +402,11 @@ export class RedisRelayBackend implements IRelayBackend {
       );
     }
     return this.blockingConnection;
+  }
+
+  /** Redis client name of a node's inbox connection. */
+  private inboxConnectionName(nodeId: string) {
+    return `${this.baseKey}:${nodeId}`;
   }
 
   private get(
