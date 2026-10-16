@@ -3,10 +3,11 @@ use redis::aio::{
 };
 use redis::cluster::ClusterClient;
 use redis::cluster_async::ClusterConnection;
-use redis::cluster_routing::{MultipleNodeRoutingInfo, RoutingInfo};
+use redis::cluster_routing::{RoutingInfo, SingleNodeRoutingInfo};
 use redis::{
     AsyncConnectionConfig, Client, ClientTlsConfig, RedisFuture, TlsCertificates, TlsMode, Value,
 };
+use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -439,16 +440,64 @@ impl RedisConnection {
             return Ok(vec![self.cmd(&mut cmd).await?]);
         };
 
-        let routing = RoutingInfo::MultiNode((MultipleNodeRoutingInfo::AllMasters, None));
-        let reply = conn.route_command(cmd, routing).await?;
-        let entries = match reply {
-            Value::Map(entries) => entries.into_iter().map(|(_, value)| value).collect(),
-            other => vec![other],
-        };
-        Ok(entries
+        let primaries = Self::cluster_primary_addresses(&mut conn).await?;
+        Ok(Self::client_lists_from_primaries(&conn, primaries).await)
+    }
+
+    async fn cluster_primary_addresses(
+        conn: &mut ClusterConnection,
+    ) -> Result<BTreeSet<(String, u16)>, Error> {
+        let mut cmd = redis::cmd("CLUSTER");
+        cmd.arg("SLOTS");
+        let reply = conn
+            .route_command(
+                cmd,
+                RoutingInfo::SingleNode(SingleNodeRoutingInfo::RandomPrimary),
+            )
+            .await?;
+        let slots: Vec<(u16, u16, Vec<Value>)> =
+            redis::from_redis_value(reply).map_err(redis::RedisError::from)?;
+        let mut primaries = BTreeSet::new();
+        for (_, _, primary) in slots {
+            let (Some(host), Some(port)) = (primary.first(), primary.get(1)) else {
+                continue;
+            };
+            if let (Ok(host), Ok(port)) = (
+                redis::from_redis_value::<String>(host.clone()),
+                redis::from_redis_value::<u16>(port.clone()),
+            ) {
+                if !host.is_empty() {
+                    primaries.insert((host, port));
+                }
+            }
+        }
+        Ok(primaries)
+    }
+
+    async fn client_lists_from_primaries(
+        conn: &ClusterConnection,
+        primaries: impl IntoIterator<Item = (String, u16)>,
+    ) -> Vec<String> {
+        let requests = primaries.into_iter().map(|(host, port)| {
+            let mut conn = conn.clone();
+            async move {
+                let mut cmd = redis::cmd("CLIENT");
+                cmd.arg("LIST");
+                let reply = conn
+                    .route_command(
+                        cmd,
+                        RoutingInfo::SingleNode(SingleNodeRoutingInfo::ByAddress { host, port }),
+                    )
+                    .await
+                    .ok()?;
+                redis::from_redis_value::<String>(reply).ok()
+            }
+        });
+        futures::future::join_all(requests)
+            .await
             .into_iter()
-            .filter_map(|value| redis::from_redis_value::<String>(value).ok())
-            .collect())
+            .flatten()
+            .collect()
     }
 
     /// Ping the server to verify connectivity.
@@ -495,6 +544,9 @@ struct BlockingInner {
     /// stored [`client_name`](BlockingInner::client_name) has to be reapplied
     /// before the connection is used again.
     needs_renaming: AtomicBool,
+    /// Last time the stored client name was reconciled, even if the cluster
+    /// connection transparently recovered without surfacing an error.
+    last_name_reconcile: Mutex<Option<std::time::Instant>>,
 }
 
 /// Whether a failed `CLIENT SETNAME` is worth retrying once the connection has
@@ -512,6 +564,7 @@ fn is_transient_connection_error(err: &Error) -> bool {
 /// connection is considered stuck. Mirrors the TypeScript worker's
 /// `blockTimeout + 1s` watchdog.
 const BLOCK_WATCHDOG_GRACE: std::time::Duration = std::time::Duration::from_secs(1);
+const CLIENT_NAME_RECONCILE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
 
 impl BlockingRedisConnection {
     /// Create a new blocking connection from a Redis client.
@@ -578,6 +631,7 @@ impl BlockingRedisConnection {
                 compat_conn,
                 client_name: std::sync::Mutex::new(None),
                 needs_renaming: AtomicBool::new(false),
+                last_name_reconcile: Mutex::new(None),
             }),
         })
     }
@@ -658,7 +712,10 @@ impl BlockingRedisConnection {
         let command = cmd.query_async::<Option<(String, String, f64)>>(&mut *conn);
 
         match tokio::time::timeout(watchdog, command).await {
-            Ok(Ok(value)) => Ok(value),
+            Ok(Ok(value)) => {
+                self.reapply_client_name(&mut conn).await;
+                Ok(value)
+            }
             Ok(Err(err)) => {
                 // The command failed, most likely because the socket died.
                 // `ConnectionManager` reconnects in the background and the
@@ -714,14 +771,17 @@ impl BlockingRedisConnection {
         match Self::apply_client_name(&mut conn, name).await {
             Ok(()) => {
                 self.inner.needs_renaming.store(false, Ordering::Release);
+                self.record_name_reconcile().await;
                 Ok(())
             }
             Err(err) => {
-                // Only schedule a retry when the failure looks transient; a
-                // rejection by the server will not succeed later either.
+                let transient = is_transient_connection_error(&err);
                 self.inner
                     .needs_renaming
-                    .store(is_transient_connection_error(&err), Ordering::Release);
+                    .store(transient, Ordering::Release);
+                if !transient {
+                    self.record_name_reconcile().await;
+                }
                 Err(err)
             }
         }
@@ -761,18 +821,23 @@ impl BlockingRedisConnection {
     /// worker that recovered from a Redis restart would silently disappear from
     /// `Queue::get_workers`, which discovers workers by `CLIENT LIST` name.
     async fn reapply_client_name(&self, conn: &mut AnyConnection) {
-        if !self.inner.needs_renaming.load(Ordering::Acquire) {
+        let mut last_reconcile = self.inner.last_name_reconcile.lock().await;
+        if !self.inner.needs_renaming.load(Ordering::Acquire)
+            && last_reconcile.is_some_and(|last| last.elapsed() < CLIENT_NAME_RECONCILE_INTERVAL)
+        {
             return;
         }
 
         let Some(name) = self.stored_client_name() else {
             self.inner.needs_renaming.store(false, Ordering::Release);
+            *last_reconcile = Some(std::time::Instant::now());
             return;
         };
 
         match Self::apply_client_name(conn, &name).await {
             Ok(()) => {
                 self.inner.needs_renaming.store(false, Ordering::Release);
+                *last_reconcile = Some(std::time::Instant::now());
                 debug!(client_name = %name, "reapplied client name after reconnect");
             }
             Err(err) if is_transient_connection_error(&err) => {
@@ -781,9 +846,14 @@ impl BlockingRedisConnection {
             }
             Err(err) => {
                 self.inner.needs_renaming.store(false, Ordering::Release);
+                *last_reconcile = Some(std::time::Instant::now());
                 warn!(error = %err, "server rejected CLIENT SETNAME, worker will not be listed");
             }
         }
+    }
+
+    async fn record_name_reconcile(&self) {
+        *self.inner.last_name_reconcile.lock().await = Some(std::time::Instant::now());
     }
 }
 
@@ -792,7 +862,8 @@ mod tests {
     use super::build_client;
     use super::build_cluster_client;
     use super::is_transient_connection_error;
-    use super::{BlockingRedisConnection, ManagedConn, RedisConnection};
+    use super::CLIENT_NAME_RECONCILE_INTERVAL;
+    use super::{AnyConnection, BlockingRedisConnection, ManagedConn, RedisConnection};
     use crate::error::Error;
     use crate::options::{redact_url_userinfo, RedisConnectionOptions, TlsCerts};
     use redis::aio::MultiplexedConnection;
@@ -867,6 +938,16 @@ mod tests {
             .cluster_nodes(["redis://127.0.0.1:7000", "redis://127.0.0.1:7001"])
     }
 
+    fn cluster_opts_from_env() -> Option<RedisConnectionOptions> {
+        let nodes = std::env::var("REDIS_CLUSTER_NODES").ok()?;
+        let nodes: Vec<_> = nodes
+            .split(',')
+            .map(str::trim)
+            .filter(|node| !node.is_empty())
+            .collect();
+        (!nodes.is_empty()).then(|| RedisConnectionOptions::new().cluster_nodes(nodes))
+    }
+
     #[test]
     fn build_cluster_client_succeeds() {
         assert!(build_cluster_client(&cluster_opts(), None).is_ok());
@@ -891,6 +972,60 @@ mod tests {
             build_cluster_client(&opts, None),
             Err(Error::InvalidConfig(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn cluster_client_lists_skip_an_unavailable_primary() {
+        let Some(opts) = cluster_opts_from_env() else {
+            return;
+        };
+        let connection = RedisConnection::new_managed_only(&opts).await.unwrap();
+        let AnyConnection::Cluster(mut cluster) = connection.connection() else {
+            unreachable!();
+        };
+        let primaries = RedisConnection::cluster_primary_addresses(&mut cluster)
+            .await
+            .unwrap();
+        assert!(!primaries.is_empty());
+
+        let mut requested = primaries.clone();
+        requested.insert(("127.0.0.1".to_string(), 1));
+        let lists = RedisConnection::client_lists_from_primaries(&cluster, requested).await;
+
+        assert_eq!(lists.len(), primaries.len());
+    }
+
+    #[tokio::test]
+    async fn cluster_worker_name_is_reconciled_after_connection_name_loss() {
+        let Some(opts) = cluster_opts_from_env() else {
+            return;
+        };
+        let connection = RedisConnection::new_managed_only(&opts).await.unwrap();
+        let blocking = BlockingRedisConnection::new_managed(&connection)
+            .await
+            .unwrap();
+        let name = format!("bullmq-rs-test:w:{}", uuid::Uuid::new_v4());
+        blocking.managed_set_name(&name).await.unwrap();
+
+        {
+            let mut conn = blocking.inner.conn.lock().await;
+            BlockingRedisConnection::apply_client_name(&mut conn, "")
+                .await
+                .unwrap();
+            *blocking.inner.last_name_reconcile.lock().await =
+                Some(std::time::Instant::now() - CLIENT_NAME_RECONCILE_INTERVAL);
+        }
+
+        let result = blocking
+            .managed_bzpopmin("{bullmq-rs-reconnect-test}:wait", 0.01)
+            .await
+            .unwrap();
+        assert!(result.is_none());
+
+        let lists = connection.client_lists().await.unwrap();
+        assert!(lists
+            .iter()
+            .any(|list| list.contains(&format!("name={name}"))));
     }
 
     #[test]
