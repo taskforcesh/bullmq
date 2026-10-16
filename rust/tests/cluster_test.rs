@@ -13,7 +13,7 @@ mod common;
 use bullmq::flow_producer::{FlowJob, FlowProducer, FlowProducerOptions};
 use bullmq::options::RedisConnectionOptions;
 use bullmq::redis_connection::{AnyConnection, BlockingRedisConnection, RedisConnection};
-use bullmq::worker::{CancellationToken, ProcessorFn};
+use bullmq::worker::{CancellationToken, ProcessorFn, WorkerEvent};
 use bullmq::{
     Job, Queue, QueueEvent, QueueEvents, QueueEventsOptions, QueueOptions, Worker, WorkerOptions,
 };
@@ -110,6 +110,122 @@ async fn test_cluster_connection_routes_commands() {
         .await
         .unwrap();
     drop(blocking);
+}
+
+#[tokio::test]
+async fn test_cluster_idle_worker_picks_up_new_job_quickly() {
+    let opts = cluster_or_skip!();
+    let name = test_queue_name();
+    let queue = cluster_queue(&name, &opts).await;
+    let worker = Worker::with_options(
+        &name,
+        echo_processor(),
+        WorkerOptions {
+            connection: opts,
+            prefix: PREFIX.to_string(),
+            autorun: true,
+            drain_delay: 30,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            match worker.next_event().await {
+                Some(WorkerEvent::Drained) => break,
+                Some(WorkerEvent::Error(message)) => panic!("worker error: {message}"),
+                Some(_) => {}
+                None => panic!("worker event channel closed"),
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for the cluster worker to become idle");
+
+    // Keep BZPOPMIN blocked past the regular connection's 10s response timeout,
+    // but enqueue well before the 30s drain delay so polling cannot pass.
+    tokio::time::sleep(Duration::from_secs(12)).await;
+
+    tokio::time::timeout(Duration::from_secs(3), async {
+        let job = queue
+            .add("wake-up", serde_json::json!({"hello": "world"}))
+            .await
+            .unwrap();
+        loop {
+            match worker.next_event().await {
+                Some(WorkerEvent::Completed { job_id, .. }) => {
+                    assert_eq!(job_id, job.id());
+                    break;
+                }
+                Some(WorkerEvent::Error(message)) => {
+                    panic!("idle cluster worker emitted a spurious error: {message}");
+                }
+                Some(_) => {}
+                None => panic!("worker event channel closed"),
+            }
+        }
+    })
+    .await
+    .expect("idle cluster worker did not promptly pick up the job via BZPOPMIN");
+
+    worker.close(5000).await.unwrap();
+    cleanup_queue(&queue).await;
+    queue.close().await;
+}
+
+#[tokio::test]
+async fn test_cluster_idle_queue_emits_no_spurious_error_events() {
+    let opts = cluster_or_skip!();
+    let name = test_queue_name();
+    let queue = cluster_queue(&name, &opts).await;
+    let events = QueueEvents::with_options(
+        &name,
+        QueueEventsOptions {
+            connection: opts,
+            prefix: PREFIX.to_string(),
+            last_event_id: Some("0".to_string()),
+            blocking_timeout: 30_000,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    // XREAD BLOCK must outlive the regular connection's 10s response timeout
+    // without emitting errors, then still deliver events when the queue wakes.
+    tokio::time::sleep(Duration::from_secs(12)).await;
+    while let Some(entry) = events.try_next_event().await {
+        if let QueueEvent::Error { message } = entry.event {
+            panic!("idle cluster queue emitted a spurious error event: {message}");
+        }
+    }
+
+    tokio::time::timeout(Duration::from_secs(3), async {
+        let job = queue.add("wake-up", serde_json::json!({})).await.unwrap();
+        loop {
+            match events.next_event().await {
+                Some(entry) => match entry.event {
+                    QueueEvent::Added { job_id, .. } => {
+                        assert_eq!(job_id, job.id());
+                        break;
+                    }
+                    QueueEvent::Error { message } => {
+                        panic!("cluster queue emitted a spurious error event: {message}");
+                    }
+                    _ => {}
+                },
+                None => panic!("QueueEvents closed before the added event"),
+            }
+        }
+    })
+    .await
+    .expect("idle cluster QueueEvents did not promptly deliver the added event");
+
+    events.close().await;
+    cleanup_queue(&queue).await;
+    queue.close().await;
 }
 
 #[tokio::test]
