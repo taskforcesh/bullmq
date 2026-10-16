@@ -455,6 +455,24 @@ BEGIN
 END;
 $$;
 
+-- Deletes the retained message of a topic; returns whether there was one.
+CREATE FUNCTION relay_delete_retained(p_ns text, p_topic text)
+RETURNS boolean
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF relay_parse_topic(p_topic, false) IS NULL THEN
+    RAISE EXCEPTION 'bullmq: relay invalid topic %', p_topic
+      USING ERRCODE = 'BM001', DETAIL = '-1';
+  END IF;
+  -- Same lock as publishes and exact subscriptions of the topic.
+  PERFORM pg_advisory_xact_lock(hashtext(p_ns), hashtext(p_topic));
+  DELETE FROM relay_retained
+   WHERE ns = p_ns AND topic = p_topic
+     AND expires_at >= clock_timestamp();
+  RETURN FOUND;
+END;
+$$;
+
 -- Read-only getters, for dashboards. Pages are inclusive [p_start, p_end]
 -- positions (p_end < 0: to the end); orders match the Redis backend (bytewise
 -- on the same composite values), so pagination behaves the same.

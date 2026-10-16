@@ -35,6 +35,7 @@ new Relay(options: RelayOptions)
 | ----------------------------------- | ----------------------------- | -------------------------------------------------------------------------------- |
 | `subscribe(pattern, listener)`      | `Promise<RelaySubscription>`  | Subscribes to a topic or pattern. Exact topics get their retained message first. |
 | `publish(topic, data, { retain? })` | `Promise<RelayPublishResult>` | Publishes on a concrete topic. `retain` in ms keeps it as the retained message.  |
+| `deleteRetained(topic)`             | `Promise<boolean>`            | Deletes a topic's retained message; `false` if it had none.                      |
 | `waitUntilReady()`                  | `Promise<void>`               | Resolves once the node is registered and reading its inbox.                      |
 | `close()`                           | `Promise<void>`               | Unregisters the node and closes its connections. Idempotent.                     |
 

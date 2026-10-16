@@ -105,6 +105,9 @@ class FakeBackend implements IRelayBackend {
   async getNodeConnections() {
     return [];
   }
+  async deleteRetained() {
+    return false;
+  }
   interruptInbox() {
     this.wake?.();
   }
