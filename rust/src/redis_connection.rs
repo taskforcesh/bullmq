@@ -8,6 +8,7 @@ use redis::{
     AsyncConnectionConfig, Client, ClientTlsConfig, RedisFuture, TlsCertificates, TlsMode, Value,
 };
 use std::collections::BTreeSet;
+use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -455,10 +456,22 @@ impl RedisConnection {
                 RoutingInfo::SingleNode(SingleNodeRoutingInfo::RandomPrimary),
             )
             .await?;
-        let slots: Vec<(u16, u16, Vec<Value>)> =
+        Self::cluster_primary_addresses_from_slots(reply)
+    }
+
+    fn cluster_primary_addresses_from_slots(
+        reply: Value,
+    ) -> Result<BTreeSet<(String, u16)>, Error> {
+        let slots: Vec<Vec<Value>> =
             redis::from_redis_value(reply).map_err(redis::RedisError::from)?;
         let mut primaries = BTreeSet::new();
-        for (_, _, primary) in slots {
+        for slot in slots {
+            let Some(primary) = slot.get(2) else {
+                continue;
+            };
+            let Ok(primary) = redis::from_redis_value::<Vec<Value>>(primary.clone()) else {
+                continue;
+            };
             let (Some(host), Some(port)) = (primary.first(), primary.get(1)) else {
                 continue;
             };
@@ -565,6 +578,39 @@ fn is_transient_connection_error(err: &Error) -> bool {
 /// `blockTimeout + 1s` watchdog.
 const BLOCK_WATCHDOG_GRACE: std::time::Duration = std::time::Duration::from_secs(1);
 const CLIENT_NAME_RECONCILE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
+const CLIENT_NAME_RECONCILE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+
+async fn reconcile_client_name<F>(
+    needs_renaming: &AtomicBool,
+    last_reconcile: &mut Option<std::time::Instant>,
+    name: &str,
+    request: F,
+) where
+    F: Future<Output = Result<(), Error>>,
+{
+    match tokio::time::timeout(CLIENT_NAME_RECONCILE_TIMEOUT, request).await {
+        Ok(Ok(())) => {
+            needs_renaming.store(false, Ordering::Release);
+            *last_reconcile = Some(std::time::Instant::now());
+            debug!(client_name = %name, "reapplied client name after reconnect");
+        }
+        Ok(Err(err)) if is_transient_connection_error(&err) => {
+            // Still reconnecting — keep the flag so the next call retries.
+            warn!(error = %err, "could not reapply client name yet, will retry");
+        }
+        Err(_) => {
+            // A cluster node may be unresponsive while the other nodes work.
+            // Keep the flag so the next read retries after this bounded request.
+            needs_renaming.store(true, Ordering::Release);
+            warn!("timed out reapplying client name, will retry");
+        }
+        Ok(Err(err)) => {
+            needs_renaming.store(false, Ordering::Release);
+            *last_reconcile = Some(std::time::Instant::now());
+            warn!(error = %err, "server rejected CLIENT SETNAME, worker will not be listed");
+        }
+    }
+}
 
 impl BlockingRedisConnection {
     /// Create a new blocking connection from a Redis client.
@@ -834,22 +880,13 @@ impl BlockingRedisConnection {
             return;
         };
 
-        match Self::apply_client_name(conn, &name).await {
-            Ok(()) => {
-                self.inner.needs_renaming.store(false, Ordering::Release);
-                *last_reconcile = Some(std::time::Instant::now());
-                debug!(client_name = %name, "reapplied client name after reconnect");
-            }
-            Err(err) if is_transient_connection_error(&err) => {
-                // Still reconnecting — keep the flag so the next call retries.
-                warn!(error = %err, "could not reapply client name yet, will retry");
-            }
-            Err(err) => {
-                self.inner.needs_renaming.store(false, Ordering::Release);
-                *last_reconcile = Some(std::time::Instant::now());
-                warn!(error = %err, "server rejected CLIENT SETNAME, worker will not be listed");
-            }
-        }
+        reconcile_client_name(
+            &self.inner.needs_renaming,
+            &mut last_reconcile,
+            &name,
+            Self::apply_client_name(conn, &name),
+        )
+        .await;
     }
 
     async fn record_name_reconcile(&self) {
@@ -862,12 +899,16 @@ mod tests {
     use super::build_client;
     use super::build_cluster_client;
     use super::is_transient_connection_error;
-    use super::CLIENT_NAME_RECONCILE_INTERVAL;
+    use super::{
+        reconcile_client_name, CLIENT_NAME_RECONCILE_INTERVAL, CLIENT_NAME_RECONCILE_TIMEOUT,
+    };
     use super::{AnyConnection, BlockingRedisConnection, ManagedConn, RedisConnection};
     use crate::error::Error;
     use crate::options::{redact_url_userinfo, RedisConnectionOptions, TlsCerts};
     use redis::aio::MultiplexedConnection;
     use redis::Client;
+    use redis::Value;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use tokio::sync::MutexGuard;
 
     #[allow(dead_code)]
@@ -936,6 +977,59 @@ mod tests {
     fn cluster_opts() -> RedisConnectionOptions {
         RedisConnectionOptions::new()
             .cluster_nodes(["redis://127.0.0.1:7000", "redis://127.0.0.1:7001"])
+    }
+
+    #[test]
+    fn cluster_slots_with_replicas_return_only_the_primary() {
+        let reply = Value::Array(vec![Value::Array(vec![
+            Value::Int(0),
+            Value::Int(5460),
+            Value::Array(vec![
+                Value::BulkString(b"127.0.0.1".to_vec()),
+                Value::Int(7000),
+                Value::BulkString(b"primary-id".to_vec()),
+            ]),
+            Value::Array(vec![
+                Value::BulkString(b"127.0.0.1".to_vec()),
+                Value::Int(7001),
+                Value::BulkString(b"replica-id".to_vec()),
+            ]),
+        ])]);
+
+        let primaries = RedisConnection::cluster_primary_addresses_from_slots(reply).unwrap();
+
+        assert_eq!(
+            primaries,
+            [("127.0.0.1".to_string(), 7000)].into_iter().collect()
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn blocking_client_name_retries_after_a_nonresponding_request() {
+        let needs_renaming = AtomicBool::new(true);
+        let mut last_reconcile = None;
+        {
+            let request = reconcile_client_name(
+                &needs_renaming,
+                &mut last_reconcile,
+                "worker-name",
+                std::future::pending(),
+            );
+            tokio::pin!(request);
+            tokio::time::advance(CLIENT_NAME_RECONCILE_TIMEOUT).await;
+            request.await;
+        }
+
+        assert!(needs_renaming.load(Ordering::Acquire));
+        assert!(last_reconcile.is_none());
+
+        reconcile_client_name(&needs_renaming, &mut last_reconcile, "worker-name", async {
+            Ok(())
+        })
+        .await;
+
+        assert!(!needs_renaming.load(Ordering::Acquire));
+        assert!(last_reconcile.is_some());
     }
 
     fn cluster_opts_from_env() -> Option<RedisConnectionOptions> {
