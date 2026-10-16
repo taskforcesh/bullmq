@@ -604,6 +604,35 @@ describe(`Relay (${ctx.backend})`, () => {
       expect(later.retained?.data).toBe('20');
     });
 
+    it('deletes retained messages', async () => {
+      const backend = await newBackend(newNamespace());
+      await backend.registerNode('n1', 30_000);
+      const opts = { ts: 1, retainMs: 30_000, maxSize: 100 };
+      await backend.publish('a.b', '"kept"', opts);
+      await backend.publish('a.c', '"other"', opts);
+
+      expect(await backend.deleteRetained('a.b')).toBe(true);
+      expect(await backend.deleteRetained('a.b')).toBe(false);
+      expect(await backend.deleteRetained('never.retained')).toBe(false);
+      await expectRelayError(
+        backend.deleteRetained('a.*'),
+        RelayErrorCode.InvalidTopic,
+      );
+
+      expect(
+        (await backend.subscribe('n1', 'e1', 'a.b')).retained,
+      ).toBeUndefined();
+      expect(
+        (await backend.subscribe('n1', 'e2', 'a.c')).retained,
+      ).toMatchObject({
+        data: '"other"',
+      });
+      expect(
+        (await backend.getRetained(0, -1)).map(message => message.topic),
+      ).toEqual(['a.c']);
+      expect((await backend.getCounts()).retained).toBe(1);
+    });
+
     it('expires retained messages', async () => {
       const backend = await newBackend(newNamespace());
       await backend.registerNode('n1', 30_000);
