@@ -83,6 +83,61 @@ describe('Relay on ioredis', () => {
     expect(await admin.ping()).toBe('PONG');
   });
 
+  it('forwards errors from both Redis connections through Relay', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const relay = await newRelay();
+    const errors: Error[] = [];
+    relay.on('error', error => errors.push(error));
+    const backend = (relay as any).backend as RedisRelayBackend;
+    await waitFor(() => !!(backend as any).blockingConnection);
+
+    const commandError = new Error('command connection failed');
+    const blockingError = new Error('blocking connection failed');
+    (backend as any).connection.emit('error', commandError);
+    (backend as any).blockingConnection.emit('error', blockingError);
+
+    expect(errors).toEqual([commandError, blockingError]);
+  });
+
+  it('uses each recipient inbox limit and counts only unread publish-time drops', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = await newBackend();
+    await backend.registerNode('small', 30_000, {}, 2);
+    await backend.registerNode('large', 30_000, {}, 10);
+    await backend.subscribe('small', 'e1', 'a');
+    await backend.subscribe('large', 'e2', 'a');
+
+    for (let i = 0; i < 5; i++) {
+      await backend.publish('a', String(i), publishOptions);
+    }
+
+    const smallInbox = `${base()}:small:inbox`;
+    const largeInbox = `${base()}:large:inbox`;
+    expect(await admin.xlen(smallInbox)).toBe(2);
+    expect(await admin.xlen(largeInbox)).toBe(5);
+    expect(
+      Object.fromEntries(
+        (await backend.getNodes(0, -1)).map(node => [node.id, node.dropped]),
+      ),
+    ).toEqual({ large: 0, small: 3 });
+
+    const consumed = await backend.readInbox('small', '0-0', {
+      blockMs: 0,
+      count: 10,
+    });
+    await backend.readInbox('small', consumed.cursor, {
+      blockMs: 0,
+      count: 10,
+    });
+    await backend.publish('a', 'consumed', publishOptions);
+    expect(
+      Object.fromEntries(
+        (await backend.getNodes(0, -1)).map(node => [node.id, node.dropped]),
+      ),
+    ).toEqual({ large: 0, small: 3 });
+    expect(await admin.xlen(smallInbox)).toBe(2);
+  });
+
   it('delivers messages published while its inbox connection was dropped', async () => {
     namespace = `t-${randomUUID().slice(0, 13)}`;
     const subscriber = await newRelay();

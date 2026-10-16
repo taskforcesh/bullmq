@@ -16,21 +16,29 @@ import { Relay } from 'bullmq';
 
 const relay = new Relay({ connection: { host: 'redis.internal', port: 6379 } });
 const users = new LRUCache<string, User>({ max: 10_000 });
+let generation = 0;
 
 await relay.subscribe('cache.users.*', message => {
   // topic: cache.users.<id>
+  generation++;
   users.delete(message.topic.split('.')[2]);
 });
 
 // The node was swept (frozen or disconnected for longer than its lease):
 // invalidations may have been missed, so start over.
-relay.on('recovered', () => users.clear());
+relay.on('recovered', () => {
+  generation++;
+  users.clear();
+});
 
 export async function getUser(id: string): Promise<User> {
   let user = users.get(id);
   if (!user) {
+    const readGeneration = generation;
     user = await db.users.findById(id);
-    users.set(id, user);
+    if (readGeneration === generation) {
+      users.set(id, user);
+    }
   }
   return user;
 }

@@ -23,6 +23,10 @@ local inboxKey = ARGV[1] .. ":" .. ARGV[2] .. ":inbox"
 local nodeKey = ARGV[1] .. ":" .. ARGV[2] .. ":node"
 local cursor = ARGV[3]
 
+if rcall("EXISTS", nodeKey) == 1 then
+  rcall("HSET", nodeKey, "cursor", cursor)
+end
+
 if cursor ~= "0-0" and cursor ~= "0" then
   -- At most 10000 per call; the next call removes the rest.
   local consumed = rcall("XRANGE", inboxKey, "-", cursor, "COUNT", 10000)

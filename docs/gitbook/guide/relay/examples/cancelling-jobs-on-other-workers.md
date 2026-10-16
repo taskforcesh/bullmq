@@ -24,11 +24,21 @@ const relay = new Relay({ connection });
 const worker = new Worker(
   'exports',
   async (job, token, signal) => {
-    for (const page of await listPages(job.data)) {
-      if (signal?.aborted) {
+    try {
+      for (const page of await listPages(job.data)) {
+        if (signal?.aborted) {
+          throw new UnrecoverableError(`cancelled: ${signal.reason}`);
+        }
+        await exportPage(page, { signal }); // pass it to fetch, streams, etc.
+      }
+    } catch (err) {
+      if (
+        signal?.aborted &&
+        (err as { name?: string } | null | undefined)?.name === 'AbortError'
+      ) {
         throw new UnrecoverableError(`cancelled: ${signal.reason}`);
       }
-      await exportPage(page, { signal }); // pass it to fetch, streams, etc.
+      throw err;
     }
   },
   { connection },

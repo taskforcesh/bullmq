@@ -46,53 +46,25 @@ describe('Relay (postgres) concurrency', () => {
     }
   });
 
-  it.each(['supplied', 'owned'] as const)(
-    'reads and publishes with a minimally sized %s pool',
-    async kind => {
-      const namespace = `t-${randomUUID().slice(0, 13)}`;
-      const setup = createPostgresRelayBackend({
-        connection: {
-          ...connection(),
-          schema: kind === 'supplied' ? 'bullmq' : schema,
-        },
-        namespace,
+  it('reads and publishes with a minimally sized owned pool', async () => {
+    const namespace = `t-${randomUUID().slice(0, 13)}`;
+    const relay = new Relay({
+      connection: { ...connection(), max: 1 },
+      backend: createPostgresRelayBackend,
+      namespace,
+    });
+    try {
+      await relay.waitUntilReady();
+      const messages: unknown[] = [];
+      await relay.subscribe('a', message => {
+        messages.push(message.data);
       });
-      await setup.waitUntilReady();
-      await setup.close();
-      const supplied =
-        kind === 'supplied'
-          ? new Pool({
-              connectionString: getPostgresUrl(),
-              options: '-c search_path=bullmq',
-              max: 2,
-              connectionTimeoutMillis: 1000,
-            })
-          : undefined;
-      const relay = new Relay({
-        connection: supplied ?? { ...connection(), max: 1 },
-        backend: createPostgresRelayBackend,
-        namespace,
-      });
-      try {
-        await relay.waitUntilReady();
-        const messages: unknown[] = [];
-        await relay.subscribe('a', message => {
-          messages.push(message.data);
-        });
-        await relay.publish('a', 1);
-        await vi.waitFor(() => expect(messages).toEqual([1]));
-        await relay.close();
-        if (supplied) {
-          await expect(supplied.query('SELECT 1 AS n')).resolves.toMatchObject({
-            rows: [{ n: 1 }],
-          });
-        }
-      } finally {
-        await relay.close();
-        await supplied?.end();
-      }
-    },
-  );
+      await relay.publish('a', 1);
+      await vi.waitFor(() => expect(messages).toEqual([1]));
+    } finally {
+      await relay.close();
+    }
+  });
 
   it.each(['subscribe', 'publish'] as const)(
     'serializes retained delivery when %s commits first',

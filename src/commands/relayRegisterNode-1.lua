@@ -9,6 +9,7 @@
     ARGV[3] lease duration (ms)
     ARGV[4] node info (JSON, opaque to the script)
     ARGV[5] layout version of the caller
+    ARGV[6] max inbox length
 
   Output:
     1 - Registered.
@@ -52,6 +53,7 @@ rcall("HSET", baseKey .. ":layout", "layout", ARGV[5])
 rcall("ZADD", KEYS[1], now + leaseMs, nodeId)
 rcall("ZADD", baseKey .. ":started", "NX", now, nodeId)
 rcall("HSET", nodeKey, "info", ARGV[4], "hb", now)
+rcall("HSET", nodeKey, "maxLen", tonumber(ARGV[6]) or 10000)
 rcall("PEXPIRE", nodeKey, leaseMs)
 refreshRelayNamespace(baseKey, KEYS[1], now)
 return 1

@@ -1,6 +1,6 @@
+import { EventEmitter } from 'events';
 import {
   ConnectionOptions,
-  IRedisClient,
   IRelayBackend,
   RelayBackendOptions,
   RelayCounts,
@@ -73,7 +73,7 @@ export const RELAY_LAYOUT_VERSION = '1';
  * connection. Entries published while that connection is reconnecting are
  * read once it's back.
  */
-export class RedisRelayBackend implements IRelayBackend {
+export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
   readonly namespace: string;
   readonly initialInboxCursor = '0-0';
 
@@ -87,10 +87,12 @@ export class RedisRelayBackend implements IRelayBackend {
   private readonly connection: RedisConnection;
   /** Created on the first inbox read: getters alone need one connection. */
   private blockingConnection?: RedisConnection;
+  private blockingConnectionPromise?: Promise<RedisConnection>;
   private interrupted = false;
   private closing?: Promise<void>;
 
   constructor(opts: RelayBackendOptions<ConnectionOptions>) {
+    super();
     this.namespace = opts.namespace;
     const prefix = opts.prefix ?? 'bull';
     this.baseKey = `${prefix}::relay:{${opts.namespace}}`;
@@ -106,6 +108,7 @@ export class RedisRelayBackend implements IRelayBackend {
       blocking: false,
       skipVersionCheck: opts.skipVersionCheck,
     });
+    this.forwardConnectionErrors(this.connection);
   }
 
   async waitUntilReady(): Promise<void> {
@@ -129,7 +132,10 @@ export class RedisRelayBackend implements IRelayBackend {
     if (!this.closing) {
       this.closing = (async () => {
         this.interrupted = true;
-        await this.blockingConnection?.close(true);
+        await this.blockingConnectionPromise?.then(
+          connection => connection.close(true),
+          (): void => undefined,
+        );
         await this.connection.close();
       })();
     }
@@ -140,6 +146,7 @@ export class RedisRelayBackend implements IRelayBackend {
     nodeId: string,
     leaseMs: number,
     info: RelayNodeInfo = {},
+    inboxMaxLength = this.inboxMaxLength,
   ): Promise<void> {
     // Reusing an expired/removed ID must finish its old indexes before it can
     // receive messages again. Each call yields Redis after a bounded batch.
@@ -151,6 +158,7 @@ export class RedisRelayBackend implements IRelayBackend {
           leaseMs,
           JSON.stringify(info),
           RELAY_LAYOUT_VERSION,
+          inboxMaxLength,
         ]),
         nodeId,
       );
@@ -232,7 +240,16 @@ export class RedisRelayBackend implements IRelayBackend {
     if (this.interrupted) {
       return { entries: [], cursor };
     }
-    const client = await this.getBlockingConnection().client;
+    const client = await (await this.getBlockingConnection()).client;
+    if (this.interrupted) {
+      return { entries: [], cursor };
+    }
+    await client.runCommand(`relayAckInbox:${packageVersion}`, [
+      this.nodesKey,
+      this.baseKey,
+      nodeId,
+      cursor,
+    ]);
     // BLOCK 0 would wait forever; the contract's 0 means "don't wait".
     const result = await client.xread(
       [{ key: `${this.baseKey}:${nodeId}:inbox`, id: cursor }],
@@ -383,34 +400,52 @@ export class RedisRelayBackend implements IRelayBackend {
 
   interruptInbox(): void {
     this.interrupted = true;
-    this.blockingConnection?.client
+    this.blockingConnectionPromise
+      ?.then(connection => connection.client)
       .then(client => client.disconnect())
       .catch((): void => undefined);
   }
 
-  private getBlockingConnection(): RedisConnection {
-    if (!this.blockingConnection) {
-      const shared = isRedisInstance(this.connectionOpts);
-      // Named after the node (CLIENT SETNAME, re-applied on reconnects) so
-      // getNodeConnections can find it.
-      const naming = this.nodeId
-        ? { connectionName: this.inboxConnectionName(this.nodeId) }
-        : {};
-      this.blockingConnection = new RedisConnection(
-        shared
-          ? (this.connectionOpts as IRedisClient).duplicate({
-              maxRetriesPerRequest: null,
-              ...naming,
-            })
-          : { ...(this.connectionOpts as object), ...naming },
-        {
-          shared: false,
-          blocking: true,
-          skipVersionCheck: this.skipVersionCheck,
-        },
-      );
+  private getBlockingConnection(): Promise<RedisConnection> {
+    if (!this.blockingConnectionPromise) {
+      this.blockingConnectionPromise = (async () => {
+        const shared = isRedisInstance(this.connectionOpts);
+        const client = await this.connection.client;
+        // Named after the node (CLIENT SETNAME, re-applied on reconnects) so
+        // getNodeConnections can find it.
+        const naming = this.nodeId
+          ? { connectionName: this.inboxConnectionName(this.nodeId) }
+          : {};
+        const connection = new RedisConnection(
+          shared
+            ? client.duplicate({
+                maxRetriesPerRequest: null,
+                ...naming,
+              })
+            : { ...(this.connectionOpts as object), ...naming },
+          {
+            shared: false,
+            blocking: true,
+            skipVersionCheck: this.skipVersionCheck,
+          },
+        );
+        this.forwardConnectionErrors(connection);
+        this.blockingConnection = connection;
+        return connection;
+      })();
+      this.blockingConnectionPromise.catch(() => {
+        this.blockingConnectionPromise = undefined;
+      });
     }
-    return this.blockingConnection;
+    return this.blockingConnectionPromise;
+  }
+
+  private forwardConnectionErrors(connection: RedisConnection): void {
+    connection.on('error', err => {
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', err);
+      }
+    });
   }
 
   /** Redis client name of a node's inbox connection. */
