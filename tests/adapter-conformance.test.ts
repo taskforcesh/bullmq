@@ -102,6 +102,22 @@ describe('Adapter Conformance', () => {
       await closePromise;
     });
 
+    it('should report status "ready" after connect following disconnect', async () => {
+      const dup = client.duplicate();
+      dup.on('error', () => {});
+      await dup.connect();
+
+      // RedisConnection.reconnect() calls connect() after a disconnect()
+      dup.disconnect();
+      expect(dup.status).toBe('end');
+      await dup.connect();
+
+      expect(dup.status).toBe('ready');
+      await dup.set(key('reconnect'), 'ok');
+      expect(await dup.get(key('reconnect'))).toBe('ok');
+      await dup.quit();
+    });
+
     it('should support setMaxListeners/getMaxListeners', () => {
       const orig = client.getMaxListeners();
       client.setMaxListeners(orig + 5);

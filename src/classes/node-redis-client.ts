@@ -303,6 +303,10 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
       this.connectPromise = this.raw.connect().then(
         () => {
           this.connectPromise = undefined;
+          // An explicit connect() after disconnect() reopens the client
+          // (e.g. RedisConnection.reconnect()), so it is no longer ended.
+          this.statusOverride = undefined;
+          this.destroying = false;
         },
         (err: Error) => {
           this.connectPromise = undefined;
