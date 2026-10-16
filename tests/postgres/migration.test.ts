@@ -9,6 +9,8 @@ import {
   vi,
 } from 'vitest';
 import { Pool } from 'pg';
+import { randomUUID } from 'crypto';
+import { createPostgresRelayBackend, Relay } from '../../src';
 import {
   assertPostgresVersion,
   assertSchemaCompatibility,
@@ -60,6 +62,7 @@ describe('PostgreSQL migrations', () => {
       connectionString: url,
       migrate: true,
     });
+
     try {
       await connection.waitUntilReady();
 
@@ -75,6 +78,48 @@ describe('PostgreSQL migrations', () => {
       expect(metaRows[0].exists).toBe(true);
     } finally {
       await connection.close();
+    }
+  });
+
+  it('reads and publishes through a supplied Relay pool', async () => {
+    const namespace = `t-${randomUUID().replace(/-/g, '')}`;
+    const setup = createPostgresRelayBackend({
+      connection: {
+        connectionString: url,
+        schema,
+        migrate: true,
+      },
+      namespace,
+    });
+    await setup.waitUntilReady();
+    await setup.close();
+
+    const supplied = new Pool({
+      connectionString: url,
+      options: `-c search_path=${schema}`,
+      max: 2,
+      connectionTimeoutMillis: 1000,
+    });
+    const relay = new Relay({
+      connection: supplied,
+      backend: createPostgresRelayBackend,
+      namespace,
+    });
+    try {
+      await relay.waitUntilReady();
+      const messages: unknown[] = [];
+      await relay.subscribe('a', message => {
+        messages.push(message.data);
+      });
+      await relay.publish('a', 1);
+      await vi.waitFor(() => expect(messages).toEqual([1]));
+      await relay.close();
+      await expect(supplied.query('SELECT 1 AS n')).resolves.toMatchObject({
+        rows: [{ n: 1 }],
+      });
+    } finally {
+      await relay.close();
+      await supplied.end();
     }
   });
 

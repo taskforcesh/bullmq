@@ -93,6 +93,7 @@ export class PostgresRelayBackend implements IRelayBackend {
     nodeId: string,
     leaseMs: number,
     info: RelayNodeInfo = {},
+    _inboxMaxLength?: number,
   ): Promise<void> {
     await this.run('relay_register_node', [
       this.namespace,

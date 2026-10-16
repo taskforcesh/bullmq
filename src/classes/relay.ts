@@ -49,7 +49,7 @@ export interface RelayOptions<C = ConnectionOptions> {
   /**
    * Max number of unread messages kept in this node's inbox. When a slow node
    * falls further behind, its oldest unread messages are dropped. Enforced on
-   * publish (Redis, approximately) and on every heartbeat. Default 10000.
+   * publish (Redis) and on every heartbeat. Default 10000.
    */
   inboxMaxLength?: number;
   /**
@@ -97,6 +97,8 @@ interface Endpoint {
   pattern: string;
   listener: RelayListener<any>;
   lastMid: bigint;
+  active: boolean;
+  removing?: Promise<void>;
 }
 
 /**
@@ -198,6 +200,9 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
       inboxMaxLength: this.inboxMaxLength,
       skipVersionCheck: opts.skipVersionCheck,
     });
+    if (this.backend instanceof EventEmitter) {
+      this.backend.on('error', err => this.emitError(err));
+    }
     this.cursor = this.backend.initialInboxCursor;
 
     this.ready = this.start();
@@ -219,7 +224,12 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     await this.ready;
     this.assertOpen();
     const endpointId = randomUUID().replace(/-/g, '');
-    const endpoint: Endpoint = { pattern, listener, lastMid: BigInt(0) };
+    const endpoint: Endpoint = {
+      pattern,
+      listener,
+      lastMid: BigInt(0),
+      active: true,
+    };
     // Registered first, so live messages are dispatched as soon as the
     // subscription exists.
     this.endpoints.set(endpointId, endpoint);
@@ -246,9 +256,8 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     return {
       pattern,
       unsubscribe: async () => {
-        if (this.endpoints.delete(endpointId) && !this.closing) {
-          await this.backend.removeEndpoint(this.nodeId, endpointId);
-        }
+        endpoint.active = false;
+        await this.removeEndpoint(endpointId, endpoint);
       },
     };
   }
@@ -449,9 +458,13 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     this.recoveryPending = true;
     await this.register();
     for (const [endpointId, endpoint] of this.endpoints) {
+      if (!endpoint.active) {
+        await this.removeEndpoint(endpointId, endpoint);
+        continue;
+      }
       await this.backend.subscribe(this.nodeId, endpointId, endpoint.pattern);
-      if (!this.endpoints.has(endpointId)) {
-        await this.backend.removeEndpoint(this.nodeId, endpointId);
+      if (!endpoint.active) {
+        await this.removeEndpoint(endpointId, endpoint);
       }
     }
     this.recoveryPending = false;
@@ -459,12 +472,39 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   }
 
   private register(): Promise<void> {
-    return this.backend.registerNode(this.nodeId, this.leaseDuration, {
-      name: this.opts.name,
-      host: hostname(),
-      pid: process.pid,
-      version: packageVersion,
-    });
+    return this.backend.registerNode(
+      this.nodeId,
+      this.leaseDuration,
+      {
+        name: this.opts.name,
+        host: hostname(),
+        pid: process.pid,
+        version: packageVersion,
+      },
+      this.inboxMaxLength,
+    );
+  }
+
+  private removeEndpoint(
+    endpointId: string,
+    endpoint: Endpoint,
+  ): Promise<void> {
+    if (this.closing) {
+      return Promise.resolve();
+    }
+    if (!endpoint.removing) {
+      endpoint.removing = this.backend
+        .removeEndpoint(this.nodeId, endpointId)
+        .then(() => {
+          if (!endpoint.active) {
+            this.endpoints.delete(endpointId);
+          }
+        })
+        .finally(() => {
+          endpoint.removing = undefined;
+        });
+    }
+    return endpoint.removing;
   }
 
   private sweep(): Promise<void> {
@@ -518,7 +558,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     }
     for (const endpointId of entry.endpoints) {
       const endpoint = this.endpoints.get(endpointId);
-      if (endpoint) {
+      if (endpoint?.active) {
         this.deliver(endpoint, {
           topic: entry.topic,
           mid: entry.mid,
@@ -531,6 +571,9 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   }
 
   private deliver(endpoint: Endpoint, message: RelayMessage<string>): void {
+    if (!endpoint.active) {
+      return;
+    }
     const mid = BigInt(message.mid);
     if (mid > endpoint.lastMid) {
       endpoint.lastMid = mid;
