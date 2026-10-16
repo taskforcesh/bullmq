@@ -254,8 +254,9 @@ export interface IRelayBackend {
   getNamespaces(): Promise<string[]>;
 
   /**
-   * The inbox connection of a node, as the datastore sees it (from `CLIENT
-   * LIST` or `pg_stat_activity`): where it connects from, and for how long.
+   * The inbox connection of a node, as the datastore sees it (from
+   * `CLIENT LIST` or `pg_stat_activity`): where it connects from, and for
+   * how long.
    * Empty when the node isn't connected. Lists every client connection of
    * the datastore, so use it on demand rather than polling it.
    */
