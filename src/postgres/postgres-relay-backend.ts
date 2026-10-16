@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+import { EventEmitter } from 'events';
 import {
   IRelayBackend,
   RelayBackendOptions,
@@ -30,6 +32,7 @@ import { loadCommandSql } from './sql-loader';
 const RELAY_CHANNEL = 'bullmq_relay';
 /** PostgreSQL truncates `application_name` to 63 bytes. */
 const MAX_APPLICATION_NAME = 63;
+const APPLICATION_NAME_PREFIX = 'bullmq:relay:';
 
 /**
  * PostgreSQL implementation of {@link IRelayBackend}. Every operation is one of
@@ -46,7 +49,7 @@ const MAX_APPLICATION_NAME = 63;
  * delivery). Entries are acknowledged by id, which never skips a row whose
  * transaction committed late.
  */
-export class PostgresRelayBackend implements IRelayBackend {
+export class PostgresRelayBackend extends EventEmitter implements IRelayBackend {
   readonly namespace: string;
   readonly initialInboxCursor = '';
 
@@ -59,6 +62,7 @@ export class PostgresRelayBackend implements IRelayBackend {
   private closing?: Promise<void>;
 
   constructor(opts: RelayBackendOptions<PostgresConnectionOptions>) {
+    super();
     if (isPgPool(opts.connection)) {
       const max = (opts.connection as { options?: { max?: number } }).options
         ?.max;
@@ -74,6 +78,11 @@ export class PostgresRelayBackend implements IRelayBackend {
     this.connection.on('listenerinvalidated', () => {
       this.listening = false;
       this.cancelWait?.();
+    });
+    this.connection.on('error', err => {
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', err);
+      }
     });
   }
 
@@ -351,9 +360,13 @@ export class PostgresRelayBackend implements IRelayBackend {
 
   /** `application_name` of a node's inbox connection. */
   private inboxConnectionName(nodeId: string) {
-    return Buffer.from(`bullmq:relay:${this.namespace}:${nodeId}`)
-      .subarray(0, MAX_APPLICATION_NAME)
-      .toString();
+    const digest = createHash('sha256')
+      .update(JSON.stringify([this.namespace, nodeId]))
+      .digest('hex');
+    return `${APPLICATION_NAME_PREFIX}${digest.slice(
+      0,
+      MAX_APPLICATION_NAME - APPLICATION_NAME_PREFIX.length,
+    )}`;
   }
 
   private async readRows(nodeId: string, ack: string[], count: number) {
