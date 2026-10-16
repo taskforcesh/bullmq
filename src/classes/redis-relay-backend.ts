@@ -215,6 +215,15 @@ export class RedisRelayBackend implements IRelayBackend {
     return { mid: String(mid), nodes, endpoints };
   }
 
+  async deleteRetained(topic: string): Promise<boolean> {
+    return (
+      checkRelayResult(
+        await this.exec('relayDeleteRetained', [topic]),
+        topic,
+      ) === 1
+    );
+  }
+
   async readInbox(
     nodeId: string,
     cursor: string,

@@ -199,6 +199,13 @@ export interface IRelayBackend {
   ): Promise<RelayPublishResult>;
 
   /**
+   * Deletes the retained message of a topic.
+   *
+   * @returns false if the topic had no retained message.
+   */
+  deleteRetained(topic: string): Promise<boolean>;
+
+  /**
    * Returns the next entries of a node's inbox, waiting up to `blockMs` when
    * there are none (`0`: return immediately).
    */

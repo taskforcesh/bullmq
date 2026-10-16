@@ -175,6 +175,15 @@ export class PostgresRelayBackend implements IRelayBackend {
     };
   }
 
+  async deleteRetained(topic: string): Promise<boolean> {
+    const { rows } = await this.run(
+      'relay_delete_retained',
+      [this.namespace, topic],
+      topic,
+    );
+    return rows[0].deleted;
+  }
+
   async readInbox(
     nodeId: string,
     cursor: string,

@@ -275,6 +275,16 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     });
   }
 
+  /**
+   * Deletes the retained message of a topic: new subscribers no longer get
+   * it. Returns false if the topic had no retained message.
+   */
+  async deleteRetained(topic: string): Promise<boolean> {
+    await this.ready;
+    this.assertOpen();
+    return this.backend.deleteRetained(topic);
+  }
+
   /** Totals of this namespace, for dashboards. */
   async getCounts(): Promise<RelayCounts> {
     await this.ready;
