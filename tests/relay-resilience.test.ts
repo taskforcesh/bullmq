@@ -645,6 +645,52 @@ describe('Relay resilience', () => {
     }
   });
 
+  it('keeps failed removals inactive and retries them during recovery', async () => {
+    const backend = new FakeBackend();
+    const relay = createRelay(backend);
+    const listener = vi.fn();
+    try {
+      await relay.waitUntilReady();
+      const subscription = await relay.subscribe('a', listener);
+      const endpoint = [...(relay as any).endpoints.keys()][0];
+      const removeEndpoint = vi
+        .spyOn(backend, 'removeEndpoint')
+        .mockRejectedValueOnce(new Error('temporary removal failure'))
+        .mockResolvedValue(1);
+
+      await expect(subscription.unsubscribe()).rejects.toThrow(
+        'temporary removal failure',
+      );
+      expect((relay as any).endpoints.get(endpoint).active).toBe(false);
+
+      backend.inbox.push({
+        entries: [
+          {
+            kind: 'msg',
+            topic: 'a',
+            mid: '1',
+            ts: 1,
+            data: '1',
+            endpoints: [endpoint],
+          },
+        ],
+        cursor: '1',
+      });
+      await waitFor(() => backend.inbox.length === 0);
+      expect(listener).not.toHaveBeenCalled();
+
+      backend.heartbeatResult = false;
+      await (relay as any).heartbeat();
+      expect(removeEndpoint).toHaveBeenCalledTimes(2);
+      expect(backend.calls.filter(call => call === 'subscribe')).toHaveLength(
+        1,
+      );
+      expect((relay as any).endpoints.has(endpoint)).toBe(false);
+    } finally {
+      await relay.close();
+    }
+  });
+
   it('waits for recovery before dispatching an inbox batch', async () => {
     const backend = new FakeBackend();
     const relay = createRelay(backend);

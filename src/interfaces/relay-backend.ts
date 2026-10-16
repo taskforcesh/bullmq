@@ -161,6 +161,7 @@ export interface IRelayBackend {
     nodeId: string,
     leaseMs: number,
     info?: RelayNodeInfo,
+    inboxMaxLength?: number,
   ): Promise<void>;
 
   /**
@@ -280,7 +281,7 @@ export interface RelayBackendOptions<C = ConnectionOptions> {
   nodeId?: string;
   /** Key prefix (Redis only). */
   prefix?: string;
-  /** Approximate max inbox length per node, applied on publish (Redis). */
+  /** Fallback max inbox length per node, applied on publish (Redis). */
   inboxMaxLength?: number;
   skipVersionCheck?: boolean;
 }

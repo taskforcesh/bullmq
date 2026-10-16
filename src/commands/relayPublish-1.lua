@@ -115,8 +115,23 @@ for i = 1, #nodeOrder do
   local ttl = rcall("PTTL", baseKey .. ":" .. nodeId .. ":node")
   if ttl > 0 then
     local inboxKey = baseKey .. ":" .. nodeId .. ":inbox"
+    local nodeKey = baseKey .. ":" .. nodeId .. ":node"
     local endpoints = targets[nodeId].list
-    rcall("XADD", inboxKey, "MAXLEN", "~", maxLen, "*",
+    local nodeMaxLen = tonumber(rcall("HGET", nodeKey, "maxLen")) or maxLen
+    local overflow = rcall("XLEN", inboxKey) + 1 - nodeMaxLen
+    if overflow > 0 then
+      local cursor = rcall("HGET", nodeKey, "cursor") or "0-0"
+      local consumed = 0
+      if cursor ~= "0-0" and cursor ~= "0" then
+        consumed = #rcall("XRANGE", inboxKey, "-", cursor, "COUNT", overflow)
+      end
+      local dropped = rcall("XTRIM", inboxKey, "MAXLEN", nodeMaxLen - 1)
+      local unreadDropped = dropped - consumed
+      if unreadDropped > 0 then
+        rcall("HINCRBY", nodeKey, "dropped", unreadDropped)
+      end
+    end
+    rcall("XADD", inboxKey, "*",
       "k", "msg", "t", topic, "m", mid, "ts", timestamp, "d", data,
       "e", table.concat(endpoints, ","))
     rcall("PEXPIRE", inboxKey, ttl)
