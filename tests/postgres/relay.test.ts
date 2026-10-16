@@ -66,6 +66,70 @@ describe('Relay (postgres) concurrency', () => {
     }
   });
 
+  it('forwards connection errors only when an error listener is attached', async () => {
+    const backend = createPostgresRelayBackend({
+      connection: connection(),
+      namespace: `t-${randomUUID().slice(0, 13)}`,
+    });
+    try {
+      await backend.waitUntilReady();
+      const postgresConnection = (backend as any).connection;
+      expect(() =>
+        postgresConnection.emit('error', new Error('unobserved')),
+      ).not.toThrow();
+
+      const error = new Error('connection failed');
+      const errors: Error[] = [];
+      backend.on('error', err => errors.push(err));
+      postgresConnection.emit('error', error);
+      expect(errors).toEqual([error]);
+    } finally {
+      await backend.close();
+    }
+  });
+
+  it('uses distinct connection names for long namespace and node IDs', async () => {
+    const prefix = `${randomUUID().replace(/-/g, '')}${'x'.repeat(31)}`;
+    const nodePrefix = 'n'.repeat(63);
+    const nodeIds = [`${nodePrefix}a`, `${nodePrefix}b`];
+    const backends = [
+      createPostgresRelayBackend({
+        connection: connection(),
+        namespace: `${prefix}a`,
+        nodeId: nodeIds[0],
+      }),
+      createPostgresRelayBackend({
+        connection: connection(),
+        namespace: `${prefix}b`,
+        nodeId: nodeIds[1],
+      }),
+    ];
+    try {
+      await Promise.all(backends.map(backend => backend.waitUntilReady()));
+      await Promise.all(
+        backends.map((backend, index) =>
+          backend.registerNode(nodeIds[index], 30_000),
+        ),
+      );
+      await Promise.all(
+        backends.map((backend, index) =>
+          backend.readInbox(nodeIds[index], '', { blockMs: 0, count: 1 }),
+        ),
+      );
+
+      const connections = await Promise.all(
+        backends.map((backend, index) =>
+          backend.getNodeConnections(nodeIds[index]),
+        ),
+      );
+      expect(connections.map(nodeConnections => nodeConnections.length)).toEqual(
+        [1, 1],
+      );
+    } finally {
+      await Promise.all(backends.map(backend => backend.close()));
+    }
+  });
+
   it.each(['subscribe', 'publish'] as const)(
     'serializes retained delivery when %s commits first',
     async firstOperation => {
