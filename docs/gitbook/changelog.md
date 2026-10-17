@@ -1,3 +1,10 @@
+## [6.3.16](https://github.com/taskforcesh/bullmq/compare/v6.3.15...v6.3.16) (2026-10-17)
+
+
+### Bug Fixes
+
+* **valkey-glide:** route INFO to a single node in cluster mode ([#4891](https://github.com/taskforcesh/bullmq/issues/4891)) ([d47e42b](https://github.com/taskforcesh/bullmq/commit/d47e42bd2a9da0c301a02dbd60057eb7a1eb9b75))
+
 ## [6.3.15](https://github.com/taskforcesh/bullmq/compare/v6.3.14...v6.3.15) (2026-10-14)
 
 
