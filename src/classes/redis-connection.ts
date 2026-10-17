@@ -539,7 +539,11 @@ export class RedisConnection extends EventEmitter {
     blockingClient.bzpopmin = wrappedBzpopmin;
   }
 
-  private disableBlockingClusterReconnect(): void {
+  /**
+   * Stops the patched blocking-cluster `bzpopmin` from re-dialling the client.
+   * Idempotent; released by {@link close}.
+   */
+  disableBlockingClusterReconnect(): void {
     const client = this.patchedBlockingClusterClient;
     if (!client || this.disabledBlockingClusterReconnect) {
       return;
