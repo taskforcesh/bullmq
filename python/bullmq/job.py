@@ -276,7 +276,7 @@ class Job:
             if self.opts.get("stackTraceLimit") == 0:
                 self.stacktrace = []
             elif self.opts.get("stackTraceLimit"):
-                self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
+                self.stacktrace = self.stacktrace[-stackTraceLimit:]
 
     async def moveToDelayed(self, timestamp: int, token: str):
         """
