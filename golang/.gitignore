@@ -1,0 +1,6 @@
+
+# Go build output
+/bin/
+*.test
+*.out
+coverage.txt

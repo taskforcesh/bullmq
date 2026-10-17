@@ -12,4 +12,4 @@ To avoid duplicated content across ports, lock manager docs are maintained in th
 Python implementation details are in:
 
 - [python/bullmq/lock_manager.py](https://github.com/taskforcesh/bullmq/blob/master/python/bullmq/lock_manager.py)
-- [src/commands/extendLocks-1.lua](https://github.com/taskforcesh/bullmq/blob/master/src/commands/extendLocks-1.lua)
+- [golang/commands/extendLocks-1.lua](https://github.com/taskforcesh/bullmq/blob/master/golang/commands/extendLocks-1.lua)
