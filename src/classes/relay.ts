@@ -49,12 +49,13 @@ export interface RelayOptions<C = ConnectionOptions> {
   /**
    * Max number of unread messages kept in this node's inbox. When a slow node
    * falls further behind, its oldest unread messages are dropped. Enforced on
-   * publish (Redis) and on every heartbeat. Default 10000.
+   * publish (Redis) and by safe inbox trimming. Default 10000.
    */
   inboxMaxLength?: number;
   /**
    * Emit `'lag'` when this node has at least this many unread messages,
-   * checked on every heartbeat. Must not exceed `inboxMaxLength`.
+   * checked after inbox batches are read and on heartbeat. Must not exceed
+   * `inboxMaxLength`.
    * Default `inboxMaxLength / 2`.
    */
   lagThreshold?: number;
@@ -138,6 +139,8 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   private sweepTimer?: NodeJS.Timeout;
   private loop?: Promise<void>;
   private heartbeating?: Promise<void>;
+  private backlogChecking?: Promise<void>;
+  private batchInFlight = false;
   private sweeping?: Promise<void>;
   private recoveryPending = false;
   private closing?: Promise<void>;
@@ -251,7 +254,13 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
         });
       }
     } catch (err) {
-      this.endpoints.delete(endpointId);
+      endpoint.active = false;
+      try {
+        await this.removeEndpoint(endpointId, endpoint);
+      } catch (cleanupError) {
+        this.recoveryPending = true;
+        this.emitError(cleanupError);
+      }
       throw err;
     }
     return {
@@ -378,7 +387,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
       this.opts.heartbeatInterval ??
       Math.max(1, Math.floor(this.leaseDuration / 3));
     this.heartbeatTimer = setInterval(
-      () => this.heartbeat().catch(err => this.emitError(err)),
+      () => this.heartbeat(true).catch(err => this.emitError(err)),
       heartbeatInterval,
     );
     this.sweepTimer = setInterval(
@@ -409,7 +418,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     await this.backend.close();
   }
 
-  private heartbeat(): Promise<void> {
+  private heartbeat(trimInbox = false): Promise<void> {
     // A slow datastore must not pile up overlapping heartbeats (or run two
     // recoveries at once): skip the tick while the previous one runs.
     if (this.closing) {
@@ -426,7 +435,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
       if ((!alive || this.recoveryPending) && !this.closing) {
         await this.recover();
       }
-      if (!this.closing) {
+      if (trimInbox && !this.closing) {
         await this.checkBacklog();
       }
     })().finally(() => {
@@ -440,14 +449,24 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
    * emits `'lag'` when the unread backlog reaches `lagThreshold`.
    */
   private async checkBacklog(): Promise<void> {
-    const backlog = await this.backend.trimInbox(
-      this.nodeId,
-      this.cursor,
-      this.inboxMaxLength,
-    );
-    if (backlog >= this.lagThreshold) {
-      this.emit('lag', backlog);
+    if (this.closing || this.batchInFlight) {
+      return;
     }
+    if (!this.backlogChecking) {
+      this.backlogChecking = (async () => {
+        const backlog = await this.backend.trimInbox(
+          this.nodeId,
+          this.cursor,
+          this.inboxMaxLength,
+        );
+        if (backlog >= this.lagThreshold) {
+          this.emit('lag', backlog);
+        }
+      })().finally(() => {
+        this.backlogChecking = undefined;
+      });
+    }
+    return this.backlogChecking;
   }
 
   /**
@@ -526,6 +545,10 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   private async readLoop(): Promise<void> {
     while (!this.closing) {
       try {
+        if (this.backlogChecking) {
+          await this.backlogChecking;
+        }
+        this.batchInFlight = true;
         const batch = await this.backend.readInbox(this.nodeId, this.cursor, {
           blockMs: this.blockTimeout,
           count: 100,
@@ -542,12 +565,19 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
         for (const entry of batch.entries) {
           this.dispatch(entry);
         }
+        this.batchInFlight = false;
+        if (batch.entries.length > 0) {
+          await this.checkBacklog();
+        }
       } catch (err) {
+        this.batchInFlight = false;
         if (this.closing) {
           break;
         }
         this.emitError(err);
         await new Promise(resolve => setTimeout(resolve, 1000));
+      } finally {
+        this.batchInFlight = false;
       }
     }
   }

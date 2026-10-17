@@ -49,12 +49,19 @@ const APPLICATION_NAME_PREFIX = 'bullmq:relay:';
  * delivery). Entries are acknowledged by id, which never skips a row whose
  * transaction committed late.
  */
-export class PostgresRelayBackend extends EventEmitter implements IRelayBackend {
+export class PostgresRelayBackend
+  extends EventEmitter
+  implements IRelayBackend
+{
   readonly namespace: string;
   readonly initialInboxCursor = '';
 
   private readonly connection: PostgresConnection;
   private readonly nodeId?: string;
+  private connectionIdentity?: Promise<{
+    database: string;
+    schema: string;
+  }>;
   private listening = false;
   private cancelWait?: () => void;
   /** Set by interruptInbox: reads stop waiting from then on. */
@@ -338,8 +345,11 @@ export class PostgresRelayBackend extends EventEmitter implements IRelayBackend 
   }
 
   async getNodeConnections(nodeId: string): Promise<RelayNodeConnection[]> {
+    await this.connection.waitUntilReady();
+    const { database, schema } = await this.getConnectionIdentity();
     const { rows } = await this.run('relay_get_node_connections', [
-      this.inboxConnectionName(nodeId),
+      this.inboxConnectionName(nodeId, database, schema),
+      database,
     ]);
     return rows.map(row => ({
       address: row.address,
@@ -359,14 +369,40 @@ export class PostgresRelayBackend extends EventEmitter implements IRelayBackend 
   }
 
   /** `application_name` of a node's inbox connection. */
-  private inboxConnectionName(nodeId: string) {
+  private inboxConnectionName(
+    nodeId: string,
+    database: string,
+    schema: string,
+  ) {
     const digest = createHash('sha256')
-      .update(JSON.stringify([this.namespace, nodeId]))
+      .update(JSON.stringify([database, schema, this.namespace, nodeId]))
       .digest('hex');
     return `${APPLICATION_NAME_PREFIX}${digest.slice(
       0,
       MAX_APPLICATION_NAME - APPLICATION_NAME_PREFIX.length,
     )}`;
+  }
+
+  private getConnectionIdentity(): Promise<{
+    database: string;
+    schema: string;
+  }> {
+    if (!this.connectionIdentity) {
+      let identity: Promise<{ database: string; schema: string }>;
+      identity = this.connection.pool
+        .query<{ database: string; schema: string }>(
+          'SELECT current_database() AS database, current_schema() AS schema',
+        )
+        .then(({ rows }) => rows[0])
+        .catch(err => {
+          if (this.connectionIdentity === identity) {
+            this.connectionIdentity = undefined;
+          }
+          throw err;
+        });
+      this.connectionIdentity = identity;
+    }
+    return this.connectionIdentity;
   }
 
   private async readRows(nodeId: string, ack: string[], count: number) {
@@ -385,10 +421,11 @@ export class PostgresRelayBackend extends EventEmitter implements IRelayBackend 
     if (!this.listening) {
       await client.query(loadCommandSql('listen_relay'));
       if (this.nodeId) {
+        const { database, schema } = await this.getConnectionIdentity();
         // Named after the node (re-applied if the connection is rebuilt) so
         // getNodeConnections can find it.
         await this.connection.setListenClientName(
-          this.inboxConnectionName(this.nodeId),
+          this.inboxConnectionName(this.nodeId, database, schema),
         );
       }
       this.listening = true;

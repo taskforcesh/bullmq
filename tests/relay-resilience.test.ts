@@ -222,7 +222,8 @@ describe('Relay resilience', () => {
       try {
         await relay.waitUntilReady();
         backend.backlog = inboxMaxLength;
-        await (relay as any).heartbeat();
+        (relay as any).batchInFlight = false;
+        await (relay as any).checkBacklog();
         expect(lag).toHaveBeenCalledExactlyOnceWith(inboxMaxLength);
       } finally {
         await relay.close();
@@ -719,6 +720,63 @@ describe('Relay resilience', () => {
     }
   });
 
+  it.each(['initial failure first', 'recovery first'])(
+    'cleans up an initial subscription failure overlapping recovery (%s)',
+    async order => {
+      const backend = new FakeBackend();
+      const relay = createRelay(backend);
+      let rejectInitial!: (err: Error) => void;
+      let resolveRecovery!: () => void;
+      let subscriptions = 0;
+      const removeEndpoint = vi
+        .spyOn(backend, 'removeEndpoint')
+        .mockRejectedValueOnce(new Error('temporary removal failure'))
+        .mockResolvedValue(1);
+      backend.subscribe = vi.fn(() => {
+        subscriptions++;
+        return new Promise<RelaySubscribeResult>((resolve, reject) => {
+          if (subscriptions === 1) {
+            rejectInitial = reject;
+          } else {
+            resolveRecovery = () => resolve({ added: true });
+          }
+        });
+      });
+
+      try {
+        await relay.waitUntilReady();
+        const subscribing = relay.subscribe('a', () => undefined);
+        await waitFor(() => !!rejectInitial);
+
+        backend.heartbeatResult = false;
+        const recovering = (relay as any).heartbeat();
+        await waitFor(() => !!resolveRecovery);
+
+        if (order === 'initial failure first') {
+          rejectInitial(new Error('initial subscription failed'));
+          await expect(subscribing).rejects.toThrow(
+            'initial subscription failed',
+          );
+          resolveRecovery();
+          await recovering;
+        } else {
+          resolveRecovery();
+          await recovering;
+          rejectInitial(new Error('initial subscription failed'));
+          await expect(subscribing).rejects.toThrow(
+            'initial subscription failed',
+          );
+          await (relay as any).heartbeat();
+        }
+
+        expect(removeEndpoint).toHaveBeenCalledTimes(2);
+        expect((relay as any).endpoints.size).toBe(0);
+      } finally {
+        await relay.close();
+      }
+    },
+  );
+
   it('waits for recovery before dispatching an inbox batch', async () => {
     const backend = new FakeBackend();
     const relay = createRelay(backend);
@@ -828,7 +886,7 @@ describe('Relay resilience', () => {
     },
   );
 
-  it('trims its inbox on every heartbeat and emits lag past the threshold', async () => {
+  it('trims its inbox on heartbeat and emits lag past the threshold', async () => {
     const backend = new FakeBackend();
     const relay = createRelay(backend, {
       inboxMaxLength: 100,
@@ -839,14 +897,33 @@ describe('Relay resilience', () => {
     relay.on('lag', backlog => lags.push(backlog));
 
     backend.backlog = 3;
-    await (relay as any).heartbeat();
+    (relay as any).batchInFlight = false;
+    await (relay as any).checkBacklog();
     expect(lags).toEqual([]);
     expect(backend.trimmed.at(-1)).toEqual([relay.nodeId, '0', 100]);
 
     backend.backlog = 7;
-    await (relay as any).heartbeat();
+    (relay as any).batchInFlight = false;
+    await (relay as any).checkBacklog();
     expect(lags).toEqual([7]);
     await relay.close();
+  });
+
+  it('defers heartbeat trimming while an inbox batch is in flight', async () => {
+    const backend = new FakeBackend();
+    const relay = createRelay(backend);
+    try {
+      await relay.waitUntilReady();
+      (relay as any).batchInFlight = true;
+      await (relay as any).heartbeat(true);
+      expect(backend.trimmed).toEqual([]);
+
+      (relay as any).batchInFlight = false;
+      await (relay as any).checkBacklog();
+      expect(backend.trimmed).toEqual([[relay.nodeId, '0', 10_000]]);
+    } finally {
+      await relay.close();
+    }
   });
 
   it('defaults lagThreshold to half of inboxMaxLength', async () => {
@@ -856,9 +933,11 @@ describe('Relay resilience', () => {
     const lags: number[] = [];
     relay.on('lag', backlog => lags.push(backlog));
     backend.backlog = 4;
-    await (relay as any).heartbeat();
+    (relay as any).batchInFlight = false;
+    await (relay as any).checkBacklog();
     backend.backlog = 5;
-    await (relay as any).heartbeat();
+    (relay as any).batchInFlight = false;
+    await (relay as any).checkBacklog();
     expect(lags).toEqual([5]);
     await relay.close();
   });
