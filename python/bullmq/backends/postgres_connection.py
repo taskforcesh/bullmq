@@ -19,6 +19,7 @@ import re
 from typing import Any, Optional
 
 import psycopg
+from psycopg import sql as pg_sql
 from psycopg.conninfo import make_conninfo
 
 from bullmq.postgres import sql_loader
@@ -110,7 +111,8 @@ async def run_migrations(
     Runs inside a single transaction guarded by a per-schema advisory lock so
     concurrent starters migrate exactly once. ``conn`` must not be autocommit.
     """
-    quoted = quote_schema_name(schema)
+    quote_schema_name(schema)  # validates schema against a strict allow-list
+    identifier = pg_sql.Identifier(schema)
     async with conn.cursor() as cur:
         if not skip_version_check:
             await cur.execute("SELECT current_setting('server_version_num')")
@@ -126,8 +128,8 @@ async def run_migrations(
             "SELECT pg_advisory_xact_lock(%s, hashtext(%s))",
             (MIGRATION_ADVISORY_LOCK_KEY, schema),
         )
-        await cur.execute(f"CREATE SCHEMA IF NOT EXISTS {quoted}")
-        await cur.execute(f"SET LOCAL search_path TO {quoted}")
+        await cur.execute(pg_sql.Composed([pg_sql.SQL("CREATE SCHEMA IF NOT EXISTS "), identifier]))
+        await cur.execute(pg_sql.Composed([pg_sql.SQL("SET LOCAL search_path TO "), identifier]))
         await cur.execute(
             "CREATE TABLE IF NOT EXISTS migration ("
             "version integer PRIMARY KEY, name text NOT NULL, "
