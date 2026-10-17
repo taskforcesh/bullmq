@@ -103,7 +103,14 @@ jobs:
             redis-cli --cluster create 127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 --cluster-replicas 0 --cluster-yes
             tail -f /dev/null'
           for i in $(seq 1 30); do
-            if docker exec redis-cluster redis-cli -p 7000 cluster info 2>/dev/null | grep -q 'cluster_state:ok'; then
+            ready=true
+            for port in 7000 7001 7002; do
+              if ! docker exec redis-cluster redis-cli -p "$port" cluster info 2>/dev/null | grep -q 'cluster_state:ok'; then
+                ready=false
+                break
+              fi
+            done
+            if [ "$ready" = true ]; then
               exit 0
             fi
             sleep 1
