@@ -239,6 +239,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
         endpointId,
         pattern,
       );
+      this.assertOpen();
       // A live message newer than the retained one may already have arrived.
       if (retained && BigInt(retained.mid) > endpoint.lastMid) {
         this.deliver(endpoint, {

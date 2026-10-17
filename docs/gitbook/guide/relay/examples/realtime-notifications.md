@@ -28,6 +28,9 @@ const userTopic = (userId: string) => `users.${userId}.notifications`;
 
 wss.on('connection', async (socket, request) => {
   const userId = await authenticate(request); // e.g. from a session cookie
+  if (socket.readyState !== WebSocket.OPEN) {
+    return;
+  }
   if (!userId) {
     return socket.close(4001, 'unauthorized');
   }
