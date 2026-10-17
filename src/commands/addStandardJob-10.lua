@@ -24,6 +24,7 @@
       KEYS[7] 'active'
       KEYS[8] events stream key
       KEYS[9] marker key
+      KEYS[10] 'failed'
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -47,6 +48,7 @@ local waitKey = KEYS[1]
 local metaKey = KEYS[3]
 local activeKey = KEYS[7]
 local eventsKey = KEYS[8]
+local failedKey = KEYS[10]
 
 local jobId
 local jobIdKey
@@ -91,7 +93,7 @@ else
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
         return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
-            parentData, parentDependenciesKey, KEYS[5], eventsKey,
+            parentData, parentDependenciesKey, KEYS[5], failedKey, eventsKey,
             maxEvents, timestamp)
     end
 end

@@ -29,10 +29,11 @@ defmodule BullMQ.Backends.Postgres.Migrator do
   @migrations [
     {1, "0001_schema.sql"},
     {2, "0002_functions.sql"},
-    {3, "0003_dedup_stale_key.sql"}
+    {3, "0003_dedup_stale_key.sql"},
+    {4, "0004_readd_failed_child.sql"}
   ]
 
-  @latest_schema_version 3
+  @latest_schema_version 4
 
   @doc "The default schema (namespace) the backend lives in."
   def default_schema, do: @default_schema

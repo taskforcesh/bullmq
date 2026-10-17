@@ -2547,6 +2547,290 @@ describe('flows', () => {
         await worker.close();
         await flow.close();
       });
+
+      describe('when child already failed', async () => {
+        // The duplicate add does not re-run a failed child, so it must settle the
+        // dependency the way the child's failure did instead of waiting on it again.
+        const readdAfterChildFailed = async (
+          childOpts: Record<string, boolean>,
+        ) => {
+          const worker = new Worker(
+            queueName,
+            async (job: Job) => {
+              if (job.name === 'mon') {
+                throw new Error('mon failed');
+              }
+            },
+            {
+              connection,
+              prefix,
+            },
+          );
+
+          const flow = new FlowProducer({ connection, prefix });
+          const flowTree = (parentOpts: Record<string, boolean> = {}) => ({
+            queueName,
+            name: 'tue',
+            opts: {
+              jobId: 'tue',
+              ...parentOpts,
+            },
+            children: [
+              {
+                name: 'mon',
+                queueName,
+                opts: {
+                  jobId: 'mon',
+                  ...childOpts,
+                },
+              },
+            ],
+          });
+
+          const parentFinished = new Promise<void>(resolve => {
+            const onFinished = (job: Job) => {
+              if (job.id === 'tue') {
+                worker.off('completed', onFinished);
+                worker.off('failed', onFinished);
+                resolve();
+              }
+            };
+            worker.on('completed', onFinished);
+            worker.on('failed', onFinished);
+          });
+
+          try {
+            await flow.add(
+              flowTree({ removeOnComplete: true, removeOnFail: true }),
+            );
+            await parentFinished;
+
+            const tree = await flow.add(flowTree());
+
+            await delay(1000);
+            return await tree.job.getState();
+          } finally {
+            await worker.close();
+            await flow.close();
+          }
+        };
+
+        it('moves parent to wait when child has ignoreDependencyOnFailure', async () => {
+          const state = await readdAfterChildFailed({
+            ignoreDependencyOnFailure: true,
+          });
+
+          expect(state).toBe('completed');
+        });
+
+        it('moves parent to wait when child has removeDependencyOnFailure', async () => {
+          const state = await readdAfterChildFailed({
+            removeDependencyOnFailure: true,
+          });
+
+          expect(state).toBe('completed');
+        });
+
+        it('moves parent to wait when child has continueParentOnFailure', async () => {
+          const state = await readdAfterChildFailed({
+            continueParentOnFailure: true,
+          });
+
+          expect(state).toBe('completed');
+        });
+
+        it('fails parent when child has failParentOnFailure', async () => {
+          const state = await readdAfterChildFailed({
+            failParentOnFailure: true,
+          });
+
+          expect(state).toBe('failed');
+        });
+
+        it('does not block a parent step that re-adds its children', async () => {
+          const parentQueueName = `parent-queue-${randomUUID()}`;
+          const parentQueue = new Queue(parentQueueName, {
+            connection,
+            prefix,
+          });
+          const childOpts = {
+            jobId: 'mon',
+            parent: { id: 'tue', queue: qualify(queue, parentQueueName) },
+            ignoreDependencyOnFailure: true,
+          };
+
+          await parentQueue.add('tue', {}, { jobId: 'tue' });
+          await queue.add('mon', {}, childOpts);
+
+          const childWorker = new Worker(
+            queueName,
+            async () => {
+              throw new Error('mon failed');
+            },
+            { connection, prefix },
+          );
+          await new Promise(resolve => childWorker.once('failed', resolve));
+          await childWorker.close();
+
+          const parentWorker = new Worker(
+            parentQueueName,
+            async (job: Job, token?: string) => {
+              // A step that re-runs from the top re-adds every child it adds.
+              await queue.add('mon', {}, childOpts);
+              if (await job.moveToWaitingChildren(token!)) {
+                throw new WaitingChildrenError();
+              }
+            },
+            { connection, prefix },
+          );
+
+          try {
+            await delay(1000);
+            const state = await (await parentQueue.getJob('tue'))!.getState();
+
+            expect(state).toBe('completed');
+          } finally {
+            await parentWorker.close();
+            await parentQueue.close();
+            await cleanupQueue(parentQueueName);
+          }
+        });
+
+        const flowTree = (childOpts: Record<string, boolean> = {}) => ({
+          queueName,
+          name: 'tue',
+          opts: { jobId: 'tue' },
+          children: [
+            {
+              name: 'mon',
+              queueName,
+              opts: { jobId: 'mon', ...childOpts },
+            },
+          ],
+        });
+
+        const finished = (worker: Worker, jobId: string) =>
+          new Promise<void>(resolve => {
+            const onFinished = (job: Job) => {
+              if (job.id === jobId) {
+                worker.off('completed', onFinished);
+                worker.off('failed', onFinished);
+                resolve();
+              }
+            };
+            worker.on('completed', onFinished);
+            worker.on('failed', onFinished);
+          });
+
+        it('waits for a child without failure options until it is retried', async () => {
+          let failMon = true;
+          const worker = new Worker(
+            queueName,
+            async (job: Job) => {
+              if (job.name === 'mon' && failMon) {
+                throw new Error('mon failed');
+              }
+            },
+            { connection, prefix },
+          );
+          const flow = new FlowProducer({ connection, prefix });
+
+          try {
+            const monFailed = finished(worker, 'mon');
+            const first = await flow.add(flowTree());
+            await monFailed;
+            // Recreate the parent around the retained failed child.
+            await first.job.remove({ removeChildren: false });
+
+            const tree = await flow.add(flowTree());
+            await delay(500);
+            expect(await tree.job.getState()).toBe('waiting-children');
+
+            failMon = false;
+            await (await queue.getJob('mon'))!.retry();
+            await delay(1000);
+
+            expect(await tree.job.getState()).toBe('completed');
+          } finally {
+            await worker.close();
+            await flow.close();
+          }
+        });
+
+        it('settles a dependency an earlier add left pending', async () => {
+          const worker = new Worker(
+            queueName,
+            async (job: Job) => {
+              if (job.name === 'mon') {
+                throw new Error('mon failed');
+              }
+            },
+            { connection, prefix },
+          );
+          const flow = new FlowProducer({ connection, prefix });
+
+          try {
+            // Without failure options the failed child stays a pending
+            // dependency, which is what an add before this fix left for any
+            // re-added failed child.
+            const monFailed = finished(worker, 'mon');
+            const tree = await flow.add(flowTree());
+            await monFailed;
+            expect(await tree.job.getState()).toBe('waiting-children');
+
+            await flow.add(flowTree({ ignoreDependencyOnFailure: true }));
+            await delay(1000);
+
+            expect(await tree.job.getState()).toBe('completed');
+          } finally {
+            await worker.close();
+            await flow.close();
+          }
+        });
+
+        it('lets a failed parent run when retried after its child is re-added and retried', async () => {
+          let failMon = true;
+          let tueProcessed = false;
+          const worker = new Worker(
+            queueName,
+            async (job: Job) => {
+              if (job.name === 'mon' && failMon) {
+                throw new Error('mon failed');
+              }
+              if (job.name === 'tue') {
+                tueProcessed = true;
+              }
+            },
+            { connection, prefix },
+          );
+          const flow = new FlowProducer({ connection, prefix });
+
+          try {
+            const tueFailed = finished(worker, 'tue');
+            const tree = await flow.add(
+              flowTree({ failParentOnFailure: true }),
+            );
+            await tueFailed;
+
+            await flow.add(flowTree({ failParentOnFailure: true }));
+
+            failMon = false;
+            const monCompleted = finished(worker, 'mon');
+            await (await queue.getJob('mon'))!.retry();
+            await monCompleted;
+
+            const tueFinished = finished(worker, 'tue');
+            await tree.job.retry();
+            await tueFinished;
+
+            expect(await tree.job.getState()).toBe('completed');
+            expect(tueProcessed).toBe(true);
+          } finally {
+            await worker.close();
+            await flow.close();
+          }
+        });
+      });
     });
   });
 

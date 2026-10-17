@@ -14,6 +14,7 @@
       KEYS[7] 'active'
       KEYS[8] events stream key
       KEYS[9] 'pc' priority counter
+      KEYS[10] 'failed'
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -41,6 +42,7 @@ local completedKey = KEYS[6]
 local activeKey = KEYS[7]
 local eventsKey = KEYS[8]
 local priorityCounterKey = KEYS[9]
+local failedKey = KEYS[10]
 
 local jobId
 local jobIdKey
@@ -85,7 +87,7 @@ else
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
         return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
-            parentData, parentDependenciesKey, completedKey, eventsKey,
+            parentData, parentDependenciesKey, completedKey, failedKey, eventsKey,
             maxEvents, timestamp)
     end
 end

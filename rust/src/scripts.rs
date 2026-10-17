@@ -139,23 +139,23 @@ impl ScriptRegistry {
         vec![
             (
                 "addStandardJob",
-                9,
-                include_str!("commands/addStandardJob-9.lua"),
+                10,
+                include_str!("commands/addStandardJob-10.lua"),
             ),
             (
                 "addDelayedJob",
-                6,
-                include_str!("commands/addDelayedJob-6.lua"),
+                7,
+                include_str!("commands/addDelayedJob-7.lua"),
             ),
             (
                 "addPrioritizedJob",
-                9,
-                include_str!("commands/addPrioritizedJob-9.lua"),
+                10,
+                include_str!("commands/addPrioritizedJob-10.lua"),
             ),
             (
                 "addParentJob",
-                6,
-                include_str!("commands/addParentJob-6.lua"),
+                7,
+                include_str!("commands/addParentJob-7.lua"),
             ),
             ("addLog", 2, include_str!("commands/addLog-2.lua")),
             (
