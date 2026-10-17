@@ -17,6 +17,63 @@ public abstract class FlowProducerTestsBase
 
     private static string UniqueName() => $"dotnet-flow-{Guid.NewGuid():N}";
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Flow_ReaddedCompletedChildWaitsForNewSibling(bool completedFirst)
+    {
+        var q = UniqueName();
+        await using var queue = new Queue(q, NewQueueOptions());
+        await using var flow = new FlowProducer(NewQueueOptions());
+        var backend = await queue.GetBackendAsync();
+        var cached = new FlowJob
+        {
+            Name = "cached", QueueName = q, Opts = new JobsOptions { JobId = "cached" },
+        };
+
+        async Task CompleteNext(Job job, string value)
+        {
+            var next = await backend.MoveToActiveAsync("0");
+            Assert.Equal(job.Id, next.JobId);
+            await job.MoveToCompletedAsync(value, "0", fetchNext: false);
+        }
+
+        try
+        {
+            var first = await flow.AddAsync(new FlowJob
+            {
+                Name = "parent", QueueName = q,
+                Opts = new JobsOptions { JobId = "parent", RemoveOnComplete = true },
+                Children = new[] { cached },
+            });
+            await CompleteNext(first.Children![0].Job, "cached result");
+            await CompleteNext(first.Job, "first result");
+            Assert.Null(await queue.GetJobAsync("parent"));
+
+            var fresh = new FlowJob
+            {
+                Name = "fresh", QueueName = q, Opts = new JobsOptions { JobId = "fresh" },
+            };
+            var tree = await flow.AddAsync(new FlowJob
+            {
+                Name = "parent", QueueName = q,
+                Opts = new JobsOptions { JobId = "parent" },
+                Children = completedFirst ? new[] { cached, fresh } : new[] { fresh, cached },
+            });
+            Assert.Equal(JobState.WaitingChildren, await queue.GetJobStateAsync(tree.Job.Id!));
+            await CompleteNext(tree.Children!.Single(child => child.Job.Id == "fresh").Job, "fresh result");
+            var values = await tree.Job.GetChildrenValuesAsync();
+            Assert.Equal(new[] { "cached result", "fresh result" },
+                values.Values.Select(value => value!.ToString()).OrderBy(value => value));
+            await CompleteNext(tree.Job, "second result");
+            Assert.Equal(JobState.Completed, await queue.GetJobStateAsync(tree.Job.Id!));
+        }
+        finally
+        {
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
     [Fact]
     public async Task Flow_ParentWaitsForChildren()
     {

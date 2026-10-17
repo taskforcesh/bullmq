@@ -55,6 +55,131 @@ where
     Arc::new(f)
 }
 
+async fn check_readded_flow(completed_first: bool, bulk: bool) {
+    let name = test_queue_name();
+    let prefix = "bf-test";
+    let queue = test_queue_with_prefix(&name, prefix).await;
+    let flow = test_flow_producer(prefix).await;
+    let worker = Worker::with_options(
+        &name,
+        processor(|_, _| Box::pin(async { Ok(serde_json::Value::Null) })),
+        WorkerOptions {
+            connection: test_connection(),
+            prefix: prefix.to_string(),
+            autorun: false,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    async fn complete_next(worker: &Worker, id: &str, value: &str) {
+        let mut job = worker
+            .get_next_job_nonblocking("flow-registration-test")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(job.id(), id);
+        job.move_to_completed(value).await.unwrap();
+    }
+
+    let cached = FlowJob::new("cached", &name, serde_json::json!({}))
+        .unwrap()
+        .options(JobOptions {
+            job_id: Some("cached".to_string()),
+            ..Default::default()
+        });
+    flow.add(
+        FlowJob::new("parent", &name, serde_json::json!({}))
+            .unwrap()
+            .options(JobOptions {
+                job_id: Some("parent".to_string()),
+                ..Default::default()
+            })
+            .add_child(cached.clone()),
+    )
+    .await
+    .unwrap();
+    complete_next(&worker, "cached", "cached result").await;
+    complete_next(&worker, "parent", "first result").await;
+    assert!(queue.remove_without_children("parent").await.unwrap());
+    assert!(queue.get_job("parent").await.unwrap().is_none());
+    assert!(queue
+        .get_job("cached")
+        .await
+        .unwrap()
+        .unwrap()
+        .is_completed()
+        .await
+        .unwrap());
+
+    let fresh = FlowJob::new("fresh", &name, serde_json::json!({}))
+        .unwrap()
+        .options(JobOptions {
+            job_id: Some("fresh".to_string()),
+            ..Default::default()
+        });
+    let mut parent = FlowJob::new("parent", &name, serde_json::json!({}))
+        .unwrap()
+        .options(JobOptions {
+            job_id: Some("parent".to_string()),
+            ..Default::default()
+        });
+    parent.children = Some(if completed_first {
+        vec![cached, fresh]
+    } else {
+        vec![fresh, cached]
+    });
+    let tree = if bulk {
+        flow.add_bulk(vec![parent]).await.unwrap().remove(0)
+    } else {
+        flow.add(parent).await.unwrap()
+    };
+    assert!(tree.job.is_waiting_children().await.unwrap());
+    complete_next(&worker, "fresh", "fresh result").await;
+    let mut values: Vec<_> = tree
+        .job
+        .get_children_values()
+        .await
+        .unwrap()
+        .into_values()
+        .collect();
+    values.sort_by_key(|value| value.to_string());
+    assert_eq!(
+        values,
+        vec![
+            serde_json::json!("cached result"),
+            serde_json::json!("fresh result")
+        ]
+    );
+    complete_next(&worker, "parent", "second result").await;
+    assert!(tree.job.is_completed().await.unwrap());
+
+    worker.close(5000).await.unwrap();
+    cleanup_queue(&queue).await;
+    flow.close().await;
+}
+
+#[tokio::test]
+async fn readded_completed_child_waits_for_later_sibling() {
+    check_readded_flow(true, false).await;
+}
+
+#[tokio::test]
+async fn readded_completed_child_after_new_sibling() {
+    check_readded_flow(false, false).await;
+}
+
+#[tokio::test]
+async fn readded_bulk_completed_child_waits_for_later_sibling() {
+    check_readded_flow(true, true).await;
+}
+
+#[tokio::test]
+async fn readded_bulk_completed_child_after_new_sibling() {
+    check_readded_flow(false, true).await;
+}
+
 #[tokio::test]
 async fn should_process_children_before_the_parent() {
     let prefix = "bf-test";

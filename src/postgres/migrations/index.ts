@@ -43,6 +43,13 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0003_dedup_stale_key.sql'),
   },
+  {
+    version: 4,
+    name: '0004_flow_registration',
+    // Existing entry points retain their signatures; the new overload is internal.
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0004_flow_registration.sql'),
+  },
 ];
 
 /**

@@ -256,6 +256,30 @@ public sealed class RedisBackend : IQueueBackend
 
         var tran = _connection.Db.CreateTransaction();
         var tasks = new List<Task<RedisResult>>(entries.Count);
+        var parents = new Dictionary<string, RedisValue[]>(StringComparer.Ordinal);
+        foreach (var entry in entries)
+        {
+            var job = entry.Job;
+            if (job.ParentKey is { Length: > 0 } key &&
+                job.Parent is IReadOnlyDictionary<string, object?> parent)
+            {
+                parents.TryAdd(key, new RedisValue[]
+                {
+                    parent["queueKey"]!.ToString()!,
+                    parent["id"]!.ToString()!,
+                    job.Timestamp,
+                });
+            }
+        }
+
+        var guardTasks = new List<Task<RedisResult>>(2 * parents.Count);
+        var guardScript = LuaScripts.Get("updateFlowDependencies").Content;
+        foreach (var (key, args) in parents)
+        {
+            guardTasks.Add(tran.ScriptEvaluateAsync(guardScript,
+                new RedisKey[] { key }, new RedisValue[] { args[0], args[1], args[2], "1" }));
+        }
+
         foreach (var entry in entries)
         {
             var keys = new QueueKeys(entry.Prefix).GetKeys(entry.QueueName);
@@ -264,11 +288,18 @@ public sealed class RedisBackend : IQueueBackend
             tasks.Add(tran.ScriptEvaluateAsync(scriptText, redisKeys, args));
         }
 
+        foreach (var (key, args) in parents)
+        {
+            guardTasks.Add(tran.ScriptEvaluateAsync(guardScript,
+                new RedisKey[] { key }, new RedisValue[] { args[0], args[1], args[2], "0" }));
+        }
+
         var committed = await tran.ExecuteAsync().ConfigureAwait(false);
         if (!committed)
         {
             throw new BullMQException("addFlow transaction was not committed");
         }
+        await Task.WhenAll(guardTasks).ConfigureAwait(false);
 
         var ids = new string[entries.Count];
         for (var i = 0; i < entries.Count; i++)
