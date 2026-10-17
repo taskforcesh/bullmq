@@ -1,6 +1,15 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { default as IORedis } from 'ioredis';
 import { randomUUID } from 'crypto';
+import { AddressInfo, createServer, Socket } from 'net';
 import {
   Queue,
   RedisRelayBackend,
@@ -245,6 +254,50 @@ describe('Relay on ioredis', () => {
     ).toEqual({ entries: [], cursor: '0-0' });
     expect(Date.now() - start).toBeLessThan(1_000);
     expect((backend as any).blockingConnection).toBeUndefined();
+  });
+
+  it('closes while the inbox connection is still initializing', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    let socket: Socket | undefined;
+    // Accept the connection without answering Redis's startup commands.
+    const server = createServer(accepted => {
+      socket = accepted;
+      socket.resume();
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address() as AddressInfo;
+    let inboxClient: IORedis | undefined;
+    const duplicate = vi.spyOn(admin, 'duplicate').mockImplementation(opts => {
+      inboxClient = new IORedis({
+        ...opts,
+        host: '127.0.0.1',
+        port,
+      });
+      return inboxClient;
+    });
+    const relay = new Relay({ connection: admin, prefix, namespace });
+    relays.push(relay);
+    relay.on('error', () => undefined);
+    try {
+      await relay.waitUntilReady();
+      const backend = (relay as any).backend as RedisRelayBackend;
+      await waitFor(() => !!socket && !!(backend as any).blockingConnection);
+      expect((backend as any).blockingConnection.status).toBe('initializing');
+      const closed = vi.fn();
+      const closing = relay.close().then(closed);
+      await waitFor(() => closed.mock.calls.length === 1, 1_000);
+      await closing;
+      expect(inboxClient!.status).toBe('end');
+      expect(await admin.ping()).toBe('PONG');
+    } finally {
+      duplicate.mockRestore();
+      inboxClient?.disconnect();
+      socket?.destroy();
+      await relay.close();
+      await new Promise<void>((resolve, reject) =>
+        server.close(err => (err ? reject(err) : resolve())),
+      );
+    }
   });
 
   it('never shares keys with queues nor looks like one, whatever the names', async () => {

@@ -401,8 +401,7 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
   interruptInbox(): void {
     this.interrupted = true;
     this.blockingConnectionPromise
-      ?.then(connection => connection.client)
-      .then(client => client.disconnect())
+      ?.then(connection => connection.close(true))
       .catch((): void => undefined);
   }
 

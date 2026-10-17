@@ -122,6 +122,34 @@ const createRelay = (backend: FakeBackend, opts = {}) =>
   });
 
 describe('Relay resilience', () => {
+  it('rejects a subscription completed after close without delivering retained data', async () => {
+    const backend = new FakeBackend();
+    let complete!: (result: RelaySubscribeResult) => void;
+    backend.subscribe = vi.fn(
+      () =>
+        new Promise<RelaySubscribeResult>(resolve => {
+          complete = resolve;
+        }),
+    );
+    const relay = createRelay(backend);
+    const listener = vi.fn();
+    try {
+      await relay.waitUntilReady();
+      const subscribing = relay.subscribe('a', listener);
+      await waitFor(() => !!complete);
+      await relay.close();
+      const rejected = expect(subscribing).rejects.toThrow('Relay is closed');
+      complete({
+        added: true,
+        retained: { mid: '1', ts: 1, data: '"retained"' },
+      });
+      await rejected;
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      await relay.close();
+    }
+  });
+
   it('requires a connection', () => {
     expect(() => new Relay(undefined as any)).toThrow(
       'Relay requires a connection',
