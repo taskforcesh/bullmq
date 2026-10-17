@@ -1,3 +1,16 @@
+# [1.4.0](https://github.com/taskforcesh/bullmq/compare/vrs1.3.6...vrs1.4.0) (2026-10-17)
+
+
+### Bug Fixes
+
+* **deps:** update crate serde_json to v1.0.152 [rust] ([#4932](https://github.com/taskforcesh/bullmq/issues/4932)) ([03655d4](https://github.com/taskforcesh/bullmq/commit/03655d4b8aa77682df93dd70bd20c60c5769c894))
+* **deps:** update crate serde_json to v1.0.153 [rust] ([#4941](https://github.com/taskforcesh/bullmq/issues/4941)) ([84e3424](https://github.com/taskforcesh/bullmq/commit/84e3424779ba3ea3e064e5ee5aa47130ff0b2b27))
+
+
+### Features
+
+* **connection:** add Redis Cluster support [rust] ([#4946](https://github.com/taskforcesh/bullmq/issues/4946)) ([3a88748](https://github.com/taskforcesh/bullmq/commit/3a8874863bf6d524ff3170f056bcda0acea4a1cc))
+
 ## [1.3.6](https://github.com/taskforcesh/bullmq/compare/vrs1.3.5...vrs1.3.6) (2026-10-14)
 
 
