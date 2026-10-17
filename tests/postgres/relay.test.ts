@@ -7,9 +7,10 @@ import { getPostgresUrl } from './utils/postgres-url';
 // PostgreSQL-specific relay tests (transaction-level races). The
 // backend-agnostic relay tests are tests/relay*.test.ts.
 const schema = 'bullmq_relay_pg_test';
-const connection = () => ({
+const otherSchema = `${schema}_other`;
+const connection = (targetSchema = schema) => ({
   connectionString: getPostgresUrl(),
-  schema,
+  schema: targetSchema,
   migrate: true,
 });
 
@@ -18,10 +19,12 @@ let pool: Pool;
 beforeAll(async () => {
   pool = new Pool({ connectionString: getPostgresUrl() });
   await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+  await pool.query(`DROP SCHEMA IF EXISTS "${otherSchema}" CASCADE`);
 });
 
 afterAll(async () => {
   await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+  await pool.query(`DROP SCHEMA IF EXISTS "${otherSchema}" CASCADE`);
   await pool.end();
 });
 
@@ -122,11 +125,106 @@ describe('Relay (postgres) concurrency', () => {
           backend.getNodeConnections(nodeIds[index]),
         ),
       );
-      expect(connections.map(nodeConnections => nodeConnections.length)).toEqual(
-        [1, 1],
-      );
+      expect(
+        connections.map(nodeConnections => nodeConnections.length),
+      ).toEqual([1, 1]);
     } finally {
       await Promise.all(backends.map(backend => backend.close()));
+    }
+  });
+
+  it('isolates inbox connection discovery across schemas', async () => {
+    const namespace = `t-${randomUUID().slice(0, 13)}`;
+    const nodeId = 'same-node';
+    const backends = [
+      createPostgresRelayBackend({
+        connection: connection(),
+        namespace,
+        nodeId,
+      }),
+      createPostgresRelayBackend({
+        connection: connection(otherSchema),
+        namespace,
+        nodeId,
+      }),
+    ];
+    try {
+      await Promise.all(backends.map(backend => backend.waitUntilReady()));
+      await Promise.all(
+        backends.map(backend => backend.registerNode(nodeId, 30_000)),
+      );
+      await Promise.all(
+        backends.map(backend =>
+          backend.readInbox(nodeId, '', { blockMs: 0, count: 1 }),
+        ),
+      );
+
+      const connections = await Promise.all(
+        backends.map(backend => backend.getNodeConnections(nodeId)),
+      );
+      expect(
+        connections.map(nodeConnections => nodeConnections.length),
+      ).toEqual([1, 1]);
+
+      await backends[1].close();
+      await expect(
+        backends[0].getNodeConnections(nodeId),
+      ).resolves.toHaveLength(1);
+    } finally {
+      await Promise.all(backends.map(backend => backend.close()));
+      await pool.query(`DELETE FROM "${schema}".relay_node WHERE ns = $1`, [
+        namespace,
+      ]);
+      await pool.query(
+        `DELETE FROM "${otherSchema}".relay_node WHERE ns = $1`,
+        [namespace],
+      );
+    }
+  });
+
+  it('does not count inbox batch entries as dropped while dispatching', async () => {
+    const namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = createPostgresRelayBackend({
+      connection: connection(),
+      namespace,
+    });
+    let releaseRead!: () => void;
+    let readStarted!: () => void;
+    const readGate = new Promise<void>(resolve => {
+      releaseRead = resolve;
+    });
+    const firstRead = new Promise<void>(resolve => {
+      readStarted = resolve;
+    });
+    const readInbox = backend.readInbox.bind(backend);
+    vi.spyOn(backend, 'readInbox').mockImplementation(async (...args) => {
+      readStarted();
+      await readGate;
+      return readInbox(...args);
+    });
+    const relay = new Relay({
+      connection: connection(),
+      namespace,
+      inboxMaxLength: 1,
+      heartbeatInterval: 5,
+      backend: () => backend,
+    });
+    const messages: unknown[] = [];
+    try {
+      await relay.waitUntilReady();
+      await firstRead;
+      await relay.subscribe('a', message => messages.push(message.data));
+      for (const value of [1, 2, 3]) {
+        await relay.publish('a', value);
+      }
+      await new Promise(resolve => setTimeout(resolve, 30));
+      releaseRead();
+
+      await vi.waitFor(() => expect(messages).toEqual([1, 2, 3]));
+      await expect(relay.getNodes()).resolves.toMatchObject([{ dropped: 0 }]);
+    } finally {
+      releaseRead();
+      await relay.close();
     }
   });
 
