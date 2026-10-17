@@ -36,10 +36,11 @@ async function apply(settings: WorkerSettings) {
   }
 }
 
+let applying = Promise.resolve();
 await relay.subscribe('workers.emails.settings', message => {
-  apply(message.data as WorkerSettings).catch(err =>
-    logger.error(err, 'could not apply worker settings'),
-  );
+  applying = applying
+    .then(() => apply(message.data as WorkerSettings))
+    .catch(err => logger.error(err, 'could not apply worker settings'));
 });
 ```
 
