@@ -697,7 +697,8 @@ export class RedisConnection extends EventEmitter {
   async disconnect(wait = true): Promise<void> {
     const client = await this.client;
     if (client.status !== 'end') {
-      let _resolve, _reject;
+      let _resolve: (() => void) | undefined;
+      let _reject: ((err: Error) => void) | undefined;
 
       if (!wait) {
         return client.disconnect();
@@ -712,15 +713,23 @@ export class RedisConnection extends EventEmitter {
         _reject = reject;
       });
 
+      // Add a safety timeout to prevent indefinite hangs
+      const timeout = setTimeout(() => {
+        _resolve?.();
+      }, 5000);
+      // Don't keep the event loop alive solely for this timer.
+      timeout.unref?.();
+
       client.disconnect();
 
       try {
         await disconnecting;
       } finally {
+        clearTimeout(timeout);
         decreaseMaxListeners(client, 2);
 
-        client.removeListener('end', _resolve);
-        client.removeListener('error', _reject);
+        if (_resolve) {client.removeListener('end', _resolve);}
+        if (_reject) {client.removeListener('error', _reject);}
       }
     }
   }
