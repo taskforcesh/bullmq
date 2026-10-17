@@ -1448,7 +1448,7 @@ impl Worker {
             job_id.as_bytes(),          // ARGV[7] producerId
         ];
 
-        let mut redis_conn = ctx.conn.managed_conn();
+        let mut redis_conn = ctx.conn.connection();
         let _result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         // Script returns the next job ID on success, or nil if scheduler
@@ -1792,7 +1792,7 @@ impl Worker {
 
         let args: Vec<&[u8]> = vec![job_id.as_bytes(), token.as_bytes(), job_key.as_bytes()];
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
         let result: redis::Value = script.execute(&mut conn, &script_keys, &args).await?;
 
         match result {
@@ -1825,7 +1825,7 @@ impl Worker {
         let now_bytes = now.to_string().into_bytes();
         let args: Vec<&[u8]> = vec![prefix_bytes, &now_bytes, &opts_packed];
 
-        let mut redis_conn = conn.managed_conn();
+        let mut redis_conn = conn.connection();
         let result = script.execute(&mut redis_conn, script_keys, &args).await?;
 
         Self::parse_move_to_active_result(&result)
@@ -1914,7 +1914,7 @@ impl Worker {
             &fields_to_update,
         ];
 
-        let mut redis_conn = conn.managed_conn();
+        let mut redis_conn = conn.connection();
         let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         match result {
@@ -1992,7 +1992,7 @@ impl Worker {
             &fields_to_update,     // ARGV[6] optional fields
         ];
 
-        let mut redis_conn = conn.managed_conn();
+        let mut redis_conn = conn.connection();
         let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         match result {
@@ -2071,7 +2071,7 @@ impl Worker {
             &move_opts,            // ARGV[9] opts
         ];
 
-        let mut redis_conn = conn.managed_conn();
+        let mut redis_conn = conn.connection();
         let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         match result {
@@ -2157,7 +2157,7 @@ impl Worker {
         let now_bytes = now.to_string().into_bytes();
         let args: Vec<&[u8]> = vec![&prefix_bytes, &now_bytes, &opts_packed];
 
-        let mut redis_conn = conn.managed_conn();
+        let mut redis_conn = conn.connection();
         let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         // Parse result
@@ -2172,7 +2172,7 @@ impl Worker {
 
                     if wait_result.is_some() {
                         // Retry fetching
-                        let mut redis_conn = conn.managed_conn();
+                        let mut redis_conn = conn.connection();
                         let retry_result =
                             script.execute(&mut redis_conn, &script_keys, &args).await?;
                         match Self::parse_move_to_active_result(&retry_result)? {
@@ -2377,7 +2377,7 @@ impl Worker {
         let max_check_time = stalled_interval.to_string().into_bytes();
         let args: Vec<&[u8]> = vec![&max_str, &prefix_bytes, &now_bytes, &max_check_time];
 
-        let mut redis_conn = conn.managed_conn();
+        let mut redis_conn = conn.connection();
         let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         // Parse result for stalled job IDs
@@ -2439,7 +2439,7 @@ impl Worker {
                     let job_id_bytes = active_job.job_id.as_bytes();
                     let args: Vec<&[u8]> = vec![token_bytes, &dur_bytes, job_id_bytes];
 
-                    let mut redis_conn = conn.managed_conn();
+                    let mut redis_conn = conn.connection();
                     let _: Result<(), _> = script
                         .execute(&mut redis_conn, &script_keys, &args)
                         .await
