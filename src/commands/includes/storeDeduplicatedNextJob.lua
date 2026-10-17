@@ -11,8 +11,16 @@ local function storeDeduplicatedNextJob(deduplicationOpts, currentDeduplicatedJo
     parentKey, parentData, parentDependenciesKey, repeatJobKey)
     if deduplicationOpts['keepLastIfActive'] and currentDeduplicatedJobId then
         local activeKey = prefix .. "active"
-        local activeItems = rcall('LRANGE', activeKey, 0, -1)
-        if checkItemInList(activeItems, currentDeduplicatedJobId) then
+        -- LPOS scans the list in C instead of copying it into the Lua VM.
+        -- getState/getStateV2 pick this at the TypeScript call site
+        -- (Redis >= 6.0.6); this include is shared, so probe with pcall.
+        -- A hit at index 0 returns 0, which is truthy. Only nil/false miss.
+        -- Older Redis returns an error table; fall back to the LRANGE scan.
+        local pos = redis.pcall('LPOS', activeKey, currentDeduplicatedJobId)
+        if type(pos) == 'table' and pos.err then
+            pos = checkItemInList(rcall('LRANGE', activeKey, 0, -1), currentDeduplicatedJobId)
+        end
+        if pos then
             local deduplicationNextKey = prefix .. "dn:" .. deduplicationId
             local fields = {'name', jobName, 'data', jobData, 'opts', cjson.encode(fullOpts),
                 'jid', jobId}
