@@ -18,7 +18,7 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/isJobSchedulerJob"
---- @include "includes/isLocked"
+--- @include "includes/isLockedIter"
 --- @include "includes/removeJobWithChildren"
 
 local jobId = ARGV[1]
@@ -31,7 +31,7 @@ if isJobSchedulerJob(jobId, jobKey, repeatKey) then
     return -8
 end
 
-if not isLocked(prefix, jobId, shouldRemoveChildren) then
+if not isLockedIter(prefix, jobId, shouldRemoveChildren) then
     local options = {
         removeChildren = shouldRemoveChildren == "1",
         ignoreProcessed = false,
