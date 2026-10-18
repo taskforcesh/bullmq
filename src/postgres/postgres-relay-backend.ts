@@ -422,7 +422,6 @@ export class PostgresRelayBackend
     await this.connection.waitUntilReady();
     const client = await this.connection.getListenClient();
     if (!this.listening) {
-      await client.query(loadCommandSql('listen_relay'));
       if (this.nodeId) {
         const { database, schema } = await this.getConnectionIdentity();
         // Named after the node (re-applied if the connection is rebuilt) so
@@ -431,6 +430,7 @@ export class PostgresRelayBackend
           this.inboxConnectionName(this.nodeId, database, schema),
         );
       }
+      await client.query(loadCommandSql('listen_relay'));
       this.listening = true;
     }
     return client;

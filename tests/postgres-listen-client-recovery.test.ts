@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { describe, expect, it, vi } from 'vitest';
 import { PostgresConnection } from '../src/postgres/postgres-connection';
 import { PostgresQueueBackend } from '../src/postgres/postgres-queue-backend';
+import { PostgresRelayBackend } from '../src/postgres/postgres-relay-backend';
 
 /**
  * DB-independent unit tests for the dedicated `LISTEN` client recovery path
@@ -275,6 +276,60 @@ describe('PostgresConnection LISTEN client recovery', () => {
       'rejected',
     ]);
     expect(connect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PostgresRelayBackend LISTEN client recovery', () => {
+  it('retries LISTEN when the client is invalidated during identity lookup', async () => {
+    const backend = new PostgresRelayBackend({
+      connection: { connectionString: 'postgres://fake/db' },
+      namespace: 'test',
+      nodeId: 'node',
+    });
+    const connection = (backend as any).connection as PostgresConnection;
+    const firstClient = new EventEmitter() as any;
+    const replacementClient = new EventEmitter() as any;
+    let invalidated = false;
+    let listenClient = firstClient;
+    firstClient.query = vi
+      .fn()
+      .mockImplementation(() =>
+        invalidated
+          ? Promise.reject(new Error('listener invalidated'))
+          : Promise.resolve({ rows: [] }),
+      );
+    replacementClient.query = vi.fn().mockResolvedValue({ rows: [] });
+
+    vi.spyOn(connection, 'waitUntilReady').mockResolvedValue();
+    vi.spyOn(connection, 'getListenClient').mockImplementation(
+      async () => listenClient,
+    );
+    vi.spyOn(connection, 'setListenClientName').mockResolvedValue();
+    vi.spyOn(backend as any, 'getConnectionIdentity').mockImplementation(
+      async () => {
+        if (!invalidated) {
+          invalidated = true;
+          listenClient = replacementClient;
+          connection.emit('listenerinvalidated');
+        }
+        return { database: 'db', schema: 'public' };
+      },
+    );
+
+    try {
+      await expect((backend as any).ensureListening()).rejects.toThrow(
+        'listener invalidated',
+      );
+      expect((backend as any).listening).toBe(false);
+
+      await expect((backend as any).ensureListening()).resolves.toBe(
+        replacementClient,
+      );
+      expect(replacementClient.query).toHaveBeenCalledTimes(1);
+      expect((backend as any).listening).toBe(true);
+    } finally {
+      await backend.close();
+    }
   });
 });
 
