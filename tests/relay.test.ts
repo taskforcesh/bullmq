@@ -182,6 +182,24 @@ describe(`Relay (${ctx.backend})`, () => {
       expect(await backend.heartbeat('n1', 30_000)).toBe(false);
     });
 
+    it('extends the inbox expiry when refreshing a node registration', async () => {
+      const backend = await newBackend(newNamespace());
+      await backend.registerNode('anchor', 30_000);
+      await backend.registerNode('n1', 500);
+      await backend.subscribe('n1', 'e1', 'a');
+      await backend.publish('a', 'message', {
+        ts: 1,
+        retainMs: 0,
+        maxSize: 100,
+      });
+      await backend.registerNode('n1', 30_000);
+      await delay(700);
+
+      expect(
+        (await readAll(backend, 'n1')).entries.map(entry => entry.data),
+      ).toEqual(['message']);
+    });
+
     it('validates node and endpoint ids', async () => {
       const backend = await newBackend(newNamespace());
       for (const id of ['', 'a b', 'a/b', 'a,b', 'a:b', 'x'.repeat(65)]) {
