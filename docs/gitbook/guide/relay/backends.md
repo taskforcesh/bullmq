@@ -74,7 +74,7 @@ For reference, when inspecting a Redis instance (`…` is
 | `…:cleanup`                  | Sorted set | Removed nodes whose subscriptions are still being pruned                   |
 | `…:retained`                 | Sorted set | Topics with a retained message, scored by expiry                           |
 | `…:{topic}:ret`              | Hash       | A topic's retained message                                                 |
-| `…:mid`                      | String     | Message id counter                                                         |
+| `…:mid`                      | String     | Message id counter, started at the server time in microseconds             |
 | `{prefix}::relay:namespaces` | Sorted set | Namespaces in use, scored by how long (for dashboards)                     |
 
 Nodes refuse to join a namespace written with an incompatible data layout

@@ -99,6 +99,8 @@ interface Endpoint {
   listener: RelayListener<any>;
   lastMid: bigint;
   active: boolean;
+  /** Live messages received while the subscription is being set up. */
+  pending?: RelayMessage<string>[];
   removing?: Promise<void>;
 }
 
@@ -143,6 +145,11 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   private batchInFlight = false;
   private sweeping?: Promise<void>;
   private recoveryPending = false;
+  private connected = false;
+  private cancelStart!: () => void;
+  private readonly startCancelled = new Promise<void>(resolve => {
+    this.cancelStart = resolve;
+  });
   private closing?: Promise<void>;
 
   constructor(private readonly opts: RelayOptions<C>) {
@@ -232,9 +239,10 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
       listener,
       lastMid: BigInt(0),
       active: true,
+      pending: [],
     };
-    // Registered first, so live messages are dispatched as soon as the
-    // subscription exists.
+    // Registered first, so live messages that arrive while subscribing are
+    // buffered, then delivered after the retained one.
     this.endpoints.set(endpointId, endpoint);
     try {
       const { retained } = await this.backend.subscribe(
@@ -243,8 +251,9 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
         pattern,
       );
       this.assertOpen();
-      // A live message newer than the retained one may already have arrived.
-      if (retained && BigInt(retained.mid) > endpoint.lastMid) {
+      const pending = endpoint.pending ?? [];
+      endpoint.pending = undefined;
+      if (retained) {
         this.deliver(endpoint, {
           topic: pattern,
           mid: retained.mid,
@@ -253,7 +262,14 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
           retained: true,
         });
       }
+      // Skips live copies of the retained message (or older ones).
+      for (const message of pending) {
+        if (BigInt(message.mid) > endpoint.lastMid) {
+          this.deliver(endpoint, message);
+        }
+      }
     } catch (err) {
+      endpoint.pending = undefined;
       endpoint.active = false;
       try {
         await this.removeEndpoint(endpointId, endpoint);
@@ -377,7 +393,12 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   }
 
   private async start(): Promise<void> {
-    await this.backend.waitUntilReady();
+    // close() cancels a startup still waiting for the datastore.
+    await Promise.race([this.backend.waitUntilReady(), this.startCancelled]);
+    if (this.closing) {
+      return;
+    }
+    this.connected = true;
     await this.register();
     if (this.closing) {
       return;
@@ -400,6 +421,14 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   private async stop(): Promise<void> {
     clearInterval(this.heartbeatTimer);
     clearInterval(this.sweepTimer);
+    if (!this.connected) {
+      // Still connecting (possibly retrying forever): never registered, so
+      // there is nothing to unregister. Cancel startup and close directly.
+      this.cancelStart();
+      this.endpoints.clear();
+      await this.backend.close();
+      return;
+    }
     try {
       await this.ready;
     } catch {
@@ -627,13 +656,18 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     for (const endpointId of entry.endpoints) {
       const endpoint = this.endpoints.get(endpointId);
       if (endpoint?.active) {
-        this.deliver(endpoint, {
+        const message: RelayMessage<string> = {
           topic: entry.topic,
           mid: entry.mid,
           ts: entry.ts,
           data: entry.data,
           retained: false,
-        });
+        };
+        if (endpoint.pending) {
+          endpoint.pending.push(message);
+        } else {
+          this.deliver(endpoint, message);
+        }
       }
     }
   }

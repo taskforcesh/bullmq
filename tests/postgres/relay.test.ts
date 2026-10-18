@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'crypto';
 import { Pool, PoolClient } from 'pg';
 import { createPostgresRelayBackend, Relay } from '../../src';
+import { DEFAULT_SCHEMA } from '../../src/postgres';
 import { getPostgresUrl } from './utils/postgres-url';
 
 // PostgreSQL-specific relay tests (transaction-level races). The
@@ -51,8 +52,17 @@ describe('Relay (postgres) concurrency', () => {
 
   it('does not retain node discovery after closing a supplied-pool relay', async () => {
     const namespace = `t-${randomUUID().slice(0, 13)}`;
+    // A supplied pool uses the default schema: initialize it explicitly
+    // rather than relying on another test file's database state.
+    const setup = createPostgresRelayBackend({
+      connection: connection(DEFAULT_SCHEMA),
+      namespace,
+    });
+    await setup.waitUntilReady();
+    await setup.close();
     const supplied = new Pool({
       connectionString: getPostgresUrl(),
+      options: `-c search_path=${DEFAULT_SCHEMA}`,
       max: 2,
     });
     const relay = new Relay({
@@ -215,42 +225,68 @@ describe('Relay (postgres) concurrency', () => {
       connection: connection(),
       namespace,
     });
-    let releaseRead!: () => void;
-    let readStarted!: () => void;
-    const readGate = new Promise<void>(resolve => {
-      releaseRead = resolve;
-    });
-    const firstRead = new Promise<void>(resolve => {
-      readStarted = resolve;
-    });
+    const signal = () => {
+      let resolve!: () => void;
+      const promise = new Promise<void>(r => {
+        resolve = r;
+      });
+      return { promise, resolve };
+    };
+    // The first read waits until every message is published, so they are
+    // fetched as one batch; the heartbeat that readLoop() awaits after
+    // marking that batch in flight is then held while trimming is attempted.
+    const firstRead = signal();
+    const releaseRead = signal();
+    const batchHeartbeat = signal();
+    const releaseHeartbeat = signal();
+    let batchFetched = false;
+    let heartbeatHeld = false;
     const readInbox = backend.readInbox.bind(backend);
     vi.spyOn(backend, 'readInbox').mockImplementation(async (...args) => {
-      readStarted();
-      await readGate;
-      return readInbox(...args);
+      firstRead.resolve();
+      await releaseRead.promise;
+      const batch = await readInbox(...args);
+      batchFetched ||= batch.entries.length > 0;
+      return batch;
     });
+    const heartbeat = backend.heartbeat.bind(backend);
+    vi.spyOn(backend, 'heartbeat').mockImplementation(async (...args) => {
+      if (batchFetched && !heartbeatHeld) {
+        heartbeatHeld = true;
+        batchHeartbeat.resolve();
+        await releaseHeartbeat.promise;
+      }
+      return heartbeat(...args);
+    });
+    const trimInbox = vi.spyOn(backend, 'trimInbox');
     const relay = new Relay({
       connection: connection(),
       namespace,
       inboxMaxLength: 1,
-      heartbeatInterval: 5,
       backend: () => backend,
     });
     const messages: unknown[] = [];
     try {
       await relay.waitUntilReady();
-      await firstRead;
+      await firstRead.promise;
       await relay.subscribe('a', message => messages.push(message.data));
       for (const value of [1, 2, 3]) {
         await relay.publish('a', value);
       }
-      await new Promise(resolve => setTimeout(resolve, 30));
-      releaseRead();
+      releaseRead.resolve();
+
+      await batchHeartbeat.promise;
+      expect((relay as any).batchInFlight).toBe(true);
+      await (relay as any).checkBacklog();
+      expect(trimInbox).not.toHaveBeenCalled();
+      expect(messages).toEqual([]);
+      releaseHeartbeat.resolve();
 
       await vi.waitFor(() => expect(messages).toEqual([1, 2, 3]));
       await expect(relay.getNodes()).resolves.toMatchObject([{ dropped: 0 }]);
     } finally {
-      releaseRead();
+      releaseRead.resolve();
+      releaseHeartbeat.resolve();
       await relay.close();
     }
   });

@@ -403,6 +403,22 @@ describe(`Relay (${ctx.backend})`, () => {
       expect(new Set(mids).size).toBe(5);
     });
 
+    it('keeps message ids unique and increasing without a registered node', async () => {
+      const backend = await newBackend(newNamespace());
+      const mids: bigint[] = [];
+      for (let i = 0; i < 3; i++) {
+        const { mid } = await backend.publish('a', '1', {
+          ts: 1,
+          retainMs: 0,
+          maxSize: 10,
+        });
+        mids.push(BigInt(mid));
+        await delay(20);
+      }
+      expect(mids[1]).toBeGreaterThan(mids[0]);
+      expect(mids[2]).toBeGreaterThan(mids[1]);
+    });
+
     it('passes data through byte for byte', async () => {
       const backend = await newBackend(newNamespace());
       await backend.registerNode('n1', 30_000);

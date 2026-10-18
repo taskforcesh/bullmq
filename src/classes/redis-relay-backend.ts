@@ -62,7 +62,7 @@ export const RELAY_LAYOUT_VERSION = '1';
  * | `:cleanup` | sorted set | removed nodes whose subscriptions are being pruned |
  * | `:retained` | sorted set | topic → expiry |
  * | `:{topic}:ret` | hash | retained message (`m`, `ts`, `d`) |
- * | `:mid` | string | message id counter |
+ * | `:mid` | string | message id counter (starts at the server time in µs) |
  *
  * Every key expires on its own when the namespace has no live node (and no
  * retained message), so nothing is left behind even if no node sweeps it.
