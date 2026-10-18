@@ -1,3 +1,10 @@
+## [3.4.1](https://github.com/taskforcesh/bullmq/compare/vpy3.4.0...vpy3.4.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **job:** keep the latest stack traces when stackTraceLimit is set [python] ([#4955](https://github.com/taskforcesh/bullmq/issues/4955)) ([588bbf7](https://github.com/taskforcesh/bullmq/commit/588bbf774d1e287145154ff9d887265cbb573ddd))
+
 # [3.4.0](https://github.com/taskforcesh/bullmq/compare/vpy3.3.4...vpy3.4.0) (2026-10-15)
 
 
