@@ -12,6 +12,7 @@ import { randomUUID } from 'crypto';
 import { AddressInfo, createServer, Socket } from 'net';
 import {
   Queue,
+  RedisConnection,
   RedisRelayBackend,
   Relay,
   RelayError,
@@ -297,6 +298,32 @@ describe('Relay on ioredis', () => {
       await new Promise<void>((resolve, reject) =>
         server.close(err => (err ? reject(err) : resolve())),
       );
+    }
+  });
+
+  it('retries its inbox connection after it fails to initialize', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = await newBackend();
+    await backend.registerNode('n1', 30_000);
+    await backend.subscribe('n1', 'e1', 'a');
+    await backend.publish('a', '1', publishOptions);
+    const init = vi
+      .spyOn(RedisConnection.prototype as any, 'getRedisVersionAndType')
+      .mockRejectedValueOnce(new Error('INFO failed'));
+    try {
+      await expect(
+        backend.readInbox('n1', '0-0', { blockMs: 0, count: 10 }),
+      ).rejects.toThrow('INFO failed');
+      expect((backend as any).blockingConnection).toBeUndefined();
+
+      const { entries } = await backend.readInbox('n1', '0-0', {
+        blockMs: 0,
+        count: 10,
+      });
+      expect(entries.map(entry => entry.data)).toEqual(['1']);
+      expect(init).toHaveBeenCalledTimes(2);
+    } finally {
+      init.mockRestore();
     }
   });
 

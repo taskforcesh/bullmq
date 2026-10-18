@@ -77,6 +77,7 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
   readonly namespace: string;
   readonly initialInboxCursor = '0-0';
 
+  private readonly prefix: string;
   private readonly baseKey: string;
   private readonly nodesKey: string;
   private readonly registryKey: string;
@@ -94,10 +95,10 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
   constructor(opts: RelayBackendOptions<ConnectionOptions>) {
     super();
     this.namespace = opts.namespace;
-    const prefix = opts.prefix ?? 'bull';
-    this.baseKey = `${prefix}::relay:{${opts.namespace}}`;
+    this.prefix = opts.prefix ?? 'bull';
+    this.baseKey = this.namespaceKey(opts.namespace);
     this.nodesKey = `${this.baseKey}:nodes`;
-    this.registryKey = `${prefix}::relay:namespaces`;
+    this.registryKey = `${this.prefix}::relay:namespaces`;
     this.nodeId = opts.nodeId;
     this.skipVersionCheck = opts.skipVersionCheck === true;
     this.inboxMaxLength = opts.inboxMaxLength ?? DEFAULT_INBOX_MAX_LENGTH;
@@ -132,10 +133,7 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
     if (!this.closing) {
       this.closing = (async () => {
         this.interrupted = true;
-        await this.blockingConnectionPromise?.then(
-          connection => connection.close(true),
-          (): void => undefined,
-        );
+        await this.blockingConnection?.close(true).catch((): void => undefined);
         await this.connection.close();
       })();
     }
@@ -240,7 +238,16 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
     if (this.interrupted) {
       return { entries: [], cursor };
     }
-    const client = await (await this.getBlockingConnection()).client;
+    let connection: RedisConnection;
+    try {
+      connection = await this.getBlockingConnection();
+    } catch (err) {
+      if (this.interrupted) {
+        return { entries: [], cursor };
+      }
+      throw err;
+    }
+    const client = await connection.client;
     if (this.interrupted) {
       return { entries: [], cursor };
     }
@@ -358,9 +365,30 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
 
   async getNamespaces(): Promise<string[]> {
     const client = await this.connection.client;
-    return client.runCommand(`relayGetNamespaces:${packageVersion}`, [
-      this.registryKey,
-    ]);
+    const candidates: string[] = await client.runCommand(
+      `relayGetNamespaces:${packageVersion}`,
+      [this.registryKey],
+    );
+    // The registry only says until when a namespace may be in use (its nodes
+    // can unregister and its retained messages be deleted earlier), so each
+    // candidate is checked against its own keys.
+    const used = await Promise.all(
+      candidates.map(async namespace => {
+        const baseKey = this.namespaceKey(namespace);
+        return (
+          (await client.runCommand(`relayGet:${packageVersion}`, [
+            `${baseKey}:nodes`,
+            baseKey,
+            'used',
+            0,
+            -1,
+            '',
+            '',
+          ])) === 1
+        );
+      }),
+    );
+    return candidates.filter((_, i) => used[i]);
   }
 
   async getNodeConnections(nodeId: string): Promise<RelayNodeConnection[]> {
@@ -400,16 +428,18 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
 
   interruptInbox(): void {
     this.interrupted = true;
-    this.blockingConnectionPromise
-      ?.then(connection => connection.close(true))
-      .catch((): void => undefined);
+    this.blockingConnection?.close(true).catch((): void => undefined);
   }
 
   private getBlockingConnection(): Promise<RedisConnection> {
     if (!this.blockingConnectionPromise) {
-      this.blockingConnectionPromise = (async () => {
+      const promise = (async () => {
         const shared = isRedisInstance(this.connectionOpts);
         const client = await this.connection.client;
+        // Closed meanwhile: a connection opened now would never be closed.
+        if (this.interrupted) {
+          throw new Error('Connection is closed.');
+        }
         // Named after the node (CLIENT SETNAME, re-applied on reconnects) so
         // getNodeConnections can find it.
         const naming = this.nodeId
@@ -429,11 +459,25 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
           },
         );
         this.forwardConnectionErrors(connection);
+        // Set before it's ready, so closing can stop it while it connects.
         this.blockingConnection = connection;
+        try {
+          await connection.client;
+        } catch (err) {
+          // Disposed of, so the next read starts over with a new connection.
+          if (this.blockingConnection === connection) {
+            this.blockingConnection = undefined;
+          }
+          await connection.close(true).catch((): void => undefined);
+          throw err;
+        }
         return connection;
       })();
-      this.blockingConnectionPromise.catch(() => {
-        this.blockingConnectionPromise = undefined;
+      this.blockingConnectionPromise = promise;
+      promise.catch(() => {
+        if (this.blockingConnectionPromise === promise) {
+          this.blockingConnectionPromise = undefined;
+        }
       });
     }
     return this.blockingConnectionPromise;
@@ -445,6 +489,11 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
         this.emit('error', err);
       }
     });
+  }
+
+  /** Base key of a namespace of this backend's prefix. */
+  private namespaceKey(namespace: string) {
+    return `${this.prefix}::relay:{${namespace}}`;
   }
 
   /** Redis client name of a node's inbox connection. */
