@@ -280,6 +280,42 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
                         await worker.close()
                     await queue.close()
 
+    async def test_stacktrace_limit_keeps_latest_stacktraces(self):
+        for stackTraceLimit in [1, 2]:
+            with self.subTest(stackTraceLimit=stackTraceLimit):
+                test_queue_name = f"__stacktrace_limit__{uuid4().hex}"
+                queue = Queue(test_queue_name, {"prefix": prefix})
+                worker = None
+                try:
+                    job = await queue.add("test-job", {"foo": "bar"}, {"attempts": 3, "stackTraceLimit": stackTraceLimit})
+
+                    async def process(job: Job, token: str):
+                        raise Exception(f"failed attempt {job.attemptsMade + 1}")
+
+                    worker = Worker(test_queue_name, process, {"prefix": prefix})
+                    processing = Future()
+
+                    def failing(job: Job, err):
+                        if job.attemptsMade == 3:
+                            processing.set_result(None)
+
+                    worker.on("failed", failing)
+
+                    await processing
+
+                    failedJob = await Job.fromId(queue, job.id)
+                    self.assertEqual(failedJob.attemptsMade, 3)
+                    self.assertEqual(failedJob.failedReason, "failed attempt 3")
+                    self.assertEqual(len(failedJob.stacktrace), stackTraceLimit)
+                    # The newest stacktrace is kept last, the oldest ones are dropped
+                    self.assertIn("failed attempt 3", failedJob.stacktrace[-1])
+                    if stackTraceLimit == 2:
+                        self.assertIn("failed attempt 2", failedJob.stacktrace[0])
+                finally:
+                    if worker is not None:
+                        await worker.close()
+                    await queue.close()
+
     async def test_process_renews_lock(self):
         queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}
