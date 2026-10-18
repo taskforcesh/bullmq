@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'crypto';
 import { Pool, PoolClient } from 'pg';
 import { createPostgresRelayBackend, Relay } from '../../src';
-import { DEFAULT_SCHEMA } from '../../src/postgres';
 import { getPostgresUrl } from './utils/postgres-url';
 
 // PostgreSQL-specific relay tests (transaction-level races). The
@@ -50,42 +49,6 @@ describe('Relay (postgres) concurrency', () => {
     }
   });
 
-  it('does not retain node discovery after closing a supplied-pool relay', async () => {
-    const namespace = `t-${randomUUID().slice(0, 13)}`;
-    // A supplied pool uses the default schema: initialize it explicitly
-    // rather than relying on another test file's database state.
-    const setup = createPostgresRelayBackend({
-      connection: connection(DEFAULT_SCHEMA),
-      namespace,
-    });
-    await setup.waitUntilReady();
-    await setup.close();
-    const supplied = new Pool({
-      connectionString: getPostgresUrl(),
-      options: `-c search_path=${DEFAULT_SCHEMA}`,
-      max: 2,
-    });
-    const relay = new Relay({
-      connection: supplied,
-      backend: createPostgresRelayBackend,
-      namespace,
-    });
-    try {
-      await relay.waitUntilReady();
-      await relay.subscribe('a', () => undefined);
-      await vi.waitFor(async () =>
-        expect(await relay.getNodeConnections()).toHaveLength(1),
-      );
-
-      await relay.close();
-      await expect(relay.getNodeConnections()).resolves.toHaveLength(0);
-      expect(supplied.ended).toBe(false);
-    } finally {
-      await relay.close();
-      await supplied.end();
-    }
-  });
-
   it('reads and publishes with a minimally sized owned pool', async () => {
     const namespace = `t-${randomUUID().slice(0, 13)}`;
     const relay = new Relay({
@@ -103,6 +66,36 @@ describe('Relay (postgres) concurrency', () => {
       await vi.waitFor(() => expect(messages).toEqual([1]));
     } finally {
       await relay.close();
+    }
+  });
+
+  it('returns at once from an inbox read whose listener fails while reading', async () => {
+    const backend = createPostgresRelayBackend({
+      connection: connection(),
+      namespace: `t-${randomUUID().slice(0, 13)}`,
+    });
+    try {
+      await backend.waitUntilReady();
+      await backend.registerNode('n1', 30_000);
+      const postgresConnection = (backend as any).connection;
+      const readRows = (backend as any).readRows.bind(backend);
+      vi.spyOn(backend as any, 'readRows').mockImplementationOnce(
+        async (...args: unknown[]) => {
+          const rows = await readRows(...args);
+          postgresConnection.emit('listenerinvalidated');
+          return rows;
+        },
+      );
+      const start = Date.now();
+      await expect(
+        backend.readInbox('n1', backend.initialInboxCursor, {
+          blockMs: 10_000,
+          count: 10,
+        }),
+      ).resolves.toMatchObject({ entries: [] });
+      expect(Date.now() - start).toBeLessThan(2_000);
+    } finally {
+      await backend.close();
     }
   });
 

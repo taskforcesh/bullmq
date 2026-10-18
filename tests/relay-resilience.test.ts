@@ -381,6 +381,49 @@ describe('Relay resilience', () => {
     }
   });
 
+  it('delivers every message buffered while subscribing, whatever their order', async () => {
+    const backend = new FakeBackend();
+    const relay = createRelay(backend);
+    const received: unknown[] = [];
+    backend.subscribe = async () => {
+      const endpoint = [...(relay as any).endpoints.keys()][0];
+      // Publishes on different topics may commit out of message id order.
+      backend.inbox.push({
+        entries: [
+          {
+            kind: 'msg',
+            topic: 'b',
+            mid: '2',
+            ts: 2,
+            data: '"second"',
+            endpoints: [endpoint],
+          },
+          {
+            kind: 'msg',
+            topic: 'a',
+            mid: '1',
+            ts: 1,
+            data: '"first"',
+            endpoints: [endpoint],
+          },
+        ],
+        cursor: '1',
+      });
+      await waitFor(
+        () => (relay as any).endpoints.get(endpoint).pending.length === 2,
+      );
+      return { added: true };
+    };
+    try {
+      await relay.subscribe('*', message => {
+        received.push(message.data);
+      });
+      expect(received).toEqual(['second', 'first']);
+    } finally {
+      await relay.close();
+    }
+  });
+
   it('reports a failed start', async () => {
     const backend = new FakeBackend();
     backend.fail.registerNode = new Error('datastore down');

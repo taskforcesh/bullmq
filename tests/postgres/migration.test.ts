@@ -123,6 +123,45 @@ describe('PostgreSQL migrations', () => {
     }
   });
 
+  it('does not retain node discovery after closing a supplied-pool relay', async () => {
+    const namespace = `t-${randomUUID().replace(/-/g, '')}`;
+    const setup = createPostgresRelayBackend({
+      connection: {
+        connectionString: url,
+        schema,
+        migrate: true,
+      },
+      namespace,
+    });
+    await setup.waitUntilReady();
+    await setup.close();
+
+    const supplied = new Pool({
+      connectionString: url,
+      options: `-c search_path=${schema}`,
+      max: 2,
+    });
+    const relay = new Relay({
+      connection: supplied,
+      backend: createPostgresRelayBackend,
+      namespace,
+    });
+    try {
+      await relay.waitUntilReady();
+      await relay.subscribe('a', () => undefined);
+      await vi.waitFor(async () =>
+        expect(await relay.getNodeConnections()).toHaveLength(1),
+      );
+
+      await relay.close();
+      await expect(relay.getNodeConnections()).resolves.toHaveLength(0);
+      expect(supplied.ended).toBe(false);
+    } finally {
+      await relay.close();
+      await supplied.end();
+    }
+  });
+
   it('creates the v2 core schema (tables, enums, indexes) in the namespace', async () => {
     const connection = new PostgresConnection({
       connectionString: url,

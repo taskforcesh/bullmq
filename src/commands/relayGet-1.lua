@@ -7,7 +7,7 @@
     KEYS[1] nodes key ({base}:nodes)
 
     ARGV[1] base key
-    ARGV[2] view: counts | nodes | subscriptions | patterns | retained
+    ARGV[2] view: counts | used | nodes | subscriptions | patterns | retained
     ARGV[3] start
     ARGV[4] end
     ARGV[5] subscriptions filter: "" (all) | node | pattern
@@ -15,6 +15,8 @@
 
   Output (one array per item):
     counts         { nodes, subscriptions, patterns, retained }
+    used           1 if the namespace has a live node or retained message,
+                   else 0 (a single value, not an array)
     nodes          { id, registered at, lease until, info, last heartbeat,
                      backlog, dropped, subscriptions } (ordered by registration;
                      an expired node not swept yet has an empty info)
@@ -63,6 +65,15 @@ end
 if view == "counts" then
   return { rcall("ZCARD", KEYS[1]), lexCount("n|"), lexCount("t|"),
     rcall("ZCOUNT", retainedKey, "(" .. getRelayTime(), "+inf") }
+end
+
+if view == "used" then
+  local now = "(" .. getRelayTime()
+  if rcall("ZCOUNT", KEYS[1], now, "+inf") > 0 or
+    rcall("ZCOUNT", retainedKey, now, "+inf") > 0 then
+    return 1
+  end
+  return 0
 end
 
 local rows = {}

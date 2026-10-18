@@ -1080,6 +1080,19 @@ describe(`Relay (${ctx.backend})`, () => {
         [...namespaces].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0)),
       );
     });
+
+    it('stops listing a namespace once its nodes and retained messages are removed', async () => {
+      const ns = newNamespace();
+      const backend = await newBackend(ns);
+      await backend.registerNode('n1', 30_000);
+      await publish(backend, 'r', '1', 30 * 24 * 60 * 60 * 1000);
+      expect(await backend.getNamespaces()).toContain(ns);
+
+      await backend.deleteRetained('r');
+      expect(await backend.getNamespaces()).toContain(ns);
+      await backend.unregisterNode('n1');
+      expect(await backend.getNamespaces()).not.toContain(ns);
+    });
   });
 
   describe('node connections', () => {

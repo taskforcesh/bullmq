@@ -97,7 +97,6 @@ export interface RelaySubscription {
 interface Endpoint {
   pattern: string;
   listener: RelayListener<any>;
-  lastMid: bigint;
   active: boolean;
   /** Live messages received while the subscription is being set up. */
   pending?: RelayMessage<string>[];
@@ -237,7 +236,6 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
     const endpoint: Endpoint = {
       pattern,
       listener,
-      lastMid: BigInt(0),
       active: true,
       pending: [],
     };
@@ -262,9 +260,12 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
           retained: true,
         });
       }
-      // Skips live copies of the retained message (or older ones).
+      // Skips live copies of the retained message (or older ones). Buffered
+      // messages are not compared with each other: publishes on different
+      // topics may commit out of message id order.
+      const cutoff = retained ? BigInt(retained.mid) : BigInt(0);
       for (const message of pending) {
-        if (BigInt(message.mid) > endpoint.lastMid) {
+        if (BigInt(message.mid) > cutoff) {
           this.deliver(endpoint, message);
         }
       }
@@ -675,10 +676,6 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   private deliver(endpoint: Endpoint, message: RelayMessage<string>): void {
     if (!endpoint.active) {
       return;
-    }
-    const mid = BigInt(message.mid);
-    if (mid > endpoint.lastMid) {
-      endpoint.lastMid = mid;
     }
     let data: unknown;
     try {

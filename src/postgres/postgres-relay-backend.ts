@@ -222,11 +222,14 @@ export class PostgresRelayBackend
     try {
       const ack = cursor ? cursor.split(',') : [];
       let rows = await this.readRows(nodeId, ack, opts.count);
+      // A listener invalidated while reading would never wake the wait: return
+      // so the next read listens again on a new connection.
       if (
         rows.length === 0 &&
         !notified &&
         opts.blockMs > 0 &&
-        !this.interrupted
+        !this.interrupted &&
+        this.listening
       ) {
         await new Promise<void>(resolve => {
           const timer = setTimeout(done, opts.blockMs);
