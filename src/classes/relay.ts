@@ -477,18 +477,55 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   private async recover(): Promise<void> {
     this.recoveryPending = true;
     await this.register();
-    for (const [endpointId, endpoint] of this.endpoints) {
-      if (!endpoint.active) {
-        await this.removeEndpoint(endpointId, endpoint);
-        continue;
+    let renewalError: unknown;
+    let renewal: Promise<void> | undefined;
+    const renewLease = () => {
+      if (!renewal && !this.closing && !renewalError) {
+        renewal = this.backend
+          .heartbeat(this.nodeId, this.leaseDuration)
+          .then(alive => {
+            if (!alive) {
+              throw new Error('Relay node lease expired during recovery');
+            }
+          })
+          .catch(err => {
+            renewalError ??= err;
+          })
+          .finally(() => {
+            renewal = undefined;
+          });
       }
-      await this.backend.subscribe(this.nodeId, endpointId, endpoint.pattern);
-      if (!endpoint.active) {
-        await this.removeEndpoint(endpointId, endpoint);
+      return renewal;
+    };
+    const renewalTimer = setInterval(
+      () => void renewLease(),
+      Math.max(1, Math.floor(this.leaseDuration / 3)),
+    );
+    try {
+      for (const [endpointId, endpoint] of this.endpoints) {
+        if (renewalError) {
+          throw renewalError;
+        }
+        if (!endpoint.active) {
+          await this.removeEndpoint(endpointId, endpoint);
+          continue;
+        }
+        await this.backend.subscribe(this.nodeId, endpointId, endpoint.pattern);
+        if (!endpoint.active) {
+          await this.removeEndpoint(endpointId, endpoint);
+        }
       }
+      if (renewal) {
+        await renewal;
+      }
+      if (renewalError) {
+        throw renewalError;
+      }
+      this.recoveryPending = false;
+      this.emit('recovered');
+    } finally {
+      clearInterval(renewalTimer);
     }
-    this.recoveryPending = false;
-    this.emit('recovered');
   }
 
   private register(): Promise<void> {
@@ -548,11 +585,11 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
         if (this.backlogChecking) {
           await this.backlogChecking;
         }
-        this.batchInFlight = true;
         const batch = await this.backend.readInbox(this.nodeId, this.cursor, {
           blockMs: this.blockTimeout,
           count: 100,
         });
+        this.batchInFlight = batch.entries.length > 0;
         if (batch.entries.length > 0 && !this.closing) {
           // A lease may have expired while reading. Recover before listeners
           // consume messages, so they can invalidate state after a routing gap.

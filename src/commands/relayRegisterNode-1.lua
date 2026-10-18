@@ -55,5 +55,6 @@ rcall("ZADD", baseKey .. ":started", "NX", now, nodeId)
 rcall("HSET", nodeKey, "info", ARGV[4], "hb", now)
 rcall("HSET", nodeKey, "maxLen", tonumber(ARGV[6]) or 10000)
 rcall("PEXPIRE", nodeKey, leaseMs)
+rcall("PEXPIRE", baseKey .. ":" .. nodeId .. ":inbox", leaseMs)
 refreshRelayNamespace(baseKey, KEYS[1], now)
 return 1

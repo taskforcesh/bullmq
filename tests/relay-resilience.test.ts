@@ -608,6 +608,47 @@ describe('Relay resilience', () => {
     await relay.close();
   });
 
+  it('renews the lease while recovery restores subscriptions', async () => {
+    vi.useFakeTimers();
+    const backend = new FakeBackend();
+    const relay = createRelay(backend, {
+      heartbeatInterval: 100_000,
+      leaseDuration: 30,
+    });
+    let resume!: () => void;
+    let startSubscription!: () => void;
+    const subscriptionStarted = new Promise<void>(resolve => {
+      startSubscription = resolve;
+    });
+    try {
+      await relay.waitUntilReady();
+      await relay.subscribe('a', () => undefined);
+      backend.subscribe = async () => {
+        startSubscription();
+        await new Promise<void>(resolve => {
+          resume = resolve;
+        });
+        return { added: true };
+      };
+
+      backend.heartbeatResult = false;
+      const recovering = (relay as any).heartbeat();
+      await subscriptionStarted;
+      backend.heartbeatResult = true;
+      await vi.advanceTimersByTimeAsync(35);
+
+      expect(
+        backend.calls.filter(call => call === 'heartbeat').length,
+      ).toBeGreaterThan(1);
+      resume();
+      await recovering;
+    } finally {
+      resume?.();
+      await relay.close();
+      vi.useRealTimers();
+    }
+  });
+
   it('retries a recovery that failed part way', async () => {
     const backend = new FakeBackend();
     const relay = createRelay(backend);
@@ -909,19 +950,40 @@ describe('Relay resilience', () => {
     await relay.close();
   });
 
-  it('defers heartbeat trimming while an inbox batch is in flight', async () => {
+  it('trims during pending inbox reads but protects fetched batches', async () => {
+    let releaseRead!: (batch: RelayInboxBatch) => void;
+    let readStarted!: () => void;
+    const pendingRead = new Promise<RelayInboxBatch>(resolve => {
+      releaseRead = resolve;
+    });
+    const started = new Promise<void>(resolve => {
+      readStarted = resolve;
+    });
     const backend = new FakeBackend();
+    const readInbox = backend.readInbox.bind(backend);
+    let firstRead = true;
+    vi.spyOn(backend, 'readInbox').mockImplementation(async (...args) => {
+      if (firstRead) {
+        firstRead = false;
+        readStarted();
+        return pendingRead;
+      }
+      return readInbox(...args);
+    });
     const relay = createRelay(backend);
     try {
       await relay.waitUntilReady();
+      await started;
+      await (relay as any).heartbeat(true);
+      expect(backend.trimmed).toEqual([[relay.nodeId, '0', 10_000]]);
+
       (relay as any).batchInFlight = true;
       await (relay as any).heartbeat(true);
-      expect(backend.trimmed).toEqual([]);
+      expect(backend.trimmed).toHaveLength(1);
 
-      (relay as any).batchInFlight = false;
-      await (relay as any).checkBacklog();
-      expect(backend.trimmed).toEqual([[relay.nodeId, '0', 10_000]]);
+      releaseRead({ entries: [], cursor: '0' });
     } finally {
+      releaseRead({ entries: [], cursor: '0' });
       await relay.close();
     }
   });

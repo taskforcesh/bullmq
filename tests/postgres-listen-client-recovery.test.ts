@@ -64,6 +64,7 @@ function makeStandaloneConnection(): {
 function makePooledConnection({ withSocket = true } = {}): {
   connection: PostgresConnection;
   socket: { setKeepAlive: ReturnType<typeof vi.fn> };
+  client: { release: ReturnType<typeof vi.fn> };
 } {
   const connection = Object.create(
     PostgresConnection.prototype,
@@ -76,6 +77,7 @@ function makePooledConnection({ withSocket = true } = {}): {
     release = vi.fn();
     connection = withSocket ? { stream: socket } : undefined;
   }
+  const client = new FakePoolClient();
 
   const anyConn = connection as any;
   anyConn.pgModule = undefined;
@@ -85,9 +87,9 @@ function makePooledConnection({ withSocket = true } = {}): {
   anyConn.listenClientIsStandalone = false;
   anyConn.listenClientKeepAlive = false;
   anyConn.closing = undefined;
-  anyConn.pool = { connect: async () => new FakePoolClient() };
+  anyConn.pool = { connect: async () => client };
 
-  return { connection, socket };
+  return { connection, socket, client };
 }
 
 describe('PostgresConnection LISTEN client recovery', () => {
@@ -108,6 +110,15 @@ describe('PostgresConnection LISTEN client recovery', () => {
 
     expect(socket.setKeepAlive).toHaveBeenCalledWith(true, expect.any(Number));
     expect(connection.hasListenClientKeepAlive).toBe(true);
+  });
+
+  it('destroys the pooled LISTEN client on close', async () => {
+    const { connection, client } = makePooledConnection();
+
+    await connection.getListenClient();
+    await connection.close();
+
+    expect(client.release).toHaveBeenCalledWith(true);
   });
 
   it('reports no keepalive when a pooled client socket cannot be adjusted', async () => {

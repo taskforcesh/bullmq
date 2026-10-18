@@ -49,6 +49,33 @@ describe('Relay (postgres) concurrency', () => {
     }
   });
 
+  it('does not retain node discovery after closing a supplied-pool relay', async () => {
+    const namespace = `t-${randomUUID().slice(0, 13)}`;
+    const supplied = new Pool({
+      connectionString: getPostgresUrl(),
+      max: 2,
+    });
+    const relay = new Relay({
+      connection: supplied,
+      backend: createPostgresRelayBackend,
+      namespace,
+    });
+    try {
+      await relay.waitUntilReady();
+      await relay.subscribe('a', () => undefined);
+      await vi.waitFor(async () =>
+        expect(await relay.getNodeConnections()).toHaveLength(1),
+      );
+
+      await relay.close();
+      await expect(relay.getNodeConnections()).resolves.toHaveLength(0);
+      expect(supplied.ended).toBe(false);
+    } finally {
+      await relay.close();
+      await supplied.end();
+    }
+  });
+
   it('reads and publishes with a minimally sized owned pool', async () => {
     const namespace = `t-${randomUUID().slice(0, 13)}`;
     const relay = new Relay({
