@@ -428,6 +428,15 @@ DECLARE
   v_dropped integer := 0;
   v_count integer;
 BEGIN
+  -- Lock the node before its inbox rows, in the same order as unregistering
+  -- and sweeping (which delete the node, then cascade to its inbox).
+  PERFORM 1 FROM relay_node
+    WHERE ns = p_ns AND node_id = p_node
+    FOR NO KEY UPDATE;
+  IF NOT FOUND THEN
+    RETURN 0;
+  END IF;
+
   IF cardinality(p_ack) > 0 THEN
     DELETE FROM relay_inbox
      WHERE ns = p_ns AND node_id = p_node AND id = ANY (p_ack);

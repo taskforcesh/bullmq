@@ -306,13 +306,21 @@ describe('Relay resilience', () => {
         });
       const relay = createRelay(backend);
       try {
-        await Promise.resolve();
+        for (let i = 0; i < 100 && !resume; i++) {
+          await Promise.resolve();
+        }
         const closing = relay.close();
         resume();
         await closing;
         expect(vi.getTimerCount()).toBe(0);
         expect(backend.calls).not.toContain('readInbox');
-        expect(backend.calls).toContain('unregisterNode');
+        if (method === 'waitUntilReady') {
+          // Cancelled before connecting: never registers.
+          expect(backend.calls).not.toContain('registerNode');
+          expect(backend.calls).not.toContain('unregisterNode');
+        } else {
+          expect(backend.calls).toContain('unregisterNode');
+        }
         expect(backend.calls).toContain('close');
       } finally {
         resume();
@@ -322,6 +330,56 @@ describe('Relay resilience', () => {
       }
     },
   );
+
+  it('closes while the datastore never becomes ready', async () => {
+    const backend = new FakeBackend();
+    backend.waitUntilReady = () => new Promise<void>(() => undefined);
+    const relay = createRelay(backend);
+    const errors: Error[] = [];
+    relay.on('error', err => errors.push(err));
+    await relay.close();
+    await expect(relay.waitUntilReady()).resolves.toBeUndefined();
+    await expect(relay.publish('a', 1)).rejects.toThrow('Relay is closed');
+    expect(backend.calls).toEqual(['close']);
+    expect(errors).toEqual([]);
+  });
+
+  it('delivers a retained baseline before an update received while subscribing', async () => {
+    const backend = new FakeBackend();
+    const relay = createRelay(backend);
+    const received: unknown[] = [];
+    backend.subscribe = async () => {
+      const endpoint = [...(relay as any).endpoints.keys()][0];
+      backend.inbox.push({
+        entries: [
+          {
+            kind: 'msg',
+            topic: 'a',
+            mid: '2',
+            ts: 2,
+            data: '"update"',
+            endpoints: [endpoint],
+          },
+        ],
+        cursor: '1',
+      });
+      await waitFor(
+        () => (relay as any).endpoints.get(endpoint).pending.length === 1,
+      );
+      return { added: true, retained: { mid: '1', ts: 1, data: '"baseline"' } };
+    };
+    try {
+      await relay.subscribe('a', message => {
+        received.push([message.data, message.retained]);
+      });
+      expect(received).toEqual([
+        ['baseline', true],
+        ['update', false],
+      ]);
+    } finally {
+      await relay.close();
+    }
+  });
 
   it('reports a failed start', async () => {
     const backend = new FakeBackend();
@@ -363,13 +421,13 @@ describe('Relay resilience', () => {
   });
 
   it.each([
-    ['9007199254740991', '9007199254740992', true],
-    ['9007199254740992', '9007199254740993', true],
-    ['9007199254740993', '9007199254740992', false],
+    ['9007199254740991', '9007199254740992', false],
+    ['9007199254740992', '9007199254740993', false],
+    ['9007199254740993', '9007199254740992', true],
     ['9007199254740993', '9007199254740993', false],
   ])(
-    'compares live ID %s and retained ID %s without losing precision',
-    async (liveMid, retainedMid, deliverRetained) => {
+    'delivers retained ID %s before newer live ID %s, without losing precision',
+    async (liveMid, retainedMid, deliverLive) => {
       const backend = new FakeBackend();
       const relay = createRelay(backend);
       const listener = vi.fn();
@@ -388,7 +446,11 @@ describe('Relay resilience', () => {
           ],
           cursor: '1',
         });
-        await waitFor(() => listener.mock.calls.length === 1);
+        // The live message arrives while subscribing: it is buffered.
+        await waitFor(
+          () => (relay as any).endpoints.get(endpoint).pending.length === 1,
+        );
+        expect(listener).not.toHaveBeenCalled();
         return {
           added: true,
           retained: { mid: retainedMid, ts: 2, data: '"retained"' },
@@ -399,19 +461,19 @@ describe('Relay resilience', () => {
         expect(listener.mock.calls.map(([message]) => message)).toEqual([
           {
             topic: 'a',
-            mid: liveMid,
-            ts: 1,
-            data: 'live',
-            retained: false,
+            mid: retainedMid,
+            ts: 2,
+            data: 'retained',
+            retained: true,
           },
-          ...(deliverRetained
+          ...(deliverLive
             ? [
                 {
                   topic: 'a',
-                  mid: retainedMid,
-                  ts: 2,
-                  data: 'retained',
-                  retained: true,
+                  mid: liveMid,
+                  ts: 1,
+                  data: 'live',
+                  retained: false,
                 },
               ]
             : []),

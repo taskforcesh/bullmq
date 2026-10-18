@@ -44,9 +44,15 @@ if #data > tonumber(ARGV[6]) then
 end
 
 local midKey = baseKey .. ":mid"
-local mid = rcall("INCR", midKey)
-if mid == 1 then
-  -- A new counter expires with the namespace (see refreshRelayNamespace).
+local mid
+if rcall("EXISTS", midKey) == 1 then
+  mid = rcall("INCR", midKey)
+else
+  -- A new counter starts at the server time in microseconds, so ids stay
+  -- unique and increasing after an earlier counter expired, and expires with
+  -- the namespace (see refreshRelayNamespace).
+  local time = rcall("TIME")
+  mid = rcall("INCRBY", midKey, time[1] .. string.format("%06d", time[2]))
   rcall("PEXPIRE", midKey, math.max(1, rcall("PTTL", KEYS[1])))
 end
 
