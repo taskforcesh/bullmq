@@ -86,6 +86,8 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
   private readonly inboxMaxLength: number;
   private readonly connectionOpts: ConnectionOptions;
   private readonly connection: RedisConnection;
+  private namespaceTouch?: Promise<void>;
+  private namespaceExpiresAt = 0;
   /** Created on the first inbox read: getters alone need one connection. */
   private blockingConnection?: RedisConnection;
   private blockingConnectionPromise?: Promise<RedisConnection>;
@@ -161,13 +163,13 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
         nodeId,
       );
     } while (result === 0);
-    await this.touchNamespace(leaseMs);
+    this.touchNamespace(leaseMs);
   }
 
   async heartbeat(nodeId: string, leaseMs: number): Promise<boolean> {
     const alive = (await this.exec('relayHeartbeat', [nodeId, leaseMs])) === 1;
     if (alive) {
-      await this.touchNamespace(leaseMs);
+      this.touchNamespace(leaseMs);
     }
     return alive;
   }
@@ -216,7 +218,7 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
       topic,
     );
     if (opts.retainMs > 0) {
-      await this.touchNamespace(opts.retainMs);
+      this.touchNamespace(opts.retainMs);
     }
     return { mid: String(mid), nodes, endpoints };
   }
@@ -527,13 +529,53 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
    * Lists the namespace in the prefix's registry. The registry is outside the
    * namespace's hash tag, so this is a call of its own.
    */
-  private async touchNamespace(forMs: number): Promise<void> {
-    const client = await this.connection.client;
-    await client.runCommand(`relayTouchNamespace:${packageVersion}`, [
-      this.registryKey,
-      this.namespace,
-      forMs,
-    ]);
+  private touchNamespace(forMs: number): void {
+    this.namespaceExpiresAt = Math.max(
+      this.namespaceExpiresAt,
+      Date.now() + forMs,
+    );
+    this.startNamespaceTouch();
+  }
+
+  private startNamespaceTouch(): void {
+    if (!this.namespaceTouch) {
+      const requestedUntil = this.namespaceExpiresAt;
+      const promise = this.refreshNamespace();
+      this.namespaceTouch = promise;
+      promise
+        .finally(() => {
+          if (this.namespaceTouch === promise) {
+            this.namespaceTouch = undefined;
+            if (!this.closing && this.namespaceExpiresAt > requestedUntil) {
+              this.startNamespaceTouch();
+            }
+          }
+        })
+        .catch((): void => undefined);
+    }
+  }
+
+  private async refreshNamespace(): Promise<void> {
+    for (let attempt = 0; attempt < 3 && !this.closing; attempt++) {
+      const expiresAt = this.namespaceExpiresAt;
+      try {
+        const client = await this.connection.client;
+        await client.runCommand(`relayTouchNamespace:${packageVersion}`, [
+          this.registryKey,
+          this.namespace,
+          Math.max(1, expiresAt - Date.now()),
+        ]);
+        return;
+      } catch (err) {
+        if (attempt === 2) {
+          if (!this.closing && this.listenerCount('error') > 0) {
+            this.emit('error', err);
+          }
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt));
+        }
+      }
+    }
   }
 
   private async exec(command: string, args: (string | number)[]) {

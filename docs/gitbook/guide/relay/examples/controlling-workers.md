@@ -25,6 +25,7 @@ const relay = new Relay({ connection });
 const worker = new Worker('emails', processEmail, {
   connection,
   concurrency: 10,
+  autorun: false,
 });
 
 async function apply(settings: WorkerSettings) {
@@ -37,11 +38,18 @@ async function apply(settings: WorkerSettings) {
 }
 
 let applying = Promise.resolve();
+let initialApplication: Promise<void> | undefined;
 await relay.subscribe('workers.emails.settings', message => {
-  applying = applying
-    .then(() => apply(message.data as WorkerSettings))
-    .catch(err => logger.error(err, 'could not apply worker settings'));
+  const next = applying.then(() => apply(message.data as WorkerSettings));
+  initialApplication ??= next;
+  applying = next.catch(err =>
+    logger.error(err, 'could not apply worker settings'),
+  );
 });
+
+await initialApplication;
+await applying;
+worker.run();
 ```
 
 ## Changing the settings
