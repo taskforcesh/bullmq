@@ -6,6 +6,7 @@ import os
 import asyncio
 import time
 import unittest
+from datetime import datetime, timezone
 from uuid import uuid4
 from zoneinfo import ZoneInfoNotFoundError
 
@@ -337,6 +338,22 @@ class TestDefaultRepeatStrategy(unittest.TestCase):
         self.assertIsNotNone(millis)
         # Within 5s of wall-clock now.
         self.assertLess(abs(millis - int(time.time() * 1000)), 5000)
+
+    def test_six_field_pattern_reads_seconds_first(self):
+        # Like the Node.js port (cron-parser), the seconds field comes first
+        # in a 6-field pattern: "sec min hour day month weekday".
+        base = int(datetime(2026, 10, 17, 12, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        cases = [
+            ("0 15 3 * * *", datetime(2026, 10, 18, 3, 15, 0, tzinfo=timezone.utc)),
+            ("*/10 * * * * *", datetime(2026, 10, 17, 12, 0, 10, tzinfo=timezone.utc)),
+            ("0 0 9 * * 1-5", datetime(2026, 10, 19, 9, 0, 0, tzinfo=timezone.utc)),
+            # 5-field patterns have no seconds field and are unaffected
+            ("15 3 * * *", datetime(2026, 10, 18, 3, 15, 0, tzinfo=timezone.utc)),
+        ]
+        for pattern, expected in cases:
+            with self.subTest(pattern=pattern):
+                millis = default_repeat_strategy(base, {"pattern": pattern, "tz": "UTC"})
+                self.assertEqual(millis, int(expected.timestamp() * 1000))
 
 
 class TestKeyToDataFallback(unittest.TestCase):

@@ -104,7 +104,9 @@ def default_repeat_strategy(millis: int, opts: RepeatOptions) -> Optional[int]:
     else:
         base_dt = datetime.fromtimestamp(base_ms / 1000.0, tz=timezone.utc)
 
-    itr = croniter(pattern, base_dt)
+    # Like cron-parser on the Node side, a 6-field pattern has the seconds
+    # field first; croniter expects it last unless told otherwise.
+    itr = croniter(pattern, base_dt, second_at_beginning=True)
     next_dt = itr.get_next(datetime)
     return int(next_dt.timestamp() * 1000)
 
