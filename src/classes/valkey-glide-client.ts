@@ -422,10 +422,9 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
       release = resolve;
     });
 
-    await previous;
-    this.ensureOpen();
-
     try {
+      await previous;
+      this.ensureOpen();
       const raw = await this.ensureRaw();
       this.ensureOpen();
       return await fn(raw);
