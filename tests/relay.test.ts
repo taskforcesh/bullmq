@@ -200,6 +200,23 @@ describe(`Relay (${ctx.backend})`, () => {
       ).toEqual(['message']);
     });
 
+    it('does not read pending inbox entries after a node lease expires', async () => {
+      const backend = await newBackend(newNamespace());
+      await backend.registerNode('anchor', 30_000);
+      await backend.registerNode('n1', 100);
+      await backend.subscribe('n1', 'e1', 'a');
+      await backend.publish('a', 'message', {
+        ts: 1,
+        retainMs: 0,
+        maxSize: 100,
+      });
+      await delay(150);
+
+      await expect(readAll(backend, 'n1')).resolves.toMatchObject({
+        entries: [],
+      });
+    });
+
     it('validates node and endpoint ids', async () => {
       const backend = await newBackend(newNamespace());
       for (const id of ['', 'a b', 'a/b', 'a,b', 'a:b', 'x'.repeat(65)]) {
@@ -1123,8 +1140,9 @@ describe(`Relay (${ctx.backend})`, () => {
   describe('node connections', () => {
     it('shows where a node is connected from, as the datastore sees it', async () => {
       const ns = newNamespace();
-      const relay = await newRelay({ namespace: ns });
-      const other = await newRelay({ namespace: ns });
+      const prefix = 'my app café';
+      const relay = await newRelay({ namespace: ns, prefix });
+      const other = await newRelay({ namespace: ns, prefix });
 
       // The inbox connection opens with the node's first read.
       let connections: Awaited<ReturnType<Relay['getNodeConnections']>> = [];

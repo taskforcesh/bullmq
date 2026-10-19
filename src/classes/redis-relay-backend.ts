@@ -512,7 +512,7 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
 
   /** Redis client name of a node's inbox connection. */
   private inboxConnectionName(nodeId: string) {
-    return `${this.baseKey}:${nodeId}`;
+    return `${Buffer.from(this.baseKey).toString('base64')}:${nodeId}`;
   }
 
   private get(

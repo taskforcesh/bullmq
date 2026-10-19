@@ -49,7 +49,9 @@ await relay.subscribe('workers.emails.settings', message => {
 
 await initialApplication;
 await applying;
-worker.run();
+if (!worker.isRunning()) {
+  void worker.run().catch(err => logger.error(err, 'could not start worker'));
+}
 ```
 
 ## Changing the settings
