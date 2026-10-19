@@ -276,6 +276,58 @@ func TestJobRetryMovesAFailedJobBackToWait(t *testing.T) {
 	}
 }
 
+func TestJobRetryMovesAFailedPriorityJobBackToPrioritized(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q := newTestQueue(t, nil)
+
+	failed := make(chan string, 1)
+	w := newTestWorker(t, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
+		return nil, errors.New("nope")
+	}, nil)
+	go func() {
+		for ev := range w.Events() {
+			if ev.Type == bullmq.EventFailed && ev.Job != nil {
+				select {
+				case failed <- ev.Job.ID:
+				default:
+				}
+			}
+		}
+	}()
+	runWorker(t, w)
+
+	job, err := q.Add(ctx, "doomed", nil, &bullmq.JobOptions{Priority: bullmq.Int64(1)})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	select {
+	case <-failed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the job never failed")
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	stored, err := q.Job(ctx, job.ID)
+	if err != nil {
+		t.Fatalf("Job: %v", err)
+	}
+	if err := stored.Retry(ctx, bullmq.StateFailed); err != nil {
+		t.Fatalf("Retry: %v", err)
+	}
+
+	state, err := q.JobState(ctx, job.ID)
+	if err != nil {
+		t.Fatalf("JobState: %v", err)
+	}
+	if state != bullmq.StatePrioritized {
+		t.Fatalf("state = %q, want %q", state, bullmq.StatePrioritized)
+	}
+}
+
 func TestJobIsCompletedAndIsFailed(t *testing.T) {
 	requireRedis(t)
 	ctx := testContext(t)

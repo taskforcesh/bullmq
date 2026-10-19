@@ -218,7 +218,7 @@ func (b *RedisBackend) RetryFinishedJob(ctx context.Context, jobID string, state
 	}
 	res, err := b.runScript(ctx, "reprocessJob", []string{
 		k.Job(jobID), k.Events(), k.Get(string(state)),
-		k.Wait(), k.Meta(), k.Active(), k.Marker(),
+		k.Wait(), k.Meta(), k.Active(), k.Marker(), k.Prioritized(), k.PC(),
 	}, jobID, pushCommand(lifo), propVal, string(state), "0", "0")
 	if err != nil {
 		return err
