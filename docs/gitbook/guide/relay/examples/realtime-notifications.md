@@ -20,7 +20,7 @@ const wss = new WebSocketServer({ server: httpServer });
 
 interface ConnectedUser {
   sockets: Set<WebSocket>;
-  subscription: Promise<RelaySubscription>;
+  subscription: Promise<RelaySubscription | undefined>;
 }
 const users = new Map<string, ConnectedUser>();
 
@@ -39,24 +39,42 @@ wss.on('connection', async (socket, request) => {
   if (!user) {
     // First socket of this user on this server: subscribe once for all of them.
     const sockets = new Set<WebSocket>();
-    user = {
+    const connectedUser: ConnectedUser = {
       sockets,
-      subscription: relay.subscribe(userTopic(userId), message => {
+      subscription: Promise.resolve(undefined),
+    };
+    connectedUser.subscription = relay
+      .subscribe(userTopic(userId), message => {
         const payload = JSON.stringify(message.data);
         sockets.forEach(s => s.send(payload));
-      }),
-    };
+      })
+      .catch(err => {
+        if (users.get(userId) === connectedUser) {
+          users.delete(userId);
+        }
+        sockets.forEach(s => s.close(1011, 'subscription failed'));
+        console.error(err);
+        return undefined;
+      });
+    user = connectedUser;
     users.set(userId, user);
   }
   user.sockets.add(socket);
 
   socket.on('close', async () => {
-    const current = users.get(userId)!;
-    current.sockets.delete(socket);
-    if (current.sockets.size === 0) {
-      // Last socket of this user on this server.
-      users.delete(userId);
-      await (await current.subscription).unsubscribe();
+    try {
+      const current = users.get(userId);
+      if (!current || !current.sockets.delete(socket)) {
+        return;
+      }
+      if (current.sockets.size === 0) {
+        // Last socket of this user on this server.
+        users.delete(userId);
+        const subscription = await current.subscription;
+        await subscription?.unsubscribe();
+      }
+    } catch (err) {
+      console.error(err);
     }
   });
 });
