@@ -1,3 +1,10 @@
+## [3.4.2](https://github.com/taskforcesh/bullmq/compare/vpy3.4.1...vpy3.4.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **job-scheduler:** read the seconds field first in 6-field cron patterns [python] ([#4962](https://github.com/taskforcesh/bullmq/issues/4962)) ([b3122ce](https://github.com/taskforcesh/bullmq/commit/b3122cebf590bc1bae290cc8d80637fdcce878ae))
+
 ## [3.4.1](https://github.com/taskforcesh/bullmq/compare/vpy3.4.0...vpy3.4.1) (2026-10-18)
 
 
