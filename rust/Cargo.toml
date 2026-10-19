@@ -28,9 +28,9 @@ name = "bullmq"
 
 [dependencies]
 redis = { version = "=1.7.1", features = ["tokio-comp", "connection-manager", "cluster-async", "script", "tokio-rustls-comp", "tls-rustls-webpki-roots"] }
-tokio = { version = "=1.53.2", features = ["full"] }
+tokio = { version = "=1.53.3", features = ["full"] }
 serde = { version = "=1.0.229", features = ["derive"] }
-serde_json = "=1.0.153"
+serde_json = "=1.0.154"
 thiserror = "=2.0.21"
 uuid = { version = "=1.28.0", features = ["v4"] }
 sha1 = "=0.11.0"
@@ -45,7 +45,7 @@ croner = "=4.0.1"
 chrono-tz = "=0.10.4"
 
 [dev-dependencies]
-tokio = { version = "=1.53.2", features = ["full", "test-util"] }
+tokio = { version = "=1.53.3", features = ["full", "test-util"] }
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
 rand = "=0.10.3"
 url = "=2.5.8"
