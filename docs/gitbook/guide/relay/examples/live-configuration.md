@@ -42,7 +42,9 @@ async function loadFlags() {
 }
 
 // Retained messages are not delivered again after a recovery.
-relay.on('recovered', reloadFlags);
+relay.on('recovered', () => {
+  void reloadFlags().catch(console.error);
+});
 
 await loadFlags();
 

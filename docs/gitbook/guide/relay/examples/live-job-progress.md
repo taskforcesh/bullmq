@@ -39,21 +39,21 @@ const worker = new Worker(
   { connection },
 );
 
-worker.on('completed', (job, result) =>
-  relay.publish(
+worker.on('completed', (job, result) => {
+  void relay.publish(
     topic(job.id!, 'status'),
     { state: 'completed', url: result.url },
     { retain: 24 * HOUR },
-  ),
-);
+  ).catch(console.error);
+});
 
 worker.on('failed', (job, err) => {
   if (job) {
-    relay.publish(
+    void relay.publish(
       topic(job.id!, 'status'),
       { state: 'failed', reason: err.message },
       { retain: 24 * HOUR },
-    );
+    ).catch(console.error);
   }
 });
 ```
