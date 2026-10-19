@@ -148,6 +148,117 @@ describe('Relay on ioredis', () => {
     expect(await admin.xlen(smallInbox)).toBe(2);
   });
 
+  it('isolates connection discovery for matching node identifiers in different databases', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const nodes = [0, 1].map(db => {
+      const relay = new Relay({
+        connection: { host: redisHost, db },
+        prefix,
+        namespace,
+        nodeId: 'same-node',
+      });
+      relays.push(relay);
+      return relay;
+    });
+    await Promise.all(nodes.map(node => node.waitUntilReady()));
+    await vi.waitFor(async () => {
+      const connections = await Promise.all(
+        nodes.map(node => node.getNodeConnections(node.nodeId)),
+      );
+      expect(connections.map(list => list.length)).toEqual([1, 1]);
+      expect(connections[0][0].address).not.toBe(connections[1][0].address);
+    });
+  });
+
+  it('does not count a fetched batch as dropped while awaiting its heartbeat', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = await newBackend();
+    let fetched = false;
+    let held = false;
+    let release!: () => void;
+    const released = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const readInbox = backend.readInbox.bind(backend);
+    vi.spyOn(backend, 'readInbox').mockImplementation(async (...args) => {
+      const batch = await readInbox(...args);
+      fetched ||= batch.entries.length > 0;
+      return batch;
+    });
+    const heartbeat = backend.heartbeat.bind(backend);
+    vi.spyOn(backend, 'heartbeat').mockImplementation(async (...args) => {
+      if (fetched && !held) {
+        held = true;
+        await released;
+      }
+      return heartbeat(...args);
+    });
+    const relay = new Relay({
+      connection: { host: redisHost },
+      prefix,
+      namespace,
+      inboxMaxLength: 1,
+      heartbeatInterval: 60_000,
+      backend: () => backend,
+    });
+    relays.push(relay);
+    const received: unknown[] = [];
+    try {
+      await relay.subscribe('a', message => {
+        received.push(message.data);
+      });
+      await relay.publish('a', 1);
+      await vi.waitFor(() => expect(held).toBe(true));
+      await relay.publish('a', 2);
+      expect(received).toEqual([]);
+      await expect(relay.getNodes()).resolves.toMatchObject([{ dropped: 0 }]);
+      await relay.publish('a', 3);
+      await expect(relay.getNodes()).resolves.toMatchObject([{ dropped: 1 }]);
+      release();
+      await vi.waitFor(() => expect(received).toEqual([1, 3]));
+      await expect(relay.getNodes()).resolves.toMatchObject([{ dropped: 1 }]);
+    } finally {
+      release();
+    }
+  });
+
+  it('does not deliver entries trimmed between a blocking wakeup and the atomic fetch', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = await newBackend();
+    await backend.registerNode('n1', 30_000, {}, 1);
+    await backend.subscribe('n1', 'e1', 'a');
+    const connection = await (backend as any).getBlockingConnection();
+    const client = await connection.client;
+    let wakeupStarted!: () => void;
+    const waiting = new Promise<void>(resolve => {
+      wakeupStarted = resolve;
+    });
+    vi.spyOn(client, 'xread').mockImplementation(async () => {
+      wakeupStarted();
+      const result = await IORedis.prototype.xread.call(
+        client,
+        'BLOCK',
+        5_000,
+        'COUNT',
+        1,
+        'STREAMS',
+        `${base()}:n1:inbox`,
+        '0-0',
+      );
+      await backend.publish('a', '2', publishOptions);
+      return result;
+    });
+    const reading = backend.readInbox('n1', '0-0', {
+      blockMs: 5_000,
+      count: 10,
+    });
+    await waiting;
+    await backend.publish('a', '1', publishOptions);
+    const batch = await reading;
+    expect(batch.entries.map(entry => entry.data)).toEqual(['2']);
+    expect((await backend.getNodes(0, -1))[0].dropped).toBe(1);
+  });
+
   it('delivers messages published while its inbox connection was dropped', async () => {
     namespace = `t-${randomUUID().slice(0, 13)}`;
     const subscriber = await newRelay();

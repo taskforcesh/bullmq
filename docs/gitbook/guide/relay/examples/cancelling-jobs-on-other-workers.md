@@ -32,10 +32,7 @@ const worker = new Worker(
         await exportPage(page, { signal }); // pass it to fetch, streams, etc.
       }
     } catch (err) {
-      if (
-        signal?.aborted &&
-        (err as { name?: string } | null | undefined)?.name === 'AbortError'
-      ) {
+      if (signal?.aborted) {
         throw new UnrecoverableError(`cancelled: ${signal.reason}`);
       }
       throw err;

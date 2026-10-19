@@ -115,7 +115,7 @@ describe(`Relay stress (${ctx.backend})`, () => {
     })();
     const churning = (async () => {
       for (let i = 0; i < 15; i++) {
-        const transient = ctx.createRelay({ namespace: ns });
+        const transient = await newRelay(ns);
         await transient.subscribe('churn.topic', () => undefined);
         await transient.subscribe('churn.*', () => undefined);
         await transient.close();

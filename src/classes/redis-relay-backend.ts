@@ -251,19 +251,27 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
     if (this.interrupted) {
       return { entries: [], cursor };
     }
-    await client.runCommand(`relayAckInbox:${packageVersion}`, [
-      this.nodesKey,
-      this.baseKey,
-      nodeId,
-      cursor,
-    ]);
-    // BLOCK 0 would wait forever; the contract's 0 means "don't wait".
-    const result = await client.xread(
-      [{ key: `${this.baseKey}:${nodeId}:inbox`, id: cursor }],
-      opts.blockMs > 0
-        ? { BLOCK: opts.blockMs, COUNT: opts.count }
-        : { COUNT: opts.count },
-    );
+    const read = () =>
+      client.runCommand(`relayReadInbox:${packageVersion}`, [
+        this.nodesKey,
+        this.baseKey,
+        nodeId,
+        cursor,
+        opts.count,
+      ]);
+    let result = await read();
+    if (!result && opts.blockMs > 0 && !this.interrupted) {
+      // Only use the blocking read as a wakeup. Fetching and marking the actual
+      // batch must be atomic with publish-time trimming.
+      await client.xread(
+        [{ key: `${this.baseKey}:${nodeId}:inbox`, id: cursor }],
+        { BLOCK: opts.blockMs, COUNT: 1 },
+      );
+      if (this.interrupted) {
+        return { entries: [], cursor };
+      }
+      result = await read();
+    }
     if (!result) {
       return { entries: [], cursor };
     }
@@ -393,6 +401,10 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
 
   async getNodeConnections(nodeId: string): Promise<RelayNodeConnection[]> {
     const client = await this.connection.client;
+    // Adapter options do not consistently expose the selected database.
+    const db = client.isCluster
+      ? '0'
+      : (await client.clientInfo()).match(/(?:^| )db=(\d+)/)?.[1];
     // Every node of a cluster: the connection may be to any of them.
     const lists: string[] =
       client.isCluster && typeof client.nodes === 'function'
@@ -415,7 +427,7 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
           fields[pair.slice(0, eq)] = pair.slice(eq + 1);
         }
       }
-      if (fields.name === name) {
+      if (fields.name === name && fields.db === db) {
         connections.push({
           address: fields.addr,
           age: Number(fields.age),
