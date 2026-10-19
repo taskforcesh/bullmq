@@ -144,6 +144,8 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   private batchInFlight = false;
   private sweeping?: Promise<void>;
   private recoveryPending = false;
+  /** Incremented when a recovery replaces the node's registration. */
+  private registration = 0;
   private connected = false;
   private cancelStart!: () => void;
   private readonly startCancelled = new Promise<void>(resolve => {
@@ -506,6 +508,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
    */
   private async recover(): Promise<void> {
     this.recoveryPending = true;
+    this.registration++;
     await this.register();
     let renewalError: unknown;
     let renewal: Promise<void> | undefined;
@@ -615,6 +618,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
         if (this.backlogChecking) {
           await this.backlogChecking;
         }
+        const registration = this.registration;
         const batch = await this.backend.readInbox(this.nodeId, this.cursor, {
           blockMs: this.blockTimeout,
           count: 100,
@@ -628,9 +632,15 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
         if (this.closing) {
           break;
         }
-        this.cursor = batch.cursor;
-        for (const entry of batch.entries) {
-          this.dispatch(entry);
+        // If a recovery started during or after this read, the batch may belong
+        // to the replaced registration, so it must not overwrite state reset
+        // on 'recovered'. Read again without acknowledging it: the replaced
+        // registration's entries are gone, the new one's are read again.
+        if (registration === this.registration) {
+          this.cursor = batch.cursor;
+          for (const entry of batch.entries) {
+            this.dispatch(entry);
+          }
         }
         this.batchInFlight = false;
         if (batch.entries.length > 0) {
