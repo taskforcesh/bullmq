@@ -222,6 +222,50 @@ describe('Relay on ioredis', () => {
     }
   });
 
+  it('keeps a fetched batch when the heartbeat before its dispatch fails', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = await newBackend();
+    let fetched = false;
+    let failed = false;
+    const readInbox = backend.readInbox.bind(backend);
+    vi.spyOn(backend, 'readInbox').mockImplementation(async (...args) => {
+      const batch = await readInbox(...args);
+      fetched ||= batch.entries.length > 0;
+      return batch;
+    });
+    const heartbeat = backend.heartbeat.bind(backend);
+    vi.spyOn(backend, 'heartbeat').mockImplementation(async (...args) => {
+      if (fetched && !failed) {
+        failed = true;
+        // Overflows the inbox while the fetched entry is not dispatched yet.
+        await backend.publish('a', '2', publishOptions);
+        throw new Error('heartbeat failed');
+      }
+      return heartbeat(...args);
+    });
+    const relay = new Relay({
+      connection: { host: redisHost },
+      prefix,
+      namespace,
+      inboxMaxLength: 1,
+      heartbeatInterval: 60_000,
+      backend: () => backend,
+    });
+    relays.push(relay);
+    const errors: Error[] = [];
+    relay.on('error', err => errors.push(err));
+    const received: unknown[] = [];
+    await relay.subscribe('a', message => {
+      received.push(message.data);
+    });
+    await relay.publish('a', 1);
+    await vi.waitFor(() => expect(received).toEqual([1, 2]), {
+      timeout: 5_000,
+    });
+    expect(errors.map(err => err.message)).toEqual(['heartbeat failed']);
+    await expect(relay.getNodes()).resolves.toMatchObject([{ dropped: 0 }]);
+  });
+
   it('does not deliver entries trimmed between a blocking wakeup and the atomic fetch', async () => {
     namespace = `t-${randomUUID().slice(0, 13)}`;
     const backend = await newBackend();

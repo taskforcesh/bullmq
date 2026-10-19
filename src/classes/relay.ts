@@ -6,6 +6,7 @@ import {
   IRelayBackend,
   RelayBackendFactory,
   RelayCounts,
+  RelayInboxBatch,
   RelayInboxEntry,
   RelayNodeConnection,
   RelayNodeState,
@@ -613,16 +614,24 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
   }
 
   private async readLoop(): Promise<void> {
+    // A batch fetched but not dispatched yet. It is kept when the heartbeat
+    // before its dispatch fails: the datastore already counts its entries as
+    // in flight, so trimming may remove them without counting them as dropped.
+    let fetched: { batch: RelayInboxBatch; registration: number } | undefined;
     while (!this.closing) {
       try {
-        if (this.backlogChecking) {
-          await this.backlogChecking;
+        if (!fetched) {
+          if (this.backlogChecking) {
+            await this.backlogChecking;
+          }
+          const registration = this.registration;
+          const batch = await this.backend.readInbox(this.nodeId, this.cursor, {
+            blockMs: this.blockTimeout,
+            count: 100,
+          });
+          fetched = { batch, registration };
         }
-        const registration = this.registration;
-        const batch = await this.backend.readInbox(this.nodeId, this.cursor, {
-          blockMs: this.blockTimeout,
-          count: 100,
-        });
+        const { batch, registration } = fetched;
         this.batchInFlight = batch.entries.length > 0;
         if (batch.entries.length > 0 && !this.closing) {
           // A lease may have expired while reading. Recover before listeners
@@ -632,6 +641,7 @@ export class Relay<C = ConnectionOptions> extends EventEmitter {
         if (this.closing) {
           break;
         }
+        fetched = undefined;
         // If a recovery started during or after this read, the batch may belong
         // to the replaced registration, so it must not overwrite state reset
         // on 'recovered'. Read again without acknowledging it: the replaced

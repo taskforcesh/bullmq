@@ -286,6 +286,74 @@ describe('Relay (postgres) concurrency', () => {
     }
   });
 
+  it('does not count a fetched batch as dropped when trimming before readLoop gets it', async () => {
+    const namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = createPostgresRelayBackend({
+      connection: connection(),
+      namespace,
+    });
+    const signal = () => {
+      let resolve!: () => void;
+      const promise = new Promise<void>(r => {
+        resolve = r;
+      });
+      return { promise, resolve };
+    };
+    // The first read waits until every message is published, so they are
+    // fetched as one batch; its response is then held before readLoop() gets
+    // it (and marks it in flight) while the inbox is trimmed.
+    const firstRead = signal();
+    const releaseRead = signal();
+    const batchFetched = signal();
+    const releaseBatch = signal();
+    let held = false;
+    const readInbox = backend.readInbox.bind(backend);
+    vi.spyOn(backend, 'readInbox').mockImplementation(async (...args) => {
+      firstRead.resolve();
+      await releaseRead.promise;
+      const batch = await readInbox(...args);
+      if (batch.entries.length > 0 && !held) {
+        held = true;
+        batchFetched.resolve();
+        await releaseBatch.promise;
+      }
+      return batch;
+    });
+    const trimInbox = vi.spyOn(backend, 'trimInbox');
+    const relay = new Relay({
+      connection: connection(),
+      namespace,
+      inboxMaxLength: 1,
+      backend: () => backend,
+    });
+    const messages: unknown[] = [];
+    try {
+      await relay.waitUntilReady();
+      await firstRead.promise;
+      await relay.subscribe('a', message => {
+        messages.push(message.data);
+      });
+      for (const value of [1, 2, 3]) {
+        await relay.publish('a', value);
+      }
+      releaseRead.resolve();
+
+      await batchFetched.promise;
+      expect((relay as any).batchInFlight).toBe(false);
+      await (relay as any).checkBacklog();
+      expect(trimInbox).toHaveBeenCalledTimes(1);
+      await expect(relay.getNodes()).resolves.toMatchObject([{ dropped: 0 }]);
+      releaseBatch.resolve();
+
+      await vi.waitFor(() => expect(messages).toEqual([1, 2, 3]));
+      await expect(relay.getNodes()).resolves.toMatchObject([{ dropped: 0 }]);
+    } finally {
+      releaseRead.resolve();
+      releaseBatch.resolve();
+      await relay.close();
+    }
+  });
+
   it('does not deliver entries left pending by an expired lease after recovering', async () => {
     const namespace = `t-${randomUUID().slice(0, 13)}`;
     const backend = createPostgresRelayBackend({

@@ -20,6 +20,9 @@ CREATE TABLE relay_node (
   -- Unread inbox entries as of the last trim, and entries dropped by trims.
   backlog integer NOT NULL DEFAULT 0,
   dropped bigint NOT NULL DEFAULT 0,
+  -- Ids of the inbox batch last fetched by the node (in flight until it is
+  -- acknowledged): trims may remove them, but they are not dropped.
+  in_flight bigint[] NOT NULL DEFAULT '{}',
   PRIMARY KEY (ns, node_id)
 );
 
@@ -396,36 +399,52 @@ $$;
 -- remaining ones. Acknowledging by id rather than reading after a cursor never
 -- skips a row whose transaction committed late. Returns nothing while the
 -- node's lease is expired: its pending entries belong to a registration that
--- recovery replaces, so they must not be delivered after it.
+-- recovery replaces, so they must not be delivered after it. The returned
+-- ids are recorded as in flight on the node, atomically with the read (the
+-- node row lock serializes it with trims), so a trim that runs before the
+-- reader gets them does not count them as dropped.
 CREATE FUNCTION relay_read_inbox(
   p_ns text, p_node text, p_ack bigint[], p_limit integer
 )
 RETURNS SETOF relay_inbox
 LANGUAGE plpgsql AS $$
+DECLARE
+  v_rows relay_inbox[];
 BEGIN
+  -- Lock the node before its inbox rows, as relay_trim_inbox does.
+  PERFORM 1 FROM relay_node
+    WHERE ns = p_ns AND node_id = p_node
+    FOR NO KEY UPDATE;
   IF cardinality(p_ack) > 0 THEN
     DELETE FROM relay_inbox
      WHERE ns = p_ns AND node_id = p_node AND id = ANY (p_ack);
   END IF;
-  RETURN QUERY
-    SELECT i.*
-      FROM relay_inbox i
-     WHERE i.ns = p_ns AND i.node_id = p_node
-       AND EXISTS (
-         SELECT 1
-           FROM relay_node n
-          WHERE n.ns = p_ns AND n.node_id = p_node
-            AND n.lease_until > clock_timestamp()
-       )
-     ORDER BY i.id
-     LIMIT p_limit;
+  SELECT coalesce(array_agg(b ORDER BY b.id), '{}') INTO v_rows
+    FROM (
+      SELECT i.*
+        FROM relay_inbox i
+       WHERE i.ns = p_ns AND i.node_id = p_node
+         AND EXISTS (
+           SELECT 1
+             FROM relay_node n
+            WHERE n.ns = p_ns AND n.node_id = p_node
+              AND n.lease_until > clock_timestamp()
+         )
+       ORDER BY i.id
+       LIMIT p_limit
+    ) b;
+  UPDATE relay_node
+     SET in_flight = ARRAY(SELECT r.id FROM unnest(v_rows) r)
+   WHERE ns = p_ns AND node_id = p_node;
+  RETURN QUERY SELECT r.* FROM unnest(v_rows) r ORDER BY r.id;
 END;
 $$;
 
 -- Removes the consumed entries of a node's inbox (the ids of its last read
 -- batch) and the oldest entries beyond p_max_len, and returns the number of
 -- entries left: the messages the node hasn't read yet. The backlog and the
--- number of dropped entries are recorded on the node.
+-- number of dropped entries are recorded on the node. Entries of the batch in
+-- flight are delivered by the reader, so they are not counted as dropped.
 CREATE FUNCTION relay_trim_inbox(
   p_ns text, p_node text, p_ack bigint[], p_max_len integer
 )
@@ -435,10 +454,11 @@ DECLARE
   v_oldest_kept bigint;
   v_dropped integer := 0;
   v_count integer;
+  v_in_flight bigint[];
 BEGIN
   -- Lock the node before its inbox rows, in the same order as unregistering
   -- and sweeping (which delete the node, then cascade to its inbox).
-  PERFORM 1 FROM relay_node
+  SELECT in_flight INTO v_in_flight FROM relay_node
     WHERE ns = p_ns AND node_id = p_node
     FOR NO KEY UPDATE;
   IF NOT FOUND THEN
@@ -457,9 +477,14 @@ BEGIN
   OFFSET p_max_len - 1
    LIMIT 1;
   IF v_oldest_kept IS NOT NULL THEN
-    DELETE FROM relay_inbox
-     WHERE ns = p_ns AND node_id = p_node AND id < v_oldest_kept;
-    GET DIAGNOSTICS v_dropped = ROW_COUNT;
+    WITH removed AS (
+      DELETE FROM relay_inbox
+       WHERE ns = p_ns AND node_id = p_node AND id < v_oldest_kept
+      RETURNING id
+    )
+    SELECT count(*)::integer INTO v_dropped
+      FROM removed
+     WHERE removed.id <> ALL (v_in_flight);
   END IF;
 
   SELECT count(*)::integer INTO v_count
