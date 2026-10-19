@@ -503,6 +503,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       queueKeys.delayed,
       queueKeys.completed,
       queueKeys.events,
+      queueKeys.failed,
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
@@ -539,6 +540,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       queueKeys.active,
       queueKeys.events,
       queueKeys.pc,
+      queueKeys.failed,
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
@@ -572,6 +574,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       queueKeys['waiting-children'],
       queueKeys.completed,
       queueKeys.events,
+      queueKeys.failed,
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
@@ -608,6 +611,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       queueKeys.active,
       queueKeys.events,
       queueKeys.marker,
+      queueKeys.failed,
     ];
 
     keys.push(pack(args), job.data, encodedOpts);

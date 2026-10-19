@@ -188,17 +188,17 @@ public sealed class RedisBackend : IQueueBackend
     {
         if (job.Delay > 0)
         {
-            var keys = MapKeys("marker", "meta", "id", "delayed", "completed", "events");
+            var keys = MapKeys("marker", "meta", "id", "delayed", "completed", "events", "failed");
             return ("addDelayedJob", keys, AddJobArgs(job, job.Delay));
         }
 
         if (job.Priority > 0)
         {
-            var keys = MapKeys("marker", "meta", "id", "prioritized", "delayed", "completed", "active", "events", "pc");
+            var keys = MapKeys("marker", "meta", "id", "prioritized", "delayed", "completed", "active", "events", "pc", "failed");
             return ("addPrioritizedJob", keys, AddJobArgs(job, job.Priority));
         }
 
-        var standardKeys = MapKeys("wait", "paused", "meta", "id", "completed", "delayed", "active", "events", "marker");
+        var standardKeys = MapKeys("wait", "paused", "meta", "id", "completed", "delayed", "active", "events", "marker", "failed");
         return ("addStandardJob", standardKeys, AddJobArgs(job, job.Timestamp));
     }
 
@@ -298,7 +298,7 @@ public sealed class RedisBackend : IQueueBackend
         {
             return (
                 "addParentJob",
-                Map("meta", "id", "delayed", "waiting-children", "completed", "events"),
+                Map("meta", "id", "delayed", "waiting-children", "completed", "events", "failed"),
                 AddJobArgsWithKeys(keys, job, trailing: null));
         }
 
@@ -306,7 +306,7 @@ public sealed class RedisBackend : IQueueBackend
         {
             return (
                 "addDelayedJob",
-                Map("marker", "meta", "id", "delayed", "completed", "events"),
+                Map("marker", "meta", "id", "delayed", "completed", "events", "failed"),
                 AddJobArgsWithKeys(keys, job, job.Delay));
         }
 
@@ -314,13 +314,13 @@ public sealed class RedisBackend : IQueueBackend
         {
             return (
                 "addPrioritizedJob",
-                Map("marker", "meta", "id", "prioritized", "delayed", "completed", "active", "events", "pc"),
+                Map("marker", "meta", "id", "prioritized", "delayed", "completed", "active", "events", "pc", "failed"),
                 AddJobArgsWithKeys(keys, job, job.Priority));
         }
 
         return (
             "addStandardJob",
-            Map("wait", "paused", "meta", "id", "completed", "delayed", "active", "events", "marker"),
+            Map("wait", "paused", "meta", "id", "completed", "delayed", "active", "events", "marker", "failed"),
             AddJobArgsWithKeys(keys, job, job.Timestamp));
     }
 

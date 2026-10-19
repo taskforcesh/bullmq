@@ -48,7 +48,7 @@ public static class LuaScripts
                 continue;
             }
 
-            // Resource names look like "BullMQ.Commands.addStandardJob-9.lua".
+            // Resource names look like "BullMQ.Commands.addStandardJob-10.lua".
             // Take the final "<name>-<numKeys>.lua" segment.
             var fileName = ExtractFileName(resourceName);
             var withoutExt = fileName[..^".lua".Length];
