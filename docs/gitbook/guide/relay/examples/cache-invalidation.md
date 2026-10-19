@@ -15,7 +15,10 @@ import { LRUCache } from 'lru-cache';
 import { Relay } from 'bullmq';
 
 const relay = new Relay({ connection: { host: 'redis.internal', port: 6379 } });
-const users = new LRUCache<string, User>({ max: 10_000 });
+const users = new LRUCache<string, User>({
+  max: 10_000,
+  ttl: 5 * 60 * 1000,
+});
 let generation = 0;
 
 await relay.subscribe('cache.users.*', message => {
@@ -72,3 +75,5 @@ entry the same way.
   `cache.prices.*`), so each service only subscribes to what it caches.
 - For data that changes very often, an expiry on the cache entries is
   simpler than invalidating every change.
+- Choose a cache TTL that fits the application's freshness requirements, so a
+  missed invalidation cannot leave an entry stale indefinitely.

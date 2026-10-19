@@ -109,6 +109,37 @@ describe('Relay on ioredis', () => {
     expect(errors).toEqual([commandError, blockingError]);
   });
 
+  it('keeps namespace registry retries off the publish path', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = await newBackend();
+    const client = await (backend as any).connection.client;
+    const runCommand = client.runCommand.bind(client);
+    const registryError = new Error('registry refresh failed');
+    const errors: Error[] = [];
+    let attempts = 0;
+    backend.on('error', error => errors.push(error));
+    vi.spyOn(client, 'runCommand').mockImplementation(async (command, args) => {
+      if (
+        typeof command === 'string' &&
+        command.startsWith('relayTouchNamespace:')
+      ) {
+        attempts++;
+        throw registryError;
+      }
+      return runCommand(command, args);
+    });
+
+    await expect(
+      backend.publish('a', '"message"', {
+        ...publishOptions,
+        retainMs: 1_000,
+      }),
+    ).resolves.toMatchObject({ nodes: 0, endpoints: 0 });
+
+    await waitFor(() => attempts === 3);
+    expect(errors).toEqual([registryError]);
+  });
+
   it('uses each recipient inbox limit and counts only unread publish-time drops', async () => {
     namespace = `t-${randomUUID().slice(0, 13)}`;
     const backend = await newBackend();
