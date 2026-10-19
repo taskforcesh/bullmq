@@ -126,7 +126,8 @@ for i = 1, #nodeOrder do
     local nodeMaxLen = tonumber(rcall("HGET", nodeKey, "maxLen")) or maxLen
     local overflow = rcall("XLEN", inboxKey) + 1 - nodeMaxLen
     if overflow > 0 then
-      local cursor = rcall("HGET", nodeKey, "cursor") or "0-0"
+      local cursor = rcall("HGET", nodeKey, "inFlight") or
+        rcall("HGET", nodeKey, "cursor") or "0-0"
       local consumed = 0
       if cursor ~= "0-0" and cursor ~= "0" then
         consumed = #rcall("XRANGE", inboxKey, "-", cursor, "COUNT", overflow)

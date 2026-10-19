@@ -976,6 +976,14 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     );
   }
 
+  async clientInfo(): Promise<string> {
+    return toStringValue(
+      await this.runRawCommand(['CLIENT', 'INFO'], {
+        decoder: GLIDE_STRING_DECODER,
+      }),
+    );
+  }
+
   async scan(
     cursor: string | number,
     options: { MATCH?: string; COUNT?: number },

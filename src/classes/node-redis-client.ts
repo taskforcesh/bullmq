@@ -785,6 +785,10 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     return await this.raw.sendCommand(['CLIENT', 'LIST']);
   }
 
+  async clientInfo(): Promise<string> {
+    return await this.raw.sendCommand(['CLIENT', 'INFO']);
+  }
+
   // ---------------------------------------------------------------
   // Key scanning
   // ---------------------------------------------------------------
