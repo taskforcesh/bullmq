@@ -973,6 +973,77 @@ describe('Relay resilience', () => {
     }
   });
 
+  it('discards a fetched inbox batch when recovery replaces its registration', async () => {
+    const backend = new FakeBackend();
+    let releaseRead!: () => void;
+    let readStarted!: () => void;
+    const pendingRead = new Promise<void>(resolve => {
+      releaseRead = resolve;
+    });
+    const started = new Promise<void>(resolve => {
+      readStarted = resolve;
+    });
+    const readEmptyInbox = backend.readInbox.bind(backend);
+    let firstRead = true;
+    let endpoint = '';
+    backend.readInbox = async () => {
+      backend.calls.push('readInbox');
+      if (firstRead) {
+        firstRead = false;
+        readStarted();
+        await pendingRead;
+        return {
+          entries: [
+            {
+              kind: 'msg',
+              topic: 'a',
+              mid: '1',
+              ts: 1,
+              data: '1',
+              endpoints: [endpoint],
+            },
+          ],
+          cursor: '1',
+        };
+      }
+      return readEmptyInbox();
+    };
+    const relay = createRelay(backend);
+    const events: string[] = [];
+    let resumeRecovery!: () => void;
+    try {
+      await relay.waitUntilReady();
+      await relay.subscribe('a', () => events.push('message'));
+      await started;
+      endpoint = [...(relay as any).endpoints.keys()][0];
+      relay.on('recovered', () => events.push('recovered'));
+      backend.heartbeatResult = false;
+      backend.subscribe = async () => {
+        await new Promise<void>(resolve => {
+          resumeRecovery = resolve;
+        });
+        return { added: true };
+      };
+      const recovering = (relay as any).heartbeat();
+      await waitFor(() => !!resumeRecovery);
+      releaseRead();
+      backend.heartbeatResult = true;
+      resumeRecovery();
+      await recovering;
+      await waitFor(() => events.includes('recovered'));
+      await waitFor(
+        () => backend.calls.filter(c => c === 'readInbox').length >= 2,
+      );
+
+      expect(events).toEqual(['recovered']);
+      expect((relay as any).cursor).toBe('0');
+    } finally {
+      releaseRead();
+      resumeRecovery?.();
+      await relay.close();
+    }
+  });
+
   it('does not overlap sweeps', async () => {
     const backend = new FakeBackend();
     const relay = createRelay(backend);
