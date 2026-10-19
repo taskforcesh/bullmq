@@ -2,7 +2,8 @@
   Removes the consumed entries of a relay node's inbox (up to the reader's
   cursor) and the oldest entries beyond the max length, and returns the number
   of entries left: the messages the node hasn't read yet. The backlog and the
-  number of dropped entries are recorded on the node.
+  number of dropped entries are recorded on the node. Entries of a batch the
+  reader fetched (in flight) are delivered, so they are not counted as dropped.
 
   Input:
     KEYS[1] nodes key ({base}:nodes)
@@ -41,7 +42,17 @@ if cursor ~= "0-0" and cursor ~= "0" then
   end
 end
 
-local dropped = rcall("XTRIM", inboxKey, "MAXLEN", tonumber(ARGV[4]))
+local maxLen = tonumber(ARGV[4])
+local dropped = 0
+local overflow = rcall("XLEN", inboxKey) - maxLen
+if overflow > 0 then
+  local inFlight = rcall("HGET", nodeKey, "inFlight") or cursor
+  local fetched = 0
+  if inFlight ~= "0-0" and inFlight ~= "0" then
+    fetched = #rcall("XRANGE", inboxKey, "-", inFlight, "COUNT", overflow)
+  end
+  dropped = rcall("XTRIM", inboxKey, "MAXLEN", maxLen) - fetched
+end
 local backlog = rcall("XLEN", inboxKey)
 -- Only a live node has a record (writing to a missing one would create it
 -- without an expiry).

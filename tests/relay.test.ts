@@ -551,6 +551,31 @@ describe(`Relay (${ctx.backend})`, () => {
       );
     });
 
+    it('does not count fetched entries as dropped when capping the inbox', async () => {
+      const backend = await newBackend(newNamespace());
+      await backend.registerNode('n1', 30_000);
+      await backend.subscribe('n1', 'e1', 'a');
+      for (let i = 0; i < 5; i++) {
+        await backend.publish('a', String(i), {
+          ts: 1,
+          retainMs: 0,
+          maxSize: 10,
+        });
+      }
+      // Fetched, but not acknowledged yet: the reader delivers them anyway.
+      const batch = await backend.readInbox('n1', backend.initialInboxCursor, {
+        blockMs: 0,
+        count: 3,
+      });
+      expect(batch.entries.map(e => e.data)).toEqual(['0', '1', '2']);
+      expect(await backend.trimInbox('n1', backend.initialInboxCursor, 1)).toBe(
+        1,
+      );
+      expect((await backend.getNodes(0, -1))[0].dropped).toBe(1);
+      const { entries } = await readAll(backend, 'n1', batch.cursor);
+      expect(entries.map(e => e.data)).toEqual(['4']);
+    });
+
     it('reports an empty backlog for an empty or missing inbox', async () => {
       const backend = await newBackend(newNamespace());
       await backend.registerNode('n1', 30_000);
