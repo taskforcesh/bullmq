@@ -394,7 +394,9 @@ $$;
 
 -- Acknowledges (deletes) the given inbox entries, then returns the oldest
 -- remaining ones. Acknowledging by id rather than reading after a cursor never
--- skips a row whose transaction committed late.
+-- skips a row whose transaction committed late. Returns nothing while the
+-- node's lease is expired: its pending entries belong to a registration that
+-- recovery replaces, so they must not be delivered after it.
 CREATE FUNCTION relay_read_inbox(
   p_ns text, p_node text, p_ack bigint[], p_limit integer
 )
@@ -406,10 +408,16 @@ BEGIN
      WHERE ns = p_ns AND node_id = p_node AND id = ANY (p_ack);
   END IF;
   RETURN QUERY
-    SELECT *
-      FROM relay_inbox
-     WHERE ns = p_ns AND node_id = p_node
-     ORDER BY id
+    SELECT i.*
+      FROM relay_inbox i
+     WHERE i.ns = p_ns AND i.node_id = p_node
+       AND EXISTS (
+         SELECT 1
+           FROM relay_node n
+          WHERE n.ns = p_ns AND n.node_id = p_node
+            AND n.lease_until > clock_timestamp()
+       )
+     ORDER BY i.id
      LIMIT p_limit;
 END;
 $$;

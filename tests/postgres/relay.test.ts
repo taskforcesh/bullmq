@@ -262,7 +262,9 @@ describe('Relay (postgres) concurrency', () => {
     try {
       await relay.waitUntilReady();
       await firstRead.promise;
-      await relay.subscribe('a', message => messages.push(message.data));
+      await relay.subscribe('a', message => {
+        messages.push(message.data);
+      });
       for (const value of [1, 2, 3]) {
         await relay.publish('a', value);
       }
@@ -281,6 +283,165 @@ describe('Relay (postgres) concurrency', () => {
       releaseRead.resolve();
       releaseHeartbeat.resolve();
       await relay.close();
+    }
+  });
+
+  it('does not deliver entries left pending by an expired lease after recovering', async () => {
+    const namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = createPostgresRelayBackend({
+      connection: connection(),
+      namespace,
+    });
+    let resolveHeld!: () => void;
+    const readHeld = new Promise<void>(resolve => {
+      resolveHeld = resolve;
+    });
+    let releaseRead!: () => void;
+    const readReleased = new Promise<void>(resolve => {
+      releaseRead = resolve;
+    });
+    // Holds the first read so the message stays pending in the inbox.
+    let holdRead = true;
+    const readInbox = backend.readInbox.bind(backend);
+    vi.spyOn(backend, 'readInbox').mockImplementation(async (...args) => {
+      if (holdRead) {
+        holdRead = false;
+        resolveHeld();
+        await readReleased;
+      }
+      return readInbox(...args);
+    });
+    const relay = new Relay({
+      connection: connection(),
+      namespace,
+      heartbeatInterval: 60_000,
+      backend: () => backend,
+    });
+    const other = createPostgresRelayBackend({
+      connection: connection(),
+      namespace,
+    });
+    const events: unknown[] = [];
+    try {
+      await relay.waitUntilReady();
+      await readHeld;
+      relay.on('recovered', () => events.push('recovered'));
+      await relay.subscribe('a', message => {
+        events.push(message.data);
+      });
+
+      // Shortens the lease, then routes a message while it is still valid.
+      await other.registerNode(relay.nodeId, 200);
+      await other.publish('a', '"stale"', {
+        ts: 1,
+        retainMs: 0,
+        maxSize: 100,
+      });
+      const inbox = `"${schema}".relay_inbox`;
+      const { rows: pending } = await pool.query(
+        `SELECT count(*)::int AS n FROM ${inbox} WHERE ns = $1 AND node_id = $2`,
+        [namespace, relay.nodeId],
+      );
+      expect(pending[0].n).toBe(1);
+      await new Promise(resolve => setTimeout(resolve, 400));
+
+      const client = await pool.connect();
+      try {
+        await client.query(`SET search_path TO "${schema}"`);
+        const { rows: read } = await client.query(
+          `SELECT * FROM relay_read_inbox($1, $2, '{}'::bigint[], 100)`,
+          [namespace, relay.nodeId],
+        );
+        expect(read).toEqual([]);
+      } finally {
+        await client.query('RESET search_path');
+        client.release();
+      }
+
+      releaseRead();
+      await (relay as any).heartbeat();
+      expect(events).toEqual(['recovered']);
+
+      await other.publish('a', '"back"', {
+        ts: 2,
+        retainMs: 0,
+        maxSize: 100,
+      });
+      await vi.waitFor(() => expect(events).toEqual(['recovered', 'back']));
+    } finally {
+      releaseRead();
+      await relay.close();
+      await other.close();
+    }
+  });
+
+  it('discards an inbox batch fetched before a recovery replaced its registration', async () => {
+    const namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = createPostgresRelayBackend({
+      connection: connection(),
+      namespace,
+    });
+    let resolveFetched!: () => void;
+    const batchFetched = new Promise<void>(resolve => {
+      resolveFetched = resolve;
+    });
+    let releaseBatch!: () => void;
+    const batchReleased = new Promise<void>(resolve => {
+      releaseBatch = resolve;
+    });
+    // Holds the first non-empty batch after it was read, while the lease
+    // expires and a heartbeat recovers the node.
+    let holdBatch = true;
+    const readInbox = backend.readInbox.bind(backend);
+    vi.spyOn(backend, 'readInbox').mockImplementation(async (...args) => {
+      const batch = await readInbox(...args);
+      if (holdBatch && batch.entries.length > 0) {
+        holdBatch = false;
+        resolveFetched();
+        await batchReleased;
+      }
+      return batch;
+    });
+    const relay = new Relay({
+      connection: connection(),
+      namespace,
+      heartbeatInterval: 60_000,
+      backend: () => backend,
+    });
+    const other = createPostgresRelayBackend({
+      connection: connection(),
+      namespace,
+    });
+    const events: unknown[] = [];
+    try {
+      await relay.waitUntilReady();
+      relay.on('recovered', () => events.push('recovered'));
+      await relay.subscribe('a', message => {
+        events.push(message.data);
+      });
+
+      await other.registerNode(relay.nodeId, 200);
+      await other.publish('a', '"stale"', {
+        ts: 1,
+        retainMs: 0,
+        maxSize: 100,
+      });
+      await batchFetched;
+      await new Promise(resolve => setTimeout(resolve, 400));
+      await (relay as any).heartbeat();
+      expect(events).toEqual(['recovered']);
+
+      releaseBatch();
+      await other.publish('a', '"back"', {
+        ts: 2,
+        retainMs: 0,
+        maxSize: 100,
+      });
+      await vi.waitFor(() => expect(events).toEqual(['recovered', 'back']));
+    } finally {
+      releaseBatch();
+      await relay.close();
+      await other.close();
     }
   });
 
