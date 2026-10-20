@@ -335,6 +335,24 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
       boundCache.delete(prop);
       return Reflect.set(target, prop, value);
     },
+    defineProperty(target, prop, descriptor) {
+      // `vi.spyOn` and similar install spies with `Object.defineProperty`
+      // rather than assignment; route override properties to the override
+      // table so the `get` trap returns the spy instead of the original.
+      if (prop in overrides) {
+        if ('value' in descriptor) {
+          overrides[prop as string] = descriptor.value;
+          return true;
+        }
+        if (descriptor.get) {
+          overrides[prop as string] = descriptor.get.call(proxy);
+          return true;
+        }
+        return false;
+      }
+      boundCache.delete(prop);
+      return Reflect.defineProperty(target, prop, descriptor);
+    },
     deleteProperty(target, prop) {
       if (prop in overrides) {
         return false;
