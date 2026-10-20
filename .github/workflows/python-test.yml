@@ -29,7 +29,7 @@ jobs:
           filters: |
             python:
               - 'python/**'
-              - 'src/commands/**'
+              - 'golang/commands/**'
               # SQL is shared across runtimes; PostgreSQL TypeScript is Node-only.
               - 'src/postgres/commands/**/*.sql'
               - 'src/postgres/migrations/**/*.sql'
