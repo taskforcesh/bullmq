@@ -102,14 +102,22 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
     this.nodesKey = `${this.baseKey}:nodes`;
     this.registryKey = `${this.prefix}::relay:namespaces`;
     this.nodeId = opts.nodeId;
-    this.skipVersionCheck = opts.skipVersionCheck === true;
+    const connOpts = opts.connection as any;
+    this.skipVersionCheck =
+      opts.skipVersionCheck === true ||
+      !!(
+        connOpts &&
+        (connOpts.skipVersionCheck ||
+          connOpts.options?.skipVersionCheck ||
+          connOpts.options?.redisOptions?.skipVersionCheck)
+      );
     this.inboxMaxLength = opts.inboxMaxLength ?? DEFAULT_INBOX_MAX_LENGTH;
 
     this.connectionOpts = opts.connection;
     this.connection = new RedisConnection(opts.connection, {
       shared: isRedisInstance(opts.connection),
       blocking: false,
-      skipVersionCheck: opts.skipVersionCheck,
+      skipVersionCheck: this.skipVersionCheck,
     });
     this.forwardConnectionErrors(this.connection);
   }

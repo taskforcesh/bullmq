@@ -65,8 +65,9 @@ subscriptions. From there:
   [retained message](retained-messages.md).
 
 In other words, the Relay is for live messages. It is not a log: when a
-message must be processed reliably, exactly once and with retries, use a
-queue.
+message must be processed reliably and with retries, use a queue. Queues
+process jobs at least once (for example, a stalled job can be processed again
+by another worker), so processors must tolerate duplicates.
 
 ## Listeners
 
