@@ -1,3 +1,17 @@
+## [3.4.2](https://github.com/taskforcesh/bullmq/compare/vpy3.4.1...vpy3.4.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **job-scheduler:** read the seconds field first in 6-field cron patterns [python] ([#4962](https://github.com/taskforcesh/bullmq/issues/4962)) ([b3122ce](https://github.com/taskforcesh/bullmq/commit/b3122cebf590bc1bae290cc8d80637fdcce878ae))
+
+## [3.4.1](https://github.com/taskforcesh/bullmq/compare/vpy3.4.0...vpy3.4.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **job:** keep the latest stack traces when stackTraceLimit is set [python] ([#4955](https://github.com/taskforcesh/bullmq/issues/4955)) ([588bbf7](https://github.com/taskforcesh/bullmq/commit/588bbf774d1e287145154ff9d887265cbb573ddd))
+
 # [3.4.0](https://github.com/taskforcesh/bullmq/compare/vpy3.3.4...vpy3.4.0) (2026-10-15)
 
 

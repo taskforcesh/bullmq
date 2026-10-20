@@ -5,6 +5,7 @@ import { ConnectionClosedError, createValkeyGlideClient } from '../src/classes';
 type GlideArg = string | Buffer;
 type GlideCommandOptions = {
   decoder?: number;
+  route?: string;
 };
 
 const GLIDE_STRING_DECODER = 1;
@@ -886,6 +887,117 @@ describe('ValkeyGlideAdapter', () => {
 
     expect(raw.closeCalls).toBe(1);
     await blockedRead;
+  });
+
+  it('routes INFO to a single node in cluster mode', async () => {
+    class MockGlideClusterClient extends MockGlideClient {
+      async customCommand(
+        args: GlideArg[],
+        options?: GlideCommandOptions,
+      ): Promise<any> {
+        if (String(args[0]).toUpperCase() === 'INFO') {
+          this.commands.push(args.map(arg => String(arg)));
+          this.infoOptions.push(options);
+          // Without a route, Glide fans out and returns a map keyed by node.
+          return options?.route
+            ? 'valkey_version:8.0.0\r\nredis_version:7.2.4'
+            : { 'node-1:6379': 'valkey_version:8.0.0' };
+        }
+
+        return super.customCommand(args, options);
+      }
+
+      readonly infoOptions: Array<GlideCommandOptions | undefined> = [];
+    }
+
+    const raw = new MockGlideClusterClient();
+    const client = createValkeyGlideClient(raw as any);
+
+    const info = await client.info();
+
+    expect(raw.infoOptions).toEqual([{ route: 'randomNode' }]);
+    expect(info).toContain('valkey_version:');
+  });
+
+  it('routes INFO to a single node on a duplicated cluster client', async () => {
+    class MockGlideClusterClient extends MockGlideClient {
+      static async createClient(config: any) {
+        return new MockGlideClusterClient(config);
+      }
+
+      async customCommand(
+        args: GlideArg[],
+        options?: GlideCommandOptions,
+      ): Promise<any> {
+        if (String(args[0]).toUpperCase() === 'INFO') {
+          this.infoOptions.push(options);
+          return options?.route
+            ? 'valkey_version:8.0.0'
+            : { 'node-1:6379': 'valkey_version:8.0.0' };
+        }
+
+        return super.customCommand(args, options);
+      }
+
+      readonly infoOptions: Array<GlideCommandOptions | undefined> = [];
+    }
+
+    const raw = new MockGlideClusterClient({ addresses: [] });
+    const client = createValkeyGlideClient(raw as any);
+    const duplicate = client.duplicate();
+
+    // Issued before the duplicated raw client has resolved.
+    const info = await duplicate.info();
+
+    const duplicatedRaw = MockGlideClient.instances.at(
+      -1,
+    ) as MockGlideClusterClient;
+    expect(duplicatedRaw).not.toBe(raw);
+    expect(duplicatedRaw.infoOptions).toEqual([{ route: 'randomNode' }]);
+    expect(info).toContain('valkey_version:');
+  });
+
+  it('rejects info() with ConnectionClosedError when closed while raw client is pending', async () => {
+    class PendingGlideClient extends MockGlideClient {
+      static async createClient() {
+        return new Promise<MockGlideClient>(() => {});
+      }
+    }
+
+    const raw = new PendingGlideClient();
+    const duplicate = createValkeyGlideClient(raw as any).duplicate();
+
+    duplicate.disconnect();
+
+    await expect(
+      Promise.race([
+        duplicate.info(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('info() hung')), 200),
+        ),
+      ]),
+    ).rejects.toBeInstanceOf(ConnectionClosedError);
+  });
+
+  it('normalizes a ClosingError from duplicated client creation in info()', async () => {
+    class FailingGlideClient extends MockGlideClient {
+      static async createClient(): Promise<MockGlideClient> {
+        // Reject after info() has started awaiting the raw client.
+        await new Promise(resolve => setTimeout(resolve, 0));
+        const error = new Error('closing');
+        error.name = 'ClosingError';
+        throw error;
+      }
+    }
+
+    const raw = new FailingGlideClient();
+    const duplicate = createValkeyGlideClient(raw as any).duplicate();
+    // The adapter also reports creation failures as 'error' events.
+    duplicate.on('error', () => {});
+
+    await expect(duplicate.info()).rejects.toBeInstanceOf(
+      ConnectionClosedError,
+    );
   });
 
   it('throws ConnectionClosedError for commands issued after disconnect', async () => {

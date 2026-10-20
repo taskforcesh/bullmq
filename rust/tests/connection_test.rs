@@ -268,3 +268,20 @@ async fn test_connect_via_typed_options() {
 
     cleanup_queue(&queue).await;
 }
+
+#[test]
+fn test_cluster_nodes_option() {
+    let opts = RedisConnectionOptions::default();
+    assert!(!opts.is_cluster());
+
+    let opts = RedisConnectionOptions::new().cluster_nodes([
+        &format!("redis://{}:{}@127.0.0.1:7000", "user", "secret"),
+        "redis://127.0.0.1:7001",
+    ]);
+    assert!(opts.is_cluster());
+    assert_eq!(opts.cluster_nodes.len(), 2);
+
+    let debug = format!("{opts:?}");
+    assert!(!debug.contains("secret"));
+    assert!(debug.contains("redis://***@127.0.0.1:7000"));
+}

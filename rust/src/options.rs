@@ -160,6 +160,21 @@ pub struct RedisConnectionOptions {
     /// When set, the connection uses TLS (`rediss://`) and is built with these
     /// certificates instead of relying only on the default WebPKI root store.
     pub tls_certs: Option<TlsCerts>,
+    /// Seed node URLs of a Redis Cluster (e.g. `redis://127.0.0.1:7000`).
+    ///
+    /// When non-empty, a Redis Cluster client is used instead of a single
+    /// connection, and [`url`](Self::url), [`host`](Self::host),
+    /// [`port`](Self::port) and [`db`](Self::db) are ignored. The remaining
+    /// topology is discovered from these nodes. [`username`](Self::username),
+    /// [`password`](Self::password), [`tls`](Self::tls) and
+    /// [`tls_certs`](Self::tls_certs) apply to every node.
+    ///
+    /// BullMQ's Lua scripts access several keys at once, so every key of a
+    /// queue must hash to the same cluster slot. Use a hash tag in the queue
+    /// prefix (e.g. `prefix: "{bull}"`) or in the queue name (e.g.
+    /// `"{my-queue}"`). Flows spanning several queues require the hash tag in
+    /// the shared prefix.
+    pub cluster_nodes: Vec<String>,
 }
 
 pub(crate) fn redact_url_userinfo(url: &str) -> String {
@@ -191,6 +206,7 @@ impl Default for RedisConnectionOptions {
             db: None,
             tls: false,
             tls_certs: None,
+            cluster_nodes: Vec::new(),
         }
     }
 }
@@ -268,6 +284,33 @@ impl RedisConnectionOptions {
     pub fn tls_certs(mut self, certs: TlsCerts) -> Self {
         self.tls_certs = Some(certs);
         self
+    }
+
+    /// Connect to a Redis Cluster using the given seed node URLs.
+    ///
+    /// See [`cluster_nodes`](Self::cluster_nodes) for the hash-tag
+    /// requirements on queue prefixes/names.
+    ///
+    /// ```
+    /// use bullmq::options::RedisConnectionOptions;
+    ///
+    /// let opts = RedisConnectionOptions::new()
+    ///     .cluster_nodes(["redis://127.0.0.1:7000", "redis://127.0.0.1:7001"]);
+    /// assert!(opts.is_cluster());
+    /// ```
+    pub fn cluster_nodes<I, S>(mut self, nodes: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.cluster_nodes = nodes.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Whether these options connect to a Redis Cluster (i.e.
+    /// [`cluster_nodes`](Self::cluster_nodes) is non-empty).
+    pub fn is_cluster(&self) -> bool {
+        !self.cluster_nodes.is_empty()
     }
 
     /// Build the effective connection URL.
@@ -354,6 +397,11 @@ impl std::fmt::Debug for RedisConnectionOptions {
         let redacted_url = redact_url_userinfo(&self.url);
         let redacted_username = self.username.as_ref().map(|_| "***");
         let redacted_password = self.password.as_ref().map(|_| "***");
+        let redacted_cluster_nodes: Vec<String> = self
+            .cluster_nodes
+            .iter()
+            .map(|node| redact_url_userinfo(node))
+            .collect();
 
         f.debug_struct("RedisConnectionOptions")
             .field("url", &redacted_url)
@@ -365,6 +413,7 @@ impl std::fmt::Debug for RedisConnectionOptions {
             .field("db", &self.db)
             .field("tls", &self.tls)
             .field("tls_certs", &self.tls_certs)
+            .field("cluster_nodes", &redacted_cluster_nodes)
             .finish()
     }
 }
