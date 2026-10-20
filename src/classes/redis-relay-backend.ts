@@ -261,21 +261,27 @@ export class RedisRelayBackend extends EventEmitter implements IRelayBackend {
     if (this.interrupted) {
       return { entries: [], cursor };
     }
+    // Recovers an ioredis Cluster left with an empty node pool by an outage,
+    // as for the workers' blocking reads.
     const read = () =>
-      client.runCommand(`relayReadInbox:${packageVersion}`, [
-        this.nodesKey,
-        this.baseKey,
-        nodeId,
-        cursor,
-        opts.count,
-      ]);
+      connection.runWithClusterRecovery(() =>
+        client.runCommand(`relayReadInbox:${packageVersion}`, [
+          this.nodesKey,
+          this.baseKey,
+          nodeId,
+          cursor,
+          opts.count,
+        ]),
+      );
     let result = await read();
     if (!result && opts.blockMs > 0 && !this.interrupted) {
       // Only use the blocking read as a wakeup. Fetching and marking the actual
       // batch must be atomic with publish-time trimming.
-      await client.xread(
-        [{ key: `${this.baseKey}:${nodeId}:inbox`, id: cursor }],
-        { BLOCK: opts.blockMs, COUNT: 1 },
+      await connection.runWithClusterRecovery(() =>
+        client.xread([{ key: `${this.baseKey}:${nodeId}:inbox`, id: cursor }], {
+          BLOCK: opts.blockMs,
+          COUNT: 1,
+        }),
       );
       if (this.interrupted) {
         return { entries: [], cursor };

@@ -513,6 +513,106 @@ describe('Relay on ioredis', () => {
     }
   });
 
+  it('recovers an ioredis Cluster inbox connection left with an empty node pool', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const mockCluster = (overrides: Record<string, any> = {}) => ({
+      // Already-augmented client: RedisConnection uses it as is.
+      __bullmq_iredis: true,
+      isCluster: true,
+      status: 'ready',
+      options: { redisOptions: {} },
+      on: vi.fn(),
+      once: vi.fn(),
+      off: vi.fn(),
+      removeListener: vi.fn(),
+      getMaxListeners: vi.fn().mockReturnValue(10),
+      setMaxListeners: vi.fn(),
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn(),
+      duplicate: vi.fn(),
+      quit: vi.fn().mockResolvedValue('OK'),
+      defineCommand: vi.fn(),
+      nodes: vi.fn().mockReturnValue([{}]),
+      bzpopmin: vi.fn().mockResolvedValue(null),
+      ...overrides,
+    });
+    // After an outage, the inbox client is left without nodes until
+    // reconnected: every command fails meanwhile.
+    let hasNodes = false;
+    const runCommand = vi.fn(async () => {
+      if (!hasNodes) {
+        throw new Error('None of startup nodes is available');
+      }
+      return null;
+    });
+    const xread = vi.fn(async () => {
+      if (!hasNodes) {
+        throw new Error('None of startup nodes is available');
+      }
+      hasNodes = false;
+      throw new Error('Command timed out');
+    });
+    const inbox = mockCluster({
+      connect: vi.fn(async () => {
+        hasNodes = true;
+      }),
+      nodes: vi.fn(() => (hasNodes ? [{}] : [])),
+      runCommand,
+      xread,
+    });
+    const cluster = mockCluster({ duplicate: vi.fn().mockReturnValue(inbox) });
+    const backend = new RedisRelayBackend({
+      connection: cluster as any,
+      prefix,
+      namespace,
+      skipVersionCheck: true,
+    });
+    backends.push(backend);
+
+    // Reconnected before the read.
+    expect(
+      await backend.readInbox('n1', '0-0', { blockMs: 0, count: 10 }),
+    ).toEqual({ entries: [], cursor: '0-0' });
+    expect(inbox.disconnect).toHaveBeenCalledWith(false);
+    expect(inbox.connect).toHaveBeenCalledTimes(1);
+
+    // Reconnected after a blocking wakeup that failed with the cluster.
+    await expect(
+      backend.readInbox('n1', '0-0', { blockMs: 1_000, count: 10 }),
+    ).rejects.toThrow('Command timed out');
+    expect(inbox.connect).toHaveBeenCalledTimes(2);
+    expect(hasNodes).toBe(true);
+
+    // The same connection reads again.
+    expect(
+      await backend.readInbox('n1', '0-0', { blockMs: 0, count: 10 }),
+    ).toEqual({ entries: [], cursor: '0-0' });
+    expect(cluster.duplicate).toHaveBeenCalledTimes(1);
+  });
+
+  it('expires the retained index with the remaining retained messages after a deletion', async () => {
+    namespace = `t-${randomUUID().slice(0, 13)}`;
+    const backend = await newBackend();
+    await backend.publish('a', 'long', {
+      ...publishOptions,
+      retainMs: 3_600_000,
+    });
+    await backend.publish('b', 'short', { ...publishOptions, retainMs: 1_000 });
+    expect(await admin.pttl(`${base()}:retained`)).toBeGreaterThan(1_000);
+    expect(await admin.pttl(`${base()}:mid`)).toBeGreaterThan(1_000);
+
+    expect(await backend.deleteRetained('a')).toBe(true);
+
+    for (const key of [':retained', ':mid']) {
+      const ttl = await admin.pttl(`${base()}${key}`);
+      expect(ttl, key).toBeGreaterThan(0);
+      expect(ttl, key).toBeLessThanOrEqual(1_000);
+    }
+
+    expect(await backend.deleteRetained('b')).toBe(true);
+    expect(await admin.keys(`${base()}:*`)).toEqual([]);
+  });
+
   it('never shares keys with queues nor looks like one, whatever the names', async () => {
     const isolated = `relay-names-${randomUUID().slice(0, 8)}`;
     namespace = `t-${randomUUID().slice(0, 13)}`;
