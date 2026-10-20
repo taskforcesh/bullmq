@@ -4262,7 +4262,9 @@ describe('workers', () => {
               worker.on('failed', async (job, err) => {
                 try {
                   if (job.attemptsMade === 2) {
-                    expect(err.message).toBe(failedError.message);
+                    expect(err.message).toBe(
+                      'job started more than allowable limit',
+                    );
                     expect(job?.attemptsStarted).toBe(2);
                     resolve();
                   }
