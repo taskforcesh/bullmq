@@ -340,15 +340,11 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
       // rather than assignment; route override properties to the override
       // table so the `get` trap returns the spy instead of the original.
       if (prop in overrides) {
-        if ('value' in descriptor) {
-          overrides[prop as string] = descriptor.value;
-          return true;
+        if (!('value' in descriptor)) {
+          return false;
         }
-        if (descriptor.get) {
-          overrides[prop as string] = descriptor.get.call(proxy);
-          return true;
-        }
-        return false;
+        overrides[prop as string] = descriptor.value;
+        return true;
       }
       boundCache.delete(prop);
       return Reflect.defineProperty(target, prop, descriptor);
