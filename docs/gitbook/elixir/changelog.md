@@ -1,3 +1,10 @@
+## [2.3.2](https://github.com/taskforcesh/bullmq/compare/vex2.3.1...vex2.3.2) (2026-10-20)
+
+
+### Performance Improvements
+
+* **deduplication:** use LPOS for keepLastIfActive membership check (python)(elixir)(php)(rust) ([#4956](https://github.com/taskforcesh/bullmq/issues/4956)) ([8796b66](https://github.com/taskforcesh/bullmq/commit/8796b66653baa58b8ecf261d7d7595cc8b72e020)), closes [#4613](https://github.com/taskforcesh/bullmq/issues/4613)
+
 ## [2.3.1](https://github.com/taskforcesh/bullmq/compare/vex2.3.0...vex2.3.1) (2026-10-14)
 
 
