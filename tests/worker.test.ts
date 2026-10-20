@@ -4246,11 +4246,9 @@ describe('workers', () => {
               worker.on('failed', async (job, err) => {
                 try {
                   expect(job.data.foo).toBe('bar');
-                  if (job.attemptsMade === 2) {
-                    expect(err.message).toBe(
-                      'job started more than allowable limit',
-                    );
-                    expect(job?.attemptsStarted).toBe(2);
+                  if (job.attemptsMade === 1) {
+                    expect(err.message).toBe(failedError.message);
+                    expect(job?.attemptsStarted).toBe(1);
                     await job.retry();
                     resolve();
                   }
@@ -4263,11 +4261,9 @@ describe('workers', () => {
             const failedAgain = new Promise<void>((resolve, reject) => {
               worker.on('failed', async (job, err) => {
                 try {
-                  if (job.attemptsMade === 3) {
-                    expect(err.message).toBe(
-                      'job started more than allowable limit',
-                    );
-                    expect(job?.attemptsStarted).toBe(3);
+                  if (job.attemptsMade === 2) {
+                    expect(err.message).toBe(failedError.message);
+                    expect(job?.attemptsStarted).toBe(2);
                     resolve();
                   }
                 } catch (error) {
