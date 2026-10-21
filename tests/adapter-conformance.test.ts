@@ -118,6 +118,20 @@ describe('Adapter Conformance', () => {
       await dup.quit();
     });
 
+    it('should report status "ready" after connect following a disconnect during the initial connect', async () => {
+      // duplicate() starts connecting eagerly in the constructor
+      const dup = client.duplicate();
+      dup.on('error', () => {});
+      dup.disconnect();
+      expect(dup.status).toBe('end');
+      await dup.connect();
+
+      expect(dup.status).toBe('ready');
+      await dup.set(key('reconnect-pending'), 'ok');
+      expect(await dup.get(key('reconnect-pending'))).toBe('ok');
+      await dup.quit();
+    });
+
     it('should support setMaxListeners/getMaxListeners', () => {
       const orig = client.getMaxListeners();
       client.setMaxListeners(orig + 5);
