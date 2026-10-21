@@ -1,3 +1,10 @@
+# [6.4.0](https://github.com/taskforcesh/bullmq/compare/v6.3.19...v6.4.0) (2026-10-21)
+
+
+### Features
+
+* add support for reliable realtime messaging ([#4904](https://github.com/taskforcesh/bullmq/issues/4904)) ([253bc4b](https://github.com/taskforcesh/bullmq/commit/253bc4b1acd9c6030c01817b38ae65e067666ed4))
+
 ## [6.3.19](https://github.com/taskforcesh/bullmq/compare/v6.3.18...v6.3.19) (2026-10-20)
 
 
