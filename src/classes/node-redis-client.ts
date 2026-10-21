@@ -297,16 +297,20 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
 
   async connect(): Promise<void> {
     if (this.connectPromise) {
-      return this.connectPromise;
+      // Reuse the in-flight connection (e.g. the constructor's eager connect).
+      // If disconnect() ran while it was pending, the client may still have
+      // opened, or the attempt may have been aborted; handle both below.
+      await this.connectPromise;
+      if (this.raw.isOpen) {
+        this.clearEndedState();
+        return;
+      }
     }
     if (!this.raw.isOpen) {
       this.connectPromise = this.raw.connect().then(
         () => {
           this.connectPromise = undefined;
-          // An explicit connect() after disconnect() reopens the client
-          // (e.g. RedisConnection.reconnect()), so it is no longer ended.
-          this.statusOverride = undefined;
-          this.destroying = false;
+          this.clearEndedState();
         },
         (err: Error) => {
           this.connectPromise = undefined;
@@ -339,6 +343,15 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
         this.once('end', onEnd);
       });
     }
+  }
+
+  /**
+   * An explicit connect() after disconnect() reopens the client
+   * (e.g. RedisConnection.reconnect()), so it is no longer ended.
+   */
+  private clearEndedState(): void {
+    this.statusOverride = undefined;
+    this.destroying = false;
   }
 
   disconnect(reconnect = false): void {
