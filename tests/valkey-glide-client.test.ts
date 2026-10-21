@@ -846,6 +846,22 @@ describe('ValkeyGlideAdapter', () => {
     expect(raw.closeCalls).toBe(1);
   });
 
+  it('releases queued commands when disconnected before they start', async () => {
+    const raw = new MockGlideClient();
+    const client = createValkeyGlideClient(raw as any);
+    const commands = [client.info(), client.get('key')];
+    const rejected = commands.map(command =>
+      expect(command).rejects.toBeInstanceOf(ConnectionClosedError),
+    );
+
+    client.disconnect();
+
+    await Promise.all(rejected);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(raw.closeCalls).toBe(1);
+    expect(raw.commands).toEqual([]);
+  });
+
   it('closes the raw client immediately for blocking commands', async () => {
     class ClosingError extends Error {
       constructor() {
