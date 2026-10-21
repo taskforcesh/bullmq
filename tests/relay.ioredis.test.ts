@@ -118,7 +118,7 @@ describe('Relay on ioredis', () => {
     const errors: Error[] = [];
     let attempts = 0;
     backend.on('error', error => errors.push(error));
-    vi.spyOn(client, 'runCommand').mockImplementation(async (command, args) => {
+    client.runCommand = vi.fn(async (command, args) => {
       if (
         typeof command === 'string' &&
         command.startsWith('relayTouchNamespace:')
