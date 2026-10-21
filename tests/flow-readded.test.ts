@@ -5,6 +5,8 @@ import { createTestConnection } from './utils/connection-factory';
 import { checkReaddedFlow } from './utils/readded-flow';
 
 describe('re-added flows', () => {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
   it.each([
     [true, false, 'siblings'],
     [false, false, 'siblings'],
@@ -17,10 +19,11 @@ describe('re-added flows', () => {
     async (completedFirst, bulk, structure) => {
       const connection = createTestConnection();
       const queueName = `readded-${randomUUID()}`;
-      const queue = new Queue(queueName, { connection });
-      const flow = new FlowProducer({ connection });
+      const queue = new Queue(queueName, { connection, prefix });
+      const flow = new FlowProducer({ connection, prefix });
       const worker = new Worker(queueName, undefined, {
         connection,
+        prefix,
         autorun: false,
       });
       const errors: Error[] = [];

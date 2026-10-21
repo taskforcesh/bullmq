@@ -334,9 +334,10 @@ BEGIN
      GROUP BY 1, 2
      ORDER BY 1, 2
   LOOP
+    -- Match counter updates without blocking dependency foreign-key checks.
     SELECT pending_deps INTO v_remaining
       FROM job WHERE queue = v_parent.queue AND id = v_parent.id
-       FOR UPDATE;
+       FOR NO KEY UPDATE;
     IF FOUND AND v_remaining = 0 THEN
       PERFORM move_parent_to_wait(v_parent.queue, v_parent.id, v_parent.timestamp);
     END IF;

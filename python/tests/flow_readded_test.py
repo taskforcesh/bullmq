@@ -9,7 +9,7 @@ from bullmq import FlowProducer, Queue, Worker
 class TestReaddedFlow(unittest.IsolatedAsyncioTestCase):
     async def check_readded_flow(self, completed_first, bulk):
         queue_name = f"readded-{uuid4().hex}"
-        opts = {"connection": {
+        opts = {"prefix": os.environ.get("BULLMQ_TEST_PREFIX") or "bull", "connection": {
             "host": os.environ.get("REDIS_HOST", "localhost"),
             "port": int(os.environ.get("REDIS_PORT", 6379)),
         }}
