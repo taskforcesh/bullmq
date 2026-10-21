@@ -1,3 +1,24 @@
+# [6.4.0](https://github.com/taskforcesh/bullmq/compare/v6.3.19...v6.4.0) (2026-10-21)
+
+
+### Features
+
+* add support for reliable realtime messaging ([#4904](https://github.com/taskforcesh/bullmq/issues/4904)) ([253bc4b](https://github.com/taskforcesh/bullmq/commit/253bc4b1acd9c6030c01817b38ae65e067666ed4))
+
+## [6.3.19](https://github.com/taskforcesh/bullmq/compare/v6.3.18...v6.3.19) (2026-10-20)
+
+
+### Performance Improvements
+
+* **deduplication:** use LPOS for keepLastIfActive membership check (python)(elixir)(php)(rust) ([#4956](https://github.com/taskforcesh/bullmq/issues/4956)) ([8796b66](https://github.com/taskforcesh/bullmq/commit/8796b66653baa58b8ecf261d7d7595cc8b72e020)), closes [#4613](https://github.com/taskforcesh/bullmq/issues/4613)
+
+## [6.3.18](https://github.com/taskforcesh/bullmq/compare/v6.3.17...v6.3.18) (2026-10-20)
+
+
+### Bug Fixes
+
+* **job:** preserve last error when maxStartedAttempts is reached ([#4969](https://github.com/taskforcesh/bullmq/issues/4969)) ([5a04c20](https://github.com/taskforcesh/bullmq/commit/5a04c20b4c7fb6f13bccac1954bf4bdef2be8d80))
+
 ## [6.3.17](https://github.com/taskforcesh/bullmq/compare/v6.3.16...v6.3.17) (2026-10-18)
 
 

@@ -1076,6 +1076,10 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     return await this.sendCommand('CLIENT', ['LIST']);
   }
 
+  async clientInfo(): Promise<string> {
+    return await this.sendCommand('CLIENT', ['INFO']);
+  }
+
   // ---------------------------------------------------------------
   // Key scanning
   // ---------------------------------------------------------------

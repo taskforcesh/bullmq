@@ -1,3 +1,10 @@
+## [3.4.3](https://github.com/taskforcesh/bullmq/compare/vpy3.4.2...vpy3.4.3) (2026-10-20)
+
+
+### Performance Improvements
+
+* **deduplication:** use LPOS for keepLastIfActive membership check (python)(elixir)(php)(rust) ([#4956](https://github.com/taskforcesh/bullmq/issues/4956)) ([8796b66](https://github.com/taskforcesh/bullmq/commit/8796b66653baa58b8ecf261d7d7595cc8b72e020)), closes [#4613](https://github.com/taskforcesh/bullmq/issues/4613)
+
 ## [3.4.2](https://github.com/taskforcesh/bullmq/compare/vpy3.4.1...vpy3.4.2) (2026-10-19)
 
 
