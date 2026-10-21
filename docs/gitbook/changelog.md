@@ -52,7 +52,7 @@
 
 ### Bug Fixes
 
-* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
+* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) (python)(elixir)(php)(rust)(dotnet) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
 
 ## [6.3.12](https://github.com/taskforcesh/bullmq/compare/v6.3.11...v6.3.12) (2026-10-09)
 

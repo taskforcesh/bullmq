@@ -32,6 +32,7 @@
 ### Bug Fixes
 
 * **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) (python)(elixir)(php)(rust)(dotnet) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
 
 ## [3.3.3](https://github.com/taskforcesh/bullmq/compare/vpy3.3.2...vpy3.3.3) (2026-10-10)
 
