@@ -2,6 +2,8 @@
 
 In BullMQ, managing the lifecycle and inventory of job schedulers is crucial for maintaining efficient and organized background tasks. In addition to the upsertJobScheduler method—which allows for the addition and updating of job schedulers—two other methods play essential roles: removeJobScheduler and getJobSchedulers. These functions enable the removal of schedulers and retrieval of all existing schedulers, respectively, providing comprehensive control over your job scheduling environment.
 
+The scheduler ID passed to `upsertJobScheduler` is returned as the `key` property by `getJobScheduler` and `getJobSchedulers`. Use this `key` when retrieving, updating, or removing a scheduler. It is distinct from the scheduler's `name` and the IDs of the jobs it produces; the optional `id` property on `JobSchedulerJson` is not the scheduler identifier.
+
 #### Remove job scheduler
 
 The **removeJobScheduler** method is designed to delete a specific job scheduler from the queue. This is particularly useful when a scheduled task is no longer needed or if you wish to clean up inactive or obsolete schedulers to optimize resource usage.
@@ -24,6 +26,15 @@ The **getJobSchedulers** method retrieves a list of all configured job scheduler
 // Retrieve the first 10 job schedulers in ascending order of their next execution time
 const schedulers = await queue.getJobSchedulers(0, 9, true);
 console.log('Current job schedulers:', schedulers);
+```
+
+For example, to remove a scheduler returned by `getJobSchedulers`, pass its `key` to `removeJobScheduler`:
+
+```typescript
+const [scheduler] = await queue.getJobSchedulers(0, 0);
+if (scheduler) {
+  await queue.removeJobScheduler(scheduler.key);
+}
 ```
 
 This method can be particularly useful for generating reports or dashboards that provide insights into when jobs are scheduled to run, aiding in system monitoring and troubleshooting.
