@@ -31,6 +31,7 @@
 ### Bug Fixes
 
 * **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) (python)(elixir)(php)(rust)(dotnet) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
 
 ## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vrs1.3.4...vrs1.3.5) (2026-10-08)
 
@@ -145,6 +146,13 @@
 
 * **deps:** pin dependencies [rust] ([#4402](https://github.com/taskforcesh/bullmq/issues/4402)) ([eb956b0](https://github.com/taskforcesh/bullmq/commit/eb956b07fde2ab3d43b41325a06a6b103610e3e3))
 * **deps:** update dependency redis [security] ([#4369](https://github.com/taskforcesh/bullmq/issues/4369)) ([2a120df](https://github.com/taskforcesh/bullmq/commit/2a120dfea7324d7af67ad505c78f48571c74402b))
+
+# [1.2.0](https://github.com/taskforcesh/bullmq/compare/vrs1.1.1...vrs1.2.0) (2026-07-25)
+
+
+### Features
+
+* **connection:** add support for Redis TLS certs option ([#4334](https://github.com/taskforcesh/bullmq/issues/4334)) fixes [#4333](https://github.com/taskforcesh/bullmq/issues/4333) [rust] ([4085792](https://github.com/taskforcesh/bullmq/commit/4085792106fd3d381ec7980a8ae3c65788dd2d70))
 
 # [1.1.0](https://github.com/taskforcesh/bullmq/compare/vrs1.0.1...vrs1.1.0) (2026-07-15)
 
