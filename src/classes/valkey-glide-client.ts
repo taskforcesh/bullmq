@@ -13,6 +13,7 @@ interface LuaScript {
 type GlideArg = string | Buffer;
 type GlideCommandOptions = {
   decoder?: number;
+  route?: 'randomNode' | 'allNodes' | 'allPrimaries';
 };
 
 const GLIDE_STRING_DECODER = 1;
@@ -421,10 +422,9 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
       release = resolve;
     });
 
-    await previous;
-    this.ensureOpen();
-
     try {
+      await previous;
+      this.ensureOpen();
       const raw = await this.ensureRaw();
       this.ensureOpen();
       return await fn(raw);
@@ -946,7 +946,19 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   }
 
   async info(): Promise<string> {
-    return toStringValue(await this.runRawCommand(['INFO']));
+    // Resolve the raw client inside the serialized callback so cluster
+    // detection sees duplicated clients' raw client while closure errors are
+    // still normalized. In cluster mode INFO must be routed to a single node.
+    return toStringValue(
+      await this.runSerialized(raw =>
+        raw.customCommand(
+          ['INFO'],
+          raw.constructor?.name?.includes('Cluster')
+            ? { route: 'randomNode' }
+            : undefined,
+        ),
+      ),
+    );
   }
 
   async clientSetName(name: string): Promise<any> {
@@ -958,6 +970,14 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   async clientList(): Promise<string> {
     return toStringValue(
       await this.runRawCommand(['CLIENT', 'LIST'], {
+        decoder: GLIDE_STRING_DECODER,
+      }),
+    );
+  }
+
+  async clientInfo(): Promise<string> {
+    return toStringValue(
+      await this.runRawCommand(['CLIENT', 'INFO'], {
         decoder: GLIDE_STRING_DECODER,
       }),
     );

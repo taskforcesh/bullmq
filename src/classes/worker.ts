@@ -225,6 +225,16 @@ export class Worker<
   // diverge, without anyone having to await it.
   private stalledCheckerGeneration = 0;
   private waiting: Promise<number> | null = null;
+  /**
+   * The fetches and jobs tracked by the running main loop, so that `resume()`
+   * can wake it up.
+   */
+  private mainLoopQueue: AsyncFifoQueue<void | Job<
+    DataType,
+    ResultType,
+    NameType,
+    ProgressType
+  >> | null = null;
 
   protected _jobScheduler: JobScheduler<B, ConnectionOptionsType>;
 
@@ -666,6 +676,7 @@ export class Worker<
       NameType,
       ProgressType
     >>();
+    this.mainLoopQueue = asyncFifoQueue;
 
     let tokenPostfix = 0;
 
@@ -734,6 +745,10 @@ export class Worker<
       } else if (asyncFifoQueue.numQueued() === 0) {
         await this.waitForRateLimit();
       }
+    }
+
+    if (this.mainLoopQueue === asyncFifoQueue) {
+      this.mainLoopQueue = null;
     }
   }
 
@@ -1310,6 +1325,10 @@ export class Worker<
               // Main loop is still running (pause was called with doNotWaitActive=true).
               // Restart the stalled checker since pause() stopped it.
               restartStalledChecker = true;
+              // While paused, the main loop does not fetch new jobs and may only be
+              // waiting for the jobs that were already active. Wake it up so that it
+              // fetches again without waiting for those jobs to finish.
+              this.mainLoopQueue?.add(Promise.resolve());
             }
             this.emit('resumed');
           },

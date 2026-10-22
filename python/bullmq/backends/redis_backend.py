@@ -24,7 +24,6 @@ from bullmq.redis_connection import RedisConnection
 from bullmq.scripts import Scripts
 from bullmq.utils import (
     is_redis_cluster,
-    get_cluster_nodes,
     get_node_client,
 )
 
@@ -392,7 +391,7 @@ class RedisBackend(Backend):
     async def getClientList(self) -> list[str]:
         client = self.connection.conn
         if is_redis_cluster(client):
-            nodes = get_cluster_nodes(client)
+            nodes = await self.connection.cluster_nodes()
             return [
                 await self._client_list(get_node_client(node)) for node in nodes
             ]

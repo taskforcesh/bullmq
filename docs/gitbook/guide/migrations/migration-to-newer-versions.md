@@ -43,7 +43,7 @@ Data structure changes, which alter the queue's underlying structure, are more c
 - **additive** (introducing new data structures that older BullMQ versions don't understand), or
 - **destructive** (changing or eradicating older data structures).
 
-For additive changes, you could simply upgrade all instances to the new version — they should apply the change and continue working without issues, akin to a [new feature upgrade](migration-to-newer-versions.md#new-features-upgrade).
+For additive changes, you could simply upgrade all instances to the new version — they should apply the change and continue working without issues, akin to a [new feature upgrade](#new-feature-upgrade).
 
 Destructive changes are the most demanding, as these fundamental alterations may make older versions unworkable, making rollback impossible if the upgrade fails. The [changelog](../../changelog.md) will provide crucial information to guide you through this type of upgrade.
 

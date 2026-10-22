@@ -1,3 +1,59 @@
+# [6.4.0](https://github.com/taskforcesh/bullmq/compare/v6.3.19...v6.4.0) (2026-10-21)
+
+
+### Features
+
+* add support for reliable realtime messaging ([#4904](https://github.com/taskforcesh/bullmq/issues/4904)) ([253bc4b](https://github.com/taskforcesh/bullmq/commit/253bc4b1acd9c6030c01817b38ae65e067666ed4))
+
+## [6.3.19](https://github.com/taskforcesh/bullmq/compare/v6.3.18...v6.3.19) (2026-10-20)
+
+
+### Performance Improvements
+
+* **deduplication:** use LPOS for keepLastIfActive membership check (python)(elixir)(php)(rust) ([#4956](https://github.com/taskforcesh/bullmq/issues/4956)) ([8796b66](https://github.com/taskforcesh/bullmq/commit/8796b66653baa58b8ecf261d7d7595cc8b72e020)), closes [#4613](https://github.com/taskforcesh/bullmq/issues/4613)
+
+## [6.3.18](https://github.com/taskforcesh/bullmq/compare/v6.3.17...v6.3.18) (2026-10-20)
+
+
+### Bug Fixes
+
+* **job:** preserve last error when maxStartedAttempts is reached ([#4969](https://github.com/taskforcesh/bullmq/issues/4969)) ([5a04c20](https://github.com/taskforcesh/bullmq/commit/5a04c20b4c7fb6f13bccac1954bf4bdef2be8d80))
+
+## [6.3.17](https://github.com/taskforcesh/bullmq/compare/v6.3.16...v6.3.17) (2026-10-18)
+
+
+### Bug Fixes
+
+* **worker:** wake up the main loop when resuming after pause(true) ([#4949](https://github.com/taskforcesh/bullmq/issues/4949)) fixes [#4947](https://github.com/taskforcesh/bullmq/issues/4947) ([a5e710b](https://github.com/taskforcesh/bullmq/commit/a5e710bf4d1bf689fe40a372b3f0ddbbaaab33cc))
+
+## [6.3.16](https://github.com/taskforcesh/bullmq/compare/v6.3.15...v6.3.16) (2026-10-17)
+
+
+### Bug Fixes
+
+* **valkey-glide:** route INFO to a single node in cluster mode ([#4891](https://github.com/taskforcesh/bullmq/issues/4891)) ([d47e42b](https://github.com/taskforcesh/bullmq/commit/d47e42bd2a9da0c301a02dbd60057eb7a1eb9b75))
+
+## [6.3.15](https://github.com/taskforcesh/bullmq/compare/v6.3.14...v6.3.15) (2026-10-14)
+
+
+### Bug Fixes
+
+* **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+
+## [6.3.14](https://github.com/taskforcesh/bullmq/compare/v6.3.13...v6.3.14) (2026-10-13)
+
+
+### Bug Fixes
+
+* **deps:** upgrade cron-parser to v5.10.2 [security] ([#4896](https://github.com/taskforcesh/bullmq/issues/4896)) ([f838e24](https://github.com/taskforcesh/bullmq/commit/f838e24cd88443337c8adb28b976963da87c6476))
+
+## [6.3.13](https://github.com/taskforcesh/bullmq/compare/v6.3.12...v6.3.13) (2026-10-12)
+
+
+### Bug Fixes
+
+* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) (python)(elixir)(php)(rust)(dotnet) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
+
 ## [6.3.12](https://github.com/taskforcesh/bullmq/compare/v6.3.11...v6.3.12) (2026-10-09)
 
 

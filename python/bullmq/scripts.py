@@ -598,6 +598,8 @@ class Scripts:
         keys.append(self.keys['meta'])
         keys.append(self.keys['active'])
         keys.append(self.keys['marker'])
+        keys.append(self.keys['prioritized'])
+        keys.append(self.keys['pc'])
 
         args = [
             job.id,

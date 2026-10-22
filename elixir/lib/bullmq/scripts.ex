@@ -1883,7 +1883,9 @@ defmodule BullMQ.Scripts do
       Keys.wait(ctx),
       Keys.meta(ctx),
       Keys.active(ctx),
-      Keys.marker(ctx)
+      Keys.marker(ctx),
+      Keys.prioritized(ctx),
+      Keys.pc(ctx)
     ]
 
     args = [

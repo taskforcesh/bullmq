@@ -152,13 +152,13 @@ Pro batches have different failure and event semantics (a dummy wrapper job,
 ## Real-time updates for batched work
 
 Whether you used `addBulk`, a single batch job, or Pro batches, live UIs should
-listen with [`QueueEvents`](../events/README.md#real-time-updates) so one
+listen with [`QueueEvents`](../events/#real-time-updates) so one
 process can observe completions and `progress` from every worker.
 
 ## Read more
 
 - [Adding jobs in bulk](adding-bulks.md)
 - [Adding flows in bulk](../flows/adding-bulks.md)
-- [Events / real-time updates](../events/README.md#real-time-updates)
+- [Events / real-time updates](../events/#real-time-updates)
 - [Workers: concurrency](../workers/concurrency.md)
 - [BullMQ Pro: Batches](../../bullmq-pro/batches.md)

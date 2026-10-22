@@ -222,6 +222,7 @@ export interface IRedisClient {
   info(): Promise<string>;
   clientSetName(name: string): Promise<any>;
   clientList(): Promise<string>;
+  clientInfo(): Promise<string>;
 
   // ============================================================
   // Key scanning
