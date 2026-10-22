@@ -531,7 +531,13 @@ def create_redis_backend(
 
     connection = RedisConnection(redis_opts, skipVersionCheck=skip_version_check)
     blocking_connection = (
-        RedisConnection(redis_opts, skipVersionCheck=skip_version_check)
+        RedisConnection(
+            redis_opts,
+            skipVersionCheck=skip_version_check,
+            # The worker never blocks longer than the backend's
+            # ``maximumBlockTimeout`` (10s for Redis).
+            blockingTimeout=10,
+        )
         if with_blocking_connection
         else None
     )
