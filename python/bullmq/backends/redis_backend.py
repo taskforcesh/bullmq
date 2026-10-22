@@ -17,6 +17,7 @@ blocking wait, ...) itself.
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any, Optional, TYPE_CHECKING
 
 from bullmq.backend import Backend
@@ -180,15 +181,33 @@ class RedisBackend(Backend):
         return job_ids
 
     async def addFlow(self, entries: list[dict]) -> list[str]:
+        parents: dict[str, tuple[str, str]] = {}
         async with self.connection.conn.pipeline(transaction=True) as pipe:
             for entry in entries:
                 job = entry["job"]
                 scripts = getattr(getattr(job.queue, "backend", None), "scripts", self.scripts)
+                defer_parent_release = True
                 if entry.get("is_parent"):
-                    await scripts.addParentJob(job, pipe)
+                    await scripts.addParentJob(job, pipe, defer_parent_release)
                 else:
-                    await scripts.addJob(job, pipe)
+                    await scripts.addJob(job, pipe, defer_parent_release)
+
+                if job.parent and job.parentKey:
+                    parents[job.parentKey] = (
+                        job.parent.get("queueKey") or job.parent.get("queue_key"),
+                        job.parent.get("id"),
+                    )
+
+            for parent_key, (queue_key, parent_id) in parents.items():
+                self.scripts.commands["releaseParentIfNoPendingDependencies"](
+                    keys=[parent_key, f"{parent_key}:dependencies"],
+                    args=[queue_key, parent_id, round(time.time() * 1000)],
+                    client=pipe,
+                )
+
             results = await pipe.execute()
+
+        results = results[: len(entries)]
         for index, job_id in enumerate(results):
             entries[index]["job"].id = job_id
         return results
