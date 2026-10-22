@@ -125,16 +125,18 @@ defmodule BullMQ.FlowProducer do
 
     # Build all commands and job tree structure without executing
     case build_flow_commands(flow, nil, prefix, [], backend) do
-      {:ok, commands, job_tree} ->
-        # Execute the whole flow atomically through the backend
-        case Backend.add_flow(backend, commands) do
+      {:ok, commands, job_tree, release_commands, job_count} ->
+        # Execute the whole flow atomically through the backend.
+        # Release checks are appended after all insert commands so they run only
+        # once the entire flow is already present in Redis.
+        case Backend.add_flow(backend, commands ++ release_commands) do
           {:ok, results} ->
-            # Check for errors in results
-            errors = Enum.filter(results, &match?({:error, _}, &1))
+            job_results = Enum.take(results, job_count)
+            errors = Enum.filter(job_results, &match?({:error, _}, &1))
 
             if Enum.empty?(errors) do
               # Extract job IDs from results and populate the job tree
-              job_ids = Enum.map(results, fn {:ok, id} -> to_string(id) end)
+              job_ids = Enum.map(job_results, fn {:ok, id} -> to_string(id) end)
               populated_tree = populate_job_ids(job_tree, job_ids, conn, prefix, backend.__struct__)
               {:ok, populated_tree}
             else
@@ -177,17 +179,25 @@ defmodule BullMQ.FlowProducer do
         backend: Keyword.get(opts, :backend)
       )
 
-    # Build all commands for all flows
-    {all_commands, all_trees, errors} =
-      Enum.reduce(flows, {[], [], []}, fn flow, {cmds_acc, trees_acc, errs_acc} ->
+    # Build all commands for all flows. Release checks are appended at the end
+    # of the complete batch so the result list keeps job ids in the same order as
+    # the sequencing used by the Node.js FlowProducer.addBulk path.
+    {all_commands, all_release_commands, queued, errors, _running_index} =
+      Enum.reduce(flows, {[], [], [], [], 0}, fn flow, {cmds_acc, release_acc, queued_acc, errs_acc, idx_acc} ->
         case build_flow_commands(flow, nil, prefix, [], backend) do
-          {:ok, commands, job_tree} ->
-            {cmds_acc ++ commands, trees_acc ++ [job_tree], errs_acc}
+          {:ok, commands, job_tree, release_commands, job_count} ->
+            {cmds_acc ++ commands,
+             release_acc ++ release_commands,
+             queued_acc ++ [{job_tree, idx_acc, job_count}],
+             errs_acc,
+             idx_acc + job_count}
 
           {:error, _} = error ->
-            {cmds_acc, trees_acc, errs_acc ++ [error]}
+            {cmds_acc, release_acc, queued_acc, errs_acc ++ [error], idx_acc}
         end
       end)
+
+    all_commands = all_commands ++ all_release_commands
 
     if not Enum.empty?(errors) do
       {:error, {:build_failed, errors}}
@@ -195,20 +205,16 @@ defmodule BullMQ.FlowProducer do
       # Execute all commands atomically through the backend
       case Backend.add_flow(backend, all_commands) do
         {:ok, results} ->
-          # Check for errors in results
-          result_errors = Enum.filter(results, &match?({:error, _}, &1))
+          populated_trees =
+            Enum.reduce(queued, {[], results}, fn {tree, root_index, job_count}, {acc, remaining_results} ->
+              root_results = Enum.take(Enum.drop(remaining_results, root_index), job_count)
+              job_ids = Enum.map(root_results, fn {:ok, id} -> to_string(id) end)
+              populated = populate_job_ids(tree, job_ids, conn, prefix, backend.__struct__)
+              {acc ++ [populated], remaining_results}
+            end)
+            |> elem(0)
 
-          if Enum.empty?(result_errors) do
-            # Extract job IDs and populate all trees
-            job_ids = Enum.map(results, fn {:ok, id} -> to_string(id) end)
-
-            populated_trees =
-              populate_multiple_trees(all_trees, job_ids, conn, prefix, backend.__struct__)
-
-            {:ok, populated_trees}
-          else
-            {:error, {:transaction_failed, result_errors}}
-          end
+          {:ok, populated_trees}
 
         {:error, reason} ->
           {:error, reason}
@@ -250,36 +256,43 @@ defmodule BullMQ.FlowProducer do
 
     if Enum.empty?(children) do
       # Leaf node - add as standard job
-      build_leaf_node_command(
-        ctx,
-        queue_name,
-        name,
-        data,
-        opts,
-        job_id,
-        timestamp,
-        parent_info,
-        prefix,
-        commands_acc,
-        backend
-      )
+      case build_leaf_node_command(
+             ctx,
+             queue_name,
+             name,
+             data,
+             opts,
+             job_id,
+             timestamp,
+             parent_info,
+             prefix,
+             commands_acc,
+             backend
+           ) do
+        {:ok, cmd_list, job_template} ->
+          {:ok, cmd_list, job_template, [], 1}
+      end
     else
-      # Parent node - add parent first, then children
-      build_parent_node_commands(
-        ctx,
-        queue_name,
-        queue_key,
-        name,
-        data,
-        opts,
-        job_id,
-        timestamp,
-        parent_info,
-        prefix,
-        children,
-        commands_acc,
-        backend
-      )
+      # Parent node - add parent first, then children, then validate the parent
+      # once the whole subtree is present.
+      case build_parent_node_commands(
+             ctx,
+             queue_name,
+             queue_key,
+             name,
+             data,
+             opts,
+             job_id,
+             timestamp,
+             parent_info,
+             prefix,
+             children,
+             commands_acc,
+             backend
+           ) do
+        {:ok, cmd_list, job_template, release_commands, job_count} ->
+          {:ok, cmd_list, job_template, release_commands, job_count}
+      end
     end
   catch
     {:error, _} = error -> error
@@ -299,7 +312,7 @@ defmodule BullMQ.FlowProducer do
          backend
        ) do
     job = build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info)
-    encoded_opts = encode_job_opts(opts)
+    encoded_opts = encode_job_opts(opts) |> Map.put(:defer_parent_release, true)
 
     node_backend = Backend.for_queue(backend, ctx.name, ctx.prefix)
     {:ok, cmd} = Backend.build_add_standard_command(node_backend, job, encoded_opts)
@@ -337,7 +350,7 @@ defmodule BullMQ.FlowProducer do
          backend
        ) do
     job = build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info)
-    encoded_opts = encode_job_opts(opts)
+    encoded_opts = encode_job_opts(opts) |> Map.put(:defer_parent_release, true)
 
     node_backend = Backend.for_queue(backend, ctx.name, ctx.prefix)
     {:ok, cmd} = Backend.build_add_parent_command(node_backend, job, encoded_opts)
@@ -353,12 +366,12 @@ defmodule BullMQ.FlowProducer do
       prefix: prefix
     }
 
-    # Build commands for all children recursively
-    {children_commands, children_templates} =
-      Enum.reduce(children, {[], []}, fn child, {cmds, templates} ->
+    # Build commands for all children recursively.
+    {children_commands, children_templates, child_release_commands, child_count} =
+      Enum.reduce(children, {[], [], [], 0}, fn child, {cmds, templates, release_cmds, count_acc} ->
         case build_flow_commands(child, parent_info_for_children, prefix, [], backend) do
-          {:ok, child_cmds, child_template} ->
-            {cmds ++ child_cmds, templates ++ [child_template]}
+          {:ok, child_cmds, child_template, child_release_cmds, child_count} ->
+            {cmds ++ child_cmds, templates ++ [child_template], release_cmds ++ child_release_cmds, count_acc + child_count}
 
           {:error, _} = error ->
             throw(error)
@@ -379,8 +392,18 @@ defmodule BullMQ.FlowProducer do
       children: children_templates
     }
 
-    # Parent command comes first, then all children commands
-    {:ok, commands_acc ++ [cmd] ++ children_commands, job_template}
+    # Parent command comes first, then all children commands, then a final
+    # validation step that releases the parent only if it truly has no pending
+    # dependencies left.
+    {:ok, release_cmd} =
+      BullMQ.Scripts.build_release_parent_if_no_pending_dependencies_command(
+        parent_key,
+        queue_key,
+        job_id
+      )
+
+    {:ok, commands_acc ++ [cmd] ++ children_commands, job_template,
+     child_release_commands ++ [release_cmd], 1 + child_count}
   end
 
   defp build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info) do
@@ -431,16 +454,6 @@ defmodule BullMQ.FlowProducer do
     {result, remaining_ids}
   end
 
-  defp populate_multiple_trees(trees, job_ids, conn, prefix, backend_module) do
-    {populated, _remaining} =
-      Enum.reduce(trees, {[], job_ids}, fn tree, {acc, ids} ->
-        {populated, remaining} = do_populate_job_ids(tree, ids, conn, prefix, backend_module)
-        {acc ++ [populated], remaining}
-      end)
-
-    populated
-  end
-
   # Helper functions
 
   defp build_parent_from_info(nil), do: nil
@@ -458,6 +471,7 @@ defmodule BullMQ.FlowProducer do
   defp build_parent_key_from_info(parent_info) do
     Map.get(parent_info, :key)
   end
+
 
   defp normalize_opts(opts) when is_list(opts), do: Map.new(opts)
   defp normalize_opts(opts) when is_map(opts), do: opts

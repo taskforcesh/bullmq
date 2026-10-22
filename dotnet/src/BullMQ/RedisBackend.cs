@@ -268,7 +268,7 @@ public sealed class RedisBackend : IQueueBackend
             var scriptText = LuaScripts.Get(cmd).Content;
             tasks.Add(tran.ScriptEvaluateAsync(scriptText, redisKeys, args));
 
-            if (entry.Job.ParentKey is { } parentKey && entry.Job.Parent is { } parent)
+            if (entry.Job.ParentKey is { } parentKey && entry.Job.Parent is IReadOnlyDictionary<string, object?> parent)
             {
                 parents[parentKey] = (
                     (string)parent["queueKey"]!,
