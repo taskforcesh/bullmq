@@ -6,13 +6,14 @@
 --- @include "updateExistingJobsParent"
 
 local function handleDuplicatedJob(jobKey, jobId, currentParentKey, currentParent,
-  parentData, parentDependenciesKey, completedKey, eventsKey, maxEvents, timestamp)
+  parentData, parentDependenciesKey, completedKey, eventsKey, maxEvents, timestamp,
+  deferParentRelease)
   local existedParentKey = rcall("HGET", jobKey, "parentKey")
 
   if not existedParentKey or existedParentKey == currentParentKey then
     updateExistingJobsParent(currentParentKey, currentParent, parentData,
       parentDependenciesKey, completedKey, jobKey,
-      jobId, timestamp)
+      jobId, timestamp, deferParentRelease)
   else
     if currentParentKey ~= nil and currentParentKey ~= existedParentKey
       and (rcall("EXISTS", existedParentKey) == 1) then
