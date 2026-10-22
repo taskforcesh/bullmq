@@ -102,6 +102,112 @@ describe('Adapter Conformance', () => {
       await closePromise;
     });
 
+    it('should report status "ready" after connect following disconnect', async () => {
+      const dup = client.duplicate();
+      dup.on('error', () => {});
+      await dup.connect();
+
+      // RedisConnection.reconnect() calls connect() after a disconnect()
+      dup.disconnect();
+      expect(dup.status).toBe('end');
+      await dup.connect();
+
+      expect(dup.status).toBe('ready');
+      expect((dup as any).destroying).toBe(false);
+      await dup.set(key('reconnect'), 'ok');
+      expect(await dup.get(key('reconnect'))).toBe('ok');
+      await dup.quit();
+    });
+
+    it('should report status "ready" after connect following a disconnect during the initial connect', async () => {
+      // duplicate() starts connecting eagerly in the constructor
+      const dup = client.duplicate();
+      dup.on('error', () => {});
+      dup.disconnect();
+      expect(dup.status).toBe('end');
+      await dup.connect();
+
+      expect(dup.status).toBe('ready');
+      expect((dup as any).destroying).toBe(false);
+      await dup.set(key('reconnect-pending'), 'ok');
+      expect(await dup.get(key('reconnect-pending'))).toBe('ok');
+      await dup.quit();
+    });
+
+    it('should report status "ready" and reset destroying flag when raw client is already ready', async () => {
+      const { EventEmitter } = await import('events');
+      const raw = Object.assign(new EventEmitter(), {
+        options: {},
+        isOpen: true,
+        isReady: true,
+        connect() {
+          (this as any).isOpen = (this as any).isReady = true;
+          return Promise.resolve();
+        },
+        destroy() {
+          (this as any).isOpen = (this as any).isReady = false;
+        },
+      });
+      const c = createNodeRedisClient(raw);
+      c.on('error', () => {});
+      c.disconnect();
+      expect(c.status).toBe('end');
+      expect((c as any).destroying).toBe(true);
+
+      await c.connect();
+      expect(c.status).toBe('ready');
+      expect((c as any).destroying).toBe(false);
+    });
+
+    it('should clear ended state if connect is called when raw client is already open and ready', async () => {
+      const { EventEmitter } = await import('events');
+      const raw = Object.assign(new EventEmitter(), {
+        options: {},
+        isOpen: true,
+        isReady: true,
+        connect() {
+          return Promise.resolve();
+        },
+        destroy() {},
+      });
+      const c = createNodeRedisClient(raw);
+      c.on('error', () => {});
+      (c as any).statusOverride = 'end';
+      (c as any).destroying = true;
+      expect(c.status).toBe('end');
+
+      await c.connect();
+      expect(c.status).toBe('ready');
+      expect((c as any).destroying).toBe(false);
+    });
+
+    it('should recover status to "ready" when reset by watchdog reset sequence', async () => {
+      const dup = client.duplicate();
+      dup.on('error', () => {});
+      await dup.connect();
+      expect(dup.status).toBe('ready');
+
+      // Emulate watchdog resetBlockedConnection():
+      // 1. disconnect(true): disconnects and awaits 'end'
+      const ended = new Promise<void>(resolve => dup.once('end', resolve));
+      dup.disconnect();
+      await ended;
+      expect(dup.status).toBe('end');
+
+      // 2. reconnect(): sees status 'end' and calls connect()
+      await dup.connect();
+
+      // The status must be 'ready', NOT stuck at 'end'
+      expect(dup.status).toBe('ready');
+      expect((dup as any).destroying).toBe(false);
+
+      // Verify a command can execute successfully
+      await dup.set(key('watchdog-reset'), '1');
+      expect(await dup.get(key('watchdog-reset'))).toBe('1');
+
+      await dup.quit();
+    });
+
     it('should support setMaxListeners/getMaxListeners', () => {
       const orig = client.getMaxListeners();
       client.setMaxListeners(orig + 5);

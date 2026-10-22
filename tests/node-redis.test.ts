@@ -91,6 +91,23 @@ describe('node-redis adapter', () => {
       await wrapped.quit();
     });
 
+    it('should report status "ready" and reset destroying flag after disconnect and reconnect', async () => {
+      const dup = client.duplicate();
+      dup.on('error', () => {});
+      await dup.connect();
+      expect(dup.status).toBe('ready');
+
+      dup.disconnect();
+      expect(dup.status).toBe('end');
+      expect((dup as any).destroying).toBe(true);
+
+      await dup.connect();
+      expect(dup.status).toBe('ready');
+      expect((dup as any).destroying).toBe(false);
+
+      await dup.quit();
+    });
+
     it('should get/set string values', async () => {
       const key = `${prefix}:test:string`;
       await client.set(key, 'hello');
