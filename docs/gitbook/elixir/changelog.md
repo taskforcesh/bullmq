@@ -1,3 +1,10 @@
+## [2.3.3](https://github.com/taskforcesh/bullmq/compare/vex2.3.2...vex2.3.3) (2026-10-23)
+
+
+### Bug Fixes
+
+* **connection:** warn when redis version lower than 6.2 and throw when lower than 5.0 [elixir] ([#4924](https://github.com/taskforcesh/bullmq/issues/4924)) ([af637d4](https://github.com/taskforcesh/bullmq/commit/af637d4931f382828678f4a07686a36c957dc827))
+
 ## [2.3.2](https://github.com/taskforcesh/bullmq/compare/vex2.3.1...vex2.3.2) (2026-10-20)
 
 
