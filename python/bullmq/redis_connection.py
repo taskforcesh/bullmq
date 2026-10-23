@@ -43,6 +43,7 @@ SCRIPT_DEFINITIONS = {
     "obliterate": "obliterate-2.lua",
     "pause": "pause-7.lua",
     "promote": "promote-9.lua",
+    "releaseParentIfNoPendingDependencies": "releaseParentIfNoPendingDependencies-2.lua",
     "removeJob": "removeJob-2.lua",
     "removeJobScheduler": "removeJobScheduler-3.lua",
     "reprocessJob": "reprocessJob-9.lua",
