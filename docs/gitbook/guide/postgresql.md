@@ -196,6 +196,50 @@ When BullMQ builds the pool for you (from a string or config), it owns and
 closes that pool on `close()`. When you pass your own `pg.Pool`, its lifecycle
 is yours (you should close it yourself when your process shuts down).
 
+### Sharing a connection
+
+By default every Queue, Worker and QueueEvents builds its own connection: a
+pool, plus one `LISTEN` connection for each Worker and QueueEvents. To run many
+of them without opening connections for each one, create one
+`PostgresConnection` and pass it as `connection` to all of them:
+
+```typescript
+import {
+  PostgresConnection,
+  Queue,
+  Worker,
+  createPostgresBackend,
+} from 'bullmq';
+
+const connection = new PostgresConnection({
+  connectionString: 'postgres://user:pass@localhost:5432/mydb',
+  max: 10,
+});
+
+const queue = new Queue('emails', { connection }, createPostgresBackend);
+const emails = new Worker(
+  'emails',
+  sendEmail,
+  { connection },
+  createPostgresBackend,
+);
+const reports = new Worker(
+  'reports',
+  buildReport,
+  { connection },
+  createPostgresBackend,
+);
+
+// On shutdown, close everything that uses the connection first.
+await Promise.all([queue.close(), emails.close(), reports.close()]);
+await connection.close();
+```
+
+`PostgresConnection` takes the same options as `connection`: a connection
+string, a pool config or a `pg.Pool`. Every Queue, Worker and QueueEvents given
+it shares its pool and a single `LISTEN` connection, whatever their queues.
+You must manually close it after all dependent items are closed.
+
 ## Schema
 
 All BullMQ objects live in a single PostgreSQL **schema** (namespace), which
@@ -276,12 +320,14 @@ The PostgreSQL backend maps BullMQ's primitives onto PostgreSQL features:
   with `LISTEN`/`NOTIFY`: producers `NOTIFY` a channel and each worker blocks on
   a dedicated `LISTEN` connection until it is woken (or a timeout elapses).
 - Each backend uses a `pg.Pool` for regular, short-lived queries plus one
-  dedicated, long-lived `LISTEN` connection.
+  dedicated, long-lived `LISTEN` connection. Backends given a shared
+  `PostgresConnection` share both (see [Sharing a connection](#sharing-a-connection)).
 
 {% hint style="info" %}
-The `pg.Pool` size (`max`) bounds how many concurrent queries a single backend
-can run; the dedicated `LISTEN` connection is separate and does not consume a
-pool slot. Size your server's `max_connections` for the number of concurrent
+The `pg.Pool` size (`max`) bounds how many concurrent queries the backends
+using it can run. The dedicated `LISTEN` connection is separate from a pool
+BullMQ builds; with your own `pg.Pool`, it takes one of its connections.
+Size your server's `max_connections` for the number of concurrent
 workers, queues and queue-events you run.
 {% endhint %}
 
@@ -339,7 +385,7 @@ A few takeaways:
 - **Size the pool and `max_connections`.** Give each backend enough pool
   connections (`max`) for its concurrency, and make sure the server's
   `max_connections` covers all your workers, queues and queue-events plus their
-  dedicated `LISTEN` connections.
+  dedicated `LISTEN` connections, or share one connection between them.
 - **Consider `synchronous_commit`.** If your durability requirements allow it,
   running PostgreSQL with `synchronous_commit = off` (or `local`) removes the
   per-commit `fsync` wait and can improve processing throughput substantially,
