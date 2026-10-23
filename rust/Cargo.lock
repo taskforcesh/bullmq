@@ -89,7 +89,7 @@ dependencies = [
 
 [[package]]
 name = "bullmq-official"
-version = "1.4.2"
+version = "1.4.3"
 dependencies = [
  "async-trait",
  "chrono",
