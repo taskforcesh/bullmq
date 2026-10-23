@@ -205,16 +205,22 @@ defmodule BullMQ.FlowProducer do
       # Execute all commands atomically through the backend
       case Backend.add_flow(backend, all_commands) do
         {:ok, results} ->
-          populated_trees =
-            Enum.reduce(queued, {[], results}, fn {tree, root_index, job_count}, {acc, remaining_results} ->
-              root_results = Enum.take(Enum.drop(remaining_results, root_index), job_count)
-              job_ids = Enum.map(root_results, fn {:ok, id} -> to_string(id) end)
-              populated = populate_job_ids(tree, job_ids, conn, prefix, backend.__struct__)
-              {acc ++ [populated], remaining_results}
-            end)
-            |> elem(0)
+          errors = Enum.filter(results, &match?({:error, _}, &1))
 
-          {:ok, populated_trees}
+          if Enum.empty?(errors) do
+            populated_trees =
+              Enum.reduce(queued, {[], results}, fn {tree, root_index, job_count}, {acc, remaining_results} ->
+                root_results = Enum.take(Enum.drop(remaining_results, root_index), job_count)
+                job_ids = Enum.map(root_results, fn {:ok, id} -> to_string(id) end)
+                populated = populate_job_ids(tree, job_ids, conn, prefix, backend.__struct__)
+                {acc ++ [populated], remaining_results}
+              end)
+              |> elem(0)
+
+            {:ok, populated_trees}
+          else
+            {:error, {:transaction_failed, errors}}
+          end
 
         {:error, reason} ->
           {:error, reason}
