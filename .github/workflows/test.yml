@@ -522,6 +522,7 @@ jobs:
         if: env.should_run == 'true'
         uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
+          redis-image: public.ecr.aws/docker/library/redis
           redis-version: 7-alpine
 
       - if: env.should_run == 'true'
