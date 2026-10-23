@@ -47,7 +47,6 @@ import {
 import { ErrorCode } from '../enums';
 import {
   array2obj,
-  clientCommandMessageReg,
   errorObject,
   getParentKey,
   isEmpty,
@@ -267,15 +266,6 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   }
 
   /**
-   * Builds the Redis client name (`"<prefix>:<base64(queue)><suffix>"`), used
-   * for `CLIENT SETNAME` and worker/queue discovery via `CLIENT LIST`.
-   */
-  clientName(suffix = ''): string {
-    const base64Name = Buffer.from(this.name).toString('base64');
-    return `${this.redisPrefix}:${base64Name}${suffix}`;
-  }
-
-  /**
    * Normalizes the events of the owned connection(s) into the backend's own
    * `'ready' | 'error' | 'close'` events.
    */
@@ -331,24 +321,6 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     await this.connection.disconnect();
     if (this.blockingConnection) {
       await this.blockingConnection.disconnect();
-    }
-  }
-
-  /**
-   * Sets a human-readable name on the underlying connection (CLIENT SETNAME).
-   * Unsupported-command and shutdown errors are swallowed.
-   */
-  async setName(name: string): Promise<void> {
-    const client = await this.connection.client;
-    try {
-      await client.clientSetName(name);
-    } catch (err) {
-      if (
-        !clientCommandMessageReg.test((<Error>err).message) &&
-        !this.closing
-      ) {
-        throw err;
-      }
     }
   }
 
@@ -2007,21 +1979,6 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     );
 
     return result;
-  }
-
-  async getClientList(): Promise<string[]> {
-    const client = await this.queue.client;
-    if (client.isCluster && typeof client.nodes === 'function') {
-      const clusterNodes = client.nodes() || [];
-      return Promise.all(
-        clusterNodes.map((node: any) =>
-          typeof node.clientList === 'function'
-            ? node.clientList()
-            : node.client('LIST'),
-        ),
-      );
-    }
-    return [await client.clientList()];
   }
 
   async registerWorker(

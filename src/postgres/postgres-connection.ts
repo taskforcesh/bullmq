@@ -183,8 +183,8 @@ export class PostgresConnection extends EventEmitter {
    * The last `application_name` applied to the `LISTEN` client (via
    * {@link setListenClientName}). Re-applied whenever that client is rebuilt: a
    * fresh connection starts unnamed, which would otherwise silently drop the
-   * worker / QueueEvents from `getWorkers()` / `getQueueEvents()` for the rest
-   * of its lifetime.
+   * relay node from the relay's connection listing for the rest of its
+   * lifetime.
    */
   private listenClientName: string | undefined;
 

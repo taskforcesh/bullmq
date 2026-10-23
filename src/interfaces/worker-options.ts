@@ -170,6 +170,25 @@ export interface WorkerOptions<ConnectionOptionsType = ConnectionOptions>
    * Telemetry Addon
    */
   telemetry?: Telemetry;
+
+  /**
+   * How the Worker keeps itself registered in its queue's worker registry,
+   * which `Queue.getWorkers()` reads.
+   */
+  registry?: WorkerRegistryOptions;
+}
+
+/** Same leases and timers as a relay node's. */
+export interface WorkerRegistryOptions {
+  /**
+   * How long the Worker stays registered without a heartbeat (ms). After
+   * that, it is no longer listed and any Worker may sweep it. Default 30000.
+   */
+  leaseDuration?: number;
+  /** Default `leaseDuration / 3`, rounded down to at least 1 ms. */
+  heartbeatInterval?: number;
+  /** How often this Worker sweeps expired Workers (ms). Default `leaseDuration`. */
+  sweepInterval?: number;
 }
 
 export interface GetNextJobOptions {

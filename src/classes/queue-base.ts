@@ -169,10 +169,6 @@ export class QueueBase<
     return Buffer.from(this.name).toString('base64');
   }
 
-  protected clientName(suffix = ''): string {
-    return this.backend.clientName(suffix);
-  }
-
   /**
    *
    * Closes the connection and returns a promise that resolves when the connection is closed.
