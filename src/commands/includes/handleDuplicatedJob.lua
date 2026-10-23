@@ -17,6 +17,9 @@ local function handleDuplicatedJob(jobKey, jobId, currentParentKey, currentParen
   else
     if currentParentKey ~= nil and currentParentKey ~= existedParentKey
       and (rcall("EXISTS", existedParentKey) == 1) then
+      if deferParentRelease then
+        rcall("HSET", currentParentKey, "flowAttachmentFailed", "1")
+      end
       return -7
     end
   end

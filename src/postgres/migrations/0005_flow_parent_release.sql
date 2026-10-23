@@ -150,6 +150,8 @@ DECLARE
   -- Parents touched by this flow; validated once the whole tree is inserted.
   v_parents_q    text[]  := '{}';
   v_parents_id   text[]  := '{}';
+  v_failed_parents_q  text[] := '{}';
+  v_failed_parents_id text[] := '{}';
   v_pq           text;
   v_pid          text;
   v_remaining    integer;
@@ -265,6 +267,8 @@ BEGIN
         v_code := handle_duplicated_job(v_queue, v_id,
           v_parent_queue, v_parent_id, e ->> 'parentKey', v_timestamp, true);
         IF v_code = -7 THEN
+          v_failed_parents_q  := array_append(v_failed_parents_q, v_parent_queue);
+          v_failed_parents_id := array_append(v_failed_parents_id, v_parent_id);
           RETURN NEXT '-7';
           CONTINUE;
         END IF;
@@ -354,6 +358,11 @@ BEGIN
     FOR v_pq, v_pid IN
       SELECT DISTINCT pq, pid
         FROM unnest(v_parents_q, v_parents_id) AS t(pq, pid)
+       WHERE NOT EXISTS (
+         SELECT 1
+           FROM unnest(v_failed_parents_q, v_failed_parents_id) AS f(pq, pid)
+          WHERE f.pq = t.pq AND f.pid = t.pid
+       )
     LOOP
       SELECT pending_deps INTO v_remaining
         FROM job WHERE queue = v_pq AND id = v_pid;

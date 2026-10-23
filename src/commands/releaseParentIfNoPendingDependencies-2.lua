@@ -22,6 +22,11 @@
 ]]
 local rcall = redis.call
 
+if rcall("HGET", KEYS[1], "flowAttachmentFailed") then
+    rcall("HDEL", KEYS[1], "flowAttachmentFailed")
+    return
+end
+
 -- Includes
 --- @include "includes/moveParentToWaitIfNoPendingDependencies"
 
