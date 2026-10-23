@@ -2322,5 +2322,84 @@ describe('deduplication', () => {
 
       await worker.close();
     });
+
+    it('should not overwrite a job that already holds the custom jobId', async () => {
+      // The proto-job stores `jid`, and the requeue runs later -- so another
+      // producer can create a job under that id in between. storeJob writes with
+      // HMSET, so reusing the id would overwrite that job's hash rather than
+      // fail. addStandardJob-9.lua guards the same move with EXISTS.
+      const testName = 'test';
+      const deduplicationId = 'dedup-collision';
+      const customId = 'contended-id';
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const processedIds: (string | undefined)[] = [];
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (processedIds.length === 0) {
+            resolveFirstProcessing();
+            await delay(500);
+          }
+          processedIds.push(job.id);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const requeuedCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      await queue.add(
+        testName,
+        { seq: 1 },
+        { deduplication: { id: deduplicationId, keepLastIfActive: true } },
+      );
+
+      await firstProcessingStarted;
+
+      // Deduplicated while the first is active, so this only stores the
+      // proto-job -- `jid` is remembered for the requeue.
+      await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          jobId: customId,
+          deduplication: { id: deduplicationId, keepLastIfActive: true },
+        },
+      );
+
+      // ...and now someone else takes that id before the requeue runs.
+      const squatter = await queue.add(testName, { squatter: true }, { jobId: customId });
+      expect(squatter.id).toBe(customId);
+
+      await requeuedCompleted;
+
+      // The squatter's payload is intact: it was not HMSET over.
+      const stillThere = await queue.getJob(customId);
+      expect(stillThere).toBeDefined();
+      expect(stillThere!.data).toEqual({ squatter: true });
+
+      // ...and the requeued job ran under a generated id instead of silently
+      // taking the contended one.
+      const requeuedId = processedIds.find(id => id !== undefined && id !== customId);
+      expect(requeuedId).toBeDefined();
+      expect(Number.isNaN(Number(requeuedId))).toBe(false);
+
+      await worker.close();
+    });
   });
 });
