@@ -326,6 +326,9 @@ impl FlowProducer {
         for parent in &parents {
             self.add_release_parent_to_pipe(&mut pipe, parent)?;
         }
+        if let Some(parent) = &parent_ctx {
+            self.add_release_parent_to_pipe(&mut pipe, parent)?;
+        }
 
         // Execute the atomic pipeline
         let results: Vec<redis::Value> = pipe.query_async(&mut conn).await?;
@@ -335,7 +338,8 @@ impl FlowProducer {
         // in-memory values to mirror Node.js FlowProducer semantics.
         let mut results_iter = results.iter();
         Self::apply_pipeline_results(&mut job_node, &mut results_iter, true)?;
-        for _ in 0..parents.len() {
+        let root_parent_release_count = if parent_ctx.is_some() { 1 } else { 0 };
+        for _ in 0..parents.len() + root_parent_release_count {
             results_iter.next();
         }
         debug!(job_id = %job_node.job.id(), "flow added");
@@ -391,8 +395,12 @@ impl FlowProducer {
                 None => None,
             };
             let (node, parents) = self.add_node(&mut pipe, flow, parent_ctx.as_ref())?;
-            flow_release_counts.push(parents.len());
+            let root_parent_release_count = if parent_ctx.is_some() { 1 } else { 0 };
+            flow_release_counts.push(parents.len() + root_parent_release_count);
             for parent in &parents {
+                self.add_release_parent_to_pipe(&mut pipe, parent)?;
+            }
+            if let Some(parent) = &parent_ctx {
                 self.add_release_parent_to_pipe(&mut pipe, parent)?;
             }
             job_nodes.push(node);
@@ -692,6 +700,15 @@ impl FlowProducer {
     fn pipeline_script_names(node: &FlowJob) -> Vec<&'static str> {
         let mut names = Vec::new();
         Self::collect_pipeline_script_names(node, &mut names);
+        if node
+            .opts
+            .as_ref()
+            .and_then(|opts| opts.parent.as_ref())
+            .is_some()
+            && !names.contains(&"releaseParentIfNoPendingDependencies")
+        {
+            names.push("releaseParentIfNoPendingDependencies");
+        }
         names
     }
 
@@ -1251,6 +1268,7 @@ fn merge_job_options(base: &mut JobOptions, over: JobOptions) {
 mod tests {
     use super::{FlowJob, FlowProducer, JobNode};
     use crate::job::Job;
+    use crate::options::{JobOptions, ParentOptions};
     use serde::ser::Error as _;
     use serde::Serialize;
 
@@ -1342,6 +1360,22 @@ mod tests {
         let scripts = FlowProducer::pipeline_script_names(&flow);
         assert!(scripts.contains(&"addParentJob"));
         assert!(scripts.contains(&"addStandardJob"));
+        assert!(scripts.contains(&"releaseParentIfNoPendingDependencies"));
+    }
+
+    #[test]
+    fn flow_pipeline_scripts_include_external_parent_release_check_for_leaf() {
+        let mut flow = FlowJob::new("child", "queue", serde_json::json!({})).unwrap();
+        flow.opts = Some(JobOptions {
+            parent: Some(ParentOptions {
+                id: "parent-id".to_string(),
+                queue: "parent-queue".to_string(),
+                wait_children: None,
+            }),
+            ..Default::default()
+        });
+
+        let scripts = FlowProducer::pipeline_script_names(&flow);
         assert!(scripts.contains(&"releaseParentIfNoPendingDependencies"));
     }
 
