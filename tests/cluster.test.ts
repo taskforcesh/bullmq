@@ -735,6 +735,17 @@ describe('Cluster integration tests', () => {
       }
     });
 
+    it('registers Workers using a native Cluster connection', async () => {
+      const backend = queue.getBackend();
+      await backend.registerWorker('w1', 30_000, { name: 'cluster' });
+      expect(await backend.heartbeatWorker('w1', 30_000)).toBe(true);
+      expect(await backend.getWorkerRegistrations()).toMatchObject([
+        { id: 'w1', info: { name: 'cluster' } },
+      ]);
+      expect(await backend.sweepWorkers(10)).toEqual([]);
+      expect(await backend.unregisterWorker('w1')).toBe(true);
+    });
+
     it('should add and process jobs', async ctx => {
       if (!clusterAvailable) {
         ctx.skip();

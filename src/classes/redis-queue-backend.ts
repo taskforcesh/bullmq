@@ -30,6 +30,8 @@ import {
   RetryOptions,
   ScriptQueueContext,
   StreamReadRaw,
+  WorkerInfo,
+  WorkerRegistration,
 } from '../interfaces';
 import {
   CompressableJobOptions,
@@ -2020,6 +2022,73 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       );
     }
     return [await client.clientList()];
+  }
+
+  async registerWorker(
+    workerId: string,
+    leaseMs: number,
+    info: WorkerInfo = {},
+  ): Promise<void> {
+    const result = await this.execWorkerRegistry('workerRegister', [
+      workerId,
+      leaseMs,
+      JSON.stringify(info),
+    ]);
+    if (result === -1) {
+      throw new Error(`Invalid worker id: ${workerId}`);
+    }
+  }
+
+  async heartbeatWorker(workerId: string, leaseMs: number): Promise<boolean> {
+    return (
+      (await this.execWorkerRegistry('workerHeartbeat', [
+        workerId,
+        leaseMs,
+      ])) === 1
+    );
+  }
+
+  async unregisterWorker(workerId: string): Promise<boolean> {
+    return (
+      (await this.execWorkerRegistry('workerUnregister', [workerId])) === 1
+    );
+  }
+
+  async sweepWorkers(limit: number): Promise<string[]> {
+    return this.execWorkerRegistry('workerSweep', [limit]);
+  }
+
+  async getWorkerRegistrations(): Promise<WorkerRegistration[]> {
+    const rows = await this.execWorkerRegistry('workerList', []);
+    return rows.map(
+      ([id, registeredAt, leaseUntil, info, hb]: [
+        string,
+        string,
+        string,
+        string,
+        string,
+      ]) => ({
+        id,
+        info: info ? JSON.parse(info) : {},
+        registeredAt: Number(registeredAt),
+        leaseUntil: Number(leaseUntil),
+        lastHeartbeat: hb ? Number(hb) : undefined,
+      }),
+    );
+  }
+
+  /** Runs a worker registry script on the queue's registry keys. */
+  private async execWorkerRegistry(
+    command: string,
+    args: (string | number)[],
+  ): Promise<any> {
+    const client = await this.queue.client;
+    const baseKey = this.queue.toKey('workers');
+    return this.execCommand(client, command, [
+      `${baseKey}:leases`,
+      baseKey,
+      ...args,
+    ]);
   }
 
   async moveToActive(token: string, name?: string) {

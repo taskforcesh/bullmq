@@ -24,6 +24,29 @@ import {
 
 type FinishedState = FinishedStatus;
 
+/** Describes a Worker; stored as given and returned by getWorkers. */
+export interface WorkerInfo {
+  /** The Worker's `name` option, if any. */
+  name?: string;
+  host?: string;
+  pid?: number;
+  /** BullMQ version of the Worker. */
+  version?: string;
+}
+
+export interface WorkerRegistration {
+  id: string;
+  info: WorkerInfo;
+  /** When the Worker registered (ms). */
+  registeredAt: number;
+  /**
+   * When its lease ends (ms). A Worker whose lease ended is not listed, and
+   * is removed by the next sweep.
+   */
+  leaseUntil: number;
+  lastHeartbeat?: number;
+}
+
 /**
  * IQueueBackend
  *
@@ -660,6 +683,34 @@ export interface IQueueBackend {
    * may return an empty array.
    */
   getClientList(): Promise<string[]>;
+
+  /** Registers (or refreshes) a Worker, its liveness lease and its info. */
+  registerWorker(
+    workerId: string,
+    leaseMs: number,
+    info?: WorkerInfo,
+  ): Promise<void>;
+
+  /**
+   * Renews a Worker's lease.
+   *
+   * @returns false when the Worker is not registered or its lease expired,
+   * even if it was not swept. The caller must register again.
+   */
+  heartbeatWorker(workerId: string, leaseMs: number): Promise<boolean>;
+
+  /** Removes a Worker. */
+  unregisterWorker(workerId: string): Promise<boolean>;
+
+  /**
+   * Removes up to `limit` Workers whose lease expired.
+   *
+   * @returns the ids of the removed Workers of the queue.
+   */
+  sweepWorkers(limit: number): Promise<string[]>;
+
+  /** The live Workers of the queue, by registration. */
+  getWorkerRegistrations(): Promise<WorkerRegistration[]>;
 
   /**
    * Paginates a datastore set or hash, optionally fetching the jobs themselves.
