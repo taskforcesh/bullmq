@@ -1,3 +1,10 @@
+## [6.4.1](https://github.com/taskforcesh/bullmq/compare/v6.4.0...v6.4.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** update security patches [security] ([#4986](https://github.com/taskforcesh/bullmq/issues/4986)) ([5289377](https://github.com/taskforcesh/bullmq/commit/528937798456bd60ef7d2d5d6df536862e004e87))
+
 # [6.4.0](https://github.com/taskforcesh/bullmq/compare/v6.3.19...v6.4.0) (2026-10-21)
 
 
