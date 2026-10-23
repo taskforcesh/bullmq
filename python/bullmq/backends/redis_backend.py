@@ -192,10 +192,12 @@ class RedisBackend(Backend):
                 else:
                     await scripts.addJob(job, pipe, defer_parent_release)
 
-                if job.parent and job.parentKey:
-                    parents[job.parentKey] = (
-                        job.parent.get("queueKey") or job.parent.get("queue_key"),
-                        job.parent.get("id"),
+                parent = getattr(job, "parent", None)
+                parent_key = getattr(job, "parentKey", None)
+                if parent and parent_key:
+                    parents[parent_key] = (
+                        parent.get("queueKey") or parent.get("queue_key"),
+                        parent.get("id"),
                     )
 
             for parent_key, (queue_key, parent_id) in parents.items():

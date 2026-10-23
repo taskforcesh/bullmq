@@ -104,8 +104,8 @@ class TestRedisBackendFlowInsertion(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        parent_scripts.addParentJob.assert_awaited_once_with(parent_job, pipeline)
-        child_scripts.addJob.assert_awaited_once_with(child_job, pipeline)
+        parent_scripts.addParentJob.assert_awaited_once_with(parent_job, pipeline, True)
+        child_scripts.addJob.assert_awaited_once_with(child_job, pipeline, True)
         self.assertEqual(results, ["parent-id", "child-id"])
         self.assertEqual(parent_job.id, "parent-id")
         self.assertEqual(child_job.id, "child-id")
