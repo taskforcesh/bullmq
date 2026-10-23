@@ -270,12 +270,6 @@ export class PostgresQueueBackend
   /** Whether the dedicated LISTEN client is subscribed to the events channel. */
   private listeningEvents = false;
 
-  /**
-   * Memoizes {@link PostgresQueueBackend.waitUntilReady} so every caller awaits
-   * the same readiness — including the one-time connection naming it performs.
-   */
-  private readyPromise: Promise<void> | undefined;
-
   /** Cancels the in-flight {@link waitForJob}, if any (used by close/interrupt). */
   private cancelWait: (() => void) | undefined;
 
@@ -299,13 +293,6 @@ export class PostgresQueueBackend
     protected readonly queueName: string,
     protected readonly opts: QueueBaseOptions<PostgresConnectionOptions>,
     protected readonly ownsConnection = true,
-    /**
-     * When set, the name applied to this backend's dedicated connection (its
-     * `application_name`) so getWorkers can discover it — the PostgreSQL
-     * analogue of the Redis worker's named blocking connection. Only workers
-     * pass it; QueueEvents name themselves via {@link setName}.
-     */
-    private readonly listenClientName?: string,
   ) {
     super();
 
@@ -335,30 +322,8 @@ export class PostgresQueueBackend
   // Connection lifecycle
   // ============================================================
 
-  async waitUntilReady(): Promise<void> {
-    // Memoized so every caller (the Worker's constructor 'ready' hook AND an
-    // explicit waitUntilReady()) awaits the SAME readiness — including the
-    // connection naming below. Without this a second caller could observe the
-    // naming as "already started" and return before the first caller's setName
-    // had actually completed, racing discovery (getWorkers/getQueueEvents).
-    if (!this.readyPromise) {
-      this.readyPromise = (async () => {
-        await this.connection.waitUntilReady();
-        // Name this backend's dedicated connection so it is discoverable via
-        // getClientList (and thus getWorkers) — even an `autorun: false`
-        // worker that never fetches is listed, matching the Redis backend
-        // which names its blocking connection on creation. Best-effort: a
-        // naming failure must never block readiness.
-        if (this.listenClientName) {
-          try {
-            await this.setName(this.listenClientName);
-          } catch {
-            // Discovery is best-effort; leave the connection unnamed.
-          }
-        }
-      })();
-    }
-    return this.readyPromise;
+  waitUntilReady(): Promise<void> {
+    return this.connection.waitUntilReady();
   }
 
   async close(force = false): Promise<void> {
@@ -381,18 +346,6 @@ export class PostgresQueueBackend
       return;
     }
     await this.connection.disconnect();
-  }
-
-  async setName(name: string): Promise<void> {
-    // Name the dedicated LISTEN connection via `application_name` — the
-    // PostgreSQL analogue of Redis `CLIENT SETNAME`. This is the long-lived
-    // connection a worker / QueueEvents holds, so it appears (under this name)
-    // in pg_stat_activity and is therefore discoverable by getWorkers /
-    // getQueueEvents via getClientList. The connection remembers the name and
-    // re-applies it whenever it has to rebuild the LISTEN client (a fresh
-    // connection would otherwise start unnamed, i.e. undiscoverable).
-    await this.connection.waitUntilReady();
-    await this.connection.setListenClientName(name);
   }
 
   /**
@@ -469,15 +422,6 @@ export class PostgresQueueBackend
       queueName: key.slice(0, idx),
       id: key.slice(idx + 1),
     };
-  }
-
-  /**
-   * Returns a backend identifier used by the generic API; PostgreSQL discovery
-   * relies on {@link setName} setting `application_name` on the dedicated
-   * LISTEN client.
-   */
-  clientName(suffix = ''): string {
-    return `${this.queueName}${suffix}`;
   }
 
   // ============================================================
@@ -1873,18 +1817,6 @@ export class PostgresQueueBackend
     // prevCount] (only the cumulative count is tracked here), data = the sliced
     // per-minute points, count = number of points returned.
     return [[total, '0', '0'], data, data.length];
-  }
-
-  async getClientList(): Promise<string[]> {
-    // Mirror Redis CLIENT LIST using pg_stat_activity: each named session
-    // (workers / QueueEvents set their `application_name`) becomes a
-    // `name=<application_name>` line, which the shared client-list parser then
-    // matches against the queue's client name. Returned as a single-element
-    // array since PostgreSQL has no cluster-node fan-out.
-    const { rows } = await this.run<{ application_name: string }>(
-      'get_client_list',
-    );
-    return [rows.map(r => `name=${r.application_name}`).join('\n')];
   }
 
   async registerWorker(

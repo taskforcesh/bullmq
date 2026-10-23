@@ -119,12 +119,6 @@ export interface IQueueBackend {
   disconnect(): Promise<void>;
 
   /**
-   * Sets a human-readable name on the underlying connection (for
-   * observability). No-op for backends that have no such concept.
-   */
-  setName(name: string): Promise<void>;
-
-  /**
    * Smallest meaningful block timeout (in seconds) supported by the backend's
    * blocking primitive. Used by workers to bound `waitForJob`.
    */
@@ -213,13 +207,6 @@ export interface IQueueBackend {
    * backend's key format; used when walking a flow tree.
    */
   parseNodeKey(key: string): { prefix: string; queueName: string; id: string };
-
-  /**
-   * Builds the connection client name (used for `setName` and worker/queue
-   * discovery). Redis: `"<prefix>:<base64(queue)><suffix>"`. Backends without a
-   * client-name concept may return any stable string.
-   */
-  clientName(suffix?: string): string;
 
   // ============================================================
   // Adding jobs
@@ -675,14 +662,6 @@ export interface IQueueBackend {
     start?: number,
     end?: number,
   ): Promise<[string[], string[], number]>;
-
-  /**
-   * Returns the raw worker/client list(s) for the queue's datastore. For the
-   * Redis adapter this is `CLIENT LIST` (one string per cluster node, or a
-   * single string otherwise). Backends with no notion of connected clients
-   * may return an empty array.
-   */
-  getClientList(): Promise<string[]>;
 
   /** Registers (or refreshes) a Worker, its liveness lease and its info. */
   registerWorker(
