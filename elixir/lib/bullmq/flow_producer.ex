@@ -132,7 +132,7 @@ defmodule BullMQ.FlowProducer do
         case Backend.add_flow(backend, commands ++ release_commands) do
           {:ok, results} ->
             job_results = Enum.take(results, job_count)
-            errors = Enum.filter(job_results, &match?({:error, _}, &1))
+            errors = Enum.filter(results, &match?({:error, _}, &1))
 
             if Enum.empty?(errors) do
               # Extract job IDs from results and populate the job tree
