@@ -836,7 +836,7 @@ async fn test_get_dependencies_legacy_foreign_prefix_child_context() {
     let parent_key = parent_queue.keys().job_key(parent.id());
     let child_key = child_queue.keys().job_key(child.id());
     let parent_deps_key = format!("{parent_key}:dependencies");
-    let mut redis_conn = parent_queue.connection().conn();
+    let mut redis_conn = parent_queue.connection().managed_conn();
     redis::cmd("SADD")
         .arg(&parent_deps_key)
         .arg(&child_key)
@@ -1622,7 +1622,7 @@ async fn test_get_jobs_skips_missing_hash_and_preserves_waiting_order() {
         .await
         .unwrap();
 
-    let mut conn = queue.connection().conn();
+    let mut conn = queue.connection().managed_conn();
     redis::cmd("DEL")
         .arg(queue.keys().job_key(missing.id()))
         .query_async::<()>(&mut conn)

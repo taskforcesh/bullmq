@@ -1,5 +1,5 @@
-from typing import TypedDict, Any, Union
-import redis.asyncio as redis
+from typing import TypedDict
+from bullmq.types.connection_options import ConnectionOptions
 
 
 class QueueEventsOptions(TypedDict, total=False):
@@ -12,7 +12,7 @@ class QueueEventsOptions(TypedDict, total=False):
     Prefix for all queue keys.
     """
 
-    connection: Union[dict[str, Any], redis.Redis, str]
+    connection: ConnectionOptions
     """
     Options for connecting to a Redis instance. QueueEvents requires a
     dedicated connection because XREAD BLOCK ties up the connection
@@ -61,5 +61,5 @@ class QueueEventsProducerOptions(TypedDict, total=False):
     """
 
     prefix: str
-    connection: Union[dict[str, Any], redis.Redis, str]
+    connection: ConnectionOptions
     skipVersionCheck: bool

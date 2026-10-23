@@ -11,8 +11,11 @@ local function storeDeduplicatedNextJob(deduplicationOpts, currentDeduplicatedJo
     parentKey, parentData, parentDependenciesKey, repeatJobKey)
     if deduplicationOpts['keepLastIfActive'] and currentDeduplicatedJobId then
         local activeKey = prefix .. "active"
-        local activeItems = rcall('LRANGE', activeKey, 0, -1)
-        if checkItemInList(activeItems, currentDeduplicatedJobId) then
+        local pos = redis.pcall('LPOS', activeKey, currentDeduplicatedJobId)
+        if type(pos) == 'table' and pos.err then
+            pos = checkItemInList(rcall('LRANGE', activeKey, 0, -1), currentDeduplicatedJobId)
+        end
+        if pos then
             local deduplicationNextKey = prefix .. "dn:" .. deduplicationId
             local fields = {'name', jobName, 'data', jobData, 'opts', cjson.encode(fullOpts),
                 'jid', jobId}

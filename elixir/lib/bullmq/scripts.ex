@@ -1608,7 +1608,9 @@ defmodule BullMQ.Scripts do
 
     args = [job_id]
 
-    execute(conn, :get_state, keys, args)
+    script = if RedisConnection.can_lpos?(conn), do: :get_state_v2, else: :get_state
+
+    execute(conn, script, keys, args)
   end
 
   @doc """
@@ -1881,7 +1883,9 @@ defmodule BullMQ.Scripts do
       Keys.wait(ctx),
       Keys.meta(ctx),
       Keys.active(ctx),
-      Keys.marker(ctx)
+      Keys.marker(ctx),
+      Keys.prioritized(ctx),
+      Keys.pc(ctx)
     ]
 
     args = [

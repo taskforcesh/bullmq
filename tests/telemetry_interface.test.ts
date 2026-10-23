@@ -7,6 +7,7 @@ import {
   it,
   expect,
 } from 'vitest';
+import { AsyncLocalStorage } from 'async_hooks';
 
 import {
   FlowProducer,
@@ -23,6 +24,7 @@ import {
   Span,
   SpanOptions,
   Attributes,
+  AttributeValue,
   Exception,
   Time,
   Meter,
@@ -135,6 +137,10 @@ describe('Telemetry', () => {
 
     active(): Context {
       return this.activeContext;
+    }
+
+    root(): Context {
+      return {} as Context;
     }
 
     getMetadata(context: Context): string {
@@ -380,6 +386,282 @@ describe('Telemetry', () => {
         JobScheduler.prototype.createNextJob = originalCreateNextJob;
         recordExceptionSpy.restore();
       }
+    });
+  });
+
+  describe('Worker stalled checker telemetry context', () => {
+    // `MockContextManager` above never restores the previous context in `with()`,
+    // so it cannot model the AsyncLocalStorage behavior behind this regression.
+    // These classes use AsyncLocalStorage and thread a `traceId` through
+    // contexts the way a real tracer would: a span reuses the `traceId`
+    // already present on its parent context, or mints a new one if there is
+    // none. `root()` returns a context with no traceId, so the next span
+    // created under it starts a brand new trace.
+    //
+    // Crucially, the traceId must be captured once, at span-creation time,
+    // from whatever context was active then (mirroring how a real OTel
+    // tracer implicitly reads the ambient AsyncLocalStorage context). If
+    // `setSpanOnContext` were instead left to compute the traceId lazily from
+    // whatever context it is later called with, every span would silently
+    // adopt its *own* context's traceId, and the regression this test guards
+    // against (recurring spans inheriting a stale parent) could never fail.
+    class RootCapableSpan implements Span {
+      attributes: Attributes = {};
+      readonly traceId: string;
+
+      constructor(
+        public name: string,
+        parentTraceId: string | undefined,
+      ) {
+        this.traceId = parentTraceId ?? randomUUID();
+      }
+
+      setSpanOnContext(ctx: any): any {
+        return { ...ctx, traceId: this.traceId, getSpan: () => this };
+      }
+
+      addEvent(): void {}
+
+      setAttribute(key: string, value: AttributeValue): void {
+        this.attributes[key] = value;
+      }
+
+      setAttributes(attributes: Attributes): void {
+        this.attributes = { ...this.attributes, ...attributes };
+      }
+
+      recordException(): void {}
+
+      end(): void {}
+    }
+
+    class RootCapableTracer implements Tracer {
+      constructor(private contextManager: RootCapableContextManager) {}
+
+      startSpan(name: string, options?: SpanOptions, context?: any): Span {
+        // A real OTel tracer reads the ambient (AsyncLocalStorage) context
+        // when no explicit context is passed, which is exactly the mechanism
+        // that causes the leak this test targets. Mirror that here instead
+        // of trusting an explicit `context` argument, since `trace()` in
+        // utils/index.ts only ever passes one when propagating an inbound
+        // job's metadata.
+        const parentContext = context ?? this.contextManager.active();
+        return new RootCapableSpan(name, parentContext?.traceId);
+      }
+    }
+
+    class RootCapableContextManager implements ContextManager {
+      // Backed by a real `AsyncLocalStorage`, matching how OTel's own context
+      // manager behaves: `with()`/`run()` restores the previously active
+      // store once the callback returns, but any async continuation
+      // (promise, timer, etc.) *created inside* the callback keeps observing
+      // the store that was active at its creation time, even after `with()`
+      // has returned. This is the actual mechanism that can leak a span into
+      // a long-lived background loop if the loop is not explicitly detached
+      // with `root()` - and, unlike a naive mock that never restores the
+      // outer context, it does NOT cause unrelated *foreground* calls (e.g.
+      // two sibling `pause()`/`resume()` invocations) to contaminate each
+      // other once each of their `with()` calls returns.
+      private storage = new AsyncLocalStorage<any>();
+
+      with<A extends(...args: any[]) => any>(
+        context: any,
+        fn: A,
+      ): ReturnType<A> {
+        return this.storage.run(context, fn);
+      }
+
+      active(): any {
+        return this.storage.getStore() ?? {};
+      }
+
+      root(): any {
+        return {};
+      }
+
+      getMetadata(): string {
+        return '';
+      }
+
+      fromMetadata(activeContext: any): any {
+        return activeContext;
+      }
+    }
+
+    class RootCapableTelemetry implements Telemetry {
+      contextManager: ContextManager = new RootCapableContextManager();
+      tracer: Tracer = new RootCapableTracer(
+        this.contextManager as RootCapableContextManager,
+      );
+    }
+
+    describe('Worker.pause/resume with recurring stalled checker', () => {
+      it('does not let recurring moveStalledJobsToWait spans inherit the resume span', async () => {
+        const rootTelemetry = new RootCapableTelemetry();
+        const contextManager =
+          rootTelemetry.contextManager as RootCapableContextManager;
+
+        const worker = new Worker(queueName, async () => 'done', {
+          connection,
+          prefix,
+          telemetry: rootTelemetry,
+          stalledInterval: 50,
+          skipLockRenewal: true,
+        });
+
+        const withSpy = sinon.spy(contextManager, 'with');
+
+        try {
+          await worker.waitUntilReady();
+
+          // Mirrors pause(doNotWaitActive=true): stops the stalled checker
+          // without waiting for active jobs to finish.
+          await worker.pause(true);
+
+          // Discard any spans recorded before this point (e.g. the automatic
+          // stalled checker started by `run()` before `pause()`), so that
+          // every `moveStalledJobsToWait` span asserted below is one produced
+          // by the checker (re)started from `resume()` - the path this test
+          // targets. Without this reset, pre-pause spans could satisfy the
+          // count/uniqueness assertions even if the resumed checker fails to
+          // detach correctly.
+          withSpy.resetHistory();
+
+          // Run resume() under an ambient parent context with a concrete
+          // (non-root) traceId, mimicking a caller who invokes resume() from
+          // inside an active trace (e.g. an HTTP request handler span). If
+          // withDetachedContext() were removed/regressed, the checker's
+          // recurring spans would inherit this ambientTraceId - the same way
+          // they would inherit the resume span's traceId - instead of each
+          // starting a fresh trace. Asserting only against the resume span's
+          // traceId is not enough: with an empty ambient context (the
+          // previous behavior of this test), the resume span itself gets a
+          // fresh random traceId, so the checker spans would differ from it
+          // "by accident" even without detachment. Anchoring everything to a
+          // known ambientTraceId closes that gap.
+          const ambientTraceId = randomUUID();
+
+          // The worker is still "running" (only paused), so resume() takes the
+          // restart-the-stalled-checker branch instead of calling run() again.
+          await contextManager.with({ traceId: ambientTraceId }, () =>
+            worker.resume(),
+          );
+
+          // Let the checker run through a few ticks.
+          await new Promise(resolve => setTimeout(resolve, 220));
+
+          const spans = withSpy
+            .getCalls()
+            .map(call => call.args[0]?.getSpan?.())
+            .filter(Boolean) as RootCapableSpan[];
+
+          const resumeSpan = spans.find(
+            span => span.name === `resume ${queueName}`,
+          );
+          const stalledCheckSpans = spans.filter(
+            span => span.name === `moveStalledJobsToWait ${queueName}`,
+          );
+
+          expect(resumeSpan).toBeDefined();
+          // Confirms resume() actually ran under the non-root ambient context,
+          // otherwise the assertions below would be vacuous.
+          expect(resumeSpan!.traceId).toBe(ambientTraceId);
+          expect(stalledCheckSpans.length).toBeGreaterThanOrEqual(2);
+
+          for (const span of stalledCheckSpans) {
+            expect(span.traceId).not.toBe(resumeSpan!.traceId);
+            expect(span.traceId).not.toBe(ambientTraceId);
+          }
+          expect(
+            new Set(stalledCheckSpans.map(span => span.traceId)).size,
+          ).toBe(stalledCheckSpans.length);
+        } finally {
+          await worker.close();
+        }
+      });
+
+      describe('when moveStalledJobsToWait scans across a restart', () => {
+        it('never overlaps, and keeps ticking from the latest generation', async () => {
+          const worker = new Worker(queueName, async () => 'done', {
+            connection,
+            prefix,
+            stalledInterval: 50,
+            skipLockRenewal: true,
+          });
+
+          let inFlight = 0;
+          let maxInFlight = 0;
+          let callCount = 0;
+          let releaseFirstCall: () => void;
+          const firstCallBlocked = new Promise<void>(resolve => {
+            releaseFirstCall = resolve;
+          });
+
+          // Capture the real implementation before stubbing it out, so the stub
+          // can still perform an actual (blockable) scan instead of a no-op.
+          const originalMoveStalledJobsToWait = (
+            worker as any
+          ).moveStalledJobsToWait.bind(worker);
+
+          const moveStalledStub = sinon
+            .stub(worker as any, 'moveStalledJobsToWait')
+            .callsFake(async (...args: any[]) => {
+              callCount += 1;
+              inFlight += 1;
+              maxInFlight = Math.max(maxInFlight, inFlight);
+              try {
+                if (callCount === 1) {
+                  // Block the very first scan so a restart can be triggered
+                  // while it is still in-flight, exercising the branch of
+                  // startStalledCheckTimer() that must chain the new loop
+                  // behind the still-running old one instead of racing it.
+                  await firstCallBlocked;
+                }
+                return await originalMoveStalledJobsToWait(...args);
+              } finally {
+                inFlight -= 1;
+              }
+            });
+
+          try {
+            await worker.waitUntilReady();
+
+            // Wait until the automatic checker has entered its first (blocked)
+            // scan.
+            await new Promise(resolve => setTimeout(resolve, 20));
+            expect(callCount).toBe(1);
+            expect(inFlight).toBe(1);
+
+            // Trigger a restart while the previous scan is still blocked. This
+            // bumps stalledCheckerGeneration and, if concurrent calls to
+            // startStalledCheckTimer() lost track of the surviving loop, could
+            // let the new loop start scanning before the old one has finished.
+            const restart = (worker as any).startStalledCheckTimer();
+
+            // Give the restart a chance to run its synchronous
+            // generation-claiming logic and async trace() call.
+            await new Promise(resolve => setTimeout(resolve, 20));
+
+            // The old scan is still blocked, so no new scan should have started
+            // yet, and there must never be more than one in-flight scan.
+            expect(callCount).toBe(1);
+            expect(maxInFlight).toBe(1);
+
+            // Unblock the first scan and let the restart settle.
+            releaseFirstCall!();
+            await restart;
+
+            // Let the new (latest-generation) loop tick a few more times.
+            await new Promise(resolve => setTimeout(resolve, 250));
+
+            expect(callCount).toBeGreaterThanOrEqual(3);
+            expect(maxInFlight).toBe(1);
+          } finally {
+            moveStalledStub.restore();
+            await worker.close();
+          }
+        });
+      });
     });
   });
 

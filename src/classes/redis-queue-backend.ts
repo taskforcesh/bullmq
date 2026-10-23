@@ -1953,6 +1953,8 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       this.queue.keys.meta,
       this.queue.keys.active,
       this.queue.keys.marker,
+      this.queue.keys.prioritized,
+      this.queue.keys.pc,
     ];
 
     const args = [
@@ -2132,8 +2134,8 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
    * This script is used when a job has been manually rate limited and needs
    * to be moved back to wait from active status.
    *
-   * @param client - Redis client
    * @param jobId - Job id
+   * @param token - Lock token of the job. Defaults to '0'.
    * @returns
    */
   async moveJobFromActiveToWait(jobId: string, token = '0') {

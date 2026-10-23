@@ -3,6 +3,7 @@ node_modules
 /dist
 /rawScripts
 /src/scripts
+/src/postgres/sql-scripts.ts
 /rust/src/commands
 # Log files
 npm-debug.log*

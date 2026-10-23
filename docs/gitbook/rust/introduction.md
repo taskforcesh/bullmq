@@ -234,6 +234,45 @@ let conn = RedisConnectionOptions {
 };
 ```
 
+### Redis Cluster
+
+To connect to a Redis Cluster, set `cluster_nodes` to one or more seed node
+URLs; the rest of the topology is discovered automatically. In cluster mode
+`url`, `host`, `port` and `db` are ignored, while `username`, `password`, `tls`
+and `tls_certs` apply to every node.
+
+BullMQ's Lua scripts access several keys of a queue at once, so all of them
+must live in the same hash slot. As with the Node.js and Python versions, use a
+[hash tag](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#hash-tags)
+in the prefix (or in the queue name). Flows spanning several queues require the
+hash tag in the shared prefix:
+
+```rust
+use bullmq::{Queue, QueueOptions, Worker, WorkerOptions};
+use bullmq::options::RedisConnectionOptions;
+
+let conn = RedisConnectionOptions::new().cluster_nodes([
+    "redis://10.0.0.1:7000",
+    "redis://10.0.0.2:7000",
+    "redis://10.0.0.3:7000",
+]);
+
+let queue = Queue::with_options("my-queue", QueueOptions {
+    connection: conn.clone(),
+    prefix: "{bull}".to_string(),
+    ..Default::default()
+}).await?;
+
+let worker = Worker::with_options("my-queue", processor, WorkerOptions {
+    connection: conn,
+    prefix: "{bull}".to_string(),
+    ..Default::default()
+}).await?;
+```
+
+Queues created this way are fully interoperable with Node.js and Python
+services that use the same prefix on the same cluster.
+
 ## Key Differences from Node.js
 
 | Aspect         | Node.js                            | Rust                                                   |

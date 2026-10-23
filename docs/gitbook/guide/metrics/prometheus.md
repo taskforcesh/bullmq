@@ -151,3 +151,4 @@ These additional labels allow you to filter and group metrics in Prometheus or G
 ## Read more:
 
 * 💡 [Export Prometheus Metrics API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#exportprometheusmetrics)
+* 💡 [How to monitor and manage BullMQ queues](https://bullmq.io/articles/guides/monitoring-bullmq-queues/), an overview of dashboards, metrics and alerts for BullMQ
