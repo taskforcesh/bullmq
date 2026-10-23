@@ -398,19 +398,29 @@ defmodule BullMQ.FlowProducer do
       children: children_templates
     }
 
-    # Parent command comes first, then all children commands, then a final
-    # validation step that releases the parent only if it truly has no pending
-    # dependencies left.
-    {:ok, release_cmd} =
-      BullMQ.Scripts.build_release_parent_if_no_pending_dependencies_command(
-        parent_key,
-        queue_key,
-        job_id
-      )
+    # Parent command comes first, then all children commands. The final
+    # validation step is Redis-specific: PostgreSQL handles the parent release
+    # within its `add_flow` SQL function once the whole tree has been inserted.
+    release_commands =
+      if redis_backend?(backend) do
+        {:ok, release_cmd} =
+          BullMQ.Scripts.build_release_parent_if_no_pending_dependencies_command(
+            parent_key,
+            queue_key,
+            job_id
+          )
+
+        child_release_commands ++ [release_cmd]
+      else
+        child_release_commands
+      end
 
     {:ok, commands_acc ++ [cmd] ++ children_commands, job_template,
-     child_release_commands ++ [release_cmd], 1 + child_count}
+     release_commands, 1 + child_count}
   end
+
+  defp redis_backend?(%{__struct__: BullMQ.Backends.Redis}), do: true
+  defp redis_backend?(_), do: false
 
   defp build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info) do
     %{

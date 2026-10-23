@@ -201,7 +201,7 @@ class RedisBackend(Backend):
                     )
 
             for parent_key, (queue_key, parent_id) in parents.items():
-                self.scripts.commands["releaseParentIfNoPendingDependencies"](
+                await self.scripts.commands["releaseParentIfNoPendingDependencies"](
                     keys=[parent_key, f"{parent_key}:dependencies"],
                     args=[queue_key, parent_id, round(time.time() * 1000)],
                     client=pipe,
