@@ -1,3 +1,10 @@
+## [1.4.3](https://github.com/taskforcesh/bullmq/compare/vrs1.4.2...vrs1.4.3) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** allow compatible crate versions [rust] ([#4993](https://github.com/taskforcesh/bullmq/issues/4993)) ([8d2c99e](https://github.com/taskforcesh/bullmq/commit/8d2c99ea90a30f3453c7f34c933175a2fe6915d7))
+
 ## [1.4.2](https://github.com/taskforcesh/bullmq/compare/vrs1.4.1...vrs1.4.2) (2026-10-20)
 
 
