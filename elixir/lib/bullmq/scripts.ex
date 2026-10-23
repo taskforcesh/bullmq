@@ -827,7 +827,11 @@ defmodule BullMQ.Scripts do
 
   @spec build_release_parent_if_no_pending_dependencies_command(String.t(), String.t(), String.t()) ::
           {:ok, [String.t()]}
-  def build_release_parent_if_no_pending_dependencies_command(parent_key, parent_queue_key, parent_id) do
+  def build_release_parent_if_no_pending_dependencies_command(
+        parent_key,
+        parent_queue_key,
+        parent_id
+      ) do
     keys = [parent_key, parent_key <> ":dependencies"]
     args = [parent_queue_key, parent_id, System.system_time(:millisecond)]
     build_command(:release_parent_if_no_pending_dependencies, keys, args)

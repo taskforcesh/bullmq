@@ -376,7 +376,15 @@ impl FlowProducer {
         pipe.atomic();
 
         let mut job_nodes = Vec::with_capacity(flows.len());
-        let mut flow_release_counts = Vec::with_capacity(flows.len());
+        // Parents touched across the WHOLE bulk insert, deduplicated by key.
+        // A parent is only validated for release once every tree in this bulk
+        // call has queued its inserts: if two trees reuse the same parent id,
+        // releasing it right after the first tree (which may reference only an
+        // already-completed child) would let it run before the second tree
+        // attaches its own, still-pending child — the duplicate-parent insert
+        // path does not restore `waiting-children`, so the parent would be
+        // stuck runnable with a pending dependency forever.
+        let mut all_parents: HashMap<String, ParentContext> = HashMap::new();
 
         for flow in &flows {
             let root_prefix = flow.prefix.as_deref().unwrap_or(&self.prefix);
@@ -395,29 +403,36 @@ impl FlowProducer {
                 None => None,
             };
             let (node, parents) = self.add_node(&mut pipe, flow, parent_ctx.as_ref())?;
-            let root_parent_release_count = if parent_ctx.is_some() { 1 } else { 0 };
-            flow_release_counts.push(parents.len() + root_parent_release_count);
-            for parent in &parents {
-                self.add_release_parent_to_pipe(&mut pipe, parent)?;
+            for parent in parents {
+                all_parents.insert(parent.parent_key.clone(), parent);
             }
-            if let Some(parent) = &parent_ctx {
-                self.add_release_parent_to_pipe(&mut pipe, parent)?;
+            if let Some(parent) = parent_ctx {
+                all_parents.insert(parent.parent_key.clone(), parent);
             }
             job_nodes.push(node);
+        }
+
+        // Only now that every tree's job inserts are queued do we append the
+        // release checks, once per distinct parent touched by this bulk call.
+        let release_count = all_parents.len();
+        for parent in all_parents.values() {
+            self.add_release_parent_to_pipe(&mut pipe, parent)?;
         }
 
         let results: Vec<redis::Value> = pipe.query_async(&mut conn).await?;
 
         // Validate each tree's root result and apply root ID updates across all
         // trees. Commands were queued tree-by-tree, each in pre-order, so a
-        // single sequential walk lines up with the flattened results while
-        // keeping child ID behavior aligned with Node.js semantics.
+        // single sequential walk over the job replies lines up with the
+        // flattened results while keeping child ID behavior aligned with
+        // Node.js semantics. The trailing release replies (appended after every
+        // tree's inserts) are consumed afterwards, in one pass.
         let mut results_iter = results.iter();
-        for (node, release_count) in job_nodes.iter_mut().zip(flow_release_counts) {
+        for node in job_nodes.iter_mut() {
             Self::apply_pipeline_results(node, &mut results_iter, true)?;
-            for _ in 0..release_count {
-                results_iter.next();
-            }
+        }
+        for _ in 0..release_count {
+            results_iter.next();
         }
 
         Ok(job_nodes)
