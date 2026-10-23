@@ -25,12 +25,13 @@ import {
   KeepJobs,
 } from '../types';
 import { KeysMap } from '../classes/queue-keys';
+import { decreaseMaxListeners, increaseMaxListeners } from '../utils';
 import { finishedErrors } from '../classes/finished-errors';
 import {
   PostgresConnection,
   PostgresConnectionOptions,
 } from './postgres-connection';
-import { PgNotification, PgListenClient, PgQueryResult } from './pg-types';
+import { PgQueryResult } from './pg-types';
 import { loadCommandSql } from './sql-loader';
 /**
  * A raw `job` row as returned by `pg`. `jsonb` columns arrive already
@@ -288,33 +289,60 @@ export class PostgresQueueBackend
   /** Cancels the in-flight {@link readEvents} wait, if any. */
   private cancelEventWait: (() => void) | undefined;
 
+  /**
+   * This backend's listeners on its connection, removed on close so a shared
+   * connection outlives the backends that used it.
+   */
+  private readonly connectionListeners: Record<
+    string,
+    (...args: any[]) => void
+  > = {};
+
   constructor(
     public connection: PostgresConnection,
     protected readonly queueName: string,
     protected readonly opts: QueueBaseOptions<PostgresConnectionOptions>,
+    /**
+     * Whether closing this backend closes its connection: false when the
+     * connection is shared, and for {@link forQueue} siblings.
+     */
     protected readonly ownsConnection = true,
+    /**
+     * Whether this backend was made by {@link forQueue}: a throwaway helper
+     * that runs one operation on another queue over its parent's connection
+     * (FlowProducer makes one per flow node). Nothing ever closes it, so it
+     * must not add listeners to the connection, or every `flow.add()` would
+     * leave some behind. It never waits for jobs or events either.
+     */
+    private readonly sibling = false,
   ) {
     super();
 
     this.schema = connection.schema;
 
-    if (this.ownsConnection) {
-      this.connection.on('error', err => this.emit('error', err));
-      this.connection.on('ready', () => this.emit('ready'));
-      this.connection.on('close', () => this.emit('close'));
-
-      // When the shared LISTEN client drops, the connection rebuilds it and
-      // emits `'listenerinvalidated'`. Re-issue our LISTENs on the fresh client
-      // and wake any in-flight wait (parked on the now-dead client) so the
-      // worker loop re-enters waitForJob/readEvents and re-subscribes. Only the
-      // connection-owning backend blocks (and thus LISTENs); non-owning
-      // `forQueue` siblings never do.
-      this.connection.on('listenerinvalidated', () => {
-        this.listening = false;
-        this.listeningEvents = false;
-        this.cancelWait?.();
-        this.cancelEventWait?.();
-      });
+    if (!this.sibling) {
+      this.connectionListeners = {
+        error: (err: Error) => this.emit('error', err),
+        ready: () => this.emit('ready'),
+        close: () => this.emit('close'),
+        // When the LISTEN client drops, the connection rebuilds it and emits
+        // `'listenerinvalidated'`. Re-issue our LISTENs on the fresh client and
+        // wake any in-flight wait so the worker loop re-enters
+        // waitForJob/readEvents and re-subscribes.
+        listenerinvalidated: () => {
+          this.listening = false;
+          this.listeningEvents = false;
+          this.cancelWait?.();
+          this.cancelEventWait?.();
+        },
+      };
+      // A shared connection has one listener per event for each backend.
+      increaseMaxListeners(this.connection, 1);
+      for (const [event, listener] of Object.entries(
+        this.connectionListeners,
+      )) {
+        this.connection.on(event, listener);
+      }
     }
   }
 
@@ -328,13 +356,28 @@ export class PostgresQueueBackend
 
   async close(force = false): Promise<void> {
     void force;
-    if (!this.ownsConnection) {
+    if (this.sibling) {
       return;
     }
     if (!this.closing) {
-      this.closing = this.connection.close();
+      this.closing = this.ownsConnection
+        ? this.connection.close()
+        : this.detach();
     }
     return this.closing;
+  }
+
+  /**
+   * Leaves a shared connection open for the backends still using it: ends
+   * this backend's waits and removes its listeners.
+   */
+  private async detach(): Promise<void> {
+    this.cancelWait?.();
+    this.cancelEventWait?.();
+    for (const [event, listener] of Object.entries(this.connectionListeners)) {
+      this.connection.removeListener(event, listener);
+    }
+    decreaseMaxListeners(this.connection, 1);
   }
 
   async disconnect(): Promise<void> {
@@ -383,6 +426,7 @@ export class PostgresQueueBackend
       queueName,
       this.opts,
       false,
+      true,
     );
   }
 
@@ -2100,23 +2144,21 @@ export class PostgresQueueBackend
   private static readonly EVENTS_CHANNEL = 'bullmq_events';
 
   /** Subscribes the dedicated client to the shared jobs channel (once). */
-  private async ensureListening(): Promise<PgListenClient> {
+  private async ensureListening(): Promise<void> {
     const client = await this.connection.getListenClient();
     if (!this.listening) {
       await client.query(loadCommandSql('listen_jobs'));
       this.listening = true;
     }
-    return client;
   }
 
   /** Subscribes the dedicated client to the shared events channel (once). */
-  private async ensureListeningEvents(): Promise<PgListenClient> {
+  private async ensureListeningEvents(): Promise<void> {
     const client = await this.connection.getListenClient();
     if (!this.listeningEvents) {
       await client.query(loadCommandSql('listen_events'));
       this.listeningEvents = true;
     }
-    return client;
   }
 
   /**
@@ -2128,7 +2170,9 @@ export class PostgresQueueBackend
     if (this.closing || this.connection.isClosing) {
       return;
     }
-    const client = await this.ensureListeningEvents();
+    await this.ensureListeningEvents();
+    // Only this queue's events (see PostgresConnection).
+    const notification = `${PostgresQueueBackend.EVENTS_CHANNEL}:${this.queueName}`;
 
     return new Promise(resolve => {
       let settled = false;
@@ -2138,21 +2182,13 @@ export class PostgresQueueBackend
         }
         settled = true;
         clearTimeout(timer);
-        client.removeListener('notification', onNotify);
+        this.connection.removeListener(notification, finish);
         this.cancelEventWait = undefined;
         resolve();
       };
-      const onNotify = (msg: PgNotification) => {
-        if (
-          msg.channel === PostgresQueueBackend.EVENTS_CHANNEL &&
-          msg.payload === this.queueName
-        ) {
-          finish();
-        }
-      };
       const timer = setTimeout(finish, Math.max(blockTimeout || 5000, 1));
       this.cancelEventWait = finish;
-      client.on('notification', onNotify);
+      this.connection.on(notification, finish);
     });
   }
 
@@ -2170,7 +2206,7 @@ export class PostgresQueueBackend
     if (this.closing || this.blockingDisconnected) {
       return null;
     }
-    const client = await this.ensureListening();
+    await this.ensureListening();
 
     // The blocking connection may have been torn down while we were awaiting
     // `ensureListening`; bail rather than registering a wait that only a
@@ -2178,6 +2214,8 @@ export class PostgresQueueBackend
     if (this.closing || this.blockingDisconnected) {
       return null;
     }
+    // Only this queue's notifications (see PostgresConnection).
+    const notification = `${PostgresQueueBackend.NOTIFY_CHANNEL}:${this.queueName}`;
 
     return new Promise(resolve => {
       let settled = false;
@@ -2187,20 +2225,12 @@ export class PostgresQueueBackend
         }
         settled = true;
         clearTimeout(timer);
-        client.removeListener('notification', onNotify);
+        this.connection.removeListener(notification, onNotify);
         this.cancelWait = undefined;
         resolve(value);
       };
 
-      const onNotify = (msg: PgNotification) => {
-        // Filter for this queue (the shared channel carries every queue).
-        if (
-          msg.channel === PostgresQueueBackend.NOTIFY_CHANNEL &&
-          msg.payload === this.queueName
-        ) {
-          finish({ member: msg.payload ?? '', score: 0 });
-        }
-      };
+      const onNotify = () => finish({ member: this.queueName, score: 0 });
 
       let timer = setTimeout(
         () => finish(null),
@@ -2208,7 +2238,7 @@ export class PostgresQueueBackend
       );
 
       this.cancelWait = () => finish(null);
-      client.on('notification', onNotify);
+      this.connection.on(notification, onNotify);
 
       // Final race guard: if `disconnectBlocking` ran between the check above
       // and installing `cancelWait`, end the wait now instead of blocking on a

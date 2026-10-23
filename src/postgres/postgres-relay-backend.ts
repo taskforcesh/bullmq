@@ -68,7 +68,11 @@ export class PostgresRelayBackend
   private interrupted = false;
   private closing?: Promise<void>;
 
-  constructor(opts: RelayBackendOptions<PostgresConnectionOptions>) {
+  constructor(
+    opts: RelayBackendOptions<
+      Exclude<PostgresConnectionOptions, PostgresConnection>
+    >,
+  ) {
     super();
     if (isPgPool(opts.connection)) {
       const max = (opts.connection as { options?: { max?: number } }).options
@@ -458,5 +462,7 @@ export class PostgresRelayBackend
 
 /** {@link RelayBackendFactory} for PostgreSQL. */
 export const createPostgresRelayBackend = (
-  opts: RelayBackendOptions<PostgresConnectionOptions>,
+  opts: RelayBackendOptions<
+    Exclude<PostgresConnectionOptions, PostgresConnection>
+  >,
 ): PostgresRelayBackend => new PostgresRelayBackend(opts);
