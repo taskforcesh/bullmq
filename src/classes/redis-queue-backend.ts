@@ -807,6 +807,11 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
 
     // Callers index the results by entry, so drop the trailing parent-release
     // replies.
+    for (const [err] of results.slice(entries.length)) {
+      if (err) {
+        throw err;
+      }
+    }
     return results.slice(0, entries.length);
   }
 
