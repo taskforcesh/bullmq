@@ -183,14 +183,13 @@ defmodule BullMQ.FlowProducer do
     # of the complete batch so the result list keeps job ids in the same order as
     # the sequencing used by the Node.js FlowProducer.addBulk path.
     {all_commands, all_release_commands, queued, errors, _running_index} =
-      Enum.reduce(flows, {[], [], [], [], 0}, fn flow, {cmds_acc, release_acc, queued_acc, errs_acc, idx_acc} ->
+      Enum.reduce(flows, {[], [], [], [], 0}, fn flow,
+                                                 {cmds_acc, release_acc, queued_acc, errs_acc,
+                                                  idx_acc} ->
         case build_flow_commands(flow, nil, prefix, [], backend) do
           {:ok, commands, job_tree, release_commands, job_count} ->
-            {cmds_acc ++ commands,
-             release_acc ++ release_commands,
-             queued_acc ++ [{job_tree, idx_acc, job_count}],
-             errs_acc,
-             idx_acc + job_count}
+            {cmds_acc ++ commands, release_acc ++ release_commands,
+             queued_acc ++ [{job_tree, idx_acc, job_count}], errs_acc, idx_acc + job_count}
 
           {:error, _} = error ->
             {cmds_acc, release_acc, queued_acc, errs_acc ++ [error], idx_acc}
@@ -209,7 +208,8 @@ defmodule BullMQ.FlowProducer do
 
           if Enum.empty?(errors) do
             populated_trees =
-              Enum.reduce(queued, {[], results}, fn {tree, root_index, job_count}, {acc, remaining_results} ->
+              Enum.reduce(queued, {[], results}, fn {tree, root_index, job_count},
+                                                    {acc, remaining_results} ->
                 root_results = Enum.take(Enum.drop(remaining_results, root_index), job_count)
                 job_ids = Enum.map(root_results, fn {:ok, id} -> to_string(id) end)
                 populated = populate_job_ids(tree, job_ids, conn, prefix, backend.__struct__)
@@ -377,7 +377,8 @@ defmodule BullMQ.FlowProducer do
       Enum.reduce(children, {[], [], [], 0}, fn child, {cmds, templates, release_cmds, count_acc} ->
         case build_flow_commands(child, parent_info_for_children, prefix, [], backend) do
           {:ok, child_cmds, child_template, child_release_cmds, child_count} ->
-            {cmds ++ child_cmds, templates ++ [child_template], release_cmds ++ child_release_cmds, count_acc + child_count}
+            {cmds ++ child_cmds, templates ++ [child_template], release_cmds ++ child_release_cmds,
+             count_acc + child_count}
 
           {:error, _} = error ->
             throw(error)
@@ -415,8 +416,8 @@ defmodule BullMQ.FlowProducer do
         child_release_commands
       end
 
-    {:ok, commands_acc ++ [cmd] ++ children_commands, job_template,
-     release_commands, 1 + child_count}
+    {:ok, commands_acc ++ [cmd] ++ children_commands, job_template, release_commands,
+     1 + child_count}
   end
 
   defp redis_backend?(%{__struct__: BullMQ.Backends.Redis}), do: true
@@ -487,7 +488,6 @@ defmodule BullMQ.FlowProducer do
   defp build_parent_key_from_info(parent_info) do
     Map.get(parent_info, :key)
   end
-
 
   defp normalize_opts(opts) when is_list(opts), do: Map.new(opts)
   defp normalize_opts(opts) when is_map(opts), do: opts

@@ -248,6 +248,7 @@ defmodule BullMQ.Backends.Redis do
       :add_parent_job,
       :release_parent_if_no_pending_dependencies
     ])
+
     Scripts.execute_transaction(conn, commands)
   end
 
