@@ -582,6 +582,8 @@ export class FlowProducer<
   }
 
   private validateFlowJobs(nodes: FlowJob[]): void {
+    // TODO: In the next breaking change, reject deduplication on every flow
+    // node. Parent IDs must be known before any add scripts run.
     for (const node of nodes) {
       const children = node.children;
       if (children && children.length > 0) {

@@ -65,6 +65,67 @@ describe('flows', () => {
     await connection.quit();
   });
 
+  it('keeps a parent waiting when a child attachment fails', async () => {
+    const completedChildId = `completed-${randomUUID()}`;
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
+    try {
+      await worker.waitUntilReady();
+
+      const completed = new Promise<void>(resolve =>
+        worker.once('completed', resolve),
+      );
+      await queue.add('completed-child', {}, { jobId: completedChildId });
+      await completed;
+    } finally {
+      await worker.close();
+    }
+
+    const flow = new FlowProducer({ connection, prefix });
+    try {
+      await flow.add({
+        name: 'source-parent',
+        queueName,
+        opts: { jobId: 'source-parent' },
+        children: [
+          {
+            name: 'conflicting-child',
+            queueName,
+            opts: { jobId: 'conflicting-child' },
+          },
+        ],
+      });
+
+      const target = await flow.add({
+        name: 'target-parent',
+        queueName,
+        opts: { jobId: 'target-parent' },
+        children: [
+          {
+            name: 'completed-child',
+            queueName,
+            opts: { jobId: completedChildId },
+          },
+          {
+            name: 'conflicting-child',
+            queueName,
+            opts: { jobId: 'conflicting-child' },
+          },
+        ],
+      });
+
+      expect(await target.job.getState()).toBe('waiting-children');
+      await expect(target.job.getDependenciesCount()).resolves.toMatchObject({
+        processed: 1,
+        unprocessed: 0,
+      });
+    } finally {
+      await flow.close();
+    }
+  });
+
   describe('when removeOnFail is true in last pending child', () => {
     it('moves parent to wait without getting stuck', async () => {
       const worker = new Worker(
