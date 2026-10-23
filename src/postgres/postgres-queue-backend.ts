@@ -12,7 +12,9 @@ import {
   RetryJobOpts,
   RetryOptions,
   StreamReadRaw,
+  WorkerInfo,
   WorkerOptions,
+  WorkerRegistration,
 } from '../interfaces';
 import {
   FinishedStatus,
@@ -1883,6 +1885,63 @@ export class PostgresQueueBackend
       'get_client_list',
     );
     return [rows.map(r => `name=${r.application_name}`).join('\n')];
+  }
+
+  async registerWorker(
+    workerId: string,
+    leaseMs: number,
+    info: WorkerInfo = {},
+  ): Promise<void> {
+    try {
+      await this.run('worker_register', [
+        this.queueName,
+        workerId,
+        leaseMs,
+        JSON.stringify(info),
+      ]);
+    } catch (err) {
+      if ((err as { code?: string }).code === 'BM001') {
+        throw new Error(`Invalid worker id: ${workerId}`, { cause: err });
+      }
+      throw err;
+    }
+  }
+
+  async heartbeatWorker(workerId: string, leaseMs: number): Promise<boolean> {
+    const { rows } = await this.run<{ alive: boolean }>('worker_heartbeat', [
+      this.queueName,
+      workerId,
+      leaseMs,
+    ]);
+    return rows[0].alive;
+  }
+
+  async unregisterWorker(workerId: string): Promise<boolean> {
+    const { rows } = await this.run<{ removed: boolean }>('worker_unregister', [
+      this.queueName,
+      workerId,
+    ]);
+    return rows[0].removed;
+  }
+
+  async sweepWorkers(limit: number): Promise<string[]> {
+    const { rows } = await this.run<{ worker_id: string }>('worker_sweep', [
+      this.queueName,
+      limit,
+    ]);
+    return rows.map(row => row.worker_id);
+  }
+
+  async getWorkerRegistrations(): Promise<WorkerRegistration[]> {
+    const { rows } = await this.run('worker_list', [this.queueName]);
+    return rows.map(row => ({
+      id: row.worker_id,
+      info: row.info ?? {},
+      registeredAt: Number(row.registered_at),
+      leaseUntil: Number(row.lease_until),
+      lastHeartbeat:
+        row.last_heartbeat === null ? undefined : Number(row.last_heartbeat),
+    }));
   }
 
   async paginate(
