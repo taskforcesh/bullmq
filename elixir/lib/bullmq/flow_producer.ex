@@ -129,6 +129,8 @@ defmodule BullMQ.FlowProducer do
         # Execute the whole flow atomically through the backend.
         # Release checks are appended after all insert commands so they run only
         # once the entire flow is already present in Redis.
+        release_commands = deduplicate_release_commands(release_commands)
+
         case Backend.add_flow(backend, commands ++ release_commands) do
           {:ok, results} ->
             job_results = Enum.take(results, job_count)
@@ -196,7 +198,7 @@ defmodule BullMQ.FlowProducer do
         end
       end)
 
-    all_commands = all_commands ++ all_release_commands
+    all_commands = all_commands ++ deduplicate_release_commands(all_release_commands)
 
     if not Enum.empty?(errors) do
       {:error, {:build_failed, errors}}
@@ -250,6 +252,7 @@ defmodule BullMQ.FlowProducer do
     data = Map.get(flow, :data, %{})
     opts = Map.get(flow, :opts, %{}) |> normalize_opts()
     children = Map.get(flow, :children, [])
+    validate_deferred_child_deduplication!(opts, parent_info)
 
     # Generate job ID (like Node.js uses UUID)
     job_id = Map.get(opts, :job_id) || generate_id()
@@ -422,6 +425,27 @@ defmodule BullMQ.FlowProducer do
 
   defp redis_backend?(%{__struct__: BullMQ.Backends.Redis}), do: true
   defp redis_backend?(_), do: false
+
+  defp deduplicate_release_commands(commands) do
+    Enum.uniq_by(commands, &Enum.at(&1, 3))
+  end
+
+  defp validate_deferred_child_deduplication!(opts, parent_info) do
+    deduplication = Map.get(opts, :deduplication) || Map.get(opts, :de) || %{}
+
+    keep_last_if_active =
+      Map.get(deduplication, :keep_last_if_active) ||
+        Map.get(deduplication, :keepLastIfActive) ||
+        Map.get(deduplication, "keepLastIfActive")
+
+    if (parent_info || Map.get(opts, :parent)) && keep_last_if_active do
+      throw(
+        {:error,
+         {:unsupported_option,
+          "keepLastIfActive deduplication is not supported for flow nodes with a parent"}}
+      )
+    end
+  end
 
   defp build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info) do
     %{

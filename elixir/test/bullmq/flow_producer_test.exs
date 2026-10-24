@@ -41,6 +41,28 @@ defmodule BullMQ.FlowProducerTest do
   end
 
   describe "add/2 - basic flows" do
+    test "rejects deferred deduplication on flow nodes with parents", %{
+      queue_name: queue_name,
+      conn: conn
+    } do
+      flow = %{
+        name: "parent",
+        queue_name: queue_name,
+        children: [
+          %{
+            name: "child",
+            queue_name: queue_name,
+            opts: %{deduplication: %{id: "child", keepLastIfActive: true}}
+          }
+        ]
+      }
+
+      assert {:error, {:unsupported_option, message}} =
+               FlowProducer.add(flow, connection: conn)
+
+      assert message =~ "keepLastIfActive"
+    end
+
     test "adds a simple job without children", %{queue_name: queue_name, conn: conn} do
       flow = %{
         name: "simple_job",
@@ -153,6 +175,41 @@ defmodule BullMQ.FlowProducerTest do
     end
   end
 
+  test "deduplicates single-flow release checks for repeated parents", %{
+    queue_name: queue_name,
+    conn: conn
+  } do
+    {:ok, _owner} = FlowProducer.add(conflicting_child_owner(queue_name), connection: conn)
+
+    branch = %{
+      name: "shared-parent",
+      queue_name: queue_name,
+      opts: %{job_id: "shared-parent"},
+      children: [conflicting_child(queue_name)]
+    }
+
+    flow = %{
+      name: "root",
+      queue_name: queue_name,
+      children: [branch, branch]
+    }
+
+    {:ok, _result} = FlowProducer.add(flow, connection: conn)
+
+    assert {:ok, "waiting-children"} =
+             Queue.get_job_state(queue_name, "shared-parent", connection: conn)
+  end
+
+  test "deduplicates bulk release checks across flows", %{queue_name: queue_name, conn: conn} do
+    {:ok, _owner} = FlowProducer.add(conflicting_child_owner(queue_name), connection: conn)
+    flow = conflicting_child_owner(queue_name, "shared-bulk-parent")
+
+    {:ok, _results} = FlowProducer.add_bulk([flow, flow], connection: conn)
+
+    assert {:ok, "waiting-children"} =
+             Queue.get_job_state(queue_name, "shared-bulk-parent", connection: conn)
+  end
+
   describe "add/2 - nested flows" do
     test "adds deeply nested flow", %{queue_name: queue_name, conn: conn} do
       flow = %{
@@ -229,6 +286,7 @@ defmodule BullMQ.FlowProducerTest do
       assert length(branch.children) == 1
       assert hd(branch.children).job.name == "grandchild"
     end
+
   end
 
   describe "add/2 - multi-queue flows" do
@@ -273,6 +331,7 @@ defmodule BullMQ.FlowProducerTest do
       if length(keys) > 0 do
         RedisConnection.command(conn, ["DEL" | keys])
       end
+
     end
   end
 
@@ -622,5 +681,22 @@ defmodule BullMQ.FlowProducerTest do
       Agent.stop(processed_order)
       Worker.close(worker)
     end
+  end
+
+  defp conflicting_child_owner(queue_name, parent_id \\ "owner-parent") do
+    %{
+      name: "owner",
+      queue_name: queue_name,
+      opts: %{job_id: parent_id},
+      children: [conflicting_child(queue_name)]
+    }
+  end
+
+  defp conflicting_child(queue_name) do
+    %{
+      name: "conflicting-child",
+      queue_name: queue_name,
+      opts: %{job_id: "occupied-child"}
+    }
   end
 end

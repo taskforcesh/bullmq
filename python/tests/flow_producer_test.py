@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from bullmq.backends.redis_backend import RedisBackend
 from bullmq.flow_producer import FlowProducer
+from bullmq.redis_connection import SCRIPT_DEFINITIONS
 
 
 class _FakeBackend:
@@ -18,6 +19,40 @@ class _FakeBackend:
 
 
 class TestFlowProducer(unittest.IsolatedAsyncioTestCase):
+    def test_parent_release_script_is_registered(self):
+        self.assertEqual(
+            SCRIPT_DEFINITIONS["releaseParentIfNoPendingDependencies"],
+            "releaseParentIfNoPendingDependencies-2.lua",
+        )
+
+    async def test_add_rejects_deferred_deduplication_on_child(self):
+        backend = _FakeBackend()
+
+        with patch("bullmq.flow_producer.create_backend", return_value=backend):
+            flow = FlowProducer()
+
+            with self.assertRaisesRegex(ValueError, "not supported for flow nodes with a parent"):
+                await flow.add(
+                    {
+                        "name": "parent",
+                        "queueName": "paint",
+                        "children": [
+                            {
+                                "name": "child",
+                                "queueName": "paint",
+                                "opts": {
+                                    "deduplication": {
+                                        "id": "child",
+                                        "keepLastIfActive": True,
+                                    }
+                                },
+                            }
+                        ],
+                    }
+                )
+
+        backend.addFlow.assert_not_awaited()
+
     async def test_add_does_not_mutate_queues_default_job_options(self):
         backend = _FakeBackend()
 
