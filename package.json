@@ -241,7 +241,7 @@
   "packageManager": "yarn@1.22.22",
   "resolutions": {
     "brace-expansion": "5.0.12",
-    "js-yaml": "5.4.2",
+    "js-yaml": "5.5.0",
     "picomatch": "4.0.7",
     "tar": "7.5.22",
     "yaml": "2.9.1"
