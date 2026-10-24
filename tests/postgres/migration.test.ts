@@ -21,7 +21,6 @@ import {
   MINIMUM_POSTGRES_VERSION,
   PostgresConnection,
   RECOMMENDED_POSTGRES_VERSION,
-  runMigrations,
   SchemaMigrationRequiredError,
   SchemaVersionMismatchError,
   UnsupportedPostgresVersionError,
@@ -269,7 +268,7 @@ describe('PostgreSQL migrations', () => {
     }
   });
 
-  it.each([2, 3])(
+  it.each([2, 3, 4])(
     'upgrades a database already at schema version %i',
     async version => {
       // Simulate a database created by a previous release: apply only the
@@ -489,14 +488,14 @@ describe('PostgreSQL relay migration (0004_relay)', () => {
     return rows.map(row => row.item.split(schema).join('<schema>')).sort();
   };
 
-  /** Applies the migrations before the relay one, as an older release did. */
-  const migrateBeforeRelay = async (schema: string) => {
+  /** Apply only the versions being compared, excluding later migrations. */
+  const migrateThrough = async (schema: string, version: number) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       await client.query(`CREATE SCHEMA "${schema}"`);
       await client.query(`SET LOCAL search_path TO "${schema}"`);
-      for (const migration of MIGRATIONS.filter(m => m.name < '0004_relay')) {
+      for (const migration of MIGRATIONS.filter(m => m.version <= version)) {
         await client.query(migration.load());
       }
       await client.query('COMMIT');
@@ -528,13 +527,8 @@ describe('PostgreSQL relay migration (0004_relay)', () => {
   });
 
   it('leaves every pre-existing object unchanged and only adds relay_* objects', async () => {
-    await migrateBeforeRelay(before);
-    const client = await pool.connect();
-    try {
-      await runMigrations(client, after);
-    } finally {
-      client.release();
-    }
+    await migrateThrough(before, 3);
+    await migrateThrough(after, 4);
 
     // The migration ledger is not part of the hand-applied schema.
     const isLedger = (item: string) =>

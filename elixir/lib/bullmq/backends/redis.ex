@@ -238,13 +238,42 @@ defmodule BullMQ.Backends.Redis do
   end
 
   @impl true
-  def add_flow(%__MODULE__{connection: conn}, commands, _opts) do
-    # `commands` is a pre-built list of datastore commands for every node of the
-    # flow tree. They are executed atomically so the whole flow is inserted or
-    # nothing is. Script loading is ensured here so callers never touch the
-    # connection directly.
-    Scripts.ensure_scripts_loaded(conn, [:add_standard_job, :add_parent_job])
-    Scripts.execute_transaction(conn, commands)
+  def add_flow(%__MODULE__{connection: conn}, commands, opts) do
+    Scripts.ensure_scripts_loaded(conn, [
+      :add_standard_job,
+      :add_parent_job,
+      :update_flow_dependencies
+    ])
+
+    parents = Keyword.get(opts, :parents, [])
+    holds = flow_dependency_commands(parents, "1")
+    releases = flow_dependency_commands(parents, "0")
+
+    case Scripts.execute_transaction(conn, holds ++ commands ++ releases) do
+      {:ok, results} ->
+        {guard_results, rest} = Enum.split(results, length(holds))
+        {job_results, release_results} = Enum.split(rest, length(commands))
+        errors = Enum.filter(guard_results ++ release_results, &match?({:error, _}, &1))
+
+        if errors == [], do: {:ok, job_results}, else: {:error, {:transaction_failed, errors}}
+
+      error ->
+        error
+    end
+  end
+
+  defp flow_dependency_commands(parents, hold) do
+    Enum.map(parents, fn {key, parent, timestamp} ->
+      {:ok, command} =
+        Scripts.build_command(:update_flow_dependencies, [key], [
+          parent.queue_key,
+          parent.id,
+          timestamp,
+          hold
+        ])
+
+      command
+    end)
   end
 
   @impl true

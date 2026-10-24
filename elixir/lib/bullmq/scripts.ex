@@ -85,6 +85,7 @@ defmodule BullMQ.Scripts do
     retry_jobs: "retryJobs",
     save_stacked_job: "saveStackedJob",
     update_data: "updateData",
+    update_flow_dependencies: "updateFlowDependencies",
     update_job_option: "updateJobOption",
     update_job_scheduler: "updateJobScheduler",
     update_parent: "updateParent",

@@ -60,6 +60,13 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0004_relay.sql'),
   },
+  {
+    version: 5,
+    name: '0005_flow_registration',
+    // Existing entry points retain their signatures; the new overload is internal.
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0005_flow_registration.sql'),
+  },
 ];
 
 /**

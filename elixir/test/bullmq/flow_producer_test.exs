@@ -40,6 +40,55 @@ defmodule BullMQ.FlowProducerTest do
     {:ok, %{queue_name: queue_name, conn: conn_name}}
   end
 
+  for completed_first <- [true, false], bulk <- [true, false] do
+    test "re-added completed child waits for new sibling (first=#{completed_first}, bulk=#{bulk})",
+         %{queue_name: queue_name, conn: conn} do
+      {:ok, worker} =
+        Worker.start_link(queue: queue_name, connection: conn, autorun: false)
+
+      token = "flow-registration-test"
+
+      complete_next = fn id, value, remove ->
+        assert {:ok, job} = Worker.get_next_job(worker, token, block: false)
+        assert job.id == id
+
+        assert {:ok, nil} =
+                 Job.move_to_completed(job, value, token,
+                   fetch_next: false,
+                   remove_on_complete: remove
+                 )
+      end
+
+      cached = %{name: "cached", queue_name: queue_name, opts: %{job_id: "cached"}}
+      parent = %{name: "parent", queue_name: queue_name, opts: %{job_id: "parent"}}
+      assert {:ok, _} = FlowProducer.add(Map.put(parent, :children, [cached]), connection: conn)
+      complete_next.("cached", "cached result", false)
+      complete_next.("parent", "first result", true)
+      assert {:ok, nil} = Queue.get_job(queue_name, "parent", connection: conn)
+
+      fresh = %{name: "fresh", queue_name: queue_name, opts: %{job_id: "fresh"}}
+      children = if unquote(completed_first), do: [cached, fresh], else: [fresh, cached]
+      node = Map.put(parent, :children, children)
+
+      tree =
+        if unquote(bulk) do
+          assert {:ok, [tree]} = FlowProducer.add_bulk([node], connection: conn)
+          tree
+        else
+          assert {:ok, tree} = FlowProducer.add(node, connection: conn)
+          tree
+        end
+
+      assert {:ok, "waiting-children"} = Queue.get_job_state(queue_name, "parent", connection: conn)
+      complete_next.("fresh", "fresh result", false)
+      assert {:ok, values} = Job.get_children_values(tree.job)
+      assert Enum.sort(Map.values(values)) == ["cached result", "fresh result"]
+      complete_next.("parent", "second result", false)
+      assert {:ok, "completed"} = Queue.get_job_state(queue_name, "parent", connection: conn)
+      GenServer.stop(worker)
+    end
+  end
+
   describe "add/2 - basic flows" do
     test "adds a simple job without children", %{queue_name: queue_name, conn: conn} do
       flow = %{

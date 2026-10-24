@@ -4,7 +4,7 @@
 //! their parent. When all children complete, the parent becomes processable.
 
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tracing::{debug, instrument};
 use uuid::Uuid;
 
@@ -320,7 +320,11 @@ impl FlowProducer {
             None => None,
         };
 
-        let mut job_node = self.add_node(&mut pipe, &flow, parent_ctx.as_ref())?;
+        let mut parents = PendingFlowParents::default();
+        let mut job_node = self.add_node(&mut pipe, &flow, parent_ctx.as_ref(), &mut parents)?;
+        for (parent, timestamp) in &parents.entries {
+            self.update_flow_dependencies(&mut pipe, parent, *timestamp, false)?;
+        }
 
         // Execute the atomic pipeline
         let results: Vec<redis::Value> = pipe.query_async(&mut conn).await?;
@@ -364,6 +368,7 @@ impl FlowProducer {
         pipe.atomic();
 
         let mut job_nodes = Vec::with_capacity(flows.len());
+        let mut parents = PendingFlowParents::default();
 
         for flow in &flows {
             let root_prefix = flow.prefix.as_deref().unwrap_or(&self.prefix);
@@ -379,8 +384,11 @@ impl FlowProducer {
                 }
                 None => None,
             };
-            let node = self.add_node(&mut pipe, flow, parent_ctx.as_ref())?;
+            let node = self.add_node(&mut pipe, flow, parent_ctx.as_ref(), &mut parents)?;
             job_nodes.push(node);
+        }
+        for (parent, timestamp) in &parents.entries {
+            self.update_flow_dependencies(&mut pipe, parent, *timestamp, false)?;
         }
 
         let results: Vec<redis::Value> = pipe.query_async(&mut conn).await?;
@@ -595,6 +603,7 @@ impl FlowProducer {
         pipe: &mut redis::Pipeline,
         node: &FlowJob,
         parent: Option<&ParentContext>,
+        parents: &mut PendingFlowParents,
     ) -> Result<JobNode, Error> {
         let prefix = node.prefix.as_deref().unwrap_or(&self.prefix);
         let keys = QueueKeys::new(&node.queue_name, Some(prefix));
@@ -612,6 +621,11 @@ impl FlowProducer {
         job.set_context(self.make_script_context(prefix, &node.queue_name));
         // Set parent info on the job
         if let Some(parent_ctx) = parent {
+            let parent_key = format!("{}:{}", parent_ctx.parent_queue_key, parent_ctx.parent_id);
+            if parents.keys.insert(parent_key) {
+                self.update_flow_dependencies(pipe, parent_ctx, job.timestamp(), true)?;
+                parents.entries.push((parent_ctx.clone(), job.timestamp()));
+            }
             job.set_parent(ParentKeys {
                 id: parent_ctx.parent_id.clone(),
                 queue_key: parent_ctx.parent_queue_key.clone(),
@@ -639,7 +653,8 @@ impl FlowProducer {
                 // Recursively add children
                 let mut child_nodes = Vec::with_capacity(children.len());
                 for child in children {
-                    let child_node = self.add_node(pipe, child, Some(&child_parent_ctx))?;
+                    let child_node =
+                        self.add_node(pipe, child, Some(&child_parent_ctx), parents)?;
                     child_nodes.push(child_node);
                 }
 
@@ -659,8 +674,34 @@ impl FlowProducer {
         })
     }
 
+    fn update_flow_dependencies(
+        &self,
+        pipe: &mut redis::Pipeline,
+        parent: &ParentContext,
+        timestamp: u64,
+        hold: bool,
+    ) -> Result<(), Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("updateFlowDependencies")
+            .ok_or_else(|| {
+                Error::InvalidConfig("updateFlowDependencies script not found".to_string())
+            })?;
+        pipe.cmd("EVALSHA")
+            .arg(script.sha.as_str())
+            .arg(1)
+            .arg(format!("{}:{}", parent.parent_queue_key, parent.parent_id))
+            .arg(&parent.parent_queue_key)
+            .arg(&parent.parent_id)
+            .arg(timestamp)
+            .arg(if hold { "1" } else { "0" })
+            .ignore();
+        Ok(())
+    }
+
     fn pipeline_script_names(node: &FlowJob) -> Vec<&'static str> {
-        let mut names = Vec::new();
+        let mut names = vec!["updateFlowDependencies"];
         Self::collect_pipeline_script_names(node, &mut names);
         names
     }
@@ -1095,6 +1136,12 @@ impl FlowProducer {
     pub async fn close(&self) {
         // MultiplexedConnection doesn't require explicit close
     }
+}
+
+#[derive(Default)]
+struct PendingFlowParents {
+    keys: HashSet<String>,
+    entries: Vec<(ParentContext, u64)>,
 }
 
 /// Internal context passed to children describing their parent.
