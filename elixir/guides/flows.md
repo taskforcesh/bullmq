@@ -354,6 +354,7 @@ Flows are fully compatible with Node.js BullMQ:
 - All children must complete (or fail) before parent runs
 - Children in the same flow can run in parallel
 - Parent cannot cancel running children
+- Do not use deduplication options on flow nodes: a deduplicated child may not be attached to its parent. A future breaking release will reject deduplication on every flow node so each child addition can reliably attach its dependency using a known job ID.
 
 ## Next Steps
 
