@@ -34,7 +34,9 @@ export type PostgresPoolConfig = PgPoolConfig & {
  * - an already-constructed `pg.Pool` instance (we use it as-is and do NOT close
  *   it on `close()` — the caller owns its lifecycle), or
  * - a node-postgres pool config / connection string (we lazily `require('pg')`
- *   and construct the pool ourselves, owning its lifecycle).
+ *   and construct the pool ourselves, owning its lifecycle), or
+ * - a {@link PostgresConnection} the application created, shared by every
+ *   Queue, Worker and QueueEvents given it (the caller owns its lifecycle).
  *
  * The optional `schema` (the namespace for all queues) is only read from the
  * **config-object** form, because that is the only case where we build the pool
@@ -46,7 +48,8 @@ export type PostgresPoolConfig = PgPoolConfig & {
  * `{ connectionString, schema }`; a pre-built pool must be configured with the
  * desired `search_path` by the caller).
  */
-export type PostgresConnectionOptions = PgPool | PostgresPoolConfig | string;
+export type PostgresConnectionOptions =
+  PgPool | PostgresPoolConfig | string | PostgresConnection;
 
 /**
  * Lazily loads the optional `pg` (node-postgres) driver. Redis-only users never
@@ -106,11 +109,14 @@ function enableSocketKeepAlive(client: PgListenClient): boolean {
 }
 
 /**
- * Owns the PostgreSQL connection resources for a single backend:
+ * Owns the PostgreSQL connection resources:
  *
  * - a `pg.Pool` for regular, short-lived queries, and
  * - a dedicated, long-lived `LISTEN` client used by the blocking
- *   "wait for job" primitive (lazily established).
+ *   "wait for job" primitive (lazily established). Its notifications are
+ *   re-emitted as this connection's `'<channel>:<payload>'` events (such as
+ *   `'bullmq_jobs:emails'`), so each wait hears only its own queue, on one
+ *   object that stays the same when the client is rebuilt.
  *
  * Lifecycle mirrors {@link RedisConnection}: it is an {@link EventEmitter} that
  * surfaces normalized `'ready' | 'error' | 'close'` events and exposes
@@ -183,12 +189,14 @@ export class PostgresConnection extends EventEmitter {
    * The last `application_name` applied to the `LISTEN` client (via
    * {@link setListenClientName}). Re-applied whenever that client is rebuilt: a
    * fresh connection starts unnamed, which would otherwise silently drop the
-   * worker / QueueEvents from `getWorkers()` / `getQueueEvents()` for the rest
-   * of its lifetime.
+   * relay node from the relay's connection listing for the rest of its
+   * lifetime.
    */
   private listenClientName: string | undefined;
 
-  constructor(connection: PostgresConnectionOptions) {
+  constructor(
+    connection: Exclude<PostgresConnectionOptions, PostgresConnection>,
+  ) {
     super();
 
     if (isPgPool(connection)) {
@@ -335,6 +343,9 @@ export class PostgresConnection extends EventEmitter {
           });
           await client.connect();
           client.on('error', err => this.handleListenClientError(client, err));
+          client.on('notification', msg =>
+            this.emit(`${msg.channel}:${msg.payload}`, msg),
+          );
           this.listenClientKeepAlive = true;
           this.listenClientIsStandalone = true;
           this.listenClient = client;
@@ -343,6 +354,9 @@ export class PostgresConnection extends EventEmitter {
         } else {
           const client = await this.pool.connect();
           client.on('error', err => this.handleListenClientError(client, err));
+          client.on('notification', msg =>
+            this.emit(`${msg.channel}:${msg.payload}`, msg),
+          );
           // The pool is the user's, so its clients may have been created
           // without `keepAlive`; enable it on this socket so a silent drop is
           // still detected. If that is not possible the connection reports no

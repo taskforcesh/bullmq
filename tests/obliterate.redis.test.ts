@@ -104,11 +104,11 @@ describe('Obliterate (redis-only)', () => {
     await job.waitUntilFinished(queueEvents);
 
     await queue.obliterate();
+    // An open Worker stays registered: obliterate removes queue data only.
+    await worker.close();
     const client = await getRedisClient(queue);
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
     expect(keys.length).toEqual(0);
-
-    await worker.close();
   });
 
   describe('when creating a flow', async () => {
@@ -192,13 +192,14 @@ describe('Obliterate (redis-only)', () => {
           await failing;
           await completing;
           await queue.obliterate();
+          // An open Worker stays registered: obliterate removes queue data only.
+          await worker.close();
 
           const client = await getRedisClient(queue);
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).toEqual(0);
 
-          await worker.close();
           await flow.close();
         });
       });
@@ -370,11 +371,11 @@ describe('Obliterate (redis-only)', () => {
 
     await job.waitUntilFinished(queueEvents);
     await queue.obliterate({ force: true });
+    // An open Worker stays registered: obliterate removes queue data only.
+    await worker.close();
     const client = await getRedisClient(queue);
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
     expect(keys.length).toEqual(0);
-
-    await worker.close();
   });
 
   it('should remove job schedulers', async () => {

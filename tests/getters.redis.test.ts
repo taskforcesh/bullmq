@@ -3,13 +3,11 @@
 /**
  * Redis-only `Queue` getter tests.
  *
- * `getWorkers` itself is implemented on PostgreSQL (via `application_name` /
- * `pg_stat_activity`), so its discovery tests live in `getters.test.ts` and run
- * on both backends. This one is different: it drives a mid-flight connection
- * drop/restore through `getBlockingRedisClient`, a Redis-specific escape hatch
- * that hands back the raw blocking client to call `.disconnect()`/`.connect()`
- * directly. That manipulates Redis connection internals with no portable
- * equivalent, so it is scoped to Redis.
+ * This one drives a mid-flight connection drop/restore through
+ * `getBlockingRedisClient`, a Redis-specific escape hatch that hands back the
+ * raw blocking client to call `.disconnect()`/`.connect()` directly. That
+ * manipulates Redis connection internals with no portable equivalent, so it is
+ * scoped to Redis.
  */
 import { getBlockingRedisClient } from './utils/get-redis-client';
 import {
@@ -53,7 +51,7 @@ describe('Jobs getters (redis-only)', () => {
 
   describe('.getWorkers', () => {
     describe('when disconnection happens', () => {
-      it('gets all workers even after reconnection', async () => {
+      it('keeps listing the worker while its connection reconnects', async () => {
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
           connection,
@@ -70,11 +68,13 @@ describe('Jobs getters (redis-only)', () => {
         const workers = await queue.getWorkers();
         expect(workers).toHaveLength(1);
 
+        // The worker's registration lives in the registry with a lease, not
+        // on the connection: a dropped connection does not unlist it.
         await client.disconnect();
         await delay(10);
 
         const nextWorkers = await queue.getWorkers();
-        expect(nextWorkers).toHaveLength(0);
+        expect(nextWorkers).toHaveLength(1);
 
         await client.connect();
         await delay(20);

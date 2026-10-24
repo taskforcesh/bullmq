@@ -8,13 +8,18 @@ import { PostgresQueueBackend } from './postgres-queue-backend';
 /**
  * {@link BackendFactory} that builds a {@link PostgresQueueBackend}.
  *
- * The returned backend owns its {@link PostgresConnection} (a `pg.Pool` plus a
- * dedicated `LISTEN` client); the high-level classes depend only on
- * `IQueueBackend` and never touch a `pg` client directly.
+ * Each backend uses a {@link PostgresConnection} (a `pg.Pool` plus a dedicated
+ * `LISTEN` client); the high-level classes depend only on `IQueueBackend` and
+ * never touch a `pg` client directly.
  *
  * Accepts a connection string, pool config (optionally carrying a `schema`),
- * or an existing `pg.Pool`. The `pg` driver is loaded lazily for config/string
- * connections; Redis-only users do not need it installed.
+ * or an existing `pg.Pool`, and builds a connection the backend owns. The `pg`
+ * driver is loaded lazily for config/string connections; Redis-only users do
+ * not need it installed.
+ *
+ * Also accepts a {@link PostgresConnection} the application created, to share
+ * one pool and one `LISTEN` client between Queues, Workers and QueueEvents.
+ * The backend never closes it.
  *
  * Inject this into the queue classes (or set it as the process-wide default via
  * `setDefaultBackendFactory(createPostgresBackend)`) to back BullMQ with
@@ -23,33 +28,13 @@ import { PostgresQueueBackend } from './postgres-queue-backend';
 export const createPostgresBackend: BackendFactory<
   PostgresQueueBackend,
   PostgresConnectionOptions
-> = (name, opts, factoryOpts = {}) => {
-  const connection = new PostgresConnection(opts.connection);
-
-  // Name a backend's dedicated, long-lived connection so it is discoverable via
-  // getWorkers / getQueueEvents (pg_stat_activity) — the PostgreSQL analogue of
-  // the Redis worker/queue-events named connection. Naming happens eagerly at
-  // waitUntilReady (see PostgresQueueBackend) so the name is set as soon as the
-  // backend is ready, exactly like Redis names its connection on creation.
-  //   - Worker (withBlockingConnection): the bare queue name, or `:w:<name>`
-  //     for a named worker — matching the getWorkers matcher.
-  //   - QueueEvents (blocking): the queue name + `:qe` (QUEUE_EVENT_SUFFIX),
-  //     matching the getQueueEvents matcher. (QueueEvents also re-applies this
-  //     via setName when its consume loop starts.)
-  // Producers/FlowProducer get no name (they must not be counted as workers).
-  const workerName = (opts as { name?: string }).name;
-  let listenClientName: string | undefined;
-  if (factoryOpts.withBlockingConnection) {
-    listenClientName = `${name}${workerName ? `:w:${workerName}` : ''}`;
-  } else if (factoryOpts.blocking) {
-    listenClientName = `${name}:qe`;
-  }
-
+> = (name, opts) => {
+  const { connection } = opts;
+  const shared = connection instanceof PostgresConnection;
   return new PostgresQueueBackend(
-    connection,
+    shared ? connection : new PostgresConnection(connection),
     name,
     opts,
-    true,
-    listenClientName,
+    !shared,
   );
 };

@@ -7,6 +7,7 @@ import {
   Job,
   JobScheduler,
   MinimalQueue,
+  PostgresConnection,
   PostgresConnectionOptions,
   PostgresQueueBackend,
   Queue,
@@ -82,6 +83,10 @@ expectType<
 >();
 new pg.Worker<Data>('tasks', undefined, opts);
 new pg.Worker<Data>('tasks', '/path/to/processor.js', opts);
+// A shared connection is accepted wherever connection options are.
+const shared = new PostgresConnection('postgres://localhost/mydb');
+new pg.Worker<Data>('tasks', undefined, { connection: shared });
+new Worker('tasks', undefined, { connection: shared }, createPostgresBackend);
 pg.Worker.RateLimitError();
 // @ts-expect-error The processor must return the declared result.
 new pg.Worker<Data, Result>('tasks', async () => 'wrong', opts);

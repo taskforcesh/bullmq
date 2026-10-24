@@ -24,6 +24,29 @@ import {
 
 type FinishedState = FinishedStatus;
 
+/** Describes a Worker; stored as given and returned by getWorkers. */
+export interface WorkerInfo {
+  /** The Worker's `name` option, if any. */
+  name?: string;
+  host?: string;
+  pid?: number;
+  /** BullMQ version of the Worker. */
+  version?: string;
+}
+
+export interface WorkerRegistration {
+  id: string;
+  info: WorkerInfo;
+  /** When the Worker registered (ms). */
+  registeredAt: number;
+  /**
+   * When its lease ends (ms). A Worker whose lease ended is not listed, and
+   * is removed by the next sweep.
+   */
+  leaseUntil: number;
+  lastHeartbeat?: number;
+}
+
 /**
  * IQueueBackend
  *
@@ -94,12 +117,6 @@ export interface IQueueBackend {
    * Forcibly disconnects the backend's underlying connection(s).
    */
   disconnect(): Promise<void>;
-
-  /**
-   * Sets a human-readable name on the underlying connection (for
-   * observability). No-op for backends that have no such concept.
-   */
-  setName(name: string): Promise<void>;
 
   /**
    * Smallest meaningful block timeout (in seconds) supported by the backend's
@@ -190,13 +207,6 @@ export interface IQueueBackend {
    * backend's key format; used when walking a flow tree.
    */
   parseNodeKey(key: string): { prefix: string; queueName: string; id: string };
-
-  /**
-   * Builds the connection client name (used for `setName` and worker/queue
-   * discovery). Redis: `"<prefix>:<base64(queue)><suffix>"`. Backends without a
-   * client-name concept may return any stable string.
-   */
-  clientName(suffix?: string): string;
 
   // ============================================================
   // Adding jobs
@@ -653,13 +663,33 @@ export interface IQueueBackend {
     end?: number,
   ): Promise<[string[], string[], number]>;
 
+  /** Registers (or refreshes) a Worker, its liveness lease and its info. */
+  registerWorker(
+    workerId: string,
+    leaseMs: number,
+    info?: WorkerInfo,
+  ): Promise<void>;
+
   /**
-   * Returns the raw worker/client list(s) for the queue's datastore. For the
-   * Redis adapter this is `CLIENT LIST` (one string per cluster node, or a
-   * single string otherwise). Backends with no notion of connected clients
-   * may return an empty array.
+   * Renews a Worker's lease.
+   *
+   * @returns false when the Worker is not registered or its lease expired,
+   * even if it was not swept. The caller must register again.
    */
-  getClientList(): Promise<string[]>;
+  heartbeatWorker(workerId: string, leaseMs: number): Promise<boolean>;
+
+  /** Removes a Worker. */
+  unregisterWorker(workerId: string): Promise<boolean>;
+
+  /**
+   * Removes up to `limit` Workers whose lease expired.
+   *
+   * @returns the ids of the removed Workers of the queue.
+   */
+  sweepWorkers(limit: number): Promise<string[]>;
+
+  /** The live Workers of the queue, by registration. */
+  getWorkerRegistrations(): Promise<WorkerRegistration[]>;
 
   /**
    * Paginates a datastore set or hash, optionally fetching the jobs themselves.
