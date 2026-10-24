@@ -26,6 +26,7 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     QueueEvents,
     Worker
   }
+
   alias BullMQ.Backends.Postgres.{Migrator, SqlLoader}
 
   @postgres_url System.get_env("POSTGRES_URL", "postgres://localhost:5432/bullmq_test")

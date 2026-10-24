@@ -286,7 +286,6 @@ defmodule BullMQ.FlowProducerTest do
       assert length(branch.children) == 1
       assert hd(branch.children).job.name == "grandchild"
     end
-
   end
 
   describe "add/2 - multi-queue flows" do
@@ -331,7 +330,6 @@ defmodule BullMQ.FlowProducerTest do
       if length(keys) > 0 do
         RedisConnection.command(conn, ["DEL" | keys])
       end
-
     end
   end
 
