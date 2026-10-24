@@ -20,6 +20,8 @@ export default (send: (msg: any) => Promise<void>, receiver: Receiver) => {
           await childProcessor.start(msg.job, msg?.token);
           break;
         case ChildCommand.Stop:
+          // Sent to worker threads instead of SIGTERM.
+          await childProcessor.waitForCurrentJobAndExit();
           break;
         case ChildCommand.Cancel:
           childProcessor.cancel(msg.value);
