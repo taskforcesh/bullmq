@@ -10,7 +10,8 @@ local function handleDuplicatedJob(jobKey, jobId, currentParentKey, currentParen
   deferParentRelease)
   local existedParentKey = rcall("HGET", jobKey, "parentKey")
 
-  if not existedParentKey or existedParentKey == currentParentKey then
+  if not existedParentKey or existedParentKey == currentParentKey
+     or rcall("EXISTS", existedParentKey) == 0 then
     updateExistingJobsParent(currentParentKey, currentParent, parentData,
       parentDependenciesKey, completedKey, jobKey,
       jobId, timestamp, deferParentRelease)
