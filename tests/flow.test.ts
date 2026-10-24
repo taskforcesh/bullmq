@@ -6714,6 +6714,35 @@ describe('flows', () => {
     });
   });
 
+  describe('when child flow node has keepLastIfActive deduplication', () => {
+    it('should reject the flow before adding a deferred child', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+
+      await expect(
+        flow.add({
+          name: 'root',
+          queueName,
+          children: [
+            {
+              name: 'child',
+              queueName,
+              opts: {
+                deduplication: {
+                  id: 'deferred-flow-child',
+                  keepLastIfActive: true,
+                },
+              },
+            },
+          ],
+        }),
+      ).rejects.toThrow(
+        'keepLastIfActive deduplication cannot be used on flow nodes with a parent',
+      );
+
+      await flow.close();
+    });
+  });
+
   describe('when add is called with a non-existing parent', () => {
     it('throws an error instead of silently dropping the job', async () => {
       const flow = new FlowProducer({ connection, prefix });
