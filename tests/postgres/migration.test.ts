@@ -529,9 +529,18 @@ describe('PostgreSQL relay migration (0004_relay)', () => {
 
   it('leaves every pre-existing object unchanged and only adds relay_* objects', async () => {
     await migrateBeforeRelay(before);
+    await migrateBeforeRelay(after);
     const client = await pool.connect();
     try {
-      await runMigrations(client, after);
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL search_path TO "${after}"`);
+      const relay = MIGRATIONS.find(m => m.name === '0004_relay');
+      expect(relay).toBeDefined();
+      await client.query(relay!.load());
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
     } finally {
       client.release();
     }

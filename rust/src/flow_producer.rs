@@ -295,6 +295,13 @@ impl FlowProducer {
     ) -> Result<JobNode, Error> {
         apply_queue_defaults(&mut flow, opts);
         validate_flow_queue_names(&flow)?;
+        validate_deferred_child_deduplication(
+            &flow,
+            flow.opts
+                .as_ref()
+                .and_then(|opts| opts.parent.as_ref())
+                .is_some(),
+        )?;
 
         let mut conn = self.conn.connection();
         self.conn
@@ -310,9 +317,11 @@ impl FlowProducer {
         let parent_ctx = match flow.opts.as_ref().and_then(|o| o.parent.as_ref()) {
             Some(p) => {
                 let parent_queue_key = resolve_parent_queue_key(root_prefix, &p.queue)?;
-                let parent_deps_key = format!("{}:{}:dependencies", parent_queue_key, p.id);
+                let parent_key = format!("{}:{}", parent_queue_key, p.id);
+                let parent_deps_key = format!("{}:dependencies", parent_key);
                 Some(ParentContext {
                     parent_id: p.id.clone(),
+                    parent_key,
                     parent_queue_key,
                     parent_deps_key,
                 })
@@ -320,7 +329,15 @@ impl FlowProducer {
             None => None,
         };
 
-        let mut job_node = self.add_node(&mut pipe, &flow, parent_ctx.as_ref())?;
+        let (mut job_node, parents) = self.add_node(&mut pipe, &flow, parent_ctx.as_ref())?;
+        let mut release_parents = deduplicate_parent_contexts(parents);
+        if let Some(parent) = parent_ctx {
+            release_parents.insert(parent.parent_key.clone(), parent);
+        }
+        let release_count = release_parents.len();
+        for parent in release_parents.values() {
+            self.add_release_parent_to_pipe(&mut pipe, parent)?;
+        }
 
         // Execute the atomic pipeline
         let results: Vec<redis::Value> = pipe.query_async(&mut conn).await?;
@@ -330,6 +347,9 @@ impl FlowProducer {
         // in-memory values to mirror Node.js FlowProducer semantics.
         let mut results_iter = results.iter();
         Self::apply_pipeline_results(&mut job_node, &mut results_iter, true)?;
+        for _ in 0..release_count {
+            results_iter.next();
+        }
         debug!(job_id = %job_node.job.id(), "flow added");
 
         Ok(job_node)
@@ -351,6 +371,13 @@ impl FlowProducer {
 
         for flow in &flows {
             validate_flow_queue_names(flow)?;
+            validate_deferred_child_deduplication(
+                flow,
+                flow.opts
+                    .as_ref()
+                    .and_then(|opts| opts.parent.as_ref())
+                    .is_some(),
+            )?;
         }
 
         let mut conn = self.conn.connection();
@@ -364,34 +391,63 @@ impl FlowProducer {
         pipe.atomic();
 
         let mut job_nodes = Vec::with_capacity(flows.len());
+        // Parents touched across the WHOLE bulk insert, deduplicated by key.
+        // A parent is only validated for release once every tree in this bulk
+        // call has queued its inserts: if two trees reuse the same parent id,
+        // releasing it right after the first tree (which may reference only an
+        // already-completed child) would let it run before the second tree
+        // attaches its own, still-pending child — the duplicate-parent insert
+        // path does not restore `waiting-children`, so the parent would be
+        // stuck runnable with a pending dependency forever.
+        let mut all_parents: HashMap<String, ParentContext> = HashMap::new();
 
         for flow in &flows {
             let root_prefix = flow.prefix.as_deref().unwrap_or(&self.prefix);
             let parent_ctx = match flow.opts.as_ref().and_then(|o| o.parent.as_ref()) {
                 Some(p) => {
                     let parent_queue_key = resolve_parent_queue_key(root_prefix, &p.queue)?;
-                    let parent_deps_key = format!("{}:{}:dependencies", parent_queue_key, p.id);
+                    let parent_key = format!("{}:{}", parent_queue_key, p.id);
+                    let parent_deps_key = format!("{}:dependencies", parent_key);
                     Some(ParentContext {
                         parent_id: p.id.clone(),
+                        parent_key,
                         parent_queue_key,
                         parent_deps_key,
                     })
                 }
                 None => None,
             };
-            let node = self.add_node(&mut pipe, flow, parent_ctx.as_ref())?;
+            let (node, parents) = self.add_node(&mut pipe, flow, parent_ctx.as_ref())?;
+            for parent in parents {
+                all_parents.insert(parent.parent_key.clone(), parent);
+            }
+            if let Some(parent) = parent_ctx {
+                all_parents.insert(parent.parent_key.clone(), parent);
+            }
             job_nodes.push(node);
+        }
+
+        // Only now that every tree's job inserts are queued do we append the
+        // release checks, once per distinct parent touched by this bulk call.
+        let release_count = all_parents.len();
+        for parent in all_parents.values() {
+            self.add_release_parent_to_pipe(&mut pipe, parent)?;
         }
 
         let results: Vec<redis::Value> = pipe.query_async(&mut conn).await?;
 
         // Validate each tree's root result and apply root ID updates across all
         // trees. Commands were queued tree-by-tree, each in pre-order, so a
-        // single sequential walk lines up with the flattened results while
-        // keeping child ID behavior aligned with Node.js semantics.
+        // single sequential walk over the job replies lines up with the
+        // flattened results while keeping child ID behavior aligned with
+        // Node.js semantics. The trailing release replies (appended after every
+        // tree's inserts) are consumed afterwards, in one pass.
         let mut results_iter = results.iter();
-        for node in &mut job_nodes {
+        for node in job_nodes.iter_mut() {
             Self::apply_pipeline_results(node, &mut results_iter, true)?;
+        }
+        for _ in 0..release_count {
+            results_iter.next();
         }
 
         Ok(job_nodes)
@@ -595,7 +651,7 @@ impl FlowProducer {
         pipe: &mut redis::Pipeline,
         node: &FlowJob,
         parent: Option<&ParentContext>,
-    ) -> Result<JobNode, Error> {
+    ) -> Result<(JobNode, Vec<ParentContext>), Error> {
         let prefix = node.prefix.as_deref().unwrap_or(&self.prefix);
         let keys = QueueKeys::new(&node.queue_name, Some(prefix));
         let job_id = node
@@ -629,39 +685,60 @@ impl FlowProducer {
 
                 // Build parent context for children
                 let parent_queue_key = format!("{}:{}", prefix, node.queue_name);
-                let parent_deps_key = format!("{}:{}:dependencies", parent_queue_key, job_id);
+                let parent_key = format!("{}:{}", parent_queue_key, job_id);
+                let parent_deps_key = format!("{}:dependencies", parent_key);
                 let child_parent_ctx = ParentContext {
                     parent_id: job_id.clone(),
+                    parent_key,
                     parent_queue_key,
                     parent_deps_key,
                 };
 
                 // Recursively add children
                 let mut child_nodes = Vec::with_capacity(children.len());
+                let mut parent_releases = Vec::new();
+                parent_releases.push(child_parent_ctx.clone());
                 for child in children {
-                    let child_node = self.add_node(pipe, child, Some(&child_parent_ctx))?;
+                    let (child_node, child_parents) =
+                        self.add_node(pipe, child, Some(&child_parent_ctx))?;
                     child_nodes.push(child_node);
+                    parent_releases.extend(child_parents);
                 }
 
-                return Ok(JobNode {
-                    job,
-                    children: Some(child_nodes),
-                });
+                return Ok((
+                    JobNode {
+                        job,
+                        children: Some(child_nodes),
+                    },
+                    parent_releases,
+                ));
             }
         }
 
         // Leaf node — add as standard/delayed/prioritized job
         self.add_leaf_job_to_pipe(pipe, &keys, &job, &job_id, parent)?;
 
-        Ok(JobNode {
-            job,
-            children: None,
-        })
+        Ok((
+            JobNode {
+                job,
+                children: None,
+            },
+            Vec::new(),
+        ))
     }
 
     fn pipeline_script_names(node: &FlowJob) -> Vec<&'static str> {
         let mut names = Vec::new();
         Self::collect_pipeline_script_names(node, &mut names);
+        if node
+            .opts
+            .as_ref()
+            .and_then(|opts| opts.parent.as_ref())
+            .is_some()
+            && !names.contains(&"releaseParentIfNoPendingDependencies")
+        {
+            names.push("releaseParentIfNoPendingDependencies");
+        }
         names
     }
 
@@ -672,6 +749,7 @@ impl FlowProducer {
                 for child in children {
                     Self::collect_pipeline_script_names(child, names);
                 }
+                names.push("releaseParentIfNoPendingDependencies");
                 return;
             }
         }
@@ -690,6 +768,38 @@ impl FlowProducer {
             "addStandardJob"
         };
         names.push(script_name);
+    }
+
+    fn add_release_parent_to_pipe(
+        &self,
+        pipe: &mut redis::Pipeline,
+        parent: &ParentContext,
+    ) -> Result<(), Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("releaseParentIfNoPendingDependencies")
+            .ok_or_else(|| {
+                Error::InvalidConfig(
+                    "releaseParentIfNoPendingDependencies script not found".to_string(),
+                )
+            })?
+            .clone();
+
+        let mut cmd = redis::cmd("EVALSHA");
+        cmd.arg(script.sha.as_str()).arg(script.num_keys);
+        cmd.arg(parent.parent_key.as_str());
+        cmd.arg(format!("{}:dependencies", parent.parent_key).as_str());
+        cmd.arg(parent.parent_queue_key.as_str());
+        cmd.arg(parent.parent_id.as_str());
+        cmd.arg(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| Error::InvalidConfig("SystemTime before UNIX_EPOCH".to_string()))?
+                .as_millis() as u64,
+        );
+        pipe.add_command(cmd);
+        Ok(())
     }
 
     /// Add a parent job to the pipeline using the addParentJob Lua script.
@@ -719,7 +829,7 @@ impl FlowProducer {
         ];
 
         // ARGV[1]: msgpack args, ARGV[2]: json data, ARGV[3]: msgpack opts
-        let argv1 = self.pack_add_args(keys, job, job_id, parent);
+        let argv1 = self.pack_add_args(keys, job, job_id, parent, true);
         let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".to_string());
         let argv3 = self.pack_job_opts(job);
 
@@ -769,7 +879,7 @@ impl FlowProducer {
 
         let script_keys = self.leaf_job_keys(keys, script_name);
 
-        let argv1 = self.pack_add_args(keys, job, job_id, parent);
+        let argv1 = self.pack_add_args(keys, job, job_id, parent, true);
         let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".to_string());
         let argv3 = self.pack_job_opts(job);
 
@@ -833,11 +943,12 @@ impl FlowProducer {
         job: &Job,
         job_id: &str,
         parent: Option<&ParentContext>,
+        defer_parent_release: bool,
     ) -> Vec<u8> {
         use rmp::encode::*;
 
         let mut buf = Vec::with_capacity(128);
-        write_array_len(&mut buf, 9).unwrap();
+        write_array_len(&mut buf, 10).unwrap();
 
         // [1] key prefix (with trailing colon)
         write_str(&mut buf, &keys.key_prefix()).unwrap();
@@ -909,6 +1020,13 @@ impl FlowProducer {
         if let Some(ref dedup) = job.opts().deduplication {
             let key = format!("{}de:{}", keys.key_prefix(), dedup.id);
             write_str(&mut buf, &key).unwrap();
+        } else {
+            write_nil(&mut buf).unwrap();
+        }
+        // [10] flow-insert deferral flag: prevent earlier parent release while
+        // later siblings in the same tree are still being queued.
+        if defer_parent_release {
+            write_u8(&mut buf, 1).unwrap();
         } else {
             write_nil(&mut buf).unwrap();
         }
@@ -1101,8 +1219,18 @@ impl FlowProducer {
 #[derive(Debug, Clone)]
 struct ParentContext {
     parent_id: String,
+    parent_key: String,
     parent_queue_key: String,
     parent_deps_key: String,
+}
+
+fn deduplicate_parent_contexts(
+    parents: impl IntoIterator<Item = ParentContext>,
+) -> HashMap<String, ParentContext> {
+    parents
+        .into_iter()
+        .map(|parent| (parent.parent_key.clone(), parent))
+        .collect()
 }
 
 /// Recursively merge per-queue `default_job_options` into every node of a flow.
@@ -1136,6 +1264,30 @@ fn validate_flow_queue_names(flow: &FlowJob) -> Result<(), Error> {
             validate_flow_queue_names(child)?;
         }
     }
+    Ok(())
+}
+
+fn validate_deferred_child_deduplication(flow: &FlowJob, has_parent: bool) -> Result<(), Error> {
+    if has_parent
+        && flow
+            .opts
+            .as_ref()
+            .and_then(|opts| opts.deduplication.as_ref())
+            .and_then(|deduplication| deduplication.keep_last_if_active)
+            .unwrap_or(false)
+    {
+        return Err(Error::InvalidConfig(
+            "keepLastIfActive deduplication is not supported for flow nodes with a parent"
+                .to_string(),
+        ));
+    }
+
+    if let Some(children) = flow.children.as_ref() {
+        for child in children {
+            validate_deferred_child_deduplication(child, true)?;
+        }
+    }
+
     Ok(())
 }
 
@@ -1177,8 +1329,13 @@ fn merge_job_options(base: &mut JobOptions, over: JobOptions) {
 
 #[cfg(test)]
 mod tests {
-    use super::{FlowProducer, JobNode};
+    use super::{
+        deduplicate_parent_contexts, validate_deferred_child_deduplication, FlowJob, FlowProducer,
+        JobNode, ParentContext,
+    };
     use crate::job::Job;
+    use crate::options::DeduplicationOptions;
+    use crate::options::{JobOptions, ParentOptions};
     use serde::ser::Error as _;
     use serde::Serialize;
 
@@ -1259,6 +1416,85 @@ mod tests {
         let mut iter = results.iter();
         let result = FlowProducer::apply_pipeline_results(&mut root, &mut iter, true);
         assert!(result.is_err(), "negative root code should propagate");
+    }
+
+    #[test]
+    fn flow_pipeline_scripts_include_final_parent_release_check() {
+        let flow = FlowJob::new("parent", "queue", serde_json::json!({}))
+            .unwrap()
+            .add_child(FlowJob::new("child", "queue", serde_json::json!({})).unwrap());
+
+        let scripts = FlowProducer::pipeline_script_names(&flow);
+        assert!(scripts.contains(&"addParentJob"));
+        assert!(scripts.contains(&"addStandardJob"));
+        assert!(scripts.contains(&"releaseParentIfNoPendingDependencies"));
+    }
+
+    #[test]
+    fn flow_rejects_deferred_deduplication_for_child_nodes() {
+        let child = FlowJob::new("child", "queue", serde_json::json!({}))
+            .unwrap()
+            .options(JobOptions {
+                deduplication: Some(DeduplicationOptions {
+                    keep_last_if_active: Some(true),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
+        let flow = FlowJob::new("parent", "queue", serde_json::json!({}))
+            .unwrap()
+            .add_child(child);
+
+        assert!(validate_deferred_child_deduplication(&flow, false).is_err());
+    }
+
+    #[test]
+    fn flow_allows_deferred_deduplication_without_a_parent() {
+        let flow = FlowJob::new("root", "queue", serde_json::json!({}))
+            .unwrap()
+            .options(JobOptions {
+                deduplication: Some(DeduplicationOptions {
+                    keep_last_if_active: Some(true),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
+
+        assert!(validate_deferred_child_deduplication(&flow, false).is_ok());
+    }
+
+    #[test]
+    fn release_parent_contexts_are_deduplicated_by_key() {
+        let parent = |id: &str| ParentContext {
+            parent_id: id.to_string(),
+            parent_key: "bull:queue:parent".to_string(),
+            parent_queue_key: "bull:queue".to_string(),
+            parent_deps_key: "bull:queue:parent:dependencies".to_string(),
+        };
+
+        let parents = deduplicate_parent_contexts([parent("first"), parent("second")]);
+
+        assert_eq!(parents.len(), 1);
+        assert_eq!(
+            parents.get("bull:queue:parent").unwrap().parent_id,
+            "second"
+        );
+    }
+
+    #[test]
+    fn flow_pipeline_scripts_include_external_parent_release_check_for_leaf() {
+        let mut flow = FlowJob::new("child", "queue", serde_json::json!({})).unwrap();
+        flow.opts = Some(JobOptions {
+            parent: Some(ParentOptions {
+                id: "parent-id".to_string(),
+                queue: "parent-queue".to_string(),
+                wait_children: None,
+            }),
+            ..Default::default()
+        });
+
+        let scripts = FlowProducer::pipeline_script_names(&flow);
+        assert!(scripts.contains(&"releaseParentIfNoPendingDependencies"));
     }
 
     #[test]

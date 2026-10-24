@@ -243,7 +243,12 @@ defmodule BullMQ.Backends.Redis do
     # flow tree. They are executed atomically so the whole flow is inserted or
     # nothing is. Script loading is ensured here so callers never touch the
     # connection directly.
-    Scripts.ensure_scripts_loaded(conn, [:add_standard_job, :add_parent_job])
+    Scripts.ensure_scripts_loaded(conn, [
+      :add_standard_job,
+      :add_parent_job,
+      :release_parent_if_no_pending_dependencies
+    ])
+
     Scripts.execute_transaction(conn, commands)
   end
 

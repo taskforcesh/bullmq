@@ -280,6 +280,11 @@ impl ScriptRegistry {
                 include_str!("commands/reprocessJob-9.lua"),
             ),
             (
+                "releaseParentIfNoPendingDependencies",
+                2,
+                include_str!("commands/releaseParentIfNoPendingDependencies-2.lua"),
+            ),
+            (
                 "removeChildDependency",
                 1,
                 include_str!("commands/removeChildDependency-1.lua"),

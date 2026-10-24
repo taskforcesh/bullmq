@@ -27,12 +27,14 @@ defmodule BullMQ.Backends.Postgres.Migrator do
   # Ordered migrations bundled with this build. Append new entries; never edit
   # or reorder existing ones.
   @migrations [
-    {1, "0001_schema.sql"},
-    {2, "0002_functions.sql"},
-    {3, "0003_dedup_stale_key.sql"}
+    {1, "0001_schema.sql", 6},
+    {2, "0002_functions.sql", 6},
+    {3, "0003_dedup_stale_key.sql", 6},
+    {4, "0004_relay.sql", 6},
+    {5, "0005_flow_parent_release.sql", 6}
   ]
 
-  @latest_schema_version 3
+  @latest_schema_version 5
 
   @doc "The default schema (namespace) the backend lives in."
   def default_schema, do: @default_schema
@@ -126,8 +128,9 @@ defmodule BullMQ.Backends.Postgres.Migrator do
         end
 
         if current < @latest_schema_version do
-          Enum.each(@migrations, fn {version, file} ->
-            if version > current, do: apply_migration(conn, version, file)
+          Enum.each(@migrations, fn {version, file, min_client_version} ->
+            if version > current,
+              do: apply_migration(conn, version, file, min_client_version)
           end)
         end
 
@@ -142,7 +145,26 @@ defmodule BullMQ.Backends.Postgres.Migrator do
       conn,
       "CREATE TABLE IF NOT EXISTS migration (" <>
         "version integer PRIMARY KEY, name text NOT NULL, " <>
+        "min_client_version integer NOT NULL, " <>
         "applied_at timestamptz NOT NULL DEFAULT now())",
+      []
+    )
+
+    Postgrex.query!(
+      conn,
+      "ALTER TABLE migration ADD COLUMN IF NOT EXISTS min_client_version integer",
+      []
+    )
+
+    Postgrex.query!(
+      conn,
+      "UPDATE migration SET min_client_version = 6 WHERE min_client_version IS NULL",
+      []
+    )
+
+    Postgrex.query!(
+      conn,
+      "ALTER TABLE migration ALTER COLUMN min_client_version SET NOT NULL",
       []
     )
   end
@@ -158,7 +180,7 @@ defmodule BullMQ.Backends.Postgres.Migrator do
     version
   end
 
-  defp apply_migration(conn, version, file) do
+  defp apply_migration(conn, version, file, min_client_version) do
     sql = SqlLoader.load_migration(file)
 
     # Postgrex uses the extended protocol (one statement per call), so split the
@@ -173,8 +195,8 @@ defmodule BullMQ.Backends.Postgres.Migrator do
 
     Postgrex.query!(
       conn,
-      "INSERT INTO migration (version, name) VALUES ($1, $2)",
-      [version, name]
+      "INSERT INTO migration (version, name, min_client_version) VALUES ($1, $2, $3)",
+      [version, name, min_client_version]
     )
   end
 

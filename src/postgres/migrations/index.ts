@@ -60,6 +60,15 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0004_relay.sql'),
   },
+  {
+    version: 5,
+    name: '0005_flow_parent_release',
+    // Function-body fixes only: `add_flow` keeps its signature and
+    // `handle_duplicated_job` gains a defaulted trailing parameter, so the
+    // 6-argument calls made by instances on the previous code keep resolving.
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0005_flow_parent_release.sql'),
+  },
 ];
 
 /**
