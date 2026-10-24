@@ -123,7 +123,7 @@ it('does not release a flow parent after a child attachment fails', async () => 
     worker = new Worker(completedQueueName, async () => {}, { connection });
     await worker.waitUntilReady();
     const completed = new Promise<void>(resolve =>
-      worker!.once('completed', resolve),
+      worker!.once('completed', () => resolve()),
     );
     const completedChildId = `completed-${randomUUID()}`;
     await queue.add('completed-child', {}, { jobId: completedChildId });
