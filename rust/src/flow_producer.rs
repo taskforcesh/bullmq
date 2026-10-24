@@ -295,6 +295,13 @@ impl FlowProducer {
     ) -> Result<JobNode, Error> {
         apply_queue_defaults(&mut flow, opts);
         validate_flow_queue_names(&flow)?;
+        validate_deferred_child_deduplication(
+            &flow,
+            flow.opts
+                .as_ref()
+                .and_then(|opts| opts.parent.as_ref())
+                .is_some(),
+        )?;
 
         let mut conn = self.conn.connection();
         self.conn
@@ -323,10 +330,12 @@ impl FlowProducer {
         };
 
         let (mut job_node, parents) = self.add_node(&mut pipe, &flow, parent_ctx.as_ref())?;
-        for parent in &parents {
-            self.add_release_parent_to_pipe(&mut pipe, parent)?;
+        let mut release_parents = deduplicate_parent_contexts(parents);
+        if let Some(parent) = parent_ctx {
+            release_parents.insert(parent.parent_key.clone(), parent);
         }
-        if let Some(parent) = &parent_ctx {
+        let release_count = release_parents.len();
+        for parent in release_parents.values() {
             self.add_release_parent_to_pipe(&mut pipe, parent)?;
         }
 
@@ -338,8 +347,7 @@ impl FlowProducer {
         // in-memory values to mirror Node.js FlowProducer semantics.
         let mut results_iter = results.iter();
         Self::apply_pipeline_results(&mut job_node, &mut results_iter, true)?;
-        let root_parent_release_count = if parent_ctx.is_some() { 1 } else { 0 };
-        for _ in 0..parents.len() + root_parent_release_count {
+        for _ in 0..release_count {
             results_iter.next();
         }
         debug!(job_id = %job_node.job.id(), "flow added");
@@ -363,6 +371,13 @@ impl FlowProducer {
 
         for flow in &flows {
             validate_flow_queue_names(flow)?;
+            validate_deferred_child_deduplication(
+                flow,
+                flow.opts
+                    .as_ref()
+                    .and_then(|opts| opts.parent.as_ref())
+                    .is_some(),
+            )?;
         }
 
         let mut conn = self.conn.connection();
@@ -1209,6 +1224,15 @@ struct ParentContext {
     parent_deps_key: String,
 }
 
+fn deduplicate_parent_contexts(
+    parents: impl IntoIterator<Item = ParentContext>,
+) -> HashMap<String, ParentContext> {
+    parents
+        .into_iter()
+        .map(|parent| (parent.parent_key.clone(), parent))
+        .collect()
+}
+
 /// Recursively merge per-queue `default_job_options` into every node of a flow.
 ///
 /// Job-level options always win; defaults only fill in fields left unset.
@@ -1240,6 +1264,30 @@ fn validate_flow_queue_names(flow: &FlowJob) -> Result<(), Error> {
             validate_flow_queue_names(child)?;
         }
     }
+    Ok(())
+}
+
+fn validate_deferred_child_deduplication(flow: &FlowJob, has_parent: bool) -> Result<(), Error> {
+    if has_parent
+        && flow
+            .opts
+            .as_ref()
+            .and_then(|opts| opts.deduplication.as_ref())
+            .and_then(|deduplication| deduplication.keep_last_if_active)
+            .unwrap_or(false)
+    {
+        return Err(Error::InvalidConfig(
+            "keepLastIfActive deduplication is not supported for flow nodes with a parent"
+                .to_string(),
+        ));
+    }
+
+    if let Some(children) = flow.children.as_ref() {
+        for child in children {
+            validate_deferred_child_deduplication(child, true)?;
+        }
+    }
+
     Ok(())
 }
 
@@ -1281,8 +1329,12 @@ fn merge_job_options(base: &mut JobOptions, over: JobOptions) {
 
 #[cfg(test)]
 mod tests {
-    use super::{FlowJob, FlowProducer, JobNode};
+    use super::{
+        deduplicate_parent_contexts, validate_deferred_child_deduplication, FlowJob, FlowProducer,
+        JobNode, ParentContext,
+    };
     use crate::job::Job;
+    use crate::options::DeduplicationOptions;
     use crate::options::{JobOptions, ParentOptions};
     use serde::ser::Error as _;
     use serde::Serialize;
@@ -1376,6 +1428,57 @@ mod tests {
         assert!(scripts.contains(&"addParentJob"));
         assert!(scripts.contains(&"addStandardJob"));
         assert!(scripts.contains(&"releaseParentIfNoPendingDependencies"));
+    }
+
+    #[test]
+    fn flow_rejects_deferred_deduplication_for_child_nodes() {
+        let child = FlowJob::new("child", "queue", serde_json::json!({}))
+            .unwrap()
+            .options(JobOptions {
+                deduplication: Some(DeduplicationOptions {
+                    keep_last_if_active: Some(true),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
+        let flow = FlowJob::new("parent", "queue", serde_json::json!({}))
+            .unwrap()
+            .add_child(child);
+
+        assert!(validate_deferred_child_deduplication(&flow, false).is_err());
+    }
+
+    #[test]
+    fn flow_allows_deferred_deduplication_without_a_parent() {
+        let flow = FlowJob::new("root", "queue", serde_json::json!({}))
+            .unwrap()
+            .options(JobOptions {
+                deduplication: Some(DeduplicationOptions {
+                    keep_last_if_active: Some(true),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
+
+        assert!(validate_deferred_child_deduplication(&flow, false).is_ok());
+    }
+
+    #[test]
+    fn release_parent_contexts_are_deduplicated_by_key() {
+        let parent = |id: &str| ParentContext {
+            parent_id: id.to_string(),
+            parent_key: "bull:queue:parent".to_string(),
+            parent_queue_key: "bull:queue".to_string(),
+            parent_deps_key: "bull:queue:parent:dependencies".to_string(),
+        };
+
+        let parents = deduplicate_parent_contexts([parent("first"), parent("second")]);
+
+        assert_eq!(parents.len(), 1);
+        assert_eq!(
+            parents.get("bull:queue:parent").unwrap().parent_id,
+            "second"
+        );
     }
 
     #[test]
