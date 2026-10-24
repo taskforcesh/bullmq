@@ -75,7 +75,7 @@ describe('flows', () => {
       await worker.waitUntilReady();
 
       const completed = new Promise<void>(resolve =>
-        worker.once('completed', resolve),
+        worker.once('completed', () => resolve()),
       );
       await queue.add('completed-child', {}, { jobId: completedChildId });
       await completed;
