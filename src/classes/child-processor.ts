@@ -230,11 +230,20 @@ export class ChildProcessor {
        * Proxy `updateData` function.
        */
       updateData: async (data: any) => {
-        await send({
-          cmd: ParentCommand.Update,
-          value: data,
-        });
         wrappedJob.data = data;
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await waitResponse(
+          requestId,
+          this.receiver,
+          undefined,
+          'updateData',
+          () =>
+            send({
+              requestId,
+              cmd: ParentCommand.Update,
+              value: data,
+            }),
+        );
       },
 
       /**
@@ -344,22 +353,48 @@ export class ChildProcessor {
 const waitResponse = async (
   requestId: string,
   receiver: Receiver,
-  timeout: number,
+  timeout: number | undefined,
   cmd: string,
+  send?: () => Promise<void>,
 ) => {
-  return new Promise((resolve, reject) => {
-    const listener = (msg: { requestId: string; value: any }) => {
+  let listener: (msg: {
+    requestId: string;
+    value: any;
+    err?: Record<string, any>;
+  }) => void;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const response = new Promise((resolve, reject) => {
+    listener = msg => {
       if (msg.requestId === requestId) {
-        resolve(msg.value);
-        receiver.off('message', listener);
+        if (msg.err) {
+          reject(Object.assign(new Error(), msg.err));
+        } else {
+          resolve(msg.value);
+        }
       }
     };
     receiver.on('message', listener);
 
-    setTimeout(() => {
-      receiver.off('message', listener);
-
-      reject(new Error(`TimeoutError: ${cmd} timed out in (${timeout}ms)`));
-    }, timeout);
+    if (timeout !== undefined) {
+      timer = setTimeout(() => {
+        reject(new Error(`TimeoutError: ${cmd} timed out in (${timeout}ms)`));
+      }, timeout);
+    }
   });
+
+  try {
+    if (send) {
+      const [value] = await Promise.all([
+        response,
+        Promise.resolve().then(send),
+      ]);
+      return value;
+    }
+    return await response;
+  } finally {
+    receiver.off('message', listener);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
 };
