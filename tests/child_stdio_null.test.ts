@@ -25,8 +25,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 // cannot reference any module-scope import inside the factory. The
 // `ChildCommand.Init` and `ParentCommand.InitCompleted` numeric enum ordinals
 // are inlined below to avoid hoisting issues.
-vi.mock('child_process', async importOriginal => {
-  const actual = await importOriginal<typeof import('child_process')>();
+vi.mock('node:child_process', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
   // Mirror enum values from ../src/enums (kept in sync manually because the
   // mock factory is hoisted above imports). These are numeric enums:
   //   ChildCommand.Init        === 0
