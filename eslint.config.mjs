@@ -9,6 +9,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
 import { FlatCompat } from '@eslint/eslintrc';
+import { builtinModules } from 'node:module';
+
+const bareBuiltinModules = builtinModules.filter(
+  m => !m.startsWith('_') && !m.includes(':'),
+);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,6 +80,10 @@ export default defineConfig([
         'error',
         {
           patterns: ['src/*'],
+          paths: bareBuiltinModules.map(name => ({
+            name,
+            message: `Use 'node:${name}' instead of '${name}'.`,
+          })),
         },
       ],
       '@typescript-eslint/no-empty-interface': [
