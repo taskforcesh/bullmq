@@ -1,7 +1,7 @@
-import { pathToFileURL } from 'url';
+import { pathToFileURL } from 'node:url';
 import { default as IORedis } from 'ioredis';
 import { after } from './utils/lodash';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import {
   describe,
   beforeEach,
@@ -30,7 +30,7 @@ import {
   randomUUID,
   removeAllQueueData,
 } from '../src/utils';
-import { existsSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
 const { stdout, stderr } = require('test-console');
 
 describe('Sandboxed process using child processes', () => {

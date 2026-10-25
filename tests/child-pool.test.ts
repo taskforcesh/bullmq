@@ -1,5 +1,5 @@
 import { Child, ChildPool } from '../src/classes';
-import { join } from 'path';
+import { join } from 'node:path';
 import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 
 const NoopProc = () => {};

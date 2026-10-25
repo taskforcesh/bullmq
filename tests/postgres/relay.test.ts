@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { Pool, PoolClient } from 'pg';
 import { createPostgresRelayBackend, Relay } from '../../src';
 import { getPostgresUrl } from './utils/postgres-url';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import { ConnectionClosedError, createValkeyGlideClient } from '../src/classes';
 
 type GlideArg = string | Buffer;

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   loadCommandSql,
   loadMigrationSql,

@@ -3,7 +3,7 @@
  */
 
 'use strict';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import { Packr } from 'msgpackr';
 
 const packer = new Packr({
