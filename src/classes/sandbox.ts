@@ -3,6 +3,7 @@ import { ChildMessage } from '../interfaces';
 import { Child } from './child';
 import { ChildPool } from './child-pool';
 import { Job } from './job';
+import { errorToJSON } from '../utils';
 
 const sandbox = <T, R, N extends string>(
   processFile: any,
@@ -77,7 +78,22 @@ const sandbox = <T, R, N extends string>(
                     }
                     break;
                   case ParentCommand.Update:
-                    await job.updateData(msg.value);
+                    {
+                      let err: Record<string, any> | undefined;
+                      try {
+                        await job.updateData(msg.value);
+                      } catch (error) {
+                        err = errorToJSON(error);
+                        if (error instanceof Error) {
+                          err.name = error.name;
+                        }
+                      }
+                      await child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.UpdateDataResponse,
+                        err,
+                      });
+                    }
                     break;
                   case ParentCommand.GetChildrenValues:
                     {
