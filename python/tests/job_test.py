@@ -4,8 +4,10 @@ Tests for job class.
 https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
+import asyncio
 import unittest
 import os
+import time
 import redis.asyncio as redis
 
 from bullmq import Queue, Job, Worker
@@ -107,6 +109,47 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(isDelayedAfterPromote, False)
         isWaiting = await job.isWaiting()
         self.assertEqual(isWaiting, True)
+
+        await queue.close()
+
+    async def test_change_delay_of_delayed_job(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        completed = asyncio.get_running_loop().create_future()
+
+        async def process(job: Job, token: str):
+            return "done"
+
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+        worker.on("completed", lambda job, result: completed.set_result(job))
+
+        job = await queue.add("test", {"foo": "bar"}, {"delay": 8000})
+        self.assertEqual(await job.isDelayed(), True)
+
+        start = round(time.time() * 1000)
+        await job.changeDelay(1000)
+
+        self.assertEqual(await job.isDelayed(), True)
+        self.assertEqual(job.delay, 1000)
+        stored_job = await Job.fromId(queue, job.id)
+        self.assertEqual(stored_job.delay, 1000)
+
+        asyncio.ensure_future(worker.run())
+        # The original 8 s delay would miss this timeout.
+        completed_job = await asyncio.wait_for(completed, timeout=5)
+        self.assertGreaterEqual(completed_job.processedOn - start, 1000)
+
+        await worker.close()
+        await queue.close()
+
+    async def test_change_delay_of_job_that_is_not_delayed(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        job = await queue.add("test", {"foo": "bar"}, {})
+        self.assertEqual(await job.isDelayed(), False)
+
+        with self.assertRaises(TypeError) as error:
+            await job.changeDelay(2000)
+
+        self.assertEqual(str(error.exception), f"Job {job.id} is not in the delayed state. changeDelay")
 
         await queue.close()
 
