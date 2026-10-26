@@ -131,6 +131,11 @@ class RedisConnection:
         connection_kwargs = getattr(pool, "connection_kwargs", None)
         if not isinstance(connection_kwargs, dict):
             return
+        if blocking_timeout <= 0:
+            connection_kwargs["socket_timeout"] = None
+            if "orig_socket_timeout" in connection_kwargs:
+                connection_kwargs["orig_socket_timeout"] = None
+            return
         socket_timeout = connection_kwargs.get("socket_timeout")
         if "socket_timeout" not in connection_kwargs:
             socket_timeout = connection_kwargs.get("orig_socket_timeout")
