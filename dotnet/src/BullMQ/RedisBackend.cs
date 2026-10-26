@@ -1153,14 +1153,17 @@ public sealed class RedisBackend : IQueueBackend
             return Array.Empty<EventEntry>();
         }
 
-        // Shape: [[streamKey, [[id, [f1, v1, ...]], ...]]]
+        // RESP2 shape: [[streamKey, [[id, [f1, v1, ...]], ...]]]
+        // RESP3 maps are returned as a flat [streamKey, entries] array.
         var streams = (RedisResult[]?)result;
         if (streams is null || streams.Length == 0)
         {
             return Array.Empty<EventEntry>();
         }
 
-        var firstStream = (RedisResult[]?)streams[0];
+        var firstStream = result.Resp3Type == ResultType.Map
+            ? streams
+            : (RedisResult[]?)streams[0];
         if (firstStream is null || firstStream.Length < 2)
         {
             return Array.Empty<EventEntry>();
