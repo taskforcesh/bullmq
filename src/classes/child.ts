@@ -1,9 +1,9 @@
-import { ChildProcess, fork } from 'child_process';
-import { AddressInfo, createServer } from 'net';
-import { Worker } from 'worker_threads';
+import { ChildProcess, fork } from 'node:child_process';
+import { AddressInfo, createServer } from 'node:net';
+import { Worker } from 'node:worker_threads';
 import { ChildCommand, ParentCommand } from '../enums';
 import { SandboxedOptions } from '../interfaces';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 /**
  * @see https://nodejs.org/api/process.html#process_exit_codes

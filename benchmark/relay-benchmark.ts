@@ -48,7 +48,7 @@
 
 import IORedis from 'ioredis';
 import { Pool } from 'pg';
-import { performance } from 'perf_hooks';
+import { performance } from 'node:perf_hooks';
 import { Relay } from '../src/classes/relay';
 import { createPostgresRelayBackend } from '../src/postgres';
 import { getPostgresUrl } from '../tests/postgres/utils/postgres-url';

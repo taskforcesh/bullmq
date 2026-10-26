@@ -14,9 +14,9 @@
  * shared verbatim with the Python/Elixir/PHP/Rust ports); run this script to
  * regenerate the module after changing any of them.
  */
-const fs = require('fs');
-const path = require('path');
-const { argv } = require('process');
+const fs = require('node:fs');
+const path = require('node:path');
+const { argv } = require('node:process');
 
 const readFile = fs.promises.readFile;
 const writeFile = fs.promises.writeFile;

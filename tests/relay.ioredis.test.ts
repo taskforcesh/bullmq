@@ -8,8 +8,8 @@ import {
   vi,
 } from 'vitest';
 import { default as IORedis } from 'ioredis';
-import { randomUUID } from 'crypto';
-import { AddressInfo, createServer, Socket } from 'net';
+import { randomUUID } from 'node:crypto';
+import { AddressInfo, createServer, Socket } from 'node:net';
 import {
   Queue,
   RedisConnection,

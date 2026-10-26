@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createClient } from 'redis';
 import { createNodeRedisClient } from '../src/classes';
 import { IRedisClient } from '../src/interfaces';
-import { Readable } from 'stream';
+import { Readable } from 'node:stream';
 
 // ---------------------------------------------------------------------------
 // Adapter factory – change this to test a different adapter
