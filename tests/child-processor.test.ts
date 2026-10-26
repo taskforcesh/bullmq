@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ChildProcessor } from '../src/classes/child-processor';
 import { ChildCommand, ParentCommand } from '../src/enums';
