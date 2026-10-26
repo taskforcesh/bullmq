@@ -15,7 +15,7 @@ async function withMockedRuntimeModule<T>(
   exports: Record<string, unknown>,
   callback: () => Promise<T>,
 ): Promise<T> {
-  const module = require('module') as typeof import('module') & {
+  const module = require('node:module') as typeof import('node:module') & {
     _load: (...args: any[]) => any;
   };
   const originalLoad = module._load;

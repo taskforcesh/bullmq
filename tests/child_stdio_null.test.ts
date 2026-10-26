@@ -37,7 +37,7 @@ vi.mock('node:child_process', async importOriginal => {
   // `require` is used here on purpose: the factory is hoisted above all ES
   // module imports by vitest, so we cannot rely on a top-level
   // `import { EventEmitter } from 'events'`.
-  const { EventEmitter } = require('events');
+  const { EventEmitter } = require('node:events');
 
   // A fake ChildProcess: EventEmitter + null stdout/stderr + a working `send`.
   class FakeChild extends EventEmitter {
