@@ -135,7 +135,10 @@ class RedisConnection:
         if "socket_timeout" not in connection_kwargs:
             socket_timeout = connection_kwargs.get("orig_socket_timeout")
         if socket_timeout is not None and socket_timeout <= blocking_timeout:
-            connection_kwargs["socket_timeout"] = blocking_timeout + socket_timeout
+            adjusted_timeout = blocking_timeout + socket_timeout
+            connection_kwargs["socket_timeout"] = adjusted_timeout
+            if "orig_socket_timeout" in connection_kwargs:
+                connection_kwargs["orig_socket_timeout"] = adjusted_timeout
 
     def loadCommands(self) -> None:
         """
