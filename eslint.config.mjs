@@ -24,8 +24,8 @@ const bareBuiltinModules = builtinModules.filter(
 );
 
 /**
- * Flags bare built-in calls, e.g. `require("net")` should be `require("node:net")`
- * (also `import("net")`). Used by no-restricted-syntax.
+ * Flags bare built-in static imports, e.g. `import "net"` should be `import "node:net"`.
+ * Used by `no-restricted-imports`
  */
 const restrictedBuiltinPaths = bareBuiltinModules.map(name => ({
   name,
@@ -33,8 +33,8 @@ const restrictedBuiltinPaths = bareBuiltinModules.map(name => ({
 }));
 
 /**
- * Flags bare built-in static imports, e.g. `import "net"` should be `import "node:net"`.
- * Used by `no-restricted-imports`
+ * Flags bare built-in calls, e.g. `require("net")` should be `require("node:net")`
+ * (also `import("net")`). Used by no-restricted-syntax.
  */
 const restrictedBuiltinCalls = bareBuiltinModules.flatMap(name => {
   const message = `Use 'node:${name}' instead of '${name}'.`;
