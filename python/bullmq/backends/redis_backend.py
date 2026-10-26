@@ -17,6 +17,7 @@ blocking wait, ...) itself.
 from __future__ import annotations
 
 import asyncio
+import math
 from typing import Any, Optional, TYPE_CHECKING
 
 from bullmq.backend import Backend
@@ -534,9 +535,7 @@ def create_redis_backend(
         RedisConnection(
             redis_opts,
             skipVersionCheck=skip_version_check,
-            # The worker never blocks longer than the backend's
-            # ``maximumBlockTimeout`` (10s for Redis).
-            blockingTimeout=10,
+            blockingTimeout=max(10, math.ceil(opts.get("drainDelay", 5))),
         )
         if with_blocking_connection
         else None
