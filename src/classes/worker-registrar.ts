@@ -75,13 +75,16 @@ export class WorkerRegistrar {
   }
 
   /** Stops the timers and unregisters the Worker (best-effort). */
-  async close(): Promise<void> {
+  async close(force = false): Promise<void> {
     if (this.closing) {
       return;
     }
     this.closing = true;
     clearInterval(this.heartbeatTimer);
     clearInterval(this.sweepTimer);
+    if (force) {
+      return;
+    }
     await this.starting;
     await this.heartbeating?.catch((): void => undefined);
     await this.sweeping?.catch((): void => undefined);

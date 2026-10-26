@@ -1418,7 +1418,7 @@ export class Worker<
             },
             () => this.lockManager.close(),
             () => this.childPool?.clean(),
-            () => this.registrar.close(),
+            () => this.registrar.close(force),
             () => this.backend.close(force),
           ];
 

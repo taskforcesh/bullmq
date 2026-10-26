@@ -2171,6 +2171,10 @@ export class PostgresQueueBackend
       return;
     }
     await this.ensureListeningEvents();
+    // The backend may have been closed while we were awaiting `ensureListeningEvents`
+    if (this.closing || this.connection.isClosing) {
+      return;
+    }
     // Only this queue's events (see PostgresConnection).
     const notification = `${PostgresQueueBackend.EVENTS_CHANNEL}:${this.queueName}`;
 

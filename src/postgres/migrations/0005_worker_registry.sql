@@ -21,8 +21,8 @@ CREATE TABLE worker_registration (
   PRIMARY KEY (queue, worker_id)
 );
 
--- No other index: the primary key covers lookups by queue, and an index on
--- lease_until would make every heartbeat write index entries.
+-- Sweeps remove expired Workers of every queue
+CREATE INDEX worker_registration_lease_idx ON worker_registration (lease_until);
 
 -- Registers (or refreshes) a Worker. Reusing an expired, unswept Worker id
 -- starts a fresh registration; refreshing a live registration preserves its

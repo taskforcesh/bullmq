@@ -13,6 +13,7 @@ import {
   afterAll,
   it,
   expect,
+  vi,
 } from 'vitest';
 
 import * as sinon from 'sinon';
@@ -21,6 +22,7 @@ import { FlowProducer, Queue, Worker } from '../src/classes';
 import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
+import { waitFor } from './utils/relay';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Jobs getters', () => {
@@ -292,6 +294,33 @@ describe('Jobs getters', () => {
       expect(await waitForWorkers(queue, 1)).toHaveLength(1);
 
       await worker.close();
+    });
+
+    it('force closes without waiting for registry requests', async () => {
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        prefix,
+        registry: { leaseDuration: 60_000, heartbeatInterval: 20 },
+      });
+      await worker.waitUntilReady();
+      // As if the datastore had gone away: registry requests never settle.
+      const backend = worker.getBackend();
+      const heartbeat = vi
+        .spyOn(backend, 'heartbeatWorker')
+        .mockReturnValue(new Promise(() => {}));
+      const unregister = vi
+        .spyOn(backend, 'unregisterWorker')
+        .mockReturnValue(new Promise(() => {}));
+      await delay(100);
+      // One heartbeat is in progress; later ticks are skipped while it runs.
+      expect(heartbeat).toHaveBeenCalledTimes(1);
+
+      const closed = vi.fn();
+      const closing = worker.close(true).then(closed);
+      await waitFor(() => closed.mock.calls.length === 1, 1_000);
+      await closing;
+      expect(unregister).not.toHaveBeenCalled();
     });
 
     it('rejects invalid registry options', () => {
