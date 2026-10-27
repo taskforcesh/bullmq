@@ -81,6 +81,7 @@ class RedisConnection:
         redisOpts: ConnectionOptions = {},
         skipVersionCheck: bool = False,
         skipWaitingForReady: bool = False,
+        blockingTimeout: Optional[float] = None,
     ):
         if skipWaitingForReady:
             warnings.warn(
@@ -111,8 +112,38 @@ class RedisConnection:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
                 retry_on_error=retry_errors, single_connection_client=True)
 
+        if blockingTimeout is not None and self.conn is not redisOpts:
+            self._ensure_socket_timeout_exceeds(blockingTimeout)
+
         self.commands = {}
         self.loadCommands()
+
+    def _ensure_socket_timeout_exceeds(self, blocking_timeout: float) -> None:
+        """
+        Make sure a client-side socket read cannot time out before a blocking
+        command (BZPOPMIN, XREAD BLOCK, ...) of up to ``blocking_timeout``
+        seconds returns. redis-py >= 8 defaults ``socket_timeout`` to 5s,
+        which would otherwise abort longer blocking calls and make the retry
+        layer silently reconnect. Only clients created by this class are
+        adjusted; user-provided client instances are left untouched.
+        """
+        pool = getattr(self.conn, "connection_pool", None)
+        connection_kwargs = getattr(pool, "connection_kwargs", None)
+        if not isinstance(connection_kwargs, dict):
+            return
+        if blocking_timeout <= 0:
+            connection_kwargs["socket_timeout"] = None
+            if "orig_socket_timeout" in connection_kwargs:
+                connection_kwargs["orig_socket_timeout"] = None
+            return
+        socket_timeout = connection_kwargs.get("socket_timeout")
+        if "socket_timeout" not in connection_kwargs:
+            socket_timeout = connection_kwargs.get("orig_socket_timeout")
+        if socket_timeout is not None and socket_timeout <= blocking_timeout:
+            adjusted_timeout = blocking_timeout + socket_timeout
+            connection_kwargs["socket_timeout"] = adjusted_timeout
+            if "orig_socket_timeout" in connection_kwargs:
+                connection_kwargs["orig_socket_timeout"] = adjusted_timeout
 
     def loadCommands(self) -> None:
         """
