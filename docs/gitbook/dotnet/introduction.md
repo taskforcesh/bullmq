@@ -67,6 +67,8 @@ worker.Completed += (job, result) =>
 
 worker.Failed += (job, error) =>
     Console.WriteLine($"Job {job?.Id} failed with {error.Message}");
+
+await worker.RunAsync();
 ```
 
 ### Listening to queue events
@@ -81,6 +83,8 @@ await using var queueEvents = new QueueEvents("emails", new QueueEventsOptions
 
 queueEvents.Completed += e =>
     Console.WriteLine($"Job {e.JobId} completed with {e.ReturnValue}");
+
+await queueEvents.RunAsync();
 ```
 
 ### Job schedulers

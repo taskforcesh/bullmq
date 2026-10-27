@@ -90,7 +90,9 @@ my_worker.pause();
 {% endtab %}
 {% endtabs %}
 
-The call above will wait for all the jobs currently being processed by this worker to complete (or fail). If you do not want to wait for current jobs to complete before the call completes you can pass `true` to pause the worker **ignoring any running jobs**:
+TypeScript and Python wait for active jobs to complete (or fail) when pausing a worker. Rust and Elixir pause calls return immediately while active jobs continue running. Rust has no `force` option, and Elixir's `force` option currently has no effect.
+
+In TypeScript and Python, pass `true` to return immediately while current jobs continue running:
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -109,13 +111,6 @@ await my_worker.pause(True)
 
 {% endtab %}
 
-{% tab title="Elixir" %}
-
-```elixir
-:ok = BullMQ.Worker.pause(my_worker, force: true)
-```
-
-{% endtab %}
 {% endtabs %}
 
 ## Read more:

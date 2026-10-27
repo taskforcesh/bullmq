@@ -265,6 +265,8 @@ await using var worker = new Worker(
         return null;
     },
     new WorkerOptions { Postgres = postgres });
+
+await worker.RunAsync();
 ```
 
 {% endtab %}

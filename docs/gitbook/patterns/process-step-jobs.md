@@ -232,7 +232,7 @@ const worker = new Worker(
 ```python
 import time
 from enum import Enum
-from bullmq import DelayedError, Worker
+from bullmq import DelayedError, Job, Worker
 
 class Step(int, Enum):
   Initial = 0
@@ -244,10 +244,10 @@ async def process(job: Job, token: str):
   while step != Step.Finish:
     if step == Step.Initial:
       await doInitialStepStuff()
-      await job.moveToDelayed(round(time.time() * 1000) + 200, token)
       await job.updateData({
           "step": Step.Second
       })
+      await job.moveToDelayed(round(time.time() * 1000) + 200, token)
       raise DelayedError()
     elif step == Step.Second:
       await doSecondStepStuff()
@@ -335,10 +335,10 @@ let worker = Worker::with_options(
             match step {
                 s if s == Step::Initial as i64 => {
                     do_initial_step_stuff().await;
-                    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
-                    job.move_to_delayed(now + 200).await?;
                     job.update_data(serde_json::json!({ "step": Step::Second as i64 }))
                         .await?;
+                    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
+                    job.move_to_delayed(now + 200).await?;
                     return Err(bullmq::Error::Delayed);
                 }
                 s if s == Step::Second as i64 => {

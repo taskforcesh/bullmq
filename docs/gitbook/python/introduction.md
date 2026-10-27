@@ -95,7 +95,7 @@ worker = Worker("myQueue", process, {"connection": connection, "prefix": "{mypre
 
 ## PostgreSQL backend
 
-The same `Queue`, `Worker`, `QueueEvents` and `FlowProducer` API can run on PostgreSQL instead of Redis. Install the package with the `postgres` extra, which adds the [psycopg](https://www.psycopg.org) driver:
+The `Queue`, `Worker` and `FlowProducer` APIs can run on PostgreSQL instead of Redis. Python `QueueEvents` remains Redis-only and cannot consume PostgreSQL events. Install the package with the `postgres` extra, which adds the [psycopg](https://www.psycopg.org) driver:
 
 ```
 $ pip install "bullmq[postgres]"

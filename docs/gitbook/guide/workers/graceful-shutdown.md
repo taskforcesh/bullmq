@@ -52,4 +52,4 @@ worker.close(30_000).await?;
 {% endtab %}
 {% endtabs %}
 
-The above call will mark the worker as _closing_ so it will not pick up new jobs, and at the same time it will wait for all the current jobs to be processed (or failed). This call will not timeout by itself, so you should make sure that your jobs finalize in a timely manner. If this call fails for some reason or it is not able to complete, the pending jobs will be marked as stalled and processed by other workers (if correct stalled options are configured on the [`QueueScheduler`](https://docs.bullmq.io/api/interfaces/v1.QueueSchedulerOptions.html)).
+The shutdown behavior and timeout depend on the SDK. TypeScript, Python, and .NET wait for active jobs to finish without a built-in timeout. Rust's `close(30_000)` waits for up to 30 seconds and aborts unfinished processing when the deadline expires. Elixir waits up to 30 seconds by default; pass `timeout: milliseconds` to choose another deadline, or `force: true` to skip waiting. If shutdown ends before active jobs finish, they can be recovered as stalled by other workers (when stalled-job checking is configured).
