@@ -37,16 +37,61 @@ counts = await myQueue.getJobCounts('wait', 'completed', 'failed')
 
 {% endtab %}
 
+{% tab title="Elixir" %}
+
+```elixir
+{:ok, counts} =
+  BullMQ.Queue.get_job_counts("Paint", [:waiting, :completed, :failed], connection: :my_redis)
+
+# Returns a map like this %{waiting: number, completed: number, failed: number}
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+await using var myQueue = new Queue("Paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+var counts = await myQueue.GetJobCountsAsync("wait", "completed", "failed");
+
+// Returns a dictionary like this { wait: number, completed: number, failed: number }
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
-use bullmq::{Queue, QueueOptions};
+use bullmq::Queue;
 
-let queue = Queue::new("Paint", QueueOptions::default()).await?;
+let queue = Queue::new("Paint").await?;
 
 let counts = queue.get_job_counts().await?;
 // counts.waiting, counts.completed, counts.failed, counts.active, etc.
 println!("waiting: {}, completed: {}, failed: {}", counts.waiting, counts.completed, counts.failed);
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+
+use BullMQ\Queue;
+
+$myQueue = new Queue('Paint');
+
+$counts = $myQueue->getJobCounts();
+
+// Returns an array with the count of every status, like this
+// ['waiting' => int, 'active' => int, 'completed' => int, 'failed' => int, ...]
 ```
 
 {% endtab %}
@@ -89,10 +134,41 @@ completed = await myQueue.getJobs(['completed'], 0, 99, True)
 
 {% endtab %}
 
+{% tab title="Elixir" %}
+
+```elixir
+{:ok, completed} =
+  BullMQ.Queue.get_jobs("Paint", [:completed], connection: :my_redis, start: 0, end: 99, asc: true)
+
+# returns jobs at indices 0-99 inclusive (100 jobs total)
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+var completed = await myQueue.GetJobsAsync(new[] { "completed" }, 0, 99, true);
+
+// returns jobs at indices 0-99 inclusive (100 jobs total)
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
 let completed = queue.get_jobs(&["completed"], 0, 99, true).await?;
+
+// returns jobs at indices 0-99 inclusive (100 jobs total)
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+$completed = $myQueue->getJobsByType(['completed'], 0, 99, true);
 
 // returns jobs at indices 0-99 inclusive (100 jobs total)
 ```

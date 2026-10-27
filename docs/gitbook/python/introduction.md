@@ -1,5 +1,5 @@
 ---
-description: BullMQ is now also available as an experimental python package.
+description: BullMQ is available as a native Python package, running on Redis™ or PostgreSQL.
 ---
 
 # Introduction
@@ -11,6 +11,10 @@ BullMQ is delivered as a pip package and can thus be installed using pip:
 ```
 $ pip install bullmq
 ```
+
+BullMQ for Python requires Python 3.10 or newer, and Redis 6.2 or newer (or a compatible server such as Valkey or Dragonfly), or PostgreSQL 13 or newer when using the [PostgreSQL backend](#postgresql-backend).
+
+Queues created with the Python package are fully interoperable with the other BullMQ SDKs (Node.js, Elixir, .NET, Rust and PHP), so you can, for example, add jobs from a Node.js service and process them with Python workers.
 
 ### Get started
 
@@ -88,3 +92,30 @@ connection = RedisCluster(host="<host>", port=6379, decode_responses=True)
 queue = Queue("myQueue", {"connection": connection, "prefix": "{myprefix}"})
 worker = Worker("myQueue", process, {"connection": connection, "prefix": "{myprefix}"})
 ```
+
+## PostgreSQL backend
+
+The `Queue`, `Worker` and `FlowProducer` APIs can run on PostgreSQL instead of Redis. Python `QueueEvents` remains Redis-only and cannot consume PostgreSQL events. Install the package with the `postgres` extra, which adds the [psycopg](https://www.psycopg.org) driver:
+
+```
+$ pip install "bullmq[postgres]"
+```
+
+Then set `backend` to `"postgres"` and pass a PostgreSQL connection string (or a dict with `host`, `port`, `dbname`, `user` and `password`) as the `connection`:
+
+```python
+from bullmq import Queue, Worker
+
+opts = {
+    "backend": "postgres",
+    "connection": "postgresql://postgres:postgres@localhost:5432/mydb",
+    # "schema": "bullmq",  # optional, this is the default
+}
+
+queue = Queue("myQueue", opts)
+await queue.add("myJob", {"foo": "bar"})
+
+worker = Worker("myQueue", process, opts)
+```
+
+All BullMQ objects live in a dedicated schema (`bullmq` by default), and the required tables and functions are migrated automatically on first use. Note that the `prefix` option is not supported on PostgreSQL, use `schema` to namespace your queues instead. Read more about this backend in the [PostgreSQL backend](../guide/postgresql.md) section of the guide.
