@@ -27,11 +27,52 @@ from bullmq import Queue
 
 queue = Queue("paint")
 
+name = "jobName"
 jobs = await queue.addBulk([
-  { "name": "jobName", "data": { "paint": "car" } },
-  { "name": "jobName", "data": { "paint": "house" } },
-  { "name": "jobName", "data": { "paint": "boat" } }
+    {"name": name, "data": {"paint": "car"}},
+    {"name": name, "data": {"paint": "house"}},
+    {"name": name, "data": {"paint": "boat"}},
 ])
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+name = "jobName"
+
+{:ok, jobs} =
+  BullMQ.Queue.add_bulk(
+    "paint",
+    [
+      {name, %{paint: "car"}, []},
+      {name, %{paint: "house"}, []},
+      {name, %{paint: "boat"}, []}
+    ],
+    connection: :my_redis
+  )
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+const string name = "jobName";
+var jobs = await queue.AddBulkAsync(new (string, object?, JobsOptions?)[]
+{
+    (name, new { paint = "car" }, null),
+    (name, new { paint = "house" }, null),
+    (name, new { paint = "boat" }, null),
+});
 ```
 
 {% endtab %}
@@ -39,21 +80,43 @@ jobs = await queue.addBulk([
 {% tab title="Rust" %}
 
 ```rust
-use bullmq::{Queue, QueueOptions};
+use bullmq::{BulkJob, Queue};
+use serde_json::json;
 
-let queue = Queue::new("paint", QueueOptions::default()).await?;
+let queue = Queue::new("paint").await?;
 
-let jobs = queue.add_bulk(vec![
-    ("jobName".into(), serde_json::json!({"paint": "car"}), None),
-    ("jobName".into(), serde_json::json!({"paint": "house"}), None),
-    ("jobName".into(), serde_json::json!({"paint": "boat"}), None),
-]).await?;
+let name = "jobName";
+let jobs = queue
+    .add_bulk(vec![
+        BulkJob::new(name, json!({"paint": "car"})),
+        BulkJob::new(name, json!({"paint": "house"})),
+        BulkJob::new(name, json!({"paint": "boat"})),
+    ])
+    .await?;
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+use BullMQ\Queue;
+
+$queue = new Queue('paint');
+
+$name = 'jobName';
+$jobs = $queue->addBulk([
+    ['name' => $name, 'data' => ['paint' => 'car']],
+    ['name' => $name, 'data' => ['paint' => 'house']],
+    ['name' => $name, 'data' => ['paint' => 'boat']],
+]);
 ```
 
 {% endtab %}
 {% endtabs %}
 
-This call can only succeed or fail, and all or none of the jobs will be added.
+This call can only succeed or fail, and all or none of the jobs will be added. The .NET and Rust SDKs send all the jobs at once (pipelined) for speed, but do not add them atomically.
 
 ## Read more:
 

@@ -8,6 +8,9 @@ BullMQ supports different strategies for auto-removing finalized jobs. These str
 
 The simplest option is to set `removeOnComplete`/`removeOnFail` to `true`, in this case, all jobs will be removed automatically as soon as they are finalized:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 await myQueue.add(
   'test',
@@ -15,6 +18,60 @@ await myQueue.add(
   { removeOnComplete: true, removeOnFail: true },
 );
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+await my_queue.add(
+    "test",
+    {"foo": "bar"},
+    {"removeOnComplete": True, "removeOnFail": True},
+)
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+await myQueue.AddAsync(
+    "test",
+    new { foo = "bar" },
+    new JobsOptions { RemoveOnComplete = true, RemoveOnFail = true });
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::types::RemoveOnFinish;
+
+my_queue
+    .add("test", serde_json::json!({"foo": "bar"}))
+    .remove_on_complete(RemoveOnFinish::Bool(true))
+    .remove_on_fail(RemoveOnFinish::Bool(true))
+    .await?;
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+
+$myQueue->add(
+    'test',
+    ['foo' => 'bar'],
+    ['removeOnComplete' => true, 'removeOnFail' => true],
+);
+```
+
+{% endtab %}
+{% endtabs %}
 
 {% hint style="warning" %}
 Jobs will be deleted regardless of their names.
@@ -24,6 +81,9 @@ Jobs will be deleted regardless of their names.
 
 It is also possible to specify a maximum number of jobs to keep. A good practice is to keep a handful of completed jobs and a much larger value of failed jobs:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 await myQueue.add(
   'test',
@@ -32,9 +92,66 @@ await myQueue.add(
 );
 ```
 
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+await my_queue.add(
+    "test",
+    {"foo": "bar"},
+    {"removeOnComplete": 1000, "removeOnFail": 5000},
+)
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+await myQueue.AddAsync(
+    "test",
+    new { foo = "bar" },
+    new JobsOptions { RemoveOnComplete = 1000, RemoveOnFail = 5000 });
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::types::RemoveOnFinish;
+
+my_queue
+    .add("test", serde_json::json!({"foo": "bar"}))
+    .remove_on_complete(RemoveOnFinish::Count(1000))
+    .remove_on_fail(RemoveOnFinish::Count(5000))
+    .await?;
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+
+$myQueue->add(
+    'test',
+    ['foo' => 'bar'],
+    ['removeOnComplete' => 1000, 'removeOnFail' => 5000],
+);
+```
+
+{% endtab %}
+{% endtabs %}
+
 ### Keep jobs based on their age
 
 Another possibility is to keep jobs up to a certain age. The `removeOn` option accepts a [`KeepJobs`](https://docs.bullmq.io/api/types/v6.KeepJobs.html) object, that includes an `age` and a `count` fields. The `age` is used to specify how old jobs to keep (in seconds), and the `count` can be used to limit the total amount to keep. The `count` option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory.
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 await myQueue.add(
@@ -51,6 +168,95 @@ await myQueue.add(
   },
 );
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+await my_queue.add(
+    "test",
+    {"foo": "bar"},
+    {
+        "removeOnComplete": {
+            "age": 3600,  # keep up to 1 hour
+            "count": 1000,  # keep up to 1000 jobs
+        },
+        "removeOnFail": {
+            "age": 24 * 3600,  # keep up to 24 hours
+        },
+    },
+)
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+await myQueue.AddAsync(
+    "test",
+    new { foo = "bar" },
+    new JobsOptions
+    {
+        RemoveOnComplete = new KeepJobs
+        {
+            Age = 3600, // keep up to 1 hour
+            Count = 1000, // keep up to 1000 jobs
+        },
+        RemoveOnFail = new KeepJobs
+        {
+            Age = 24 * 3600, // keep up to 24 hours
+        },
+    });
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::types::{KeepJobs, RemoveOnFinish};
+
+my_queue
+    .add("test", serde_json::json!({"foo": "bar"}))
+    .remove_on_complete(RemoveOnFinish::Options(KeepJobs {
+        age: Some(3600),   // keep up to 1 hour
+        count: Some(1000), // keep up to 1000 jobs
+        limit: None,
+    }))
+    .remove_on_fail(RemoveOnFinish::Options(KeepJobs {
+        age: Some(24 * 3600), // keep up to 24 hours
+        count: None,
+        limit: None,
+    }))
+    .await?;
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+
+$myQueue->add(
+    'test',
+    ['foo' => 'bar'],
+    [
+        'removeOnComplete' => [
+            'age' => 3600, // keep up to 1 hour
+            'count' => 1000, // keep up to 1000 jobs
+        ],
+        'removeOnFail' => [
+            'age' => 24 * 3600, // keep up to 24 hours
+        ],
+    ],
+);
+```
+
+{% endtab %}
+{% endtabs %}
 
 {% hint style="info" %}
 The auto removal of jobs works lazily. This means that jobs are not removed unless a new job completes or fails, since that is when the auto-removal takes place.

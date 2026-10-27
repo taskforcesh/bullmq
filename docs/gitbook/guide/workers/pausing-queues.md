@@ -4,21 +4,119 @@ BullMQ supports pausing queues _globally_ or _locally_. When a queue is paused _
 
 Pausing a queue is performed by calling the _**`pause`**_ method on a [queue](https://docs.bullmq.io/api/classes/v6.Queue.html) instance:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 await myQueue.pause();
 ```
 
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+await my_queue.pause()
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+:ok = BullMQ.Queue.pause("my-queue", connection: :my_redis)
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+await myQueue.PauseAsync();
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+my_queue.pause().await?;
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+$myQueue->pause();
+```
+
+{% endtab %}
+{% endtabs %}
+
 It is also possible to _locally_ pause a given worker instance. This pause works in a similar way as the global pause in the sense that the worker will conclude processing the jobs it has already started but will not process any new ones:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 await myWorker.pause();
 ```
 
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+await my_worker.pause()
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+:ok = BullMQ.Worker.pause(my_worker)
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+my_worker.pause();
+```
+
+{% endtab %}
+{% endtabs %}
+
 The call above will wait for all the jobs currently being processed by this worker to complete (or fail). If you do not want to wait for current jobs to complete before the call completes you can pass `true` to pause the worker **ignoring any running jobs**:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 await myWorker.pause(true);
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+await my_worker.pause(True)
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+:ok = BullMQ.Worker.pause(my_worker, force: true)
+```
+
+{% endtab %}
+{% endtabs %}
 
 ## Read more:
 
