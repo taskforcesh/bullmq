@@ -109,6 +109,21 @@ The available status are:
 - _paused_, and
 - _repeat_.
 
+#### Count overdue delayed jobs (TypeScript)
+
+Pass a Unix timestamp in milliseconds to `getDelayedCount` to count delayed
+jobs scheduled strictly before that time:
+
+```typescript
+const overdue = await myQueue.getDelayedCount(Date.now());
+const allDelayed = await myQueue.getDelayedCount();
+```
+
+Jobs scheduled exactly at the cutoff are excluded. Calling the method without
+an argument still counts all delayed jobs, including those scheduled for the
+future. This count only includes jobs still in delayed status; jobs already
+promoted to waiting or active are not included.
+
 #### Get Jobs
 
 It is also possible to retrieve the jobs with pagination style semantics. For example:
