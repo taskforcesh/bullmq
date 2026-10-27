@@ -116,7 +116,7 @@ $jobs = $queue->addBulk([
 {% endtab %}
 {% endtabs %}
 
-Bulk-add atomicity depends on the SDK and backend. On PostgreSQL, the TypeScript, Python, Elixir, and .NET SDKs add a batch in a single database transaction, so a failed batch is rolled back.
+Bulk-add atomicity depends on the SDK and backend. On PostgreSQL, the TypeScript, Python, and .NET SDKs add a batch in a single database transaction, so a failed batch is rolled back. Elixir does this for standard jobs when `pipeline: true` (the default), but adds delayed or prioritized jobs individually. Setting `pipeline: false` also adds all jobs individually. If a later Elixir addition fails in these cases, earlier jobs may remain committed; check the queue before retrying.
 
 On Redis, do not assume that a failed bulk call added no jobs. TypeScript, Rust, and .NET pipeline individual job additions; Elixir may split standard jobs across transactions and adds delayed or prioritized jobs sequentially. Python and PHP group additions in a Redis transaction, but Redis does not roll back commands that fail during execution. A failure can therefore leave some jobs added; check the queue before retrying.
 
