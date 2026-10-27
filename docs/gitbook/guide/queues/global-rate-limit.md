@@ -14,7 +14,7 @@ await queue.setGlobalRateLimit(1, 1000);
 
 {% endtab %}
 
-{% tab title="Python" %}
+{% tab title="Python (Redis only)" %}
 
 ```python
 from bullmq import Queue
@@ -48,7 +48,7 @@ const { max, duration } = await queue.getGlobalRateLimit();
 
 {% endtab %}
 
-{% tab title="Python" %}
+{% tab title="Python (Redis only)" %}
 
 ```python
 rate_limit = await queue.getGlobalRateLimit()
@@ -148,7 +148,7 @@ await queue.removeGlobalRateLimit();
 
 {% endtab %}
 
-{% tab title="Python" %}
+{% tab title="Python (Redis only)" %}
 
 ```python
 await queue.removeGlobalRateLimit()

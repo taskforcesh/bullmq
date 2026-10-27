@@ -13,7 +13,7 @@ await queue.setGlobalConcurrency(4);
 
 {% endtab %}
 
-{% tab title="Python" %}
+{% tab title="Python (Redis only)" %}
 
 ```python
 from bullmq import Queue
@@ -45,7 +45,7 @@ const globalConcurrency = await queue.getGlobalConcurrency();
 
 {% endtab %}
 
-{% tab title="Python" %}
+{% tab title="Python (Redis only)" %}
 
 ```python
 global_concurrency = await queue.getGlobalConcurrency()
@@ -88,7 +88,7 @@ await queue.removeGlobalConcurrency();
 
 {% endtab %}
 
-{% tab title="Python" %}
+{% tab title="Python (Redis only)" %}
 
 ```python
 await queue.removeGlobalConcurrency()
