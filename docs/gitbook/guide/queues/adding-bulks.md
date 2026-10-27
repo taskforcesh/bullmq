@@ -1,6 +1,6 @@
 # Adding jobs in bulk
 
-Sometimes it is necessary to add many jobs atomically. For example, there could be a requirement that all the jobs must be placed in the queue or none of them. Also, adding jobs in bulk can be faster since it reduces the number of roundtrips to Redis:
+Adding jobs in bulk can be faster because it reduces roundtrips to the backend:
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -116,7 +116,9 @@ $jobs = $queue->addBulk([
 {% endtab %}
 {% endtabs %}
 
-This call can only succeed or fail, and all or none of the jobs will be added. The .NET and Rust SDKs send all the jobs at once (pipelined) for speed, but do not add them atomically.
+Bulk-add atomicity depends on the SDK and backend. On PostgreSQL, the TypeScript, Python, Elixir, and .NET SDKs add a batch in a single database transaction, so a failed batch is rolled back.
+
+On Redis, do not assume that a failed bulk call added no jobs. TypeScript, Rust, and .NET pipeline individual job additions; Elixir may split standard jobs across transactions and adds delayed or prioritized jobs sequentially. Python and PHP group additions in a Redis transaction, but Redis does not roll back commands that fail during execution. A failure can therefore leave some jobs added; check the queue before retrying.
 
 ## Read more:
 
