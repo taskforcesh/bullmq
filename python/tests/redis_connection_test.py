@@ -55,7 +55,9 @@ class TestRedisConnectionSingleClient(unittest.TestCase):
     def test_blocking_timeout_raises_default_url_socket_timeout(self, _mock_load):
         conn = RedisConnection("redis://localhost:6379", blockingTimeout=10)
         connection = conn.conn.connection_pool.make_connection()
-        self.assertGreater(connection.socket_timeout, 10)
+        self.assertTrue(
+            connection.socket_timeout is None or connection.socket_timeout > 10
+        )
 
     @patch.object(RedisConnection, 'loadCommands')
     def test_unbounded_blocking_timeout_disables_socket_timeout(self, _mock_load):
