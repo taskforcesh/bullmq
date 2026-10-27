@@ -1,3 +1,10 @@
+## [3.4.5](https://github.com/taskforcesh/bullmq/compare/vpy3.4.4...vpy3.4.5) (2026-10-27)
+
+
+### Bug Fixes
+
+* **worker:** keep blocking connection socket timeout above block timeout [python] ([#4990](https://github.com/taskforcesh/bullmq/issues/4990)) ([d4e749e](https://github.com/taskforcesh/bullmq/commit/d4e749e7b47b510e6677bc25dfeaef9048e0299f))
+
 ## [3.4.4](https://github.com/taskforcesh/bullmq/compare/vpy3.4.3...vpy3.4.4) (2026-10-27)
 
 
