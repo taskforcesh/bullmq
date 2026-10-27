@@ -1,4 +1,4 @@
-import { hostname } from 'os';
+import { hostname } from 'node:os';
 import { IQueueBackend, WorkerRegistryOptions } from '../interfaces';
 import { version as packageVersion } from '../version';
 
@@ -109,7 +109,7 @@ export class WorkerRegistrar {
       return Promise.resolve();
     }
     if (this.heartbeating) {
-      return this.heartbeating;
+      return Promise.resolve();
     }
     this.heartbeating = (async () => {
       const alive = await this.backend.heartbeatWorker(
