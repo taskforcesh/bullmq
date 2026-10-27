@@ -1,3 +1,10 @@
+## [3.4.4](https://github.com/taskforcesh/bullmq/compare/vpy3.4.3...vpy3.4.4) (2026-10-27)
+
+
+### Bug Fixes
+
+* **job:** make changePriority work and read priority from the job hash [python] ([#5022](https://github.com/taskforcesh/bullmq/issues/5022)) ([6dc4745](https://github.com/taskforcesh/bullmq/commit/6dc4745f1121e68dcbc77d5e59fb88d1b17cb5af))
+
 ## [3.4.3](https://github.com/taskforcesh/bullmq/compare/vpy3.4.2...vpy3.4.3) (2026-10-20)
 
 
