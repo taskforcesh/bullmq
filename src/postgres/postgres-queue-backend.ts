@@ -1622,7 +1622,24 @@ export class PostgresQueueBackend
     return Number(rows[0].ttl);
   }
 
-  async getCounts(types: JobType[]): Promise<number[]> {
+  async getCounts(
+    types: JobType[],
+    delayedTimestamp?: number,
+  ): Promise<number[]> {
+    if (delayedTimestamp !== undefined && types.includes('delayed')) {
+      const otherTypes = types.filter(type => type !== 'delayed');
+      const [{ rows }, otherCounts] = await Promise.all([
+        this.run<{ count: string }>('get_delayed_count', [
+          this.queueName,
+          delayedTimestamp,
+        ]),
+        otherTypes.length ? this.getCounts(otherTypes) : Promise.resolve([]),
+      ]);
+      let index = 0;
+      return types.map(type =>
+        type === 'delayed' ? Number(rows[0].count) : otherCounts[index++],
+      );
+    }
     const { rows } = await this.run<Record<string, string>>('get_counts', [
       this.queueName,
     ]);
