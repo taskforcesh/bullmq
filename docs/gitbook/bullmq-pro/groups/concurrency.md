@@ -68,7 +68,6 @@ const channel = 'myQueue:group-concurrency';
 const subscriber = new IORedis(redisOptions);
 const workers: WorkerPro[] = []; // Add your WorkerPro instances here.
 
-await subscriber.subscribe(channel);
 subscriber.on('message', (receivedChannel, message) => {
   if (receivedChannel !== channel) {
     return;
@@ -81,6 +80,7 @@ subscriber.on('message', (receivedChannel, message) => {
     }
   }
 });
+await subscriber.subscribe(channel);
 ```
 
 And then, from any process:
