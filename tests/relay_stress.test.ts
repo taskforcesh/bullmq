@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { Relay, RelayMessage } from '../src';
 import { relayTestHarness, waitFor } from './utils/relay';
 

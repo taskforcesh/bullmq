@@ -1,6 +1,6 @@
-import * as fs from 'fs';
-import { URL } from 'url';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import { URL } from 'node:url';
+import * as path from 'node:path';
 import { AbortController } from './abort-controller';
 
 import {

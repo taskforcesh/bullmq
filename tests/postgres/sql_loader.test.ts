@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   loadCommandSql,
   loadMigrationSql,
@@ -33,7 +33,7 @@ describe('PostgreSQL SQL Loader', () => {
       throw new Error('sql-loader must not read from disk at runtime');
     });
 
-    vi.doMock('fs', () => ({
+    vi.doMock('node:fs', () => ({
       readFileSync,
       default: { readFileSync },
     }));
@@ -44,7 +44,7 @@ describe('PostgreSQL SQL Loader', () => {
     expect(loadCommandSqlFresh('add_job')).toBeTruthy();
     expect(readFileSync).not.toHaveBeenCalled();
 
-    vi.doUnmock('fs');
+    vi.doUnmock('node:fs');
   });
 
   it('inlined SQL is in sync with the .sql sources', () => {

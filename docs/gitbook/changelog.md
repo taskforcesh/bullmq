@@ -1,3 +1,24 @@
+# [6.5.0](https://github.com/taskforcesh/bullmq/compare/v6.4.2...v6.5.0) (2026-10-26)
+
+
+### Features
+
+* enforce node: protocol for built-in module imports ([#5016](https://github.com/taskforcesh/bullmq/issues/5016)) ([52255a9](https://github.com/taskforcesh/bullmq/commit/52255a96309e28e4b8c6247d3249981408596197))
+
+## [6.4.2](https://github.com/taskforcesh/bullmq/compare/v6.4.1...v6.4.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* **deps:** pin fast-uri to patched version ([#5009](https://github.com/taskforcesh/bullmq/issues/5009)) ([f42514c](https://github.com/taskforcesh/bullmq/commit/f42514c3d716dc81c2bbc65b883c9dc545fcb56d))
+
+## [6.4.1](https://github.com/taskforcesh/bullmq/compare/v6.4.0...v6.4.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** update security patches [security] ([#4986](https://github.com/taskforcesh/bullmq/issues/4986)) ([5289377](https://github.com/taskforcesh/bullmq/commit/528937798456bd60ef7d2d5d6df536862e004e87))
+
 # [6.4.0](https://github.com/taskforcesh/bullmq/compare/v6.3.19...v6.4.0) (2026-10-21)
 
 

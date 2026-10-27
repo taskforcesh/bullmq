@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { hostname } from 'os';
+import { hostname } from 'node:os';
 import {
   IRelayBackend,
   Relay,

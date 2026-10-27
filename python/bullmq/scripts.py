@@ -561,7 +561,7 @@ class Scripts:
             self.keys['pc'],
             self.keys['marker']]
 
-        args = [priority, self.toKey(job_id), job_id, 1 if lifo else 0]
+        args = [priority, self.keys[''], job_id, 1 if lifo else 0]
 
         result = await self.commands["changePriority"](keys=keys, args=args)
 
