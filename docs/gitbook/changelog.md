@@ -1,3 +1,10 @@
+# [6.5.0](https://github.com/taskforcesh/bullmq/compare/v6.4.2...v6.5.0) (2026-10-26)
+
+
+### Features
+
+* enforce node: protocol for built-in module imports ([#5016](https://github.com/taskforcesh/bullmq/issues/5016)) ([52255a9](https://github.com/taskforcesh/bullmq/commit/52255a96309e28e4b8c6247d3249981408596197))
+
 ## [6.4.2](https://github.com/taskforcesh/bullmq/compare/v6.4.1...v6.4.2) (2026-10-24)
 
 

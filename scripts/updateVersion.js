@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const newVersion = process.argv[2];
 const versionFilePath = path.join(__dirname, '../src/version.ts');

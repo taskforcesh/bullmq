@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { createPostgresBackend, IQueueBackend, JobJson } from '../../src';
 import { getPostgresUrl } from './utils/postgres-url';

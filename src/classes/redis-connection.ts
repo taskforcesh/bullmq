@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import type { default as IORedis } from 'ioredis';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
 import { IRedisClient } from '../interfaces/redis-client';

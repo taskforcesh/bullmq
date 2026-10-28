@@ -1,6 +1,6 @@
-import { EventEmitter } from 'events';
-import { randomUUID } from 'crypto';
-import { hostname } from 'os';
+import { EventEmitter } from 'node:events';
+import { randomUUID } from 'node:crypto';
+import { hostname } from 'node:os';
 import {
   ConnectionOptions,
   IRelayBackend,

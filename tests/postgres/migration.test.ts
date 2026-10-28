@@ -9,7 +9,7 @@ import {
   vi,
 } from 'vitest';
 import { Pool } from 'pg';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { createPostgresRelayBackend, Relay } from '../../src';
 import {
   assertPostgresVersion,

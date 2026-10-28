@@ -1,4 +1,4 @@
-import { debuglog } from 'util';
+import { debuglog } from 'node:util';
 import {
   BackoffOptions,
   BulkJobOptions,

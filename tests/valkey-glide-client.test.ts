@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import { ConnectionClosedError, createValkeyGlideClient } from '../src/classes';
 
 type GlideArg = string | Buffer;
@@ -15,7 +15,7 @@ async function withMockedRuntimeModule<T>(
   exports: Record<string, unknown>,
   callback: () => Promise<T>,
 ): Promise<T> {
-  const module = require('module') as typeof import('module') & {
+  const module = require('node:module') as typeof import('node:module') & {
     _load: (...args: any[]) => any;
   };
   const originalLoad = module._load;

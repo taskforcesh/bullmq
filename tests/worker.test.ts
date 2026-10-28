@@ -15,7 +15,7 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import {
   Queue,
   QueueEvents,

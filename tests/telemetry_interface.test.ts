@@ -7,7 +7,7 @@ import {
   it,
   expect,
 } from 'vitest';
-import { AsyncLocalStorage } from 'async_hooks';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 import {
   FlowProducer,

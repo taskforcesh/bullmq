@@ -9,8 +9,8 @@
  */
 'use strict';
 
-const { existsSync, unlinkSync } = require('fs');
-const path = require('path');
+const { existsSync, unlinkSync } = require('node:fs');
+const path = require('node:path');
 
 const flag = path.join(__dirname, 'fail-init-once.flag');
 

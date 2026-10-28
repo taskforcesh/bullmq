@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import { PostgresConnection } from '../src/postgres/postgres-connection';
 import { PostgresQueueBackend } from '../src/postgres/postgres-queue-backend';

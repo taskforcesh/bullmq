@@ -1,5 +1,5 @@
-import { createHash } from 'crypto';
-import { EventEmitter } from 'events';
+import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import {
   IRelayBackend,
   RelayBackendOptions,
