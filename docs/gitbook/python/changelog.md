@@ -1,3 +1,10 @@
+## [3.4.6](https://github.com/taskforcesh/bullmq/compare/vpy3.4.5...vpy3.4.6) (2026-10-28)
+
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
 ## [3.4.5](https://github.com/taskforcesh/bullmq/compare/vpy3.4.4...vpy3.4.5) (2026-10-27)
 
 
