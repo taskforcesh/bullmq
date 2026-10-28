@@ -46,6 +46,7 @@ import {
   JobScheduler,
 } from './job-scheduler';
 import { LockManager } from './lock-manager';
+import { WorkerRegistrar } from './worker-registrar';
 import type { NoInferType } from '../types/no-infer';
 
 // 10 seconds is the maximum time a BZPOPMIN can block, so it is the default
@@ -215,6 +216,7 @@ export class Worker<
   private drained = false;
   private limitUntil = 0;
   protected lockManager: LockManager;
+  private registrar: WorkerRegistrar;
   private processorAcceptsSignal = false;
 
   private stalledCheckStopper?: () => void;
@@ -339,6 +341,8 @@ export class Worker<
       throw new Error('drainDelay must be greater than 0');
     }
 
+    WorkerRegistrar.validate(this.opts.registry);
+
     this.concurrency = this.opts.concurrency;
 
     this.opts.lockRenewTime =
@@ -347,6 +351,14 @@ export class Worker<
     this.id = randomUUID();
 
     this.createLockManager();
+
+    this.registrar = new WorkerRegistrar(
+      this.backend,
+      this.id,
+      this.opts.name,
+      this.opts.registry ?? {},
+      err => this.emit('error', err),
+    );
 
     if (processor) {
       if (typeof processor === 'function') {
@@ -420,6 +432,7 @@ export class Worker<
     // surfaced via the 'error' event wired up in QueueBase.
     this.backend
       .waitUntilReady()
+      .then(() => this.registrar.start())
       .then(() => setTimeout(() => this.emit('ready'), 0))
       .catch(() => {});
   }
@@ -557,12 +570,14 @@ export class Worker<
 
   /**
    *
-   * Waits until the worker is ready to start processing jobs.
+   * Waits until the worker is ready to start processing jobs, and is
+   * registered in its queue's worker registry.
    * In general only useful when writing tests.
    *
    */
   async waitUntilReady(): Promise<void> {
     await super.waitUntilReady();
+    await this.registrar.start();
   }
 
   /**
@@ -1403,6 +1418,7 @@ export class Worker<
             },
             () => this.lockManager.close(),
             () => this.childPool?.clean(),
+            () => this.registrar.close(force),
             () => this.backend.close(force),
           ];
 

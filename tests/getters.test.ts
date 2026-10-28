@@ -13,14 +13,16 @@ import {
   afterAll,
   it,
   expect,
+  vi,
 } from 'vitest';
 
 import * as sinon from 'sinon';
 
-import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
+import { FlowProducer, Queue, Worker } from '../src/classes';
 import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
+import { waitFor } from './utils/relay';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Jobs getters', () => {
@@ -45,27 +47,6 @@ describe('Jobs getters', () => {
 
   afterAll(async function () {
     await connection.quit();
-  });
-
-  describe('.getQueueEvents', () => {
-    it('gets all queueEvents for this queue', async () => {
-      const queueEvent = new QueueEvents(queueName, { connection, prefix });
-      await queueEvent.waitUntilReady();
-      await delay(10);
-
-      const queueEvents = await queue.getQueueEvents();
-      expect(queueEvents).toHaveLength(1);
-
-      const queueEvent2 = new QueueEvents(queueName, { connection, prefix });
-      await queueEvent2.waitUntilReady();
-      await delay(10);
-
-      const nextQueueEvents = await queue.getQueueEvents();
-      expect(nextQueueEvents).toHaveLength(2);
-
-      await queueEvent.close();
-      await queueEvent2.close();
-    }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
   describe('.getWorkers', () => {
@@ -194,6 +175,164 @@ describe('Jobs getters', () => {
       await worker.close();
       await worker2.close();
       await cleanupQueue(queueName2);
+    });
+
+    it('lists each Worker with its registration and info', async () => {
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        prefix,
+        name: 'mailer',
+      });
+      await worker.waitUntilReady();
+
+      const [entry] = await queue.getWorkers();
+      expect(entry).toMatchObject({
+        name: queueName,
+        rawname: `${queueName}:w:mailer`,
+        id: worker.id,
+        workerName: 'mailer',
+        pid: String(process.pid),
+      });
+      for (const field of [
+        'host',
+        'version',
+        'age',
+        'registeredAt',
+        'leaseUntil',
+        'lastHeartbeat',
+      ]) {
+        expect(entry[field]).toBeTruthy();
+      }
+
+      await worker.close();
+    });
+
+    it('stops listing a Worker as soon as it closes', async () => {
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+      expect(await queue.getWorkers()).toHaveLength(1);
+
+      await worker.close();
+      expect(await queue.getWorkers()).toHaveLength(0);
+    });
+
+    it('sweeps Workers that stopped renewing their lease', async () => {
+      const backend = queue.getBackend();
+      await backend.registerWorker('crashed', 100);
+
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        prefix,
+        registry: { sweepInterval: 50 },
+      });
+      await worker.waitUntilReady();
+      await delay(300);
+
+      // Already swept by the Worker: nothing left to sweep.
+      expect(await backend.sweepWorkers(10)).toEqual([]);
+      expect((await queue.getWorkers()).map(entry => entry.id)).toEqual([
+        worker.id,
+      ]);
+
+      await worker.close();
+    });
+
+    it('registers again when its registration is lost', async () => {
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        prefix,
+        registry: { leaseDuration: 3000, heartbeatInterval: 50 },
+      });
+      await worker.waitUntilReady();
+
+      // As if its lease had expired and been swept during a long stall.
+      await queue.getBackend().unregisterWorker(worker.id);
+      expect(await queue.getWorkersCount()).toBe(0);
+
+      const workers = await waitForWorkers(queue, 1);
+      expect(workers).toHaveLength(1);
+      expect(workers[0].id).toBe(worker.id);
+
+      await worker.close();
+    });
+
+    // This mirrors the current best effort naming,
+    // but maybe we should enforce that workers be registered now that it should never fail
+    it('processes jobs even when registering fails', async () => {
+      const worker = new Worker(queueName, async () => 'done', {
+        connection,
+        prefix,
+        registry: { leaseDuration: 3000, heartbeatInterval: 50 },
+      });
+      const backend = worker.getBackend();
+      const registerWorker = backend.registerWorker.bind(backend);
+      let failures = 1;
+      backend.registerWorker = async (...args) => {
+        if (failures-- > 0) {
+          throw new Error('registry unavailable');
+        }
+        return registerWorker(...args);
+      };
+      const errors: Error[] = [];
+      worker.on('error', err => errors.push(err));
+
+      const completed = new Promise(resolve =>
+        worker.once('completed', resolve),
+      );
+      await queue.add('test', {});
+      await completed;
+      expect(errors.map(err => err.message)).toContain('registry unavailable');
+
+      // The next heartbeat registers it.
+      expect(await waitForWorkers(queue, 1)).toHaveLength(1);
+
+      await worker.close();
+    });
+
+    it('force closes without waiting for registry requests', async () => {
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        prefix,
+        registry: { leaseDuration: 60_000, heartbeatInterval: 20 },
+      });
+      await worker.waitUntilReady();
+      // As if the datastore had gone away: registry requests never settle.
+      const backend = worker.getBackend();
+      const heartbeat = vi
+        .spyOn(backend, 'heartbeatWorker')
+        .mockReturnValue(new Promise(() => {}));
+      const unregister = vi
+        .spyOn(backend, 'unregisterWorker')
+        .mockReturnValue(new Promise(() => {}));
+      await delay(100);
+      // One heartbeat is in progress; later ticks are skipped while it runs.
+      expect(heartbeat).toHaveBeenCalledTimes(1);
+
+      const closed = vi.fn();
+      const closing = worker.close(true).then(closed);
+      await waitFor(() => closed.mock.calls.length === 1, 1_000);
+      await closing;
+      expect(unregister).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid registry options', () => {
+      expect(
+        () =>
+          new Worker(queueName, async () => {}, {
+            autorun: false,
+            connection,
+            prefix,
+            registry: { leaseDuration: 0 },
+          }),
+      ).toThrow('Invalid worker registry leaseDuration: 0');
     });
 
     describe('when sharing connection', () => {

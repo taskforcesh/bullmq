@@ -56,9 +56,18 @@ export const MIGRATIONS: readonly Migration[] = [
     name: '0004_relay',
     // Additive only (new relay_* tables, sequence and functions; no change to
     // existing objects), so instances on the previous code keep working.
-    // Verified by the "relay migration" test in tests/postgres/migration.test.ts.
+    // Verified by the "additive migration" test in tests/postgres/migration.test.ts.
     minClientVersion: 6,
     load: () => loadMigrationSql('0004_relay.sql'),
+  },
+  {
+    version: 5,
+    name: '0005_worker_registry',
+    // Additive only (new worker_* table and functions; no change to existing
+    // objects), so instances on the previous code keep working.
+    // Verified by the "additive migration" test in tests/postgres/migration.test.ts.
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0005_worker_registry.sql'),
   },
 ];
 

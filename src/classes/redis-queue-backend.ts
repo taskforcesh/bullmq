@@ -30,6 +30,8 @@ import {
   RetryOptions,
   ScriptQueueContext,
   StreamReadRaw,
+  WorkerInfo,
+  WorkerRegistration,
 } from '../interfaces';
 import {
   CompressableJobOptions,
@@ -45,7 +47,6 @@ import {
 import { ErrorCode } from '../enums';
 import {
   array2obj,
-  clientCommandMessageReg,
   errorObject,
   getParentKey,
   isEmpty,
@@ -265,15 +266,6 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   }
 
   /**
-   * Builds the Redis client name (`"<prefix>:<base64(queue)><suffix>"`), used
-   * for `CLIENT SETNAME` and worker/queue discovery via `CLIENT LIST`.
-   */
-  clientName(suffix = ''): string {
-    const base64Name = Buffer.from(this.name).toString('base64');
-    return `${this.redisPrefix}:${base64Name}${suffix}`;
-  }
-
-  /**
    * Normalizes the events of the owned connection(s) into the backend's own
    * `'ready' | 'error' | 'close'` events.
    */
@@ -329,24 +321,6 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     await this.connection.disconnect();
     if (this.blockingConnection) {
       await this.blockingConnection.disconnect();
-    }
-  }
-
-  /**
-   * Sets a human-readable name on the underlying connection (CLIENT SETNAME).
-   * Unsupported-command and shutdown errors are swallowed.
-   */
-  async setName(name: string): Promise<void> {
-    const client = await this.connection.client;
-    try {
-      await client.clientSetName(name);
-    } catch (err) {
-      if (
-        !clientCommandMessageReg.test((<Error>err).message) &&
-        !this.closing
-      ) {
-        throw err;
-      }
     }
   }
 
@@ -2007,19 +1981,71 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     return result;
   }
 
-  async getClientList(): Promise<string[]> {
-    const client = await this.queue.client;
-    if (client.isCluster && typeof client.nodes === 'function') {
-      const clusterNodes = client.nodes() || [];
-      return Promise.all(
-        clusterNodes.map((node: any) =>
-          typeof node.clientList === 'function'
-            ? node.clientList()
-            : node.client('LIST'),
-        ),
-      );
+  async registerWorker(
+    workerId: string,
+    leaseMs: number,
+    info: WorkerInfo = {},
+  ): Promise<void> {
+    const result = await this.execWorkerRegistry('workerRegister', [
+      workerId,
+      leaseMs,
+      JSON.stringify(info),
+    ]);
+    if (result === -1) {
+      throw new Error(`Invalid worker id: ${workerId}`);
     }
-    return [await client.clientList()];
+  }
+
+  async heartbeatWorker(workerId: string, leaseMs: number): Promise<boolean> {
+    return (
+      (await this.execWorkerRegistry('workerHeartbeat', [
+        workerId,
+        leaseMs,
+      ])) === 1
+    );
+  }
+
+  async unregisterWorker(workerId: string): Promise<boolean> {
+    return (
+      (await this.execWorkerRegistry('workerUnregister', [workerId])) === 1
+    );
+  }
+
+  async sweepWorkers(limit: number): Promise<string[]> {
+    return this.execWorkerRegistry('workerSweep', [limit]);
+  }
+
+  async getWorkerRegistrations(): Promise<WorkerRegistration[]> {
+    const rows = await this.execWorkerRegistry('workerList', []);
+    return rows.map(
+      ([id, registeredAt, leaseUntil, info, hb]: [
+        string,
+        string,
+        string,
+        string,
+        string,
+      ]) => ({
+        id,
+        info: info ? JSON.parse(info) : {},
+        registeredAt: Number(registeredAt),
+        leaseUntil: Number(leaseUntil),
+        lastHeartbeat: hb ? Number(hb) : undefined,
+      }),
+    );
+  }
+
+  /** Runs a worker registry script on the queue's registry keys. */
+  private async execWorkerRegistry(
+    command: string,
+    args: (string | number)[],
+  ): Promise<any> {
+    const client = await this.queue.client;
+    const baseKey = this.queue.toKey('workers');
+    return this.execCommand(client, command, [
+      `${baseKey}:leases`,
+      baseKey,
+      ...args,
+    ]);
   }
 
   async moveToActive(token: string, name?: string) {

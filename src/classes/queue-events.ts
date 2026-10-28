@@ -7,7 +7,7 @@ import {
   StreamReadRaw,
 } from '../interfaces';
 import { ConnectionOptions } from '../interfaces/redis-options';
-import { array2obj, QUEUE_EVENT_SUFFIX } from '../utils';
+import { array2obj } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisQueueBackend } from './redis-queue-backend';
 import type { DefaultQueueOptions } from '../types/default-queue-options';
@@ -354,9 +354,6 @@ export class QueueEvents<
     if (!this.running) {
       try {
         this.running = true;
-
-        // TODO: Planned for deprecation as it really has no use case
-        await this.backend.setName(this.clientName(QUEUE_EVENT_SUFFIX));
 
         await this.consumeEvents();
       } catch (error) {

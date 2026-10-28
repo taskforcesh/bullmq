@@ -12,7 +12,9 @@ import {
   RetryJobOpts,
   RetryOptions,
   StreamReadRaw,
+  WorkerInfo,
   WorkerOptions,
+  WorkerRegistration,
 } from '../interfaces';
 import {
   FinishedStatus,
@@ -23,12 +25,13 @@ import {
   KeepJobs,
 } from '../types';
 import { KeysMap } from '../classes/queue-keys';
+import { decreaseMaxListeners, increaseMaxListeners } from '../utils';
 import { finishedErrors } from '../classes/finished-errors';
 import {
   PostgresConnection,
   PostgresConnectionOptions,
 } from './postgres-connection';
-import { PgNotification, PgListenClient, PgQueryResult } from './pg-types';
+import { PgQueryResult } from './pg-types';
 import { loadCommandSql } from './sql-loader';
 /**
  * A raw `job` row as returned by `pg`. `jsonb` columns arrive already
@@ -268,12 +271,6 @@ export class PostgresQueueBackend
   /** Whether the dedicated LISTEN client is subscribed to the events channel. */
   private listeningEvents = false;
 
-  /**
-   * Memoizes {@link PostgresQueueBackend.waitUntilReady} so every caller awaits
-   * the same readiness — including the one-time connection naming it performs.
-   */
-  private readyPromise: Promise<void> | undefined;
-
   /** Cancels the in-flight {@link waitForJob}, if any (used by close/interrupt). */
   private cancelWait: (() => void) | undefined;
 
@@ -292,40 +289,60 @@ export class PostgresQueueBackend
   /** Cancels the in-flight {@link readEvents} wait, if any. */
   private cancelEventWait: (() => void) | undefined;
 
+  /**
+   * This backend's listeners on its connection, removed on close so a shared
+   * connection outlives the backends that used it.
+   */
+  private readonly connectionListeners: Record<
+    string,
+    (...args: any[]) => void
+  > = {};
+
   constructor(
     public connection: PostgresConnection,
     protected readonly queueName: string,
     protected readonly opts: QueueBaseOptions<PostgresConnectionOptions>,
+    /**
+     * Whether closing this backend closes its connection: false when the
+     * connection is shared, and for {@link forQueue} siblings.
+     */
     protected readonly ownsConnection = true,
     /**
-     * When set, the name applied to this backend's dedicated connection (its
-     * `application_name`) so getWorkers can discover it — the PostgreSQL
-     * analogue of the Redis worker's named blocking connection. Only workers
-     * pass it; QueueEvents name themselves via {@link setName}.
+     * Whether this backend was made by {@link forQueue}: a throwaway helper
+     * that runs one operation on another queue over its parent's connection
+     * (FlowProducer makes one per flow node). Nothing ever closes it, so it
+     * must not add listeners to the connection, or every `flow.add()` would
+     * leave some behind. It never waits for jobs or events either.
      */
-    private readonly listenClientName?: string,
+    private readonly sibling = false,
   ) {
     super();
 
     this.schema = connection.schema;
 
-    if (this.ownsConnection) {
-      this.connection.on('error', err => this.emit('error', err));
-      this.connection.on('ready', () => this.emit('ready'));
-      this.connection.on('close', () => this.emit('close'));
-
-      // When the shared LISTEN client drops, the connection rebuilds it and
-      // emits `'listenerinvalidated'`. Re-issue our LISTENs on the fresh client
-      // and wake any in-flight wait (parked on the now-dead client) so the
-      // worker loop re-enters waitForJob/readEvents and re-subscribes. Only the
-      // connection-owning backend blocks (and thus LISTENs); non-owning
-      // `forQueue` siblings never do.
-      this.connection.on('listenerinvalidated', () => {
-        this.listening = false;
-        this.listeningEvents = false;
-        this.cancelWait?.();
-        this.cancelEventWait?.();
-      });
+    if (!this.sibling) {
+      this.connectionListeners = {
+        error: (err: Error) => this.emit('error', err),
+        ready: () => this.emit('ready'),
+        close: () => this.emit('close'),
+        // When the LISTEN client drops, the connection rebuilds it and emits
+        // `'listenerinvalidated'`. Re-issue our LISTENs on the fresh client and
+        // wake any in-flight wait so the worker loop re-enters
+        // waitForJob/readEvents and re-subscribes.
+        listenerinvalidated: () => {
+          this.listening = false;
+          this.listeningEvents = false;
+          this.cancelWait?.();
+          this.cancelEventWait?.();
+        },
+      };
+      // A shared connection has one listener per event for each backend.
+      increaseMaxListeners(this.connection, 1);
+      for (const [event, listener] of Object.entries(
+        this.connectionListeners,
+      )) {
+        this.connection.on(event, listener);
+      }
     }
   }
 
@@ -333,41 +350,34 @@ export class PostgresQueueBackend
   // Connection lifecycle
   // ============================================================
 
-  async waitUntilReady(): Promise<void> {
-    // Memoized so every caller (the Worker's constructor 'ready' hook AND an
-    // explicit waitUntilReady()) awaits the SAME readiness — including the
-    // connection naming below. Without this a second caller could observe the
-    // naming as "already started" and return before the first caller's setName
-    // had actually completed, racing discovery (getWorkers/getQueueEvents).
-    if (!this.readyPromise) {
-      this.readyPromise = (async () => {
-        await this.connection.waitUntilReady();
-        // Name this backend's dedicated connection so it is discoverable via
-        // getClientList (and thus getWorkers) — even an `autorun: false`
-        // worker that never fetches is listed, matching the Redis backend
-        // which names its blocking connection on creation. Best-effort: a
-        // naming failure must never block readiness.
-        if (this.listenClientName) {
-          try {
-            await this.setName(this.listenClientName);
-          } catch {
-            // Discovery is best-effort; leave the connection unnamed.
-          }
-        }
-      })();
-    }
-    return this.readyPromise;
+  waitUntilReady(): Promise<void> {
+    return this.connection.waitUntilReady();
   }
 
   async close(force = false): Promise<void> {
     void force;
-    if (!this.ownsConnection) {
+    if (this.sibling) {
       return;
     }
     if (!this.closing) {
-      this.closing = this.connection.close();
+      this.closing = this.ownsConnection
+        ? this.connection.close()
+        : this.detach();
     }
     return this.closing;
+  }
+
+  /**
+   * Leaves a shared connection open for the backends still using it: ends
+   * this backend's waits and removes its listeners.
+   */
+  private async detach(): Promise<void> {
+    this.cancelWait?.();
+    this.cancelEventWait?.();
+    for (const [event, listener] of Object.entries(this.connectionListeners)) {
+      this.connection.removeListener(event, listener);
+    }
+    decreaseMaxListeners(this.connection, 1);
   }
 
   async disconnect(): Promise<void> {
@@ -379,18 +389,6 @@ export class PostgresQueueBackend
       return;
     }
     await this.connection.disconnect();
-  }
-
-  async setName(name: string): Promise<void> {
-    // Name the dedicated LISTEN connection via `application_name` — the
-    // PostgreSQL analogue of Redis `CLIENT SETNAME`. This is the long-lived
-    // connection a worker / QueueEvents holds, so it appears (under this name)
-    // in pg_stat_activity and is therefore discoverable by getWorkers /
-    // getQueueEvents via getClientList. The connection remembers the name and
-    // re-applies it whenever it has to rebuild the LISTEN client (a fresh
-    // connection would otherwise start unnamed, i.e. undiscoverable).
-    await this.connection.waitUntilReady();
-    await this.connection.setListenClientName(name);
   }
 
   /**
@@ -428,6 +426,7 @@ export class PostgresQueueBackend
       queueName,
       this.opts,
       false,
+      true,
     );
   }
 
@@ -467,15 +466,6 @@ export class PostgresQueueBackend
       queueName: key.slice(0, idx),
       id: key.slice(idx + 1),
     };
-  }
-
-  /**
-   * Returns a backend identifier used by the generic API; PostgreSQL discovery
-   * relies on {@link setName} setting `application_name` on the dedicated
-   * LISTEN client.
-   */
-  clientName(suffix = ''): string {
-    return `${this.queueName}${suffix}`;
   }
 
   // ============================================================
@@ -1873,16 +1863,61 @@ export class PostgresQueueBackend
     return [[total, '0', '0'], data, data.length];
   }
 
-  async getClientList(): Promise<string[]> {
-    // Mirror Redis CLIENT LIST using pg_stat_activity: each named session
-    // (workers / QueueEvents set their `application_name`) becomes a
-    // `name=<application_name>` line, which the shared client-list parser then
-    // matches against the queue's client name. Returned as a single-element
-    // array since PostgreSQL has no cluster-node fan-out.
-    const { rows } = await this.run<{ application_name: string }>(
-      'get_client_list',
-    );
-    return [rows.map(r => `name=${r.application_name}`).join('\n')];
+  async registerWorker(
+    workerId: string,
+    leaseMs: number,
+    info: WorkerInfo = {},
+  ): Promise<void> {
+    try {
+      await this.run('worker_register', [
+        this.queueName,
+        workerId,
+        leaseMs,
+        JSON.stringify(info),
+      ]);
+    } catch (err) {
+      if ((err as { code?: string }).code === 'BM001') {
+        throw new Error(`Invalid worker id: ${workerId}`, { cause: err });
+      }
+      throw err;
+    }
+  }
+
+  async heartbeatWorker(workerId: string, leaseMs: number): Promise<boolean> {
+    const { rows } = await this.run<{ alive: boolean }>('worker_heartbeat', [
+      this.queueName,
+      workerId,
+      leaseMs,
+    ]);
+    return rows[0].alive;
+  }
+
+  async unregisterWorker(workerId: string): Promise<boolean> {
+    const { rows } = await this.run<{ removed: boolean }>('worker_unregister', [
+      this.queueName,
+      workerId,
+    ]);
+    return rows[0].removed;
+  }
+
+  async sweepWorkers(limit: number): Promise<string[]> {
+    const { rows } = await this.run<{ worker_id: string }>('worker_sweep', [
+      this.queueName,
+      limit,
+    ]);
+    return rows.map(row => row.worker_id);
+  }
+
+  async getWorkerRegistrations(): Promise<WorkerRegistration[]> {
+    const { rows } = await this.run('worker_list', [this.queueName]);
+    return rows.map(row => ({
+      id: row.worker_id,
+      info: row.info ?? {},
+      registeredAt: Number(row.registered_at),
+      leaseUntil: Number(row.lease_until),
+      lastHeartbeat:
+        row.last_heartbeat === null ? undefined : Number(row.last_heartbeat),
+    }));
   }
 
   async paginate(
@@ -2109,23 +2144,21 @@ export class PostgresQueueBackend
   private static readonly EVENTS_CHANNEL = 'bullmq_events';
 
   /** Subscribes the dedicated client to the shared jobs channel (once). */
-  private async ensureListening(): Promise<PgListenClient> {
+  private async ensureListening(): Promise<void> {
     const client = await this.connection.getListenClient();
     if (!this.listening) {
       await client.query(loadCommandSql('listen_jobs'));
       this.listening = true;
     }
-    return client;
   }
 
   /** Subscribes the dedicated client to the shared events channel (once). */
-  private async ensureListeningEvents(): Promise<PgListenClient> {
+  private async ensureListeningEvents(): Promise<void> {
     const client = await this.connection.getListenClient();
     if (!this.listeningEvents) {
       await client.query(loadCommandSql('listen_events'));
       this.listeningEvents = true;
     }
-    return client;
   }
 
   /**
@@ -2137,7 +2170,13 @@ export class PostgresQueueBackend
     if (this.closing || this.connection.isClosing) {
       return;
     }
-    const client = await this.ensureListeningEvents();
+    await this.ensureListeningEvents();
+    // The backend may have been closed while we were awaiting `ensureListeningEvents`
+    if (this.closing || this.connection.isClosing) {
+      return;
+    }
+    // Only this queue's events (see PostgresConnection).
+    const notification = `${PostgresQueueBackend.EVENTS_CHANNEL}:${this.queueName}`;
 
     return new Promise(resolve => {
       let settled = false;
@@ -2147,21 +2186,13 @@ export class PostgresQueueBackend
         }
         settled = true;
         clearTimeout(timer);
-        client.removeListener('notification', onNotify);
+        this.connection.removeListener(notification, finish);
         this.cancelEventWait = undefined;
         resolve();
       };
-      const onNotify = (msg: PgNotification) => {
-        if (
-          msg.channel === PostgresQueueBackend.EVENTS_CHANNEL &&
-          msg.payload === this.queueName
-        ) {
-          finish();
-        }
-      };
       const timer = setTimeout(finish, Math.max(blockTimeout || 5000, 1));
       this.cancelEventWait = finish;
-      client.on('notification', onNotify);
+      this.connection.on(notification, finish);
     });
   }
 
@@ -2179,7 +2210,7 @@ export class PostgresQueueBackend
     if (this.closing || this.blockingDisconnected) {
       return null;
     }
-    const client = await this.ensureListening();
+    await this.ensureListening();
 
     // The blocking connection may have been torn down while we were awaiting
     // `ensureListening`; bail rather than registering a wait that only a
@@ -2187,6 +2218,8 @@ export class PostgresQueueBackend
     if (this.closing || this.blockingDisconnected) {
       return null;
     }
+    // Only this queue's notifications (see PostgresConnection).
+    const notification = `${PostgresQueueBackend.NOTIFY_CHANNEL}:${this.queueName}`;
 
     return new Promise(resolve => {
       let settled = false;
@@ -2196,20 +2229,12 @@ export class PostgresQueueBackend
         }
         settled = true;
         clearTimeout(timer);
-        client.removeListener('notification', onNotify);
+        this.connection.removeListener(notification, onNotify);
         this.cancelWait = undefined;
         resolve(value);
       };
 
-      const onNotify = (msg: PgNotification) => {
-        // Filter for this queue (the shared channel carries every queue).
-        if (
-          msg.channel === PostgresQueueBackend.NOTIFY_CHANNEL &&
-          msg.payload === this.queueName
-        ) {
-          finish({ member: msg.payload ?? '', score: 0 });
-        }
-      };
+      const onNotify = () => finish({ member: this.queueName, score: 0 });
 
       let timer = setTimeout(
         () => finish(null),
@@ -2217,7 +2242,7 @@ export class PostgresQueueBackend
       );
 
       this.cancelWait = () => finish(null);
-      client.on('notification', onNotify);
+      this.connection.on(notification, onNotify);
 
       // Final race guard: if `disconnectBlocking` ran between the check above
       // and installing `cancelWait`, end the wait now instead of blocking on a

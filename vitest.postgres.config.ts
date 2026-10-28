@@ -9,9 +9,11 @@ export default defineConfig({
   test: {
     include: [
       'tests/postgres/**/*.test.ts',
-      // Backend-agnostic relay tests, run against PostgreSQL.
+      // Backend-agnostic relay and worker registry tests, run against
+      // PostgreSQL.
       'tests/relay.test.ts',
       'tests/relay_stress.test.ts',
+      'tests/worker-registry.test.ts',
     ],
     env: { BULLMQ_TEST_BACKEND: 'postgres' },
     exclude: ['node_modules/**'],

@@ -2,17 +2,11 @@
 
 import { QueueBase } from './queue-base';
 import { Job } from './job';
-import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
 import { IQueueBackend, JobJson, Metrics, QueueMeta } from '../interfaces';
 import { ConnectionOptions } from '../interfaces/redis-options';
-import { IRedisClient } from '../interfaces/redis-client';
 import { MetricNames, TelemetryAttributes } from '../enums';
 import { RedisQueueBackend } from './redis-queue-backend';
-
-interface ClusterNodeWithClientCommand extends IRedisClient {
-  client(command: 'LIST'): Promise<string>;
-}
 
 /**
  * Escape a Prometheus label value per the text exposition format.
@@ -544,54 +538,40 @@ export class QueueGetters<
     return this.backend.getJobLogs(jobId, start, end, asc);
   }
 
-  private async baseGetClients(matcher: (name: string) => boolean): Promise<
-    {
-      [index: string]: string;
-    }[]
-  > {
-    try {
-      const lists = await this.backend.getClientList();
-      if (lists.length > 1) {
-        // Cluster: pick the node with the most matching clients.
-        const clientsPerNode = lists.map(list =>
-          this.parseClientList(list, matcher),
-        );
-        return clientsPerNode.reduce(
-          (prev, current) => (prev.length > current.length ? prev : current),
-          [] as { [index: string]: string }[],
-        );
-      }
-      return this.parseClientList(lists[0] ?? '', matcher);
-    } catch (err) {
-      if (!clientCommandMessageReg.test((<Error>err).message)) {
-        throw err;
-      }
-
-      return [{ name: 'GCP does not support client list' }];
-    }
-  }
-
   /**
    * Get the worker list related to the queue. i.e. all the known
    * workers that are available to process jobs for this queue.
-   * Note: GCP does not support SETNAME, so this call will not work
    *
    * @returns - Returns an array with workers info.
    */
-  getWorkers(): Promise<
+  async getWorkers(): Promise<
     {
       [index: string]: string;
     }[]
   > {
-    const unnamedWorkerClientName = `${this.clientName()}`;
-    const namedWorkerClientName = `${this.clientName()}:w:`;
-
-    const matcher = (name: string) =>
-      name &&
-      (name === unnamedWorkerClientName ||
-        name.startsWith(namedWorkerClientName));
-
-    return this.baseGetClients(matcher);
+    const workers = await this.backend.getWorkerRegistrations();
+    const now = Date.now();
+    return workers.map(worker => {
+      const { name: workerName, host, pid, version } = worker.info;
+      const entry = {
+        name: this.name,
+        rawname: workerName ? `${this.name}:w:${workerName}` : this.name,
+        id: worker.id,
+        age: Math.max(0, Math.floor((now - worker.registeredAt) / 1000)),
+        registeredAt: worker.registeredAt,
+        leaseUntil: worker.leaseUntil,
+        lastHeartbeat: worker.lastHeartbeat,
+        workerName,
+        host,
+        pid,
+        version,
+      };
+      return Object.fromEntries(
+        Object.entries(entry)
+          .filter(([, value]) => value !== undefined)
+          .map(([key, value]) => [key, String(value)]),
+      );
+    });
   }
 
   /**
@@ -601,25 +581,8 @@ export class QueueGetters<
    *
    */
   async getWorkersCount(): Promise<number> {
-    const workers = await this.getWorkers();
+    const workers = await this.backend.getWorkerRegistrations();
     return workers.length;
-  }
-
-  /**
-   * Get queue events list related to the queue.
-   * Note: GCP does not support SETNAME, so this call will not work
-   *
-   * @deprecated do not use this method, it will be removed in the future.
-   *
-   * @returns - Returns an array with queue events info.
-   */
-  async getQueueEvents(): Promise<
-    {
-      [index: string]: string;
-    }[]
-  > {
-    const clientName = `${this.clientName()}${QUEUE_EVENT_SUFFIX}`;
-    return this.baseGetClients((name: string) => name === clientName);
   }
 
   /**
@@ -652,29 +615,6 @@ export class QueueGetters<
       data: data.map(point => +point || 0),
       count,
     };
-  }
-
-  private parseClientList(list: string, matcher: (name: string) => boolean) {
-    const lines = list.split(/\r?\n/);
-    const clients: { [index: string]: string }[] = [];
-
-    lines.forEach((line: string) => {
-      const client: { [index: string]: string } = {};
-      const keyValues = line.split(' ');
-      keyValues.forEach(function (keyValue) {
-        const index = keyValue.indexOf('=');
-        const key = keyValue.substring(0, index);
-        const value = keyValue.substring(index + 1);
-        client[key] = value;
-      });
-      const name = client['name'];
-      if (matcher(name)) {
-        client['name'] = this.name;
-        client['rawname'] = name;
-        clients.push(client);
-      }
-    });
-    return clients;
   }
 
   /**

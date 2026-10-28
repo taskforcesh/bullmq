@@ -20,37 +20,25 @@ import { isRedisInstance } from './index';
  */
 const duplicateClient = (
   client: IRedisClient | RedisConnectionClient,
-  connectionName?: string,
 ): IRedisClient | RedisConnectionClient => {
   if (isIRedisClient(client) || typeof client.defineCommand === 'function') {
     return (
       isIRedisClient(client) ? client : createIORedisClient(client as any)
-    ).duplicate(connectionName ? { connectionName } : undefined);
+    ).duplicate();
   }
-  return client.duplicate(
-    connectionName ? { name: connectionName } : undefined,
-  );
+  return client.duplicate();
 };
 
 /**
  * Builds the dedicated, blocking connection that a worker needs so its blocking
  * fetch (`BZPOPMIN`) does not stall regular operations. Reuses / duplicates the
- * provided connection options with its own name.
+ * provided connection options.
  */
-const createBlockingConnection = (
-  name: string,
-  opts: QueueBaseOptions,
-): RedisConnection => {
-  const base64Name = Buffer.from(name).toString('base64');
-  const workerName = (opts as { name?: string }).name;
-  const connectionName = `${(opts as KeyPrefixOptions).prefix ?? 'bull'}:${base64Name}${
-    workerName ? `:w:${workerName}` : ''
-  }`;
-
+const createBlockingConnection = (opts: QueueBaseOptions): RedisConnection => {
   return new RedisConnection(
     isRedisInstance(opts.connection)
-      ? duplicateClient(opts.connection, connectionName)
-      : { ...opts.connection, connectionName },
+      ? duplicateClient(opts.connection)
+      : opts.connection,
     {
       shared: false,
       blocking: true,
@@ -88,7 +76,7 @@ export const createRedisBackend: BackendFactory<RedisQueueBackend> = (
   });
 
   const blockingConnection = withBlockingConnection
-    ? createBlockingConnection(name, opts)
+    ? createBlockingConnection(opts)
     : undefined;
 
   const queueKeys = new QueueKeys((opts as KeyPrefixOptions).prefix);
