@@ -16,9 +16,9 @@
 (including associating a child with its parent, or creating a parent that starts in
 the <code>waiting-children</code> state).</p>
 </div></section>
-<div class="tsd-signature"><span class="tsd-signature-keyword">type</span> <span class="tsd-kind-type-alias">ParentKeyOpts</span> <span class="tsd-signature-symbol">=</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#addtowaitingchildren">addToWaitingChildren</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#parentdependencieskey">parentDependenciesKey</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#parentkey">parentKey</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
+<div class="tsd-signature"><span class="tsd-signature-keyword">type</span> <span class="tsd-kind-type-alias">ParentKeyOpts</span> <span class="tsd-signature-symbol">=</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#addtowaitingchildren">addToWaitingChildren</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#deferparentrelease">deferParentRelease</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#parentdependencieskey">parentDependenciesKey</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#parentkey">parentKey</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/7110c0d9f49e70b34c389719f0ee81d003d25742/src/interfaces/parent.ts#L42">interfaces/parent.ts:42</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/0e1a990ebcb704c3a8e1b9dae564665ba6487219/src/interfaces/parent.ts#L42">interfaces/parent.ts:42</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -27,6 +27,7 @@ the <code>waiting-children</code> state).</p>
 <section class="tsd-index-section">
 <h3 class="tsd-index-heading tsd-anchor-link" id="properties">Properties<a href="#properties" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-index-list"><a href="#addtowaitingchildren" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>add<wbr/>To<wbr/>Waiting<wbr/>Children?</span></a>
+<a href="#deferparentrelease" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>defer<wbr/>Parent<wbr/>Release?</span></a>
 <a href="#parentdependencieskey" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>parent<wbr/>Dependencies<wbr/>Key?</span></a>
 <a href="#parentkey" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>parent<wbr/>Key?</span></a>
 </div></section></div></details></section></section>
@@ -40,21 +41,32 @@ the <code>waiting-children</code> state).</p>
 <code>waiting-children</code> state (waiting for children to complete) instead of <code>wait</code>.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/7110c0d9f49e70b34c389719f0ee81d003d25742/src/interfaces/parent.ts#L47">interfaces/parent.ts:47</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/0e1a990ebcb704c3a8e1b9dae564665ba6487219/src/interfaces/parent.ts#L47">interfaces/parent.ts:47</a></li></ul></aside></section>
+<section class="tsd-panel tsd-member">
+<h3 class="tsd-anchor-link" id="deferparentrelease"><code class="tsd-tag">Optional</code><span>defer<wbr/>Parent<wbr/>Release</span><a href="#deferparentrelease" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<div class="tsd-signature"><span class="tsd-kind-property">deferParentRelease</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span></div>
+<div class="tsd-comment tsd-typography"><p>If true, a child that already exists and is already completed will only
+record its processed dependency, without moving the parent out of
+<code>waiting-children</code>. Used by flow inserts, where the parent may still be
+waiting for sibling nodes that have not been added yet; the parent is
+released by a separate validation once the whole flow has been inserted.</p>
+</div><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/0e1a990ebcb704c3a8e1b9dae564665ba6487219/src/interfaces/parent.ts#L55">interfaces/parent.ts:55</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="parentdependencieskey"><code class="tsd-tag">Optional</code><span>parent<wbr/>Dependencies<wbr/>Key</span><a href="#parentdependencieskey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">parentDependenciesKey</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>Redis key holding the parent's dependencies set.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/7110c0d9f49e70b34c389719f0ee81d003d25742/src/interfaces/parent.ts#L49">interfaces/parent.ts:49</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/0e1a990ebcb704c3a8e1b9dae564665ba6487219/src/interfaces/parent.ts#L57">interfaces/parent.ts:57</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="parentkey"><code class="tsd-tag">Optional</code><span>parent<wbr/>Key</span><a href="#parentkey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">parentKey</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>Fully-qualified Redis key of the parent job.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/7110c0d9f49e70b34c389719f0ee81d003d25742/src/interfaces/parent.ts#L51">interfaces/parent.ts:51</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/0e1a990ebcb704c3a8e1b9dae564665ba6487219/src/interfaces/parent.ts#L59">interfaces/parent.ts:59</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -69,7 +81,7 @@ the <code>waiting-children</code> state).</p>
 <h3>On This Page</h3></summary>
 <div class="tsd-accordion-details">
 <details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Properties</summary>
-<div><a href="#addtowaitingchildren"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>add<wbr/>To<wbr/>Waiting<wbr/>Children</span></a><a href="#parentdependencieskey"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>parent<wbr/>Dependencies<wbr/>Key</span></a><a href="#parentkey"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>parent<wbr/>Key</span></a></div></details></div></details></div>
+<div><a href="#addtowaitingchildren"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>add<wbr/>To<wbr/>Waiting<wbr/>Children</span></a><a href="#deferparentrelease"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>defer<wbr/>Parent<wbr/>Release</span></a><a href="#parentdependencieskey"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>parent<wbr/>Dependencies<wbr/>Key</span></a><a href="#parentkey"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>parent<wbr/>Key</span></a></div></details></div></details></div>
 <div class="site-menu">
 <nav class="tsd-navigation"><a href="../modules.html">bullmq - v6.5.0</a>
 <ul class="tsd-small-nested-navigation" id="tsd-nav-container">
