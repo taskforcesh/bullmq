@@ -124,13 +124,13 @@
     "@types/lodash.defaults": "4.2.9",
     "@types/lodash.isarguments": "3.1.9",
     "@types/msgpack": "0.0.34",
-    "@types/node": "24.19.2",
+    "@types/node": "26.6.5",
     "@types/pg": "8.23.1",
     "@types/semver": "7.8.0",
     "@types/sinon": "22.0.2",
     "@typescript-eslint/eslint-plugin": "8.72.0",
     "@typescript-eslint/parser": "8.72.0",
-    "@vitest/coverage-v8": "4.1.12",
+    "@vitest/coverage-v8": "5.0.5",
     "coveralls-next": "6.0.2",
     "cpx2": "9.0.3",
     "eslint": "10.13.0",
@@ -141,7 +141,7 @@
     "fast-glob": "3.3.3",
     "globals": "17.13.0",
     "husky": "9.1.7",
-    "ioredis": "5.11.1",
+    "ioredis": "6.0.0",
     "lint-staged": "17.6.0",
     "madge": "8.0.0",
     "minimatch": "10.2.6",
@@ -158,9 +158,9 @@
     "test-console": "2.0.0",
     "ts-node": "10.9.2",
     "typedoc": "0.28.20",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "vitepress": "2.0.0-alpha.20",
-    "vitest": "4.1.12"
+    "vitest": "5.0.5"
   },
   "commitlint": {
     "extends": [
