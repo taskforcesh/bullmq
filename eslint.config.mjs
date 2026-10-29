@@ -57,6 +57,7 @@ export default defineConfig([
     // Generated at build time by scripts/generateSqlScripts.js (inlined SQL).
     'src/postgres/sql-scripts.ts',
     'dist',
+    'elixir/deps',
     'php/vendor',
     'rust/target',
     '**/npm-debug.log*',
