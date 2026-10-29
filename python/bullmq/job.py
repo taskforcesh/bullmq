@@ -136,8 +136,9 @@ class Job:
     def getState(self):
         return self.backend.getState(self.id)
 
-    def changePriority(self, opts: dict):
-        return self.backend.changePriority(self.id, opts.get("priority", 0), opts.get("lifo", False))
+    async def changePriority(self, opts: dict):
+        await self.backend.changePriority(self.id, opts.get("priority", 0), opts.get("lifo", False))
+        self.priority = opts.get("priority", 0)
 
     def updateProgress(self, progress):
         self.progress = progress
@@ -318,6 +319,7 @@ class Job:
 
         job.progress = json.loads(rawData.get("progress",  '0'))
         job.delay = int(rawData.get("delay", "0"))
+        job.priority = int(rawData.get("priority", "0"))
         job.timestamp = int(rawData.get("timestamp", "0"))
 
         if rawData.get("finishedOn"):

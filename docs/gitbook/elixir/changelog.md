@@ -1,9 +1,31 @@
+## [2.3.4](https://github.com/taskforcesh/bullmq/compare/vex2.3.3...vex2.3.4) (2026-10-28)
+
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
+## [2.3.3](https://github.com/taskforcesh/bullmq/compare/vex2.3.2...vex2.3.3) (2026-10-23)
+
+
+### Bug Fixes
+
+* **connection:** warn when redis version lower than 6.2 and throw when lower than 5.0 [elixir] ([#4924](https://github.com/taskforcesh/bullmq/issues/4924)) ([af637d4](https://github.com/taskforcesh/bullmq/commit/af637d4931f382828678f4a07686a36c957dc827))
+
+## [2.3.2](https://github.com/taskforcesh/bullmq/compare/vex2.3.1...vex2.3.2) (2026-10-20)
+
+
+### Performance Improvements
+
+* **deduplication:** use LPOS for keepLastIfActive membership check (python)(elixir)(php)(rust) ([#4956](https://github.com/taskforcesh/bullmq/issues/4956)) ([8796b66](https://github.com/taskforcesh/bullmq/commit/8796b66653baa58b8ecf261d7d7595cc8b72e020)), closes [#4613](https://github.com/taskforcesh/bullmq/issues/4613)
+
 ## [2.3.1](https://github.com/taskforcesh/bullmq/compare/vex2.3.0...vex2.3.1) (2026-10-14)
 
 
 ### Bug Fixes
 
 * **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) (python)(elixir)(php)(rust)(dotnet) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
 
 # [2.3.0](https://github.com/taskforcesh/bullmq/compare/vex2.2.3...vex2.3.0) (2026-10-08)
 

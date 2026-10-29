@@ -4,7 +4,7 @@ description: BullMQ for Elixir - Full-featured job queue with OTP design.
 
 # Introduction
 
-BullMQ for Elixir is a robust, feature-rich message queue and job scheduling library built on top of Redis. It's a port of the popular [BullMQ](https://bullmq.io) library, providing full compatibility with existing BullMQ queues from Node.js, Python, and PHP.
+BullMQ for Elixir is a robust, feature-rich message queue and job scheduling library that runs on top of Redis™ or PostgreSQL. It's a port of the popular [BullMQ](https://bullmq.io) library, providing full compatibility with existing BullMQ queues from Node.js, Python, .NET, Rust and PHP.
 
 {% hint style="info" %}
 The Elixir package is available on [Hex.pm](https://hex.pm/packages/bullmq). Full API documentation is available on [HexDocs](https://hexdocs.pm/bullmq).
@@ -12,7 +12,7 @@ The Elixir package is available on [Hex.pm](https://hex.pm/packages/bullmq). Ful
 
 ## Features
 
-- **High Performance**: Leverages Redis for fast, reliable message passing
+- **High Performance**: Optimized backends for Redis and PostgreSQL
 - **Job Scheduling**: Schedule jobs to run at specific times or intervals
 - **Priority Queues**: Process high-priority jobs first
 - **Retry Strategies**: Automatic retries with configurable backoff
@@ -23,7 +23,8 @@ The Elixir package is available on [Hex.pm](https://hex.pm/packages/bullmq). Ful
 - **Stalled Job Recovery**: Automatically recover jobs from crashed workers
 - **Telemetry Integration**: Built-in observability with Telemetry
 - **OTP Design**: Built using GenServers, Supervisors, and other OTP patterns
-- **Cross-language Compatibility**: Share queues between Elixir, Node.js, Python, and PHP
+- **Pluggable Backends**: Run the same API on Redis or PostgreSQL
+- **Cross-language Compatibility**: Share queues between Elixir, Node.js, Python, .NET, Rust and PHP
 
 ## Installation
 
@@ -32,7 +33,7 @@ Add BullMQ to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:bullmq, "~> 0.1.0"},
+    {:bullmq, "~> 2.3"},
     {:redix, "~> 1.2"}  # Redis client
   ]
 end
@@ -98,6 +99,48 @@ end
 )
 ```
 
+## PostgreSQL Backend
+
+The high-level modules (`Queue`, `Worker`, `Job`, `QueueEvents`, `FlowProducer` and `JobScheduler`) are backend agnostic. To use PostgreSQL instead of Redis, add [Postgrex](https://hex.pm/packages/postgrex) to your dependencies:
+
+```elixir
+def deps do
+  [
+    {:bullmq, "~> 2.3"},
+    {:postgrex, "~> 0.22"}
+  ]
+end
+```
+
+Start a PostgreSQL connection in your supervision tree. The required tables and functions are migrated automatically when the connection starts:
+
+```elixir
+children = [
+  {BullMQ.Backends.Postgres.Connection,
+   name: :my_pg, url: "postgresql://localhost:5432/mydb", schema: "bullmq"}
+]
+```
+
+Then select the backend per call, or globally with `config :bullmq, :backend, BullMQ.Backends.Postgres`:
+
+```elixir
+{:ok, job} =
+  BullMQ.Queue.add("emails", "send-welcome", %{to: "user@example.com"},
+    connection: :my_pg,
+    backend: BullMQ.Backends.Postgres
+  )
+
+{:ok, worker} =
+  BullMQ.Worker.start_link(
+    queue: "emails",
+    connection: :my_pg,
+    backend: BullMQ.Backends.Postgres,
+    processor: &MyApp.EmailWorker.process/1
+  )
+```
+
+Read more about how this backend works in the [PostgreSQL backend](../guide/postgresql.md) section of the guide.
+
 ## Architecture
 
 BullMQ for Elixir leverages OTP patterns for reliability:
@@ -122,4 +165,4 @@ For comprehensive documentation, see:
 
 - Elixir 1.15 or later
 - Erlang/OTP 26 or later
-- Redis 6.0 or later (6.2+ recommended)
+- Redis 6.0 or later (6.2+ recommended), or PostgreSQL 13 or later when using the PostgreSQL backend

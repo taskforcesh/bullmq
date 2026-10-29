@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "6.3.17",
+  "version": "6.5.1",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -20,7 +20,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=14.17.0"
+    "node": ">=14.18.0"
   },
   "scripts": {
     "build": "npm run clean:dist && npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua",
@@ -84,7 +84,7 @@
   },
   "dependencies": {
     "cron-parser": "5.10.2",
-    "msgpackr": "2.1.0",
+    "msgpackr": "2.1.2",
     "node-abort-controller": "3.1.1",
     "semver": "7.8.5",
     "tslib": "2.8.1"
@@ -110,8 +110,8 @@
     }
   },
   "devDependencies": {
-    "@commitlint/cli": "21.2.3",
-    "@commitlint/config-conventional": "21.2.3",
+    "@commitlint/cli": "21.2.4",
+    "@commitlint/config-conventional": "21.2.4",
     "@eslint/eslintrc": "3.3.7",
     "@eslint/js": "10.0.1",
     "@semantic-release/changelog": "7.0.0",
@@ -124,18 +124,18 @@
     "@types/lodash.defaults": "4.2.9",
     "@types/lodash.isarguments": "3.1.9",
     "@types/msgpack": "0.0.34",
-    "@types/node": "24.19.1",
+    "@types/node": "24.19.2",
     "@types/pg": "8.23.1",
     "@types/semver": "7.8.0",
-    "@types/sinon": "22.0.0",
-    "@typescript-eslint/eslint-plugin": "8.71.0",
-    "@typescript-eslint/parser": "8.71.0",
-    "@vitest/coverage-v8": "4.1.11",
+    "@types/sinon": "22.0.2",
+    "@typescript-eslint/eslint-plugin": "8.72.0",
+    "@typescript-eslint/parser": "8.72.0",
+    "@vitest/coverage-v8": "4.1.12",
     "coveralls-next": "6.0.2",
     "cpx2": "9.0.3",
-    "eslint": "10.12.0",
+    "eslint": "10.13.0",
     "eslint-config-prettier": "10.1.8",
-    "eslint-plugin-prettier": "5.5.6",
+    "eslint-plugin-prettier": "5.5.7",
     "eslint-plugin-promise": "7.3.0",
     "eslint-plugin-tsdoc": "0.5.4",
     "fast-glob": "3.3.3",
@@ -147,7 +147,7 @@
     "minimatch": "10.2.6",
     "moment": "2.31.0",
     "pg": "8.23.1",
-    "prettier": "3.9.9",
+    "prettier": "3.9.10",
     "pretty-quick": "4.2.2",
     "progress": "2.0.3",
     "redis": "6.3.0",
@@ -160,7 +160,7 @@
     "typedoc": "0.28.20",
     "typescript": "5.9.3",
     "vitepress": "2.0.0-alpha.20",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   },
   "commitlint": {
     "extends": [
@@ -241,6 +241,7 @@
   "packageManager": "yarn@1.22.22",
   "resolutions": {
     "brace-expansion": "5.0.12",
+    "fast-uri": "3.1.9",
     "js-yaml": "5.4.2",
     "picomatch": "4.0.7",
     "tar": "7.5.22",

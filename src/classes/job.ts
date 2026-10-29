@@ -1,4 +1,4 @@
-import { debuglog } from 'util';
+import { debuglog } from 'node:util';
 import {
   BackoffOptions,
   BulkJobOptions,
@@ -704,12 +704,20 @@ export class Job<
   }
 
   private async shouldRetryJob(err: Error): Promise<[boolean, number]> {
+    const opts = this.queue.opts;
+    const isUnrecoverable =
+      err instanceof UnrecoverableError || err.name == 'UnrecoverableError';
+    // A job that has been started as many times as `maxStartedAttempts` allows
+    // must not be retried again, regardless of its remaining attempts.
+    const hasReachedMaxStartedAttempts =
+      !!opts.maxStartedAttempts &&
+      opts.maxStartedAttempts <= this.attemptsStarted;
+
     if (
       this.attemptsMade + 1 < this.opts.attempts &&
-      !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
+      !isUnrecoverable &&
+      !hasReachedMaxStartedAttempts
     ) {
-      const opts = this.queue.opts;
-
       const delay = await Backoffs.calculate(
         <BackoffOptions>this.opts.backoff,
         this.attemptsMade + 1,

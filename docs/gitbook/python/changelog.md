@@ -1,3 +1,38 @@
+## [3.4.6](https://github.com/taskforcesh/bullmq/compare/vpy3.4.5...vpy3.4.6) (2026-10-28)
+
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
+## [3.4.5](https://github.com/taskforcesh/bullmq/compare/vpy3.4.4...vpy3.4.5) (2026-10-27)
+
+
+### Bug Fixes
+
+* **worker:** keep blocking connection socket timeout above block timeout [python] ([#4990](https://github.com/taskforcesh/bullmq/issues/4990)) ([d4e749e](https://github.com/taskforcesh/bullmq/commit/d4e749e7b47b510e6677bc25dfeaef9048e0299f))
+
+## [3.4.4](https://github.com/taskforcesh/bullmq/compare/vpy3.4.3...vpy3.4.4) (2026-10-27)
+
+
+### Bug Fixes
+
+* **job:** make changePriority work and read priority from the job hash [python] ([#5022](https://github.com/taskforcesh/bullmq/issues/5022)) ([6dc4745](https://github.com/taskforcesh/bullmq/commit/6dc4745f1121e68dcbc77d5e59fb88d1b17cb5af))
+
+## [3.4.3](https://github.com/taskforcesh/bullmq/compare/vpy3.4.2...vpy3.4.3) (2026-10-20)
+
+
+### Performance Improvements
+
+* **deduplication:** use LPOS for keepLastIfActive membership check (python)(elixir)(php)(rust) ([#4956](https://github.com/taskforcesh/bullmq/issues/4956)) ([8796b66](https://github.com/taskforcesh/bullmq/commit/8796b66653baa58b8ecf261d7d7595cc8b72e020)), closes [#4613](https://github.com/taskforcesh/bullmq/issues/4613)
+
+## [3.4.2](https://github.com/taskforcesh/bullmq/compare/vpy3.4.1...vpy3.4.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **job-scheduler:** read the seconds field first in 6-field cron patterns [python] ([#4962](https://github.com/taskforcesh/bullmq/issues/4962)) ([b3122ce](https://github.com/taskforcesh/bullmq/commit/b3122cebf590bc1bae290cc8d80637fdcce878ae))
+
 ## [3.4.1](https://github.com/taskforcesh/bullmq/compare/vpy3.4.0...vpy3.4.1) (2026-10-18)
 
 
@@ -18,6 +53,7 @@
 ### Bug Fixes
 
 * **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) (python)(elixir)(php)(rust)(dotnet) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
 
 ## [3.3.3](https://github.com/taskforcesh/bullmq/compare/vpy3.3.2...vpy3.3.3) (2026-10-10)
 

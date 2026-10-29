@@ -1,4 +1,4 @@
-import * as path from 'path';
+import * as path from 'node:path';
 import * as sinon from 'sinon';
 import { describe, beforeEach, afterEach, it, expect } from 'vitest';
 import {

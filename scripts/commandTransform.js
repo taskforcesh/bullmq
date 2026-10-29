@@ -1,6 +1,6 @@
-const path = require('path');
-const fs = require('fs');
-const { argv } = require('process');
+const path = require('node:path');
+const fs = require('node:fs');
+const { argv } = require('node:process');
 
 const readFile = fs.promises.readFile;
 const writeFile = fs.promises.writeFile;

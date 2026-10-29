@@ -1,7 +1,7 @@
 defmodule BullMQ.MixProject do
   use Mix.Project
 
-  @version "2.3.1"
+  @version "2.3.4"
   @source_url "https://github.com/taskforcesh/bullmq"
   @description "A powerful, fast, and robust job queue for Elixir backed by Redis"
 
@@ -65,7 +65,7 @@ defmodule BullMQ.MixProject do
   defp deps do
     [
       # Redis client
-      {:redix, "== 1.9.1"},
+      {:redix, "== 1.9.2"},
 
       # PostgreSQL client (optional backend)
       {:postgrex, "== 0.22.4", optional: true},
@@ -80,7 +80,7 @@ defmodule BullMQ.MixProject do
       {:jason, "== 1.4.5"},
 
       # Cron expression parsing
-      {:crontab, "== 1.2.0"},
+      {:crontab, "== 1.2.1"},
 
       # MessagePack encoding for Lua scripts
       {:msgpax, "== 2.4.0"},

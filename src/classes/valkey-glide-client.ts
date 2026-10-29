@@ -1,6 +1,6 @@
-import { createHash } from 'crypto';
-import { EventEmitter } from 'events';
-import { Readable } from 'stream';
+import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { Readable } from 'node:stream';
 import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
 import { ConnectionClosedError } from './errors/connection-closed-error';
 
@@ -422,10 +422,9 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
       release = resolve;
     });
 
-    await previous;
-    this.ensureOpen();
-
     try {
+      await previous;
+      this.ensureOpen();
       const raw = await this.ensureRaw();
       this.ensureOpen();
       return await fn(raw);
@@ -971,6 +970,14 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   async clientList(): Promise<string> {
     return toStringValue(
       await this.runRawCommand(['CLIENT', 'LIST'], {
+        decoder: GLIDE_STRING_DECODER,
+      }),
+    );
+  }
+
+  async clientInfo(): Promise<string> {
+    return toStringValue(
+      await this.runRawCommand(['CLIENT', 'INFO'], {
         decoder: GLIDE_STRING_DECODER,
       }),
     );

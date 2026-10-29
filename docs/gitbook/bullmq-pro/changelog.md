@@ -1,3 +1,10 @@
+# [7.50.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.49.0...v7.50.0) (2026-10-27)
+
+
+### Features
+
+* **worker:** allow changing worker-wide group concurrency at runtime ([#484](https://github.com/taskforcesh/bullmq-pro/issues/484)) ([#541](https://github.com/taskforcesh/bullmq-pro/issues/541)) ([c0a3762](https://github.com/taskforcesh/bullmq-pro/commit/c0a376212f4d8e598468fe3d63e3954c5bc34657))
+
 # [7.49.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.48.4...v7.49.0) (2026-10-15)
 
 

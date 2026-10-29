@@ -1,3 +1,31 @@
+## [1.4.4](https://github.com/taskforcesh/bullmq/compare/vrs1.4.3...vrs1.4.4) (2026-10-28)
+
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
+## [1.4.3](https://github.com/taskforcesh/bullmq/compare/vrs1.4.2...vrs1.4.3) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** allow compatible crate versions [rust] ([#4993](https://github.com/taskforcesh/bullmq/issues/4993)) ([8d2c99e](https://github.com/taskforcesh/bullmq/commit/8d2c99ea90a30f3453c7f34c933175a2fe6915d7))
+
+## [1.4.2](https://github.com/taskforcesh/bullmq/compare/vrs1.4.1...vrs1.4.2) (2026-10-20)
+
+
+### Performance Improvements
+
+* **deduplication:** use LPOS for keepLastIfActive membership check (python)(elixir)(php)(rust) ([#4956](https://github.com/taskforcesh/bullmq/issues/4956)) ([8796b66](https://github.com/taskforcesh/bullmq/commit/8796b66653baa58b8ecf261d7d7595cc8b72e020)), closes [#4613](https://github.com/taskforcesh/bullmq/issues/4613)
+
+## [1.4.1](https://github.com/taskforcesh/bullmq/compare/vrs1.4.0...vrs1.4.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **deps:** update security patches [rust] [security] ([#4942](https://github.com/taskforcesh/bullmq/issues/4942)) ([6a4dd90](https://github.com/taskforcesh/bullmq/commit/6a4dd90cae2bc62c7524f015bb56384e12173f1e))
+
 # [1.4.0](https://github.com/taskforcesh/bullmq/compare/vrs1.3.6...vrs1.4.0) (2026-10-17)
 
 
@@ -17,6 +45,7 @@
 ### Bug Fixes
 
 * **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) (python)(elixir)(php)(rust)(dotnet) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
 
 ## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vrs1.3.4...vrs1.3.5) (2026-10-08)
 
@@ -131,6 +160,13 @@
 
 * **deps:** pin dependencies [rust] ([#4402](https://github.com/taskforcesh/bullmq/issues/4402)) ([eb956b0](https://github.com/taskforcesh/bullmq/commit/eb956b07fde2ab3d43b41325a06a6b103610e3e3))
 * **deps:** update dependency redis [security] ([#4369](https://github.com/taskforcesh/bullmq/issues/4369)) ([2a120df](https://github.com/taskforcesh/bullmq/commit/2a120dfea7324d7af67ad505c78f48571c74402b))
+
+# [1.2.0](https://github.com/taskforcesh/bullmq/compare/vrs1.1.1...vrs1.2.0) (2026-07-25)
+
+
+### Features
+
+* **connection:** add support for Redis TLS certs option ([#4334](https://github.com/taskforcesh/bullmq/issues/4334)) fixes [#4333](https://github.com/taskforcesh/bullmq/issues/4333) [rust] ([4085792](https://github.com/taskforcesh/bullmq/commit/4085792106fd3d381ec7980a8ae3c65788dd2d70))
 
 # [1.1.0](https://github.com/taskforcesh/bullmq/compare/vrs1.0.1...vrs1.1.0) (2026-07-15)
 

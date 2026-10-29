@@ -1,3 +1,52 @@
+## [6.5.1](https://github.com/taskforcesh/bullmq/compare/v6.5.0...v6.5.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
+# [6.5.0](https://github.com/taskforcesh/bullmq/compare/v6.4.2...v6.5.0) (2026-10-26)
+
+
+### Features
+
+* enforce node: protocol for built-in module imports ([#5016](https://github.com/taskforcesh/bullmq/issues/5016)) ([52255a9](https://github.com/taskforcesh/bullmq/commit/52255a96309e28e4b8c6247d3249981408596197))
+
+## [6.4.2](https://github.com/taskforcesh/bullmq/compare/v6.4.1...v6.4.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* **deps:** pin fast-uri to patched version ([#5009](https://github.com/taskforcesh/bullmq/issues/5009)) ([f42514c](https://github.com/taskforcesh/bullmq/commit/f42514c3d716dc81c2bbc65b883c9dc545fcb56d))
+
+## [6.4.1](https://github.com/taskforcesh/bullmq/compare/v6.4.0...v6.4.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** update security patches [security] ([#4986](https://github.com/taskforcesh/bullmq/issues/4986)) ([5289377](https://github.com/taskforcesh/bullmq/commit/528937798456bd60ef7d2d5d6df536862e004e87))
+
+# [6.4.0](https://github.com/taskforcesh/bullmq/compare/v6.3.19...v6.4.0) (2026-10-21)
+
+
+### Features
+
+* add support for reliable realtime messaging ([#4904](https://github.com/taskforcesh/bullmq/issues/4904)) ([253bc4b](https://github.com/taskforcesh/bullmq/commit/253bc4b1acd9c6030c01817b38ae65e067666ed4))
+
+## [6.3.19](https://github.com/taskforcesh/bullmq/compare/v6.3.18...v6.3.19) (2026-10-20)
+
+
+### Performance Improvements
+
+* **deduplication:** use LPOS for keepLastIfActive membership check (python)(elixir)(php)(rust) ([#4956](https://github.com/taskforcesh/bullmq/issues/4956)) ([8796b66](https://github.com/taskforcesh/bullmq/commit/8796b66653baa58b8ecf261d7d7595cc8b72e020)), closes [#4613](https://github.com/taskforcesh/bullmq/issues/4613)
+
+## [6.3.18](https://github.com/taskforcesh/bullmq/compare/v6.3.17...v6.3.18) (2026-10-20)
+
+
+### Bug Fixes
+
+* **job:** preserve last error when maxStartedAttempts is reached ([#4969](https://github.com/taskforcesh/bullmq/issues/4969)) ([5a04c20](https://github.com/taskforcesh/bullmq/commit/5a04c20b4c7fb6f13bccac1954bf4bdef2be8d80))
+
 ## [6.3.17](https://github.com/taskforcesh/bullmq/compare/v6.3.16...v6.3.17) (2026-10-18)
 
 
@@ -31,7 +80,7 @@
 
 ### Bug Fixes
 
-* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
+* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) (python)(elixir)(php)(rust)(dotnet) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
 
 ## [6.3.12](https://github.com/taskforcesh/bullmq/compare/v6.3.11...v6.3.12) (2026-10-09)
 

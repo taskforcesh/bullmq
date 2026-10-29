@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import type { default as IORedis } from 'ioredis';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
 import { IRedisClient } from '../interfaces/redis-client';
@@ -504,39 +504,60 @@ export class RedisConnection extends EventEmitter {
     }
 
     const bzpopmin = blockingClient.bzpopmin;
-    const wrappedBzpopmin = async (...args: any[]) => {
-      await RedisConnection.reconnectClusterIfNeeded(
+    const wrappedBzpopmin = (...args: any[]) =>
+      RedisConnection.runWithClusterRecovery(
         blockingClient,
         reconnectTimeoutMs,
+        () => bzpopmin.apply(blockingClient, args),
       );
-
-      try {
-        return await bzpopmin.apply(blockingClient, args);
-      } catch (error) {
-        const commandError = error as Error;
-        if (
-          RedisConnection.shouldReconnectClusterAfterError(
-            blockingClient,
-            commandError,
-          )
-        ) {
-          try {
-            await RedisConnection.reconnectCluster(
-              blockingClient,
-              reconnectTimeoutMs,
-            );
-          } catch {
-            // Preserve the original command failure if best-effort recovery fails.
-          }
-        }
-        throw commandError;
-      }
-    };
 
     blockingClient[clusterOriginalBzpopmin] = bzpopmin;
     blockingClient[clusterWrappedBzpopmin] = wrappedBzpopmin;
     blockingClient[clusterPatchedForBlocking] = true;
     blockingClient.bzpopmin = wrappedBzpopmin;
+  }
+
+  /**
+   * Runs a command of a blocking connection with the recovery that `bzpopmin`
+   * gets on an ioredis Cluster: an empty node pool is reconnected before the
+   * command, and a cluster left unusable by its failure is reconnected before
+   * rethrowing it. Other connections just run the command.
+   */
+  runWithClusterRecovery<T>(command: () => Promise<T>): Promise<T> {
+    const client = this.patchedBlockingClusterClient;
+    if (!client) {
+      return command();
+    }
+    return RedisConnection.runWithClusterRecovery(
+      client,
+      this.extraOptions.clusterReconnectTimeoutMs ??
+        DEFAULT_CLUSTER_RECONNECT_TIMEOUT_MS,
+      command,
+    );
+  }
+
+  private static async runWithClusterRecovery<T>(
+    client: BlockingClusterClient,
+    timeoutMs: number,
+    command: () => Promise<T>,
+  ): Promise<T> {
+    await RedisConnection.reconnectClusterIfNeeded(client, timeoutMs);
+
+    try {
+      return await command();
+    } catch (error) {
+      const commandError = error as Error;
+      if (
+        RedisConnection.shouldReconnectClusterAfterError(client, commandError)
+      ) {
+        try {
+          await RedisConnection.reconnectCluster(client, timeoutMs);
+        } catch {
+          // Preserve the original command failure if best-effort recovery fails.
+        }
+      }
+      throw commandError;
+    }
   }
 
   private disableBlockingClusterReconnect(): void {

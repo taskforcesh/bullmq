@@ -6,6 +6,10 @@ export {
 } from './postgres-connection';
 export { PostgresQueueBackend } from './postgres-queue-backend';
 export {
+  PostgresRelayBackend,
+  createPostgresRelayBackend,
+} from './postgres-relay-backend';
+export {
   runMigrations,
   assertSchemaCompatibility,
   SchemaMigrationRequiredError,

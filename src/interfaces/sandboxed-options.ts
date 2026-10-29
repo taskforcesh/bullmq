@@ -1,5 +1,5 @@
-import { ForkOptions } from 'child_process';
-import { WorkerOptions as WorkerThreadsOptions } from 'worker_threads';
+import { ForkOptions } from 'node:child_process';
+import { WorkerOptions as WorkerThreadsOptions } from 'node:worker_threads';
 
 export interface SandboxedOptions {
   /**

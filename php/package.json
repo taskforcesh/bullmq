@@ -68,6 +68,7 @@
   "resolutions": {
     "ajv": "8.20.0",
     "brace-expansion": "5.0.12",
+    "fast-uri": "3.1.9",
     "picomatch": "4.0.7",
     "tar": "7.5.22"
   }

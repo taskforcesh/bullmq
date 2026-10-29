@@ -1,6 +1,6 @@
-import { createHash } from 'crypto';
-import { EventEmitter } from 'events';
-import { Readable } from 'stream';
+import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { Readable } from 'node:stream';
 import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
 import { ConnectionClosedError } from './errors/connection-closed-error';
 
@@ -783,6 +783,10 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
 
   async clientList(): Promise<string> {
     return await this.raw.sendCommand(['CLIENT', 'LIST']);
+  }
+
+  async clientInfo(): Promise<string> {
+    return await this.raw.sendCommand(['CLIENT', 'INFO']);
   }
 
   // ---------------------------------------------------------------

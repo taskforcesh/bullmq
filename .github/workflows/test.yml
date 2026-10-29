@@ -520,9 +520,10 @@ jobs:
 
       - name: Start Redis
         if: env.should_run == 'true'
-        uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
-        with:
-          redis-version: 7-alpine
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes redis-server
+          sudo systemctl start redis-server
 
       - if: env.should_run == 'true'
         run: yarn install --ignore-engines --frozen-lockfile --non-interactive

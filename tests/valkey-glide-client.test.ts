@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import { ConnectionClosedError, createValkeyGlideClient } from '../src/classes';
 
 type GlideArg = string | Buffer;
@@ -15,7 +15,7 @@ async function withMockedRuntimeModule<T>(
   exports: Record<string, unknown>,
   callback: () => Promise<T>,
 ): Promise<T> {
-  const module = require('module') as typeof import('module') & {
+  const module = require('node:module') as typeof import('node:module') & {
     _load: (...args: any[]) => any;
   };
   const originalLoad = module._load;
@@ -844,6 +844,22 @@ describe('ValkeyGlideAdapter', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(raw.closeCalls).toBe(1);
+  });
+
+  it('releases queued commands when disconnected before they start', async () => {
+    const raw = new MockGlideClient();
+    const client = createValkeyGlideClient(raw as any);
+    const commands = [client.info(), client.get('key')];
+    const rejected = commands.map(command =>
+      expect(command).rejects.toBeInstanceOf(ConnectionClosedError),
+    );
+
+    client.disconnect();
+
+    await Promise.all(rejected);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(raw.closeCalls).toBe(1);
+    expect(raw.commands).toEqual([]);
   });
 
   it('closes the raw client immediately for blocking commands', async () => {

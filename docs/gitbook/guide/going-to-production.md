@@ -2,9 +2,13 @@
 
 In this chapter, we will offer crucial considerations and tips to help you achieve a robust solution when deploying your BullMQ-based application to production.
 
+{% hint style="info" %}
+The [Persistence](#persistence), [Max memory policy](#max-memory-policy) and [Automatic reconnections](#automatic-reconnections) sections apply to the Redis™ backend (and compatible servers such as Valkey or Dragonfly). If you are using PostgreSQL, check the [migrations](postgresql.md#migrations) and [tuning tips](postgresql.md#tuning-tips) of the PostgreSQL backend instead. The rest of the recommendations apply to both backends.
+{% endhint %}
+
 ### Persistence
 
-Since BullMQ is based on Redis, persistence needs to be configured manually. Many hosting solutions do not offer persistence by default; instead, it needs to be configured per instance. We recommend enabling [AOF (_Append Only File_)](https://redis.io/docs/management/persistence/#aof-advantages), which provides a robust and fast solution. Usually, 1 second per write is enough for most applications.
+Since BullMQ stores its data in Redis, persistence needs to be configured manually. Many hosting solutions do not offer persistence by default; instead, it needs to be configured per instance. We recommend enabling [AOF (_Append Only File_)](https://redis.io/docs/management/persistence/#aof-advantages), which provides a robust and fast solution. Usually, 1 second per write is enough for most applications.
 
 Even though persistence is very fast, it will have some effect on performance, so please make the proper benchmarks to know that it is not impacting your solution in a way that is not acceptable to you.
 
