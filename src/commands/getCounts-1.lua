@@ -34,6 +34,8 @@ for i = firstType, #ARGV do
   elseif ARGV[i] == "delayed" and delayedTimestamp then
     -- The low 12 score bits order jobs within a millisecond. Excluding the
     -- cutoff's first score excludes every job scheduled at that millisecond.
+    -- Lua's default number-to-string conversion can round epoch-sized scores.
+    -- Format the integer explicitly to preserve the exact exclusive bound.
     local maxScore = "(" .. string.format("%.0f", delayedTimestamp * 0x1000)
     results[#results+1] = rcall("ZCOUNT", stateKey, "-inf", maxScore)
   else

@@ -191,6 +191,24 @@ $completed = $myQueue->getJobsByType(['completed'], 0, 99, true);
 {% endtab %}
 {% endtabs %}
 
+#### Waiting jobs and delayed backlogs
+
+`getWaiting()` and `getWaitingCount()` do not include jobs that are still in
+delayed status, even when their scheduled time has passed. If workers cannot
+process jobs fast enough, a large backlog of overdue delayed jobs can accumulate.
+A small waiting count therefore does not necessarily mean there is little work
+left to process.
+
+In TypeScript, monitor both the waiting count and the overdue delayed count:
+
+```typescript
+const waiting = await myQueue.getWaitingCount();
+const overdueDelayed = await myQueue.getDelayedCount(Date.now());
+```
+
+`getWaiting()` only retrieves jobs in waiting status. To inspect jobs that are
+still delayed, use `getJobs(['delayed'], start, end)`.
+
 ## Read more:
 
 - 💡 [Get Job Counts API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#getjobcounts)
