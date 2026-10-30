@@ -267,6 +267,33 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     Worker.close(worker)
   end
 
+  test "FlowProducer reschedules a deduplicated job using the incoming delay", %{
+    conn: conn,
+    queue: queue
+  } do
+    deduplication = %{id: "flow-reschedule", reschedule: true}
+
+    flow = fn delay ->
+      %{
+        name: "delayed",
+        queue_name: queue,
+        data: %{},
+        opts: %{delay: delay, deduplication: deduplication}
+      }
+    end
+
+    {:ok, first} = FlowProducer.add(flow.(60_000), connection: conn, backend: Backends.Postgres)
+    job_id = first.job.id
+
+    {:ok, second} = FlowProducer.add(flow.(30_000), connection: conn, backend: Backends.Postgres)
+
+    assert second.job.id == job_id
+    assert {:ok, job} = Queue.get_job(queue, job_id, connection: conn, backend: Backends.Postgres)
+    assert job.delay == 30_000
+    assert {:ok, "delayed"} =
+             Queue.get_job_state(queue, job_id, connection: conn, backend: Backends.Postgres)
+  end
+
   test "FlowProducer keeps parent blocked after a completed child is reused", %{
     conn: conn,
     queue: queue
