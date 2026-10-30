@@ -8,6 +8,12 @@ local function getRelayTime()
   return tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
 end
 
+-- Exclusive lower score bound for "later than now". Formatted explicitly
+-- because Lua's number-to-string conversion keeps only 14 significant digits.
+local function getRelayTimeExclusiveBound()
+  return "(" .. string.format("%.0f", getRelayTime())
+end
+
 -- Highest score of a sorted set (0 if empty): the latest lease or expiry.
 local function getRelayLastScore(key)
   local last = rcall("ZRANGE", key, -1, -1, "WITHSCORES")
