@@ -494,18 +494,33 @@ defmodule BullMQ.IntegrationTest do
     end
 
     @tag :integration
-    test "drain removes the waiting jobs' hashes", %{conn: conn} do
+    test "drain removes the jobs' hashes and keeps job schedulers' delayed jobs", %{conn: conn} do
       queue_name = "test-script-drain-#{System.unique_integer([:positive])}"
       ctx = Keys.context(@test_prefix, queue_name)
       job_id = "drain-job"
+      delayed_id = "drain-delayed-job"
+      scheduled_id = "repeat:drain-scheduler:1000"
 
-      {:ok, _} = Redix.command(conn, ["HSET", Keys.job(ctx, job_id), "name", "drain-job"])
+      # A queue that has run prioritized jobs holds its priority counter as a string.
+      {:ok, _} = Redix.command(conn, ["SET", Keys.pc(ctx), "3"])
+      {:ok, _} = Redix.command(conn, ["ZADD", Keys.repeat(ctx), "1000", "drain-scheduler"])
+
+      for id <- [job_id, delayed_id, scheduled_id] do
+        {:ok, _} = Redix.command(conn, ["HSET", Keys.job(ctx, id), "name", id])
+      end
+
       {:ok, _} = Redix.command(conn, ["RPUSH", Keys.wait(ctx), job_id])
 
-      assert {:ok, _} = Scripts.drain(conn, ctx, false)
+      {:ok, _} =
+        Redix.command(conn, ["ZADD", Keys.delayed(ctx), "1", delayed_id, "2", scheduled_id])
+
+      assert {:ok, _} = Scripts.drain(conn, ctx, true)
 
       assert {:ok, 0} = Redix.command(conn, ["EXISTS", Keys.wait(ctx)])
       assert {:ok, 0} = Redix.command(conn, ["EXISTS", Keys.job(ctx, job_id)])
+      assert {:ok, 0} = Redix.command(conn, ["EXISTS", Keys.job(ctx, delayed_id)])
+      assert {:ok, [^scheduled_id]} = Redix.command(conn, ["ZRANGE", Keys.delayed(ctx), "0", "-1"])
+      assert {:ok, 1} = Redix.command(conn, ["EXISTS", Keys.job(ctx, scheduled_id)])
     end
 
     @tag :integration
