@@ -262,7 +262,6 @@ describe('PostgreSQL backend operations', () => {
               data: '{"foo":"baz"}',
               delay,
               opts: {
-                delay,
                 deduplication: {
                   ...deduplication,
                   ttl: 60000,
@@ -302,6 +301,39 @@ describe('PostgreSQL backend operations', () => {
         }
       },
     );
+
+    it('uses the top-level delay when rescheduling with addJob', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const deduplication = { id: 'reschedule-add-job' };
+        const id = await backend.addJob(
+          makeJob({
+            delay: 10000,
+            opts: { delay: 10000, deduplication },
+            deduplicationId: deduplication.id,
+          }),
+          'original',
+        );
+
+        expect(
+          await backend.addJob(
+            makeJob({
+              timestamp: Date.now() + 60000,
+              delay: 20000,
+              opts: {
+                deduplication: { ...deduplication, reschedule: true },
+              },
+              deduplicationId: deduplication.id,
+            }),
+            'incoming',
+          ),
+        ).toBe(id);
+        expect((await backend.getJobData(id))?.delay).toBe(20000);
+      } finally {
+        await backend.close();
+      }
+    });
 
     it('makes a delayed job due without changing an active job', async () => {
       const backend = newBackend();
