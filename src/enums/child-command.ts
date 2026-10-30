@@ -8,4 +8,5 @@ export enum ChildCommand {
   MoveToWaitingChildrenResponse,
   Cancel,
   GetDependenciesResponse,
+  UpdateDataResponse,
 }
