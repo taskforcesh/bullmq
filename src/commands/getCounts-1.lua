@@ -32,15 +32,9 @@ for i = firstType, #ARGV do
   elseif ARGV[i] == "active" then
     results[#results+1] = rcall("LLEN", stateKey)
   elseif ARGV[i] == "delayed" and delayedTimestamp then
-    -- The low 12 score bits order jobs within a millisecond. Use a numeric
-    -- bound below the cutoff, increasing the step if subtracting one rounds
-    -- back to the same score. Safe-integer timestamps need at most 4096.
-    local maxScore = delayedTimestamp * 4096.0
-    local step = 1
-    while maxScore - step == maxScore and step < 0x1000 do
-      step = step * 2
-    end
-    results[#results+1] = rcall("ZCOUNT", stateKey, "-inf", maxScore - step)
+    -- The low 12 score bits order jobs within a millisecond. Subtracting one
+    -- excludes every job scheduled at the cutoff timestamp or later.
+    results[#results+1] = rcall("ZCOUNT", stateKey, "-inf", delayedTimestamp * 0x1000 - 1)
   else
     results[#results+1] = rcall("ZCARD", stateKey)
   end
