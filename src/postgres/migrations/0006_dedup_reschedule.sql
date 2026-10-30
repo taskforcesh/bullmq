@@ -21,8 +21,11 @@ BEGIN
     RETURN NULL;
   END IF;
 
+  -- Lock the dedup row before touching the winner job row, matching the
+  -- dedup -> job lock order used by removal (dedup_on_removal, then DELETE job).
   SELECT job_id, expire_at_ms INTO v_cur, v_exp
-    FROM dedup WHERE queue = p_queue AND dedup_id = v_id;
+    FROM dedup WHERE queue = p_queue AND dedup_id = v_id
+    FOR UPDATE;
   IF v_cur IS NULL OR (v_exp IS NOT NULL AND v_exp <= p_now) THEN
     v_cur := NULL;
   ELSIF v_exp IS NULL AND NOT EXISTS (
