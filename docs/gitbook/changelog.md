@@ -1,3 +1,10 @@
+## [6.5.2](https://github.com/taskforcesh/bullmq/compare/v6.5.1...v6.5.2) (2026-10-30)
+
+
+### Bug Fixes
+
+* **relay:** format exclusive time bounds without precision loss ([#5043](https://github.com/taskforcesh/bullmq/issues/5043)) ([19ae429](https://github.com/taskforcesh/bullmq/commit/19ae4294dc0fd0dfb59bd61a9a62d525d6589b72))
+
 ## [6.5.1](https://github.com/taskforcesh/bullmq/compare/v6.5.0...v6.5.1) (2026-10-28)
 
 
