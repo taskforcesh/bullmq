@@ -58,6 +58,27 @@ defmodule BullMQ.Backends.PostgresTest do
     assert {:ok, nil} = Backend.get_job_data(b, id)
   end
 
+  test "reschedule keeps the existing payload and updates its delay", %{backend: b, queue: q} do
+    deduplication = %{id: "reschedule", reschedule: true}
+
+    original =
+      Job.new(q, "original", %{"color" => "white"}, delay: 60_000, deduplication: deduplication)
+
+    assert {:ok, id} = Backend.add_job(b, original)
+    assert Backends.Postgres.Migrator.latest_schema_version() == 6
+
+    for delay <- [120_000, 30_000] do
+      incoming =
+        Job.new(q, "incoming", %{"color" => "blue"}, delay: delay, deduplication: deduplication)
+
+      assert {:ok, ^id} = Backend.add_job(b, incoming)
+      assert {:ok, stored} = Backend.get_job_data(b, id)
+      assert stored["name"] == "original"
+      assert Jason.decode!(stored["data"]) == %{"color" => "white"}
+      assert stored["delay"] == Integer.to_string(delay)
+    end
+  end
+
   test "remove_deduplication_key only deletes the matching job owner", %{backend: b, queue: q} do
     job = Job.new(q, "dedup", %{}, deduplication: %{id: "dk1"})
     assert {:ok, id} = Backend.add_job(b, job)

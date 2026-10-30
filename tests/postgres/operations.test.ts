@@ -236,6 +236,113 @@ describe('PostgreSQL backend operations', () => {
     }
   });
 
+  describe('deduplication reschedule', () => {
+    it.each([false, true])(
+      'preserves payload and updates the due time (extend=%s)',
+      async extend => {
+        const backend = newBackend();
+        try {
+          await backend.waitUntilReady();
+          const id = randomUUID();
+          const timestamp = Date.now() + 60000;
+          const deduplication = { id: 'reschedule', ttl: 30000, extend };
+          await backend.addJob(
+            makeJob({
+              timestamp,
+              delay: 10000,
+              opts: { delay: 10000, deduplication },
+              deduplicationId: deduplication.id,
+            }),
+            id,
+          );
+          for (const delay of [2000, 20000]) {
+            const incoming = makeJob({
+              timestamp: timestamp + 1000,
+              name: 'incoming',
+              data: '{"foo":"baz"}',
+              delay,
+              opts: {
+                delay,
+                deduplication: {
+                  ...deduplication,
+                  ttl: 60000,
+                  reschedule: true,
+                },
+              },
+              deduplicationId: deduplication.id,
+            });
+            expect(
+              await backend.addJobs([{ job: incoming, jobId: randomUUID() }]),
+            ).toEqual([id]);
+            const stored = await backend.getJobData(id);
+            expect(stored?.name).toBe('test-job');
+            expect(JSON.parse(stored!.data)).toEqual({ foo: 'bar' });
+            expect(stored?.delay).toBe(delay);
+            expect(await backend.getState(id)).toBe('delayed');
+            const { rows } = await pool.query<{
+              process_at_ms: string;
+              expire_at_ms: string;
+            }>(
+              `SELECT j.process_at_ms, d.expire_at_ms
+                 FROM "${schema}".job j
+                 JOIN "${schema}".dedup d ON d.queue = j.queue AND d.job_id = j.id
+                WHERE j.id = $1`,
+              [id],
+            );
+            expect(Number(rows[0].process_at_ms)).toBe(
+              timestamp + 1000 + delay,
+            );
+            expect(Number(rows[0].expire_at_ms)).toBe(
+              extend ? timestamp + 1000 + 60000 : timestamp + 30000,
+            );
+          }
+          expect(await backend.getCounts(['delayed'])).toEqual([1]);
+        } finally {
+          await backend.close();
+        }
+      },
+    );
+
+    it('makes a delayed job due without changing an active job', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const deduplication = { id: 'due', reschedule: true };
+        const id = await backend.addJob(
+          makeJob({
+            delay: 60000,
+            opts: { delay: 60000, deduplication },
+            deduplicationId: deduplication.id,
+          }),
+          'original',
+        );
+        expect(
+          await backend.addJob(
+            makeJob({
+              opts: { deduplication },
+              deduplicationId: deduplication.id,
+            }),
+            'incoming',
+          ),
+        ).toBe(id);
+        const [, claimedId] = await backend.moveToActive(randomUUID());
+        expect(claimedId).toBe(id);
+        await backend.addJob(
+          makeJob({
+            delay: 60000,
+            opts: { delay: 60000, deduplication },
+            deduplicationId: deduplication.id,
+          }),
+          'another',
+        );
+        expect(await backend.getState(id)).toBe('active');
+        expect((await backend.getJobData(id))?.delay).toBe(0);
+      } finally {
+        await backend.close();
+      }
+    });
+  });
+
   it('removeOnComplete: true removes the job on completion', async () => {
     const backend = newBackend();
     try {

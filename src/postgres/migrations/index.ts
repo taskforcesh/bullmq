@@ -69,6 +69,12 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0005_flow_parent_release.sql'),
   },
+  {
+    version: 6,
+    name: '0006_dedup_reschedule',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0006_dedup_reschedule.sql'),
+  },
 ];
 
 /**

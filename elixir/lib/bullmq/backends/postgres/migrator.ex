@@ -31,10 +31,11 @@ defmodule BullMQ.Backends.Postgres.Migrator do
     {2, "0002_functions.sql", 6},
     {3, "0003_dedup_stale_key.sql", 6},
     {4, "0004_relay.sql", 6},
-    {5, "0005_flow_parent_release.sql", 6}
+    {5, "0005_flow_parent_release.sql", 6},
+    {6, "0006_dedup_reschedule.sql", 6}
   ]
 
-  @latest_schema_version 5
+  @latest_schema_version 6
 
   @doc "The default schema (namespace) the backend lives in."
   def default_schema, do: @default_schema
