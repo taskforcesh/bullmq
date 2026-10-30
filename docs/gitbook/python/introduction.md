@@ -80,6 +80,10 @@ if __name__ == "__main__":
 If Redis responses are in binary format, you should pass [decode_responses](https://redis.readthedocs.io/en/latest/examples/connection_examples.html#By-default-Redis-return-binary-responses,-to-decode-them-use-decode_responses=True) option as _True_.
 {% endhint %}
 
+{% hint style="info" %}
+Connections that BullMQ creates from the `connection` option identify themselves to the server through redis-py's client identification (`CLIENT SETINFO`), so they appear as `redis-py(bullmq_v<version>)` in `CLIENT LIST`. A client instance you pass in is left untouched, and a `lib_name` or `driver_info` you set in the connection options takes precedence.
+{% endhint %}
+
 ## Redis Cluster
 
 Pass a `redis.asyncio.cluster.RedisCluster` client as the `connection`, and put a hash tag in the prefix so every key of a queue lands in one slot (see [Redis Cluster](../patterns/redis-cluster.md)):
