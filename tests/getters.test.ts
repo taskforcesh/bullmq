@@ -863,16 +863,18 @@ describe('Jobs getters', () => {
       ).toEqual([1, 1, 1, 0]);
     });
 
-    it('preserves millisecond precision at the cutoff', async () => {
-      const timestamp = 1700000000000;
-      await queue.addBulk([
-        { name: 'first', data: {}, opts: { timestamp, delay: 1 } },
-        { name: 'second', data: {}, opts: { timestamp, delay: 1 } },
-      ]);
+    it.each([1700000000000, 2208988799999])(
+      'preserves millisecond precision at the cutoff after %s',
+      async timestamp => {
+        await queue.addBulk([
+          { name: 'first', data: {}, opts: { timestamp, delay: 1 } },
+          { name: 'second', data: {}, opts: { timestamp, delay: 1 } },
+        ]);
 
-      expect(await queue.getDelayedCount(timestamp + 1)).toBe(0);
-      expect(await queue.getDelayedCount(timestamp + 2)).toBe(2);
-    });
+        expect(await queue.getDelayedCount(timestamp + 1)).toBe(0);
+        expect(await queue.getDelayedCount(timestamp + 2)).toBe(2);
+      },
+    );
 
     it('returns zero for an empty queue', async () => {
       expect(await queue.getDelayedCount(Date.now())).toBe(0);
