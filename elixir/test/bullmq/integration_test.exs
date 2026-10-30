@@ -471,6 +471,72 @@ defmodule BullMQ.IntegrationTest do
     end
 
     @tag :integration
+    test "extend_locks extends every lock and clears the jobs from the stalled set", %{conn: conn} do
+      queue_name = "test-script-locks-#{System.unique_integer([:positive])}"
+      ctx = Keys.context(@test_prefix, queue_name)
+      job_ids = ["locks-job-1", "locks-job-2"]
+      tokens = ["locks-token-1", "locks-token-2"]
+
+      for {job_id, token} <- Enum.zip(job_ids, tokens) do
+        {:ok, _} = Redix.command(conn, ["SET", Keys.lock(ctx, job_id), token, "PX", 1000])
+      end
+
+      {:ok, _} = Redix.command(conn, ["SADD", Keys.stalled(ctx) | job_ids])
+
+      assert {:ok, []} = Scripts.extend_locks(conn, ctx, job_ids, tokens, 30_000)
+
+      for job_id <- job_ids do
+        {:ok, ttl} = Redix.command(conn, ["PTTL", Keys.lock(ctx, job_id)])
+        assert ttl > 1000
+      end
+
+      assert {:ok, []} = Redix.command(conn, ["SMEMBERS", Keys.stalled(ctx)])
+    end
+
+    @tag :integration
+    test "drain removes the waiting jobs' hashes", %{conn: conn} do
+      queue_name = "test-script-drain-#{System.unique_integer([:positive])}"
+      ctx = Keys.context(@test_prefix, queue_name)
+      job_id = "drain-job"
+
+      {:ok, _} = Redix.command(conn, ["HSET", Keys.job(ctx, job_id), "name", "drain-job"])
+      {:ok, _} = Redix.command(conn, ["RPUSH", Keys.wait(ctx), job_id])
+
+      assert {:ok, _} = Scripts.drain(conn, ctx, false)
+
+      assert {:ok, 0} = Redix.command(conn, ["EXISTS", Keys.wait(ctx)])
+      assert {:ok, 0} = Redix.command(conn, ["EXISTS", Keys.job(ctx, job_id)])
+    end
+
+    @tag :integration
+    test "promote moves a delayed job to the queue its priority selects", %{conn: conn} do
+      queue_name = "test-script-promote-#{System.unique_integer([:positive])}"
+      ctx = Keys.context(@test_prefix, queue_name)
+
+      for {job_id, priority} <- [{"plain-job", "0"}, {"priority-job", "5"}] do
+        {:ok, _} =
+          Redix.command(conn, [
+            "HSET",
+            Keys.job(ctx, job_id),
+            "priority",
+            priority,
+            "delay",
+            "60000"
+          ])
+
+        {:ok, _} = Redix.command(conn, ["ZADD", Keys.delayed(ctx), "9999999999999", job_id])
+
+        assert {:ok, 0} = Scripts.promote(conn, ctx, job_id)
+      end
+
+      assert {:ok, 0} = Redix.command(conn, ["ZCARD", Keys.delayed(ctx)])
+      assert {:ok, ["plain-job"]} = Redix.command(conn, ["LRANGE", Keys.wait(ctx), "0", "-1"])
+
+      assert {:ok, ["priority-job"]} =
+               Redix.command(conn, ["ZRANGE", Keys.prioritized(ctx), "0", "-1"])
+    end
+
+    @tag :integration
     test "pause script works", %{conn: conn} do
       queue_name = "test-script-pause-#{System.unique_integer([:positive])}"
       ctx = Keys.context(@test_prefix, queue_name)
