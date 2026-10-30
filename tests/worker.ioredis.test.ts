@@ -8,8 +8,9 @@ import {
   expect,
 } from 'vitest';
 import * as sinon from 'sinon';
+import { default as IORedis } from 'ioredis';
 
-import { Queue, Worker } from '../src/classes';
+import { Queue, QueueEvents, Worker } from '../src/classes';
 import { IRedisClient } from '../src/interfaces';
 import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
@@ -134,5 +135,119 @@ describe('workers (ioredis-only)', () => {
         await queue.close();
       }
     }, 30000);
+  });
+
+  describe('when the connection has a commandTimeout shorter than the block timeout (#2619)', () => {
+    const redisHost = process.env.REDIS_HOST || 'localhost';
+    const commandTimeout = 500;
+
+    it.each([
+      ['connection options', () => ({ host: redisHost, commandTimeout })],
+      [
+        'an ioredis instance',
+        () =>
+          new IORedis(redisHost, {
+            maxRetriesPerRequest: null,
+            commandTimeout,
+          }),
+      ],
+    ])(
+      'does not time out the blocking bzpopmin when given %s',
+      async (_, makeConnection) => {
+        const workerConnection = makeConnection();
+        const queue = new Queue(queueName, { connection, prefix });
+        await queue.waitUntilReady();
+
+        let processed = 0;
+        const errors: Error[] = [];
+        const worker = new Worker(
+          queueName,
+          async () => {
+            processed++;
+          },
+          { connection: workerConnection, prefix, drainDelay: 2 },
+        );
+        worker.on('error', err => errors.push(err));
+        await worker.waitUntilReady();
+
+        try {
+          // Idle past at least one 2s bzpopmin, well beyond the 500ms timeout.
+          await delay(2500);
+          expect(errors).toEqual([]);
+
+          await queue.add('test', {});
+          await delay(1500);
+          expect(processed).toBe(1);
+          expect(errors).toEqual([]);
+
+          if (workerConnection instanceof IORedis) {
+            // The caller's client keeps its own commandTimeout.
+            expect(workerConnection.options.commandTimeout).toBe(
+              commandTimeout,
+            );
+          }
+        } finally {
+          await worker.close();
+          await queue.close();
+          if (workerConnection instanceof IORedis) {
+            await workerConnection.quit();
+          }
+        }
+      },
+      15000,
+    );
+
+    it.each([
+      ['connection options', () => ({ host: redisHost, commandTimeout })],
+      [
+        'an ioredis instance',
+        () =>
+          new IORedis(redisHost, {
+            maxRetriesPerRequest: null,
+            commandTimeout,
+          }),
+      ],
+    ])(
+      'does not time out the QueueEvents blocking xread when given %s',
+      async (_, makeConnection) => {
+        const eventsConnection = makeConnection();
+        const queue = new Queue(queueName, { connection, prefix });
+        const queueEvents = new QueueEvents(queueName, {
+          connection: eventsConnection,
+          prefix,
+        });
+        const errors: Error[] = [];
+        queueEvents.on('error', err => errors.push(err));
+        await queue.waitUntilReady();
+        await queueEvents.waitUntilReady();
+
+        try {
+          // Idle past the 500ms timeout while XREAD BLOCK waits for events.
+          await delay(1500);
+          expect(errors).toEqual([]);
+
+          const waiting = new Promise<void>(resolve =>
+            queueEvents.once('waiting', () => resolve()),
+          );
+          await queue.add('test', {});
+          await waiting;
+          expect(errors).toEqual([]);
+
+          if (eventsConnection instanceof IORedis) {
+            // The caller's client keeps its own commandTimeout.
+            expect(eventsConnection.options.commandTimeout).toBe(
+              commandTimeout,
+            );
+          }
+        } finally {
+          await queueEvents.close();
+          await queue.close();
+          if (eventsConnection instanceof IORedis) {
+            await eventsConnection.quit();
+          }
+        }
+      },
+      15000,
+    );
   });
 });
