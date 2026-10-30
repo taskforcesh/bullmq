@@ -428,8 +428,9 @@ describe('RedisConnection', () => {
       });
       const client = await connection.client;
 
-      // When using an existing client with blocking: true, a duplicate is created
-      // which inherits the clientInfoTag from the original client
+      // RedisConnection uses an existing client as-is (Worker and QueueEvents are
+      // the ones that duplicate it when they need a blocking connection), so the
+      // original clientInfoTag is preserved
       expect(client.options.clientInfoTag).toBe(customTag);
 
       await connection.close();
