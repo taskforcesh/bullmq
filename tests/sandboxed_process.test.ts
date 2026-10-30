@@ -2099,6 +2099,42 @@ function sandboxProcessTests(
       expect(jobResult).toBe(42);
     });
 
+    it('should allow the job to complete when force closing the worker', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
+      const worker = new Worker(queueName, processFile, {
+        autorun: false,
+        connection,
+        prefix,
+        useWorkerThreads,
+      });
+
+      // acquire and release a child here so the job starts on it right away
+      const initializedChild = await worker['childPool'].retain(processFile);
+      await worker['childPool'].release(initializedChild);
+
+      const onJobActive = new Promise<void>(resolve => {
+        worker.once('active', async () => {
+          await delay(100);
+          resolve();
+        });
+      });
+
+      const job = await queue.add('foo', {});
+
+      worker.run();
+
+      await onJobActive;
+
+      // The child is stopped gracefully on close(true), so the job still
+      // finishes, whether it runs in a process or in a worker thread.
+      await worker.close(true);
+
+      expect(!!initializedChild.killed).toEqual(true);
+
+      const jobResult = await job.waitUntilFinished(queueEvents);
+      expect(jobResult).toBe(42);
+    });
+
     describe('when cancelling a sandboxed job', () => {
       it('should cancel a running job and fail it', async () => {
         const processFile = __dirname + '/fixtures/fixture_processor_cancel.js';

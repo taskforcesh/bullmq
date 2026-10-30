@@ -150,7 +150,13 @@ export class Child extends EventEmitter {
     if (this.childProcess) {
       this.childProcess.kill(signal);
     } else if (this.worker) {
-      this.worker.terminate();
+      if (signal === 'SIGTERM') {
+        // A worker thread can't receive signals, so ask it to finish its
+        // current job and exit, like a child process does on SIGTERM.
+        this.worker.postMessage({ cmd: ChildCommand.Stop });
+      } else {
+        this.worker.terminate();
+      }
     }
   }
 
