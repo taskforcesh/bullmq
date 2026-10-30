@@ -370,8 +370,8 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
         end
       end)
 
-    assert {:ok, 5} = Migrator.run_migrations(pool, legacy_schema)
-    assert {:ok, 5} = Migrator.run_migrations(pool, node_schema)
+    assert {:ok, 6} = Migrator.run_migrations(pool, legacy_schema)
+    assert {:ok, 6} = Migrator.run_migrations(pool, node_schema)
 
     for schema <- [legacy_quoted, node_quoted] do
       %{rows: rows} =
@@ -381,7 +381,7 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
           []
         )
 
-      assert rows == [[6], [6], [6], [6], [6]]
+      assert rows == [[6], [6], [6], [6], [6], [6]]
     end
   end
 
