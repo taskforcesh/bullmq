@@ -110,6 +110,11 @@ class FlowProducer(EventEmitter):
         node_opts = node.get("opts") or {}
         parent_opts = parent.get("parentOpts")
         jobs_opts = {**default_opts, **node_opts, "parent": parent_opts}
+        deduplication = jobs_opts.get("deduplication") or jobs_opts.get("de") or {}
+        if parent_opts and deduplication.get("keepLastIfActive"):
+            raise ValueError(
+                "keepLastIfActive deduplication is not supported for flow nodes with a parent"
+            )
         job_id = node_opts.get("jobId") or uuid4().hex
 
         job = Job(

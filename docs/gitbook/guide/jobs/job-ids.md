@@ -16,6 +16,9 @@ Jobs that are removed from the queue (either manually, or when using settings su
 
 In order to specify a custom job id, use the `jobId` option when adding jobs to the queue:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 await myQueue.add(
   'wall',
@@ -25,6 +28,66 @@ await myQueue.add(
   },
 );
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+await queue.add(
+    'wall',
+    {'color': 'pink'},
+    {
+        'jobId': custom_job_id,
+    },
+)
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+BullMQ.Queue.add("Paint", "wall", %{color: "pink"},
+  connection: :my_redis,
+  job_id: custom_job_id
+)
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+await queue.AddAsync("wall", new { color = "pink" }, new JobsOptions
+{
+    JobId = customJobId,
+});
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+queue
+    .add("wall", serde_json::json!({ "color": "pink" }))
+    .job_id(custom_job_id)
+    .await?;
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+$queue->add('wall', ['color' => 'pink'], [
+    'jobId' => $customJobId,
+]);
+```
+
+{% endtab %}
+{% endtabs %}
 
 {% hint style="danger" %}
 Custom job ids must not contain the **:** separator as it will be translated in 2 different values, since we are also following Redis naming convention. So if you need to add a separator, use a different value, for example **-**, **\_**.

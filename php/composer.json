@@ -34,7 +34,7 @@
     },
     "require-dev": {
         "phpunit/phpunit": "10.5.66",
-        "phpstan/phpstan": "2.3.1",
+        "phpstan/phpstan": "2.3.2",
         "squizlabs/php_codesniffer": "4.0.4"
     },
     "autoload": {

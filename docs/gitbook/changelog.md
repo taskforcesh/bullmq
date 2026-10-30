@@ -1,3 +1,10 @@
+## [6.5.1](https://github.com/taskforcesh/bullmq/compare/v6.5.0...v6.5.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
 # [6.5.0](https://github.com/taskforcesh/bullmq/compare/v6.4.2...v6.5.0) (2026-10-26)
 
 

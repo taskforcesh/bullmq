@@ -62,7 +62,7 @@ class Scripts:
             encoded[encoded_key] = value
         return encoded
 
-    def addJobArgs(self, job: Job):
+    def addJobArgs(self, job: Job, defer_parent_release: bool = False):
         #  ARGV[1] msgpacked arguments array
         #         [1]  key prefix,
         #         [2]  custom id (will not generate one automatically)
@@ -73,6 +73,7 @@ class Scripts:
         #         [7]  parent? {id, queueKey}
         #         [8]  repeat job key
         #         [9]  deduplication key
+        #         [10] defer parent release (flow inserts)
 
         jsonData = json.dumps(job.data, separators=(',', ':'), allow_nan=False)
         
@@ -91,30 +92,31 @@ class Scripts:
         packedArgs = msgpack.packb(
             [
                 self.keys[""],                                              # [1] key prefix
-                job.id or "",                                               # [2] custom id
+                job.id or "",                                              # [2] custom id
                 job.name,                                                   # [3] name
                 job.timestamp,                                              # [4] timestamp
                 job.parentKey,                                              # [5] parentKey
                 f"{parentKey}:dependencies" if parentKey else None,         # [6] parent dependencies key
                 parent,                                                     # [7] parent {id, queueKey}
                 job.repeatJobKey,                                           # [8] repeat job key
-                deduplicationKey                                            # [9] deduplication key
+                deduplicationKey,                                           # [9] deduplication key
+                1 if defer_parent_release else None                          # [10] defer parent release
             ],
             use_bin_type=True)
         
         return [packedArgs, jsonData, packedOpts]
 
-    async def addJob(self, job: Job, pipe = None):
+    async def addJob(self, job: Job, pipe = None, defer_parent_release: bool = False):
         """
         Add an item to the queue
         """
         result = None
         if job.opts.get("delay"):
-            result = await self.addDelayedJob(job, job.opts.get("delay"), pipe)
+            result = await self.addDelayedJob(job, job.opts.get("delay"), pipe, defer_parent_release)
         elif job.opts.get("priority"):
-            result = await self.addPrioritizedJob(job, job.opts.get("priority"), pipe)
+            result = await self.addPrioritizedJob(job, job.opts.get("priority"), pipe, defer_parent_release)
         else:
-            result = await self.addStandardJob(job, job.timestamp, pipe)
+            result = await self.addStandardJob(job, job.timestamp, pipe, defer_parent_release)
 
         if type(result) == int :
             if result < 0:
@@ -125,46 +127,46 @@ class Scripts:
                     })
         return result
 
-    def addStandardJob(self, job: Job, timestamp: int, pipe = None):
+    def addStandardJob(self, job: Job, timestamp: int, pipe = None, defer_parent_release: bool = False):
         """
         Add a standard job to the queue
         """
         keys = self.getKeys(['wait', 'paused', 'meta', 'id', 'completed',
                              'delayed', 'active', 'events', 'marker'])
-        args = self.addJobArgs(job)
+        args = self.addJobArgs(job, defer_parent_release)
         args.append(timestamp)
 
         return self.commands["addStandardJob"](keys=keys, args=args, client=pipe)
     
-    def addDelayedJob(self, job: Job, timestamp: int, pipe = None):
+    def addDelayedJob(self, job: Job, timestamp: int, pipe = None, defer_parent_release: bool = False):
         """
         Add a delayed job to the queue
         """
         keys = self.getKeys(['marker', 'meta', 'id',
                             'delayed', 'completed', 'events'])
-        args = self.addJobArgs(job)
+        args = self.addJobArgs(job, defer_parent_release)
         args.append(timestamp)
 
         return self.commands["addDelayedJob"](keys=keys, args=args, client=pipe)
     
-    def addPrioritizedJob(self, job: Job, timestamp: int, pipe = None):
+    def addPrioritizedJob(self, job: Job, timestamp: int, pipe = None, defer_parent_release: bool = False):
         """
         Add a prioritized job to the queue
         """
         keys = self.getKeys(['marker', 'meta', 'id', 'prioritized',
                              'delayed', 'completed', 'active', 'events', 'pc'])
-        args = self.addJobArgs(job)
+        args = self.addJobArgs(job, defer_parent_release)
         args.append(timestamp)
 
         return self.commands["addPrioritizedJob"](keys=keys, args=args, client=pipe)
 
-    def addParentJob(self, job: Job, pipe = None):
+    def addParentJob(self, job: Job, pipe = None, defer_parent_release: bool = False):
         """
         Add a job to the queue that is a parent
         """
         keys = self.getKeys(['meta', 'id', 'delayed', 'waiting-children', 'completed', 'events'])
 
-        args = self.addJobArgs(job)
+        args = self.addJobArgs(job, defer_parent_release)
 
         return self.commands["addParentJob"](keys=keys, args=args, client=pipe)
 

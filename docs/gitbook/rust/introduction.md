@@ -28,7 +28,7 @@ BullMQ for Rust requires:
 
 - Rust 1.85+
 - Tokio runtime
-- Redis 6.2+
+- Redis 6.2+ (or a compatible server such as Valkey or Dragonfly)
 
 ## Get Started
 
@@ -270,8 +270,8 @@ let worker = Worker::with_options("my-queue", processor, WorkerOptions {
 }).await?;
 ```
 
-Queues created this way are fully interoperable with Node.js and Python
-services that use the same prefix on the same cluster.
+Queues created this way are fully interoperable with services written with any
+of the other BullMQ SDKs that use the same prefix on the same cluster.
 
 ## Key Differences from Node.js
 
@@ -286,8 +286,8 @@ services that use the same prefix on the same cluster.
 
 ## Compatibility
 
-The Rust implementation uses the same Lua scripts and Redis data structures as the Node.js and Python versions. This means:
+The Rust implementation uses the same Lua scripts and Redis data structures as the other BullMQ SDKs (Node.js, Python, Elixir, .NET and PHP). This means:
 
-- Jobs added by Node.js workers can be processed by Rust workers (and vice versa)
+- Jobs added from Node.js (or any other SDK) can be processed by Rust workers (and vice versa)
 - Queue state is fully shared across all language implementations
 - You can mix languages in a single deployment

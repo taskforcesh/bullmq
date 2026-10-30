@@ -1,3 +1,17 @@
+## [2.3.5](https://github.com/taskforcesh/bullmq/compare/vex2.3.4...vex2.3.5) (2026-10-30)
+
+
+### Bug Fixes
+
+* **scripts:** pass the queue key prefix to extendLocks, drain and promote [elixir] fixes [#5038](https://github.com/taskforcesh/bullmq/issues/5038) ([#5041](https://github.com/taskforcesh/bullmq/issues/5041)) ([5971d9e](https://github.com/taskforcesh/bullmq/commit/5971d9ebdc6e92aec538ea4f8a05aeb99963e6a6))
+
+## [2.3.4](https://github.com/taskforcesh/bullmq/compare/vex2.3.3...vex2.3.4) (2026-10-28)
+
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
 ## [2.3.3](https://github.com/taskforcesh/bullmq/compare/vex2.3.2...vex2.3.3) (2026-10-23)
 
 
