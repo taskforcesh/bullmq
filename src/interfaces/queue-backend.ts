@@ -607,7 +607,11 @@ export interface IQueueBackend {
    */
   getRateLimitTtl(maxJobs?: number): Promise<number>;
 
-  getCounts(types: JobType[]): Promise<number[]>;
+  /**
+   * Counts jobs by state. When provided, delayedTimestamp restricts delayed
+   * jobs to those scheduled strictly before that Unix timestamp (milliseconds).
+   */
+  getCounts(types: JobType[], delayedTimestamp?: number): Promise<number[]>;
 
   getCountsPerPriority(priorities: number[]): Promise<number[]>;
 
