@@ -104,6 +104,17 @@ class Job:
         await self.backend.promote(self.id)
         self.delay = 0
 
+    async def changeDelay(self, delay: int):
+        """
+        Reschedules a delayed job to be processed `delay` milliseconds from now,
+        regardless of its original delay.
+
+        @param delay: milliseconds from now when the job should be processed.
+        @raises TypeError: if the job is missing or is not in the delayed state.
+        """
+        await self.backend.changeDelay(self.id, delay)
+        self.delay = delay
+
     async def retry(self, state: str = "failed", opts: dict = {}):
         """
         Attempts to retry the job. Only a job that has failed or completed can be retried.
