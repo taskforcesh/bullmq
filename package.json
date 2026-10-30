@@ -159,7 +159,7 @@
     "ts-node": "10.9.2",
     "typedoc": "0.28.20",
     "typescript": "5.9.3",
-    "vitepress": "2.0.0-alpha.20",
+    "vitepress": "2.0.0-alpha.21",
     "vitest": "4.1.12"
   },
   "commitlint": {
@@ -243,7 +243,6 @@
     "brace-expansion": "5.0.12",
     "fast-uri": "3.1.9",
     "js-yaml": "5.4.2",
-    "picomatch": "4.0.7",
     "tar": "7.5.22",
     "yaml": "2.9.1"
   }
