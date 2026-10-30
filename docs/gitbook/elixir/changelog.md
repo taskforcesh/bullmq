@@ -1,3 +1,10 @@
+## [2.3.5](https://github.com/taskforcesh/bullmq/compare/vex2.3.4...vex2.3.5) (2026-10-30)
+
+
+### Bug Fixes
+
+* **scripts:** pass the queue key prefix to extendLocks, drain and promote [elixir] fixes [#5038](https://github.com/taskforcesh/bullmq/issues/5038) ([#5041](https://github.com/taskforcesh/bullmq/issues/5041)) ([5971d9e](https://github.com/taskforcesh/bullmq/commit/5971d9ebdc6e92aec538ea4f8a05aeb99963e6a6))
+
 ## [2.3.4](https://github.com/taskforcesh/bullmq/compare/vex2.3.3...vex2.3.4) (2026-10-28)
 
 
