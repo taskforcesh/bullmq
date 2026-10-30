@@ -31,7 +31,7 @@ const myWorker = new Worker(
 ```python
 from bullmq import Worker
 
-def process_job(job):
+async def process_job(job, token):
     # do some work
     pass
 
@@ -50,19 +50,13 @@ worker = Worker(
 {% tab title="Elixir" %}
 
 ```elixir
-defmodule MyWorker do
-  use BullMQ.Worker
-
-  def process_job(_job) do
-    # do some work
-    :ok
-  end
-end
-
 {:ok, worker} = BullMQ.Worker.start_link(
   queue: "myQueueName",
-  processor: &MyWorker.process_job/1,
-  connection: connection,
+  processor: fn _job ->
+    # do some work
+    :ok
+  end,
+  connection: :my_redis,
   remove_on_fail: %{count: 0}
 )
 ```
@@ -72,13 +66,23 @@ end
 {% tab title="Rust" %}
 
 ```rust
-use bullmq::{Worker, WorkerOptions};
 use bullmq::types::RemoveOnFinish;
+use bullmq::worker::CancellationToken;
+use bullmq::{Job, Worker, WorkerOptions};
 
-let worker = Worker::new("myQueueName", processor, WorkerOptions {
-    remove_on_fail: Some(RemoveOnFinish::Count(0)),
-    ..Default::default()
-}).await?;
+let worker = Worker::with_options(
+    "myQueueName",
+    |_job: Job, _token: CancellationToken| async move {
+        // do some work
+        Ok(serde_json::Value::Null)
+    },
+    WorkerOptions {
+        connection,
+        remove_on_fail: Some(RemoveOnFinish::Count(0)),
+        ..Default::default()
+    },
+)
+.await?;
 ```
 
 {% endtab %}
@@ -116,7 +120,7 @@ const myWorker = new Worker(
 ```python
 from bullmq import Worker
 
-def process_job(job):
+async def process_job(job, token):
     # do some work
     pass
 
@@ -136,19 +140,13 @@ worker = Worker(
 {% tab title="Elixir" %}
 
 ```elixir
-defmodule MyWorker do
-  use BullMQ.Worker
-
-  def process_job(_job) do
-    # do some work
-    :ok
-  end
-end
-
 {:ok, worker} = BullMQ.Worker.start_link(
   queue: "myQueueName",
-  processor: &MyWorker.process_job/1,
-  connection: connection,
+  processor: fn _job ->
+    # do some work
+    :ok
+  end,
+  connection: :my_redis,
   remove_on_complete: %{count: 1000},
   remove_on_fail: %{count: 5000}
 )
@@ -159,14 +157,24 @@ end
 {% tab title="Rust" %}
 
 ```rust
-use bullmq::{Worker, WorkerOptions};
 use bullmq::types::RemoveOnFinish;
+use bullmq::worker::CancellationToken;
+use bullmq::{Job, Worker, WorkerOptions};
 
-let worker = Worker::new("myQueueName", processor, WorkerOptions {
-    remove_on_complete: Some(RemoveOnFinish::Count(1000)),
-    remove_on_fail: Some(RemoveOnFinish::Count(5000)),
-    ..Default::default()
-}).await?;
+let worker = Worker::with_options(
+    "myQueueName",
+    |_job: Job, _token: CancellationToken| async move {
+        // do some work
+        Ok(serde_json::Value::Null)
+    },
+    WorkerOptions {
+        connection,
+        remove_on_complete: Some(RemoveOnFinish::Count(1000)),
+        remove_on_fail: Some(RemoveOnFinish::Count(5000)),
+        ..Default::default()
+    },
+)
+.await?;
 ```
 
 {% endtab %}
@@ -174,7 +182,7 @@ let worker = Worker::new("myQueueName", processor, WorkerOptions {
 
 ### Keep jobs based on their age
 
-Another possibility is to keep jobs up to a certain age. The `removeOn` option accepts a [`KeepJobs`](https://docs.bullmq.io/api/interfaces/v6.KeepJobs.html) object, that includes `age`, `count`, and `limit` fields. The `age` is used to specify how old jobs to keep (in seconds), the `count` can be used to limit the total amount to keep, and the `limit` controls how many jobs are removed per cleanup iteration. The `count` option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory. The `limit` option helps control the performance impact of cleanup operations by limiting how many jobs are processed at once.
+Another possibility is to keep jobs up to a certain age. The `removeOn` option accepts a [`KeepJobs`](https://docs.bullmq.io/api/types/v6.KeepJobs.html) object, that includes `age`, `count`, and `limit` fields. The `age` is used to specify how old jobs to keep (in seconds), the `count` can be used to limit the total amount to keep, and the `limit` controls how many jobs are removed per cleanup iteration. The `count` option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory. The `limit` option helps control the performance impact of cleanup operations by limiting how many jobs are processed at once.
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -207,7 +215,7 @@ const myWorker = new Worker(
 ```python
 from bullmq import Worker
 
-def process_job(job):
+async def process_job(job, token):
     # do some work
     pass
 
@@ -234,27 +242,21 @@ worker = Worker(
 {% tab title="Elixir" %}
 
 ```elixir
-defmodule MyWorker do
-  use BullMQ.Worker
-
-  def process_job(_job) do
-    # do some work
-    :ok
-  end
-end
-
 {:ok, worker} = BullMQ.Worker.start_link(
   queue: "myQueueName",
-  processor: &MyWorker.process_job/1,
-  connection: connection,
+  processor: fn _job ->
+    # do some work
+    :ok
+  end,
+  connection: :my_redis,
   remove_on_complete: %{
-    age: 3600,    # keep up to 1 hour
-    count: 1000,  # keep up to 1000 jobs
-    limit: 100    # remove up to 100 jobs per cleanup iteration
+    "age" => 3600,    # keep up to 1 hour
+    "count" => 1000,  # keep up to 1000 jobs
+    "limit" => 100    # remove up to 100 jobs per cleanup iteration
   },
   remove_on_fail: %{
-    age: 24 * 3600,  # keep up to 24 hours
-    limit: 50        # remove up to 50 jobs per cleanup iteration
+    "age" => 24 * 3600,  # keep up to 24 hours
+    "limit" => 50        # remove up to 50 jobs per cleanup iteration
   }
 )
 ```
@@ -264,22 +266,32 @@ end
 {% tab title="Rust" %}
 
 ```rust
-use bullmq::{Worker, WorkerOptions};
-use bullmq::types::{RemoveOnFinish, KeepJobs};
+use bullmq::types::{KeepJobs, RemoveOnFinish};
+use bullmq::worker::CancellationToken;
+use bullmq::{Job, Worker, WorkerOptions};
 
-let worker = Worker::new("myQueueName", processor, WorkerOptions {
-    remove_on_complete: Some(RemoveOnFinish::Options(KeepJobs {
-        age: Some(3600 * 1000),   // keep up to 1 hour (in milliseconds)
-        count: Some(1000), // keep up to 1000 jobs
-        limit: Some(100),  // remove up to 100 jobs per cleanup iteration
-    })),
-    remove_on_fail: Some(RemoveOnFinish::Options(KeepJobs {
-        age: Some(24 * 3600 * 1000), // keep up to 24 hours (in milliseconds)
-        count: None,
-        limit: Some(50),      // remove up to 50 jobs per cleanup iteration
-    })),
-    ..Default::default()
-}).await?;
+let worker = Worker::with_options(
+    "myQueueName",
+    |_job: Job, _token: CancellationToken| async move {
+        // do some work
+        Ok(serde_json::Value::Null)
+    },
+    WorkerOptions {
+        connection,
+        remove_on_complete: Some(RemoveOnFinish::Options(KeepJobs {
+            age: Some(3600),   // keep up to 1 hour
+            count: Some(1000), // keep up to 1000 jobs
+            limit: Some(100),  // remove up to 100 jobs per cleanup iteration
+        })),
+        remove_on_fail: Some(RemoveOnFinish::Options(KeepJobs {
+            age: Some(24 * 3600), // keep up to 24 hours
+            count: None,
+            limit: Some(50), // remove up to 50 jobs per cleanup iteration
+        })),
+        ..Default::default()
+    },
+)
+.await?;
 ```
 
 {% endtab %}

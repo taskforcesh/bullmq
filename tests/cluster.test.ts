@@ -11,7 +11,7 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { Queue, Worker, QueueEvents } from '../src/classes';
+import { Queue, Worker, QueueEvents, Relay } from '../src/classes';
 import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('Cluster support', () => {
@@ -712,6 +712,29 @@ describe('Cluster integration tests', () => {
   });
 
   describe('when using a real Redis cluster', () => {
+    it('reads relay inboxes using a native Cluster connection', async () => {
+      const relay = new Relay({
+        connection: cluster,
+        prefix,
+        namespace: `relay-${randomUUID().replace(/-/g, '')}`,
+      });
+      try {
+        await relay.waitUntilReady();
+        let receive!: (message: unknown) => void;
+        const received = new Promise(resolve => {
+          receive = resolve;
+        });
+        await relay.subscribe('cluster.topic', receive);
+        await relay.publish('cluster.topic', 'message');
+        await expect(received).resolves.toMatchObject({
+          topic: 'cluster.topic',
+          data: 'message',
+        });
+      } finally {
+        await relay.close();
+      }
+    });
+
     it('should add and process jobs', async ctx => {
       if (!clusterAvailable) {
         ctx.skip();

@@ -15,6 +15,7 @@ import unittest
 from uuid import uuid4
 
 import redis.asyncio as redis
+from redis.cluster import block_pipeline_command
 
 from bullmq import Job, Queue, Worker
 from bullmq.lock_manager import LockManager
@@ -23,6 +24,11 @@ from bullmq.lock_manager import LockManager
 queueName = ""
 prefix = os.environ.get("BULLMQ_TEST_PREFIX") or "bull"
 
+
+class _ClusterLikePipeline:
+    """Mimics redis-py's cluster pipeline, which refuses pipelined EVALSHA."""
+
+    evalsha = block_pipeline_command("evalsha")
 
 class TestLockManager(unittest.IsolatedAsyncioTestCase):
 
@@ -149,6 +155,36 @@ class TestLockManager(unittest.IsolatedAsyncioTestCase):
 
         await worker.close()
         await queue.close()
+
+    async def test_extend_locks_does_not_pipeline_lua_scripts(self):
+        """Redis Cluster blocks EVALSHA inside pipelines, so renewing locks must
+        run the single extendLocks script rather than pipelining extendLock."""
+        queue = Queue(queueName, {"prefix": prefix})
+        job = await queue.add("renew", {"foo": "bar"})
+        renewals = Future()
+
+        async def process(job: Job, token: str):
+            conn = worker.backend.connection.conn
+            conn.pipeline = lambda *args, **kwargs: _ClusterLikePipeline()
+            try:
+                renewed = await worker.backend.extendLocks([job.id], [token], 30000)
+                rejected = await worker.backend.extendLocks([job.id], ["not-the-token"], 30000)
+                renewals.set_result((renewed, rejected))
+            except Exception as error:
+                renewals.set_exception(error)
+            finally:
+                del conn.pipeline
+            return "ok"
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        try:
+            renewed, rejected = await renewals
+            self.assertEqual(renewed, [])
+            self.assertEqual(rejected, [job.id])
+        finally:
+            await worker.close()
+            await queue.close()
 
 
 if __name__ == "__main__":

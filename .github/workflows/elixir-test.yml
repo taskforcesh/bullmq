@@ -30,7 +30,9 @@ jobs:
             elixir:
               - 'elixir/**'
               - 'src/commands/**'
-              - 'src/postgres/**'
+              # SQL is shared across runtimes; PostgreSQL TypeScript is Node-only.
+              - 'src/postgres/commands/**/*.sql'
+              - 'src/postgres/migrations/**/*.sql'
               - '.github/workflows/elixir-test.yml'
 
   test:
@@ -57,7 +59,7 @@ jobs:
 
       - name: Use Node.js ${{ matrix.node-version }}
         if: needs.changes.outputs.should_run == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'

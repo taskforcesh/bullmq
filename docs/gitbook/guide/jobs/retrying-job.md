@@ -60,8 +60,10 @@ await queue.close()
 {% tab title="Elixir" %}
 
 ```elixir
-# Get a job reference (must have connection set)
-job = %Job{id: "job-id", queue_name: "my-queue", prefix: "bull", connection: conn}
+alias BullMQ.{Job, Queue}
+
+# Get a failed job by ID
+{:ok, job} = Queue.get_job("my-queue", "job-id", connection: :my_redis)
 
 # Retry a failed job (default state is :failed)
 {:ok, updated_job} = Job.retry(job)
@@ -72,13 +74,34 @@ job = %Job{id: "job-id", queue_name: "my-queue", prefix: "bull", connection: con
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+await using var queue = new Queue("my-queue", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+// Get a failed job by ID
+var job = await queue.GetJobAsync("job-id");
+
+// Retry a failed job (default state is "failed")
+await job!.RetryAsync();
+
+// Retry a completed job
+await job.RetryAsync("completed");
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
-use bullmq::{Queue, QueueOptions, Job};
-use bullmq::types::RetryOptions;
+use bullmq::Queue;
 
-let queue = Queue::new("my-queue", QueueOptions::default()).await?;
+let queue = Queue::new("my-queue").await?;
 
 // Get a failed job by ID
 let mut job = queue.get_job("job-id").await?.unwrap();
@@ -270,6 +293,21 @@ end
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+try
+{
+    await job.RetryAsync("failed");
+}
+catch (Exception error)
+{
+    Console.Error.WriteLine($"Failed to retry job: {error.Message}");
+}
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
@@ -284,6 +322,6 @@ match job.retry("failed", None).await {
 
 ## Read More
 
-* 💡 [Retry API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#retry)
-* 💡 [Retrying Failing Jobs](../retrying-failing-jobs.md) - Automatic retry configuration with backoff strategies
-* 💡 [Stop Retrying Jobs](../../patterns/stop-retrying-jobs.md) - How to prevent further retries
+- 💡 [Retry API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#retry)
+- 💡 [Retrying Failing Jobs](../retrying-failing-jobs.md) - Automatic retry configuration with backoff strategies
+- 💡 [Stop Retrying Jobs](../../patterns/stop-retrying-jobs.md) - How to prevent further retries

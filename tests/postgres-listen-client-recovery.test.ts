@@ -1,7 +1,8 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import { PostgresConnection } from '../src/postgres/postgres-connection';
 import { PostgresQueueBackend } from '../src/postgres/postgres-queue-backend';
+import { PostgresRelayBackend } from '../src/postgres/postgres-relay-backend';
 
 /**
  * DB-independent unit tests for the dedicated `LISTEN` client recovery path
@@ -64,6 +65,7 @@ function makeStandaloneConnection(): {
 function makePooledConnection({ withSocket = true } = {}): {
   connection: PostgresConnection;
   socket: { setKeepAlive: ReturnType<typeof vi.fn> };
+  client: { release: ReturnType<typeof vi.fn> };
 } {
   const connection = Object.create(
     PostgresConnection.prototype,
@@ -76,6 +78,7 @@ function makePooledConnection({ withSocket = true } = {}): {
     release = vi.fn();
     connection = withSocket ? { stream: socket } : undefined;
   }
+  const client = new FakePoolClient();
 
   const anyConn = connection as any;
   anyConn.pgModule = undefined;
@@ -85,9 +88,9 @@ function makePooledConnection({ withSocket = true } = {}): {
   anyConn.listenClientIsStandalone = false;
   anyConn.listenClientKeepAlive = false;
   anyConn.closing = undefined;
-  anyConn.pool = { connect: async () => new FakePoolClient() };
+  anyConn.pool = { connect: async () => client };
 
-  return { connection, socket };
+  return { connection, socket, client };
 }
 
 describe('PostgresConnection LISTEN client recovery', () => {
@@ -108,6 +111,15 @@ describe('PostgresConnection LISTEN client recovery', () => {
 
     expect(socket.setKeepAlive).toHaveBeenCalledWith(true, expect.any(Number));
     expect(connection.hasListenClientKeepAlive).toBe(true);
+  });
+
+  it('destroys the pooled LISTEN client on close', async () => {
+    const { connection, client } = makePooledConnection();
+
+    await connection.getListenClient();
+    await connection.close();
+
+    expect(client.release).toHaveBeenCalledWith(true);
   });
 
   it('reports no keepalive when a pooled client socket cannot be adjusted', async () => {
@@ -264,6 +276,60 @@ describe('PostgresConnection LISTEN client recovery', () => {
       'rejected',
     ]);
     expect(connect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PostgresRelayBackend LISTEN client recovery', () => {
+  it('retries LISTEN when the client is invalidated during identity lookup', async () => {
+    const backend = new PostgresRelayBackend({
+      connection: { connectionString: 'postgres://fake/db' },
+      namespace: 'test',
+      nodeId: 'node',
+    });
+    const connection = (backend as any).connection as PostgresConnection;
+    const firstClient = new EventEmitter() as any;
+    const replacementClient = new EventEmitter() as any;
+    let invalidated = false;
+    let listenClient = firstClient;
+    firstClient.query = vi
+      .fn()
+      .mockImplementation(() =>
+        invalidated
+          ? Promise.reject(new Error('listener invalidated'))
+          : Promise.resolve({ rows: [] }),
+      );
+    replacementClient.query = vi.fn().mockResolvedValue({ rows: [] });
+
+    vi.spyOn(connection, 'waitUntilReady').mockResolvedValue();
+    vi.spyOn(connection, 'getListenClient').mockImplementation(
+      async () => listenClient,
+    );
+    vi.spyOn(connection, 'setListenClientName').mockResolvedValue();
+    vi.spyOn(backend as any, 'getConnectionIdentity').mockImplementation(
+      async () => {
+        if (!invalidated) {
+          invalidated = true;
+          listenClient = replacementClient;
+          connection.emit('listenerinvalidated');
+        }
+        return { database: 'db', schema: 'public' };
+      },
+    );
+
+    try {
+      await expect((backend as any).ensureListening()).rejects.toThrow(
+        'listener invalidated',
+      );
+      expect((backend as any).listening).toBe(false);
+
+      await expect((backend as any).ensureListening()).resolves.toBe(
+        replacementClient,
+      );
+      expect(replacementClient.query).toHaveBeenCalledTimes(1);
+      expect((backend as any).listening).toBe(true);
+    } finally {
+      await backend.close();
+    }
   });
 });
 

@@ -15,7 +15,7 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import {
   Queue,
   QueueEvents,
@@ -854,6 +854,42 @@ describe('workers', () => {
         await worker.close();
       });
     });
+
+    describe('when the job has a priority', () => {
+      it('moves the retried job back to the prioritized state', async () => {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            throw new Error('Not even!');
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        const failing = new Promise<void>(resolve => {
+          worker.once('failed', () => resolve());
+        });
+
+        const job = await queue.add('test', { foo: 'bar' }, { priority: 10 });
+
+        await failing;
+        await worker.close();
+
+        const prioritizedJob = await queue.add(
+          'test',
+          { foo: 'baz' },
+          { priority: 10 },
+        );
+        await job.retry();
+
+        expect(await job.getState()).toBe('prioritized');
+        const prioritized = await queue.getPrioritized();
+        expect(prioritized.map(job => job.id)).toEqual([
+          prioritizedJob.id,
+          job.id,
+        ]);
+      });
+    });
   });
 
   describe('when job is in completed state', () => {
@@ -979,6 +1015,29 @@ describe('workers', () => {
         await completing2;
 
         await worker.close();
+      });
+    });
+
+    describe('when the job has a priority', () => {
+      it('moves the retried job back to the prioritized state', async () => {
+        const worker = new Worker(queueName, async () => 1, {
+          connection,
+          prefix,
+        });
+        await worker.waitUntilReady();
+
+        const completing = new Promise<void>(resolve => {
+          worker.once('completed', () => resolve());
+        });
+
+        const job = await queue.add('test', { foo: 'bar' }, { priority: 10 });
+
+        await completing;
+        await worker.close();
+
+        await job.retry('completed');
+
+        expect(await job.getState()).toBe('prioritized');
       });
     });
   });
@@ -1143,6 +1202,37 @@ describe('workers', () => {
         expect(result).toBe('closed');
       },
     );
+
+    it('does not retry connection errors indefinitely while the worker is closing', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      // Start a real (non-forced) close without awaiting it yet. `close()`
+      // synchronously assigns `this.closing` to the in-flight promise before
+      // awaiting anything inside it, so `retryIfFailed` observes the same
+      // truthy `closing` state a real shutdown would produce.
+      const closePromise = worker.close();
+
+      await expect(
+        Promise.race([
+          worker['retryIfFailed'](
+            () => Promise.reject(new Error('Connection is closed.')),
+            {
+              delayInMs: 1,
+            },
+          ),
+          delay(200).then(() => {
+            throw new Error('retry loop did not exit while closing');
+          }),
+        ]),
+      ).rejects.toThrow('Connection is closed.');
+
+      await closePromise;
+    });
   });
 
   describe('when waiting for a job', () => {
@@ -4156,11 +4246,9 @@ describe('workers', () => {
               worker.on('failed', async (job, err) => {
                 try {
                   expect(job.data.foo).toBe('bar');
-                  if (job.attemptsMade === 2) {
-                    expect(err.message).toBe(
-                      'job started more than allowable limit',
-                    );
-                    expect(job?.attemptsStarted).toBe(2);
+                  if (job.attemptsMade === 1) {
+                    expect(err.message).toBe(failedError.message);
+                    expect(job?.attemptsStarted).toBe(1);
                     await job.retry();
                     resolve();
                   }
@@ -4173,11 +4261,11 @@ describe('workers', () => {
             const failedAgain = new Promise<void>((resolve, reject) => {
               worker.on('failed', async (job, err) => {
                 try {
-                  if (job.attemptsMade === 3) {
+                  if (job.attemptsMade === 2) {
                     expect(err.message).toBe(
                       'job started more than allowable limit',
                     );
-                    expect(job?.attemptsStarted).toBe(3);
+                    expect(job?.attemptsStarted).toBe(2);
                     resolve();
                   }
                 } catch (error) {

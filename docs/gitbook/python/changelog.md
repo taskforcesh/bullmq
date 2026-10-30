@@ -1,3 +1,102 @@
+## [3.4.6](https://github.com/taskforcesh/bullmq/compare/vpy3.4.5...vpy3.4.6) (2026-10-28)
+
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
+## [3.4.5](https://github.com/taskforcesh/bullmq/compare/vpy3.4.4...vpy3.4.5) (2026-10-27)
+
+
+### Bug Fixes
+
+* **worker:** keep blocking connection socket timeout above block timeout [python] ([#4990](https://github.com/taskforcesh/bullmq/issues/4990)) ([d4e749e](https://github.com/taskforcesh/bullmq/commit/d4e749e7b47b510e6677bc25dfeaef9048e0299f))
+
+## [3.4.4](https://github.com/taskforcesh/bullmq/compare/vpy3.4.3...vpy3.4.4) (2026-10-27)
+
+
+### Bug Fixes
+
+* **job:** make changePriority work and read priority from the job hash [python] ([#5022](https://github.com/taskforcesh/bullmq/issues/5022)) ([6dc4745](https://github.com/taskforcesh/bullmq/commit/6dc4745f1121e68dcbc77d5e59fb88d1b17cb5af))
+
+## [3.4.3](https://github.com/taskforcesh/bullmq/compare/vpy3.4.2...vpy3.4.3) (2026-10-20)
+
+
+### Performance Improvements
+
+* **deduplication:** use LPOS for keepLastIfActive membership check (python)(elixir)(php)(rust) ([#4956](https://github.com/taskforcesh/bullmq/issues/4956)) ([8796b66](https://github.com/taskforcesh/bullmq/commit/8796b66653baa58b8ecf261d7d7595cc8b72e020)), closes [#4613](https://github.com/taskforcesh/bullmq/issues/4613)
+
+## [3.4.2](https://github.com/taskforcesh/bullmq/compare/vpy3.4.1...vpy3.4.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **job-scheduler:** read the seconds field first in 6-field cron patterns [python] ([#4962](https://github.com/taskforcesh/bullmq/issues/4962)) ([b3122ce](https://github.com/taskforcesh/bullmq/commit/b3122cebf590bc1bae290cc8d80637fdcce878ae))
+
+## [3.4.1](https://github.com/taskforcesh/bullmq/compare/vpy3.4.0...vpy3.4.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **job:** keep the latest stack traces when stackTraceLimit is set [python] ([#4955](https://github.com/taskforcesh/bullmq/issues/4955)) ([588bbf7](https://github.com/taskforcesh/bullmq/commit/588bbf774d1e287145154ff9d887265cbb573ddd))
+
+# [3.4.0](https://github.com/taskforcesh/bullmq/compare/vpy3.3.4...vpy3.4.0) (2026-10-15)
+
+
+### Features
+
+* **connection:** accept a redis-py RedisCluster client [python] ([#4873](https://github.com/taskforcesh/bullmq/issues/4873)) ([10396b5](https://github.com/taskforcesh/bullmq/commit/10396b5248930309e6f832e4342d8c84a365a86e))
+
+## [3.3.4](https://github.com/taskforcesh/bullmq/compare/vpy3.3.3...vpy3.3.4) (2026-10-14)
+
+
+### Bug Fixes
+
+* **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) (python)(elixir)(php)(rust)(dotnet) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
+
+## [3.3.3](https://github.com/taskforcesh/bullmq/compare/vpy3.3.2...vpy3.3.3) (2026-10-10)
+
+
+### Bug Fixes
+
+* **job:** use Optional for parameters defaulting to None [python] ([#4908](https://github.com/taskforcesh/bullmq/issues/4908)) fixes [#4905](https://github.com/taskforcesh/bullmq/issues/4905) ([5232e19](https://github.com/taskforcesh/bullmq/commit/5232e1957b4c6d4da9e032593c760b9cfa1d1b79))
+
+## [3.3.2](https://github.com/taskforcesh/bullmq/compare/vpy3.3.1...vpy3.3.2) (2026-10-08)
+
+
+### Bug Fixes
+
+* **deps:** accept a compatible redis-py range instead of an exact pin [python] ([#4875](https://github.com/taskforcesh/bullmq/issues/4875)) ([ab38089](https://github.com/taskforcesh/bullmq/commit/ab38089d0af8bdab78741918fd35835149dd1082))
+
+## [3.3.1](https://github.com/taskforcesh/bullmq/compare/vpy3.3.0...vpy3.3.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **lock-manager:** renew locks with the atomic extendLocks script [python] ([#4872](https://github.com/taskforcesh/bullmq/issues/4872)) ([b1d410e](https://github.com/taskforcesh/bullmq/commit/b1d410ea524a9ac4d2b739640b72ded97bc47b0c))
+
+# [3.3.0](https://github.com/taskforcesh/bullmq/compare/vpy3.2.8...vpy3.3.0) (2026-09-30)
+
+
+### Features
+
+* **queue:** support getJob method [python] ([#4848](https://github.com/taskforcesh/bullmq/issues/4848)) ref [#4840](https://github.com/taskforcesh/bullmq/issues/4840) ([38c5bd7](https://github.com/taskforcesh/bullmq/commit/38c5bd7892e0d112b6d8c38218d6cd27f831f016))
+
+## [3.2.8](https://github.com/taskforcesh/bullmq/compare/vpy3.2.7...vpy3.2.8) (2026-09-29)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpack to v1.2.3 [python] ([#4842](https://github.com/taskforcesh/bullmq/issues/4842)) ([d1a43ab](https://github.com/taskforcesh/bullmq/commit/d1a43ab7aa50200cbb7c48b098d2be8690550617))
+
+## [3.2.7](https://github.com/taskforcesh/bullmq/compare/vpy3.2.6...vpy3.2.7) (2026-09-25)
+
+
+### Bug Fixes
+
+* **worker:** eliminate close and pause latency on idle queue [python] ([#4670](https://github.com/taskforcesh/bullmq/issues/4670)) fixes [#4597](https://github.com/taskforcesh/bullmq/issues/4597) ([3b404f6](https://github.com/taskforcesh/bullmq/commit/3b404f648898884530b25900f81aa5ea38209b8c))
+
 ## [3.2.6](https://github.com/taskforcesh/bullmq/compare/vpy3.2.5...vpy3.2.6) (2026-09-21)
 
 

@@ -7,7 +7,9 @@ use bullmq::error::Error;
 use bullmq::types::{BackoffStrategy, JobProgress, JobState, RetryOptions};
 use bullmq::worker::{CancellationToken, ProcessorFn, WorkerEvent};
 use bullmq::{BulkJob, Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
-use common::{cleanup_queue, test_connection, test_queue_name};
+use common::{
+    cleanup_queue, isolated_connection, kill_connections_in_db, test_connection, test_queue_name,
+};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -135,6 +137,78 @@ async fn test_idle_worker_picks_up_new_job_quickly() {
         "idle worker took {latency:?} to pick up a new job; expected a near-instant \
          wake-up via BZPOPMIN, not the 5s empty-queue poll"
     );
+
+    worker.close(5000).await.unwrap();
+    cleanup_queue(&queue).await;
+}
+
+/// Regression test: a worker must recover on its own after its Redis
+/// connections are dropped (network blip, Redis restart, failover).
+///
+/// Previously every connection was a bare `MultiplexedConnection`, which
+/// redis-rs never reconnects. Once the socket died the worker silently stopped
+/// fetching jobs — no error, no recovery — until the process was restarted.
+/// `CLIENT KILL` simulates the dropped socket deterministically. The test runs
+/// in its own logical database so the kill does not drop the connections of
+/// other tests running in parallel against the same server.
+#[tokio::test]
+async fn test_worker_recovers_after_connection_is_killed() {
+    const KILL_DB: u8 = 14;
+    let name = test_queue_name();
+    let conn_opts = isolated_connection(KILL_DB);
+
+    let queue_opts = QueueOptions {
+        connection: conn_opts.clone(),
+        ..Default::default()
+    };
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
+
+    let (tx, mut rx) = mpsc::channel::<String>(8);
+    let processor: ProcessorFn = Arc::new(move |job: Job, _token: CancellationToken| {
+        let tx = tx.clone();
+        Box::pin(async move {
+            tx.send(job.name().to_string()).await.unwrap();
+            Ok(serde_json::json!({"processed": true}))
+        })
+    });
+
+    let worker_opts = WorkerOptions {
+        connection: conn_opts.clone(),
+        autorun: true,
+        ..Default::default()
+    };
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
+
+    queue.add("before", serde_json::json!({})).await.unwrap();
+    let first = tokio::time::timeout(Duration::from_secs(10), rx.recv())
+        .await
+        .expect("timeout waiting for the first job")
+        .expect("channel closed");
+    assert_eq!(first, "before");
+
+    // Drop every connection of this test's database, as a Redis restart would.
+    let killed = kill_connections_in_db(KILL_DB).await;
+    assert!(killed > 0, "expected CLIENT KILL to drop some connections");
+
+    // The worker must reconnect by itself and keep processing.
+    tokio::time::timeout(Duration::from_secs(20), async {
+        loop {
+            if queue.connection().ping().await.is_ok() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("queue did not reconnect");
+    queue.add("after", serde_json::json!({})).await.unwrap();
+    let second = tokio::time::timeout(Duration::from_secs(20), rx.recv())
+        .await
+        .expect("worker did not recover after its connection was killed")
+        .expect("channel closed");
+    assert_eq!(second, "after");
 
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;
@@ -10731,7 +10805,7 @@ async fn test_queue_trim_events() {
     let _trimmed = queue.trim_events(5).await.unwrap();
 
     // Verify the event stream length is bounded (~ is very approximate for small streams)
-    let mut conn = queue.connection().conn();
+    let mut conn = queue.connection().managed_conn();
     let len: usize = redis::cmd("XLEN")
         .arg(queue.keys().events())
         .query_async(&mut conn)

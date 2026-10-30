@@ -1,7 +1,7 @@
 import { ScriptLoader } from '../src/commands/index';
-import * as path from 'path';
-import * as fs from 'fs';
-import { promisify } from 'util';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import { promisify } from 'node:util';
 
 const writeFile = promisify(fs.writeFile);
 

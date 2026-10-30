@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import {
   BackendFactory,
   FlowJob,
@@ -13,12 +13,15 @@ import {
   Tracer,
   ContextManager,
 } from '../interfaces';
+import { ConnectionOptions } from '../interfaces/redis-options';
 import { getParentKey, randomUUID, trace } from '../utils';
 import { getDefaultBackendFactory } from '../utils/create-backend';
+import type { DefaultQueueOptions } from '../types/default-queue-options';
 import { Job } from './job';
 import { RedisQueueBackend } from './redis-queue-backend';
 import { KeysMap } from './queue-keys';
 import { ErrorCode, SpanKind, TelemetryAttributes } from '../enums';
+import type { NoInferType } from '../types/no-infer';
 
 /**
  * A single job insert collected while walking a flow tree, ready to be handed
@@ -102,10 +105,12 @@ export interface FlowProducerListener extends IoredisListener {
  */
 export class FlowProducer<
   B extends IQueueBackend = RedisQueueBackend,
+  ConnectionOptionsType = ConnectionOptions,
 > extends EventEmitter {
   toKey: (name: string, type: string) => string;
   keys: KeysMap;
   closing: Promise<void> | undefined;
+  public opts: FlowProducerOptions<ConnectionOptionsType>;
 
   protected backend: B;
   protected telemetry: {
@@ -114,18 +119,37 @@ export class FlowProducer<
   };
 
   constructor(
-    public opts: FlowProducerOptions = { connection: {} },
-    backendFactory: BackendFactory<B> = getDefaultBackendFactory<B>(),
+    opts: FlowProducerOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    opts: FlowProducerOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory?: undefined,
+  );
+  constructor(
+    ...args: DefaultQueueOptions<
+      B,
+      ConnectionOptionsType,
+      RedisQueueBackend,
+      FlowProducerOptions
+    >
+  );
+  constructor(
+    opts?: FlowProducerOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
     super();
 
-    this.opts = {
-      ...opts,
-    };
+    this.opts = Object.assign(
+      opts === undefined ? { connection: {} } : {},
+      opts,
+    );
 
     // The flow producer is not bound to a single queue: each flow entry carries
     // its own queue identity, so the backend is created with an empty name.
-    this.backend = backendFactory('', this.opts);
+    const factory =
+      backendFactory ?? getDefaultBackendFactory<B, ConnectionOptionsType>();
+    this.backend = factory('', this.opts);
 
     this.backend.on('error', (error: Error) => {
       if (this.listenerCount('error') > 0) {
@@ -405,16 +429,24 @@ export class FlowProducer<
           }
         }
 
+        const jobOpts = {
+          ...jobsOpts,
+          ...opts,
+          parent: parent?.parentOpts,
+          telemetry,
+        };
+
+        if (jobOpts.parent && jobOpts.deduplication?.keepLastIfActive) {
+          throw new Error(
+            'keepLastIfActive deduplication cannot be used on flow nodes with a parent',
+          );
+        }
+
         const job = new this.Job(
           queue,
           node.name,
           node.data,
-          {
-            ...jobsOpts,
-            ...opts,
-            parent: parent?.parentOpts,
-            telemetry,
-          },
+          jobOpts,
           jobId,
         );
 
@@ -558,6 +590,8 @@ export class FlowProducer<
   }
 
   private validateFlowJobs(nodes: FlowJob[]): void {
+    // TODO: In the next breaking change, reject deduplication on every flow
+    // node. Parent IDs must be known before any add scripts run.
     for (const node of nodes) {
       const children = node.children;
       if (children && children.length > 0) {

@@ -25,9 +25,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24.21.0'
+          node-version: '24.22.0'
           cache: 'yarn'
       - name: Install dependencies Node
         run: yarn install --frozen-lockfile --non-interactive
@@ -104,7 +104,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.14.7'
+          python-version: '3.15.0'
           cache: 'pip'
       - name: Copy runtime artifacts for Python
         if: ${{ contains(env.commitmsg, '[python]') || contains(env.commitmsg, '(python)') }}
@@ -206,7 +206,7 @@ jobs:
         uses: erlef/setup-beam@v1.24.1
         with:
           elixir-version: 'v1.20.4'
-          otp-version: '29.1.1'
+          otp-version: '29.1.2'
       - name: Copy runtime artifacts for Elixir
         if: ${{ contains(env.commitmsg, '[elixir]') || contains(env.commitmsg, '(elixir)') }}
         run: |
@@ -291,7 +291,7 @@ jobs:
 
       # PHP Release
       - name: Setup PHP
-        uses: shivammathur/setup-php@2.37.2
+        uses: shivammathur/setup-php@2.40.0
         with:
           php-version: '8.1'
           extensions: redis, msgpack
@@ -481,7 +481,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6.0.0
         with:
-          dotnet-version: '10.0.401'
+          dotnet-version: '10.0.402'
       - name: Copy runtime artifacts for .NET
         if: ${{ contains(env.commitmsg, '[dotnet]') || contains(env.commitmsg, '(dotnet)') }}
         run: |

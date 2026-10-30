@@ -45,6 +45,7 @@ defmodule BullMQ.Scripts do
     add_prioritized_job: "addPrioritizedJob",
     add_repeatable_job: "addRepeatableJob",
     add_standard_job: "addStandardJob",
+    release_parent_if_no_pending_dependencies: "releaseParentIfNoPendingDependencies",
     change_delay: "changeDelay",
     change_priority: "changePriority",
     clean_jobs_in_set: "cleanJobsInSet",
@@ -487,6 +488,7 @@ defmodule BullMQ.Scripts do
     {parent_key, parent_deps_key, parent} = get_parent_info_full(job)
     repeat_job_key = get_repeat_job_key(job)
     deduplication_key = get_deduplication_key(job, ctx)
+    defer_parent_release = Map.get(opts, :defer_parent_release, false)
 
     # ARGV[1] msgpacked arguments array
     packed_args =
@@ -509,7 +511,9 @@ defmodule BullMQ.Scripts do
           # [8] repeat job key
           repeat_job_key,
           # [9] deduplication key
-          deduplication_key
+          deduplication_key,
+          # [10] defer parent release (flow inserts)
+          if(defer_parent_release, do: 1, else: nil)
         ],
         iodata: false
       )
@@ -550,6 +554,7 @@ defmodule BullMQ.Scripts do
     {parent_key, parent_deps_key, parent} = get_parent_info_full(job)
     repeat_job_key = get_repeat_job_key(job)
     deduplication_key = get_deduplication_key(job, ctx)
+    defer_parent_release = Map.get(opts, :defer_parent_release, false)
 
     packed_args =
       Msgpax.pack!(
@@ -562,7 +567,8 @@ defmodule BullMQ.Scripts do
           parent_deps_key,
           parent,
           repeat_job_key,
-          deduplication_key
+          deduplication_key,
+          if(defer_parent_release, do: 1, else: nil)
         ],
         iodata: false
       )
@@ -647,6 +653,7 @@ defmodule BullMQ.Scripts do
     {parent_key, parent_deps_key, parent} = get_parent_info_full(job)
     repeat_job_key = get_repeat_job_key(job)
     deduplication_key = get_deduplication_key(job, ctx)
+    defer_parent_release = Map.get(opts, :defer_parent_release, false)
 
     # For delayed jobs, the timestamp should include the delay
     delayed_timestamp = timestamp + delay
@@ -672,7 +679,9 @@ defmodule BullMQ.Scripts do
           # [8] repeat job key
           repeat_job_key,
           # [9] deduplication key
-          deduplication_key
+          deduplication_key,
+          # [10] defer parent release (flow inserts)
+          if(defer_parent_release, do: 1, else: nil)
         ],
         iodata: false
       )
@@ -721,6 +730,7 @@ defmodule BullMQ.Scripts do
     {parent_key, parent_deps_key, parent} = get_parent_info_full(job)
     repeat_job_key = get_repeat_job_key(job)
     deduplication_key = get_deduplication_key(job, ctx)
+    defer_parent_release = Map.get(opts, :defer_parent_release, false)
 
     # ARGV[1] msgpacked arguments array
     packed_args =
@@ -743,7 +753,9 @@ defmodule BullMQ.Scripts do
           # [8] repeat job key
           repeat_job_key,
           # [9] deduplication key
-          deduplication_key
+          deduplication_key,
+          # [10] defer parent release (flow inserts)
+          if(defer_parent_release, do: 1, else: nil)
         ],
         iodata: false
       )
@@ -787,6 +799,7 @@ defmodule BullMQ.Scripts do
     {parent_key, parent_deps_key, parent} = get_parent_info_full(job)
     repeat_job_key = get_repeat_job_key(job)
     deduplication_key = get_deduplication_key(job, ctx)
+    defer_parent_release = Map.get(opts, :defer_parent_release, false)
 
     packed_args =
       Msgpax.pack!(
@@ -799,7 +812,8 @@ defmodule BullMQ.Scripts do
           parent_deps_key,
           parent,
           repeat_job_key,
-          deduplication_key
+          deduplication_key,
+          if(defer_parent_release, do: 1, else: nil)
         ],
         iodata: false
       )
@@ -809,6 +823,18 @@ defmodule BullMQ.Scripts do
     args = [packed_args, job_data, packed_opts]
 
     build_command(:add_parent_job, keys, args)
+  end
+
+  @spec build_release_parent_if_no_pending_dependencies_command(String.t(), String.t(), String.t()) ::
+          {:ok, [String.t()]}
+  def build_release_parent_if_no_pending_dependencies_command(
+        parent_key,
+        parent_queue_key,
+        parent_id
+      ) do
+    keys = [parent_key, parent_key <> ":dependencies"]
+    args = [parent_queue_key, parent_id, System.system_time(:millisecond)]
+    build_command(:release_parent_if_no_pending_dependencies, keys, args)
   end
 
   @doc """
@@ -847,6 +873,7 @@ defmodule BullMQ.Scripts do
     {parent_key, parent_deps_key, parent} = get_parent_info_full(job)
     repeat_job_key = get_repeat_job_key(job)
     deduplication_key = get_deduplication_key(job, ctx)
+    defer_parent_release = Map.get(opts, :defer_parent_release, false)
 
     # ARGV[1] msgpacked arguments array
     packed_args =
@@ -869,7 +896,9 @@ defmodule BullMQ.Scripts do
           # [8] repeat job key
           repeat_job_key,
           # [9] deduplication key
-          deduplication_key
+          deduplication_key,
+          # [10] defer parent release (flow inserts)
+          if(defer_parent_release, do: 1, else: nil)
         ],
         iodata: false
       )
@@ -1361,7 +1390,7 @@ defmodule BullMQ.Scripts do
 
     # Pack job_ids and tokens using msgpack for the Lua script
     args = [
-      Keys.key(ctx),
+      Keys.key_prefix(ctx),
       Msgpax.pack!(tokens, iodata: false),
       Msgpax.pack!(job_ids, iodata: false),
       duration
@@ -1486,12 +1515,12 @@ defmodule BullMQ.Scripts do
       Keys.paused(ctx),
       Keys.delayed(ctx),
       Keys.prioritized(ctx),
-      Keys.pc(ctx)
+      Keys.repeat(ctx)
     ]
 
     args = [
       # ARGV[1] prefix:queueName
-      Keys.key(ctx),
+      Keys.key_prefix(ctx),
       # ARGV[2] include delayed
       if(delayed?, do: 1, else: 0)
     ]
@@ -1608,7 +1637,9 @@ defmodule BullMQ.Scripts do
 
     args = [job_id]
 
-    execute(conn, :get_state, keys, args)
+    script = if RedisConnection.can_lpos?(conn), do: :get_state_v2, else: :get_state
+
+    execute(conn, script, keys, args)
   end
 
   @doc """
@@ -1619,18 +1650,18 @@ defmodule BullMQ.Scripts do
     keys = [
       Keys.delayed(ctx),
       Keys.wait(ctx),
-      Keys.pc(ctx),
-      Keys.prioritized(ctx),
       Keys.paused(ctx),
-      Keys.marker(ctx),
-      Keys.events(ctx),
       Keys.meta(ctx),
-      Keys.job(ctx, job_id)
+      Keys.prioritized(ctx),
+      Keys.active(ctx),
+      Keys.pc(ctx),
+      Keys.events(ctx),
+      Keys.marker(ctx)
     ]
 
     args = [
       # ARGV[1] prefix:queueName
-      Keys.key(ctx),
+      Keys.key_prefix(ctx),
       # ARGV[2] job id
       job_id
     ]
@@ -1881,7 +1912,9 @@ defmodule BullMQ.Scripts do
       Keys.wait(ctx),
       Keys.meta(ctx),
       Keys.active(ctx),
-      Keys.marker(ctx)
+      Keys.marker(ctx),
+      Keys.prioritized(ctx),
+      Keys.pc(ctx)
     ]
 
     args = [

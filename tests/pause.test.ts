@@ -442,6 +442,56 @@ describe('Pause', () => {
     return worker.close();
   }, 8000);
 
+  it('should fetch new jobs right after resume when paused without waiting for active jobs', async () => {
+    let finishLongJob: () => void;
+    const longJobFinished = new Promise<void>(resolve => {
+      finishLongJob = resolve;
+    });
+    let longJobStarted: () => void;
+    const longJobStartedPromise = new Promise<void>(resolve => {
+      longJobStarted = resolve;
+    });
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        if (job.name === 'long') {
+          longJobStarted();
+          await longJobFinished;
+        }
+      },
+      { connection, prefix, concurrency: 10, drainDelay: 1 },
+    );
+    await worker.waitUntilReady();
+
+    await queue.add('long', {});
+    await longJobStartedPromise;
+
+    await worker.pause(true);
+    // Stay paused longer than the blocking fetch timeout (drainDelay)
+    await delay(1500);
+    await worker.resume();
+
+    const shortJobCompleted = new Promise<void>(resolve => {
+      worker.on('completed', job => {
+        if (job.name === 'short') {
+          resolve();
+        }
+      });
+    });
+    await queue.add('short', {});
+
+    const completedWhileLongJobActive = await Promise.race([
+      shortJobCompleted.then(() => true),
+      delay(3000).then(() => false),
+    ]);
+
+    finishLongJob!();
+    await worker.close();
+
+    expect(completedWhileLongJobActive).toBe(true);
+  }, 10000);
+
   describe('when backoff is 0', () => {
     it('moves job into paused queue', async () => {
       let worker: Worker;

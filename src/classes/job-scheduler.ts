@@ -1,11 +1,13 @@
 import { CronExpressionParser } from 'cron-parser';
 import {
   BackendFactory,
+  IQueueBackend,
   JobSchedulerJson,
   JobSchedulerTemplateJson,
   RepeatBaseOptions,
   RepeatOptions,
 } from '../interfaces';
+import { ConnectionOptions } from '../interfaces/redis-options';
 import {
   JobSchedulerTemplateOptions,
   JobSchedulerJobOptions,
@@ -15,6 +17,7 @@ import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { array2obj } from '../utils';
+import type { NoInferType } from '../types/no-infer';
 
 export const LEGACY_REPEATABLE_JOBS_MIGRATION_URL =
   'https://docs.bullmq.io/guide/migrations/migrate-from-v5-to-v6';
@@ -93,13 +96,26 @@ export function getLegacyRepeatableJobError(key: string): Error {
   );
 }
 
-export class JobScheduler extends QueueBase {
+export class JobScheduler<
+  B extends IQueueBackend = IQueueBackend,
+  ConnectionOptionsType = ConnectionOptions,
+> extends QueueBase<B, ConnectionOptionsType> {
   private repeatStrategy: RepeatStrategy;
 
   constructor(
     name: string,
-    opts: RepeatBaseOptions,
-    backendFactory?: BackendFactory,
+    opts: RepeatBaseOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    opts: RepeatBaseOptions<NoInferType<ConnectionOptionsType>>,
+    backendFactory?: undefined,
+  );
+  constructor(
+    name: string,
+    opts: RepeatBaseOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
     super(name, opts, backendFactory);
 

@@ -3,7 +3,7 @@
  */
 
 'use strict';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import { Packr } from 'msgpackr';
 
 const packer = new Packr({
@@ -658,6 +658,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       parent,
       job.repeatJobKey,
       job.deduplicationId ? `${queueKeys.de}:${job.deduplicationId}` : null,
+      parentKeyOpts.deferParentRelease ? 1 : null,
     ];
 
     const encodedOpts = pack(optsAsJSON(opts));
@@ -755,18 +756,63 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     const client = await this.queue.client;
     const multi = client.multi();
 
+    // Parents touched by this flow, deduplicated by key. A parent is released
+    // from "waiting-children" only after the whole tree has been inserted (see
+    // below), so collect them while queuing the inserts.
+    const parents = new Map<
+      string,
+      { parentId: string; parentKey: string; parentQueueKey: string }
+    >();
+
     for (const entry of entries) {
       const keys = new QueueKeys(entry.prefix).getKeys(entry.queueName);
       await this.addJobToTransaction(
         multi,
         entry.jobData,
         entry.jobId,
-        entry.parentKeyOpts,
+        // Inserting a flow is not atomic with respect to its own nodes: the
+        // commands of the transaction run in sequence, so an early child must
+        // never release the parent while later siblings are still pending
+        // insertion.
+        { ...entry.parentKeyOpts, deferParentRelease: true },
         keys,
       );
+
+      const parent = entry.jobData.parent;
+      const parentKey = entry.parentKeyOpts?.parentKey;
+      if (parent && parentKey) {
+        parents.set(parentKey, {
+          parentId: parent.id,
+          parentKey,
+          parentQueueKey: parent.queueKey,
+        });
+      }
     }
 
-    return (await multi.exec()) as [Error | null, string | number][];
+    // Now that every node of the flow is in the transaction, validate each
+    // parent: one that ended up without pending dependencies (e.g. all of its
+    // children already existed and were completed) is moved out of
+    // "waiting-children". The script is a no-op otherwise.
+    for (const { parentId, parentKey, parentQueueKey } of parents.values()) {
+      this.execCommand(multi, 'releaseParentIfNoPendingDependencies', [
+        parentKey,
+        `${parentKey}:dependencies`,
+        parentQueueKey,
+        parentId,
+        Date.now(),
+      ]);
+    }
+
+    const results = (await multi.exec()) as [Error | null, string | number][];
+
+    // Callers index the results by entry, so drop the trailing parent-release
+    // replies.
+    for (const [err] of results.slice(entries.length)) {
+      if (err) {
+        throw err;
+      }
+    }
+    return results.slice(0, entries.length);
   }
 
   protected pauseArgs(pause: boolean, emitEvent = true): (string | number)[] {
@@ -1953,6 +1999,8 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       this.queue.keys.meta,
       this.queue.keys.active,
       this.queue.keys.marker,
+      this.queue.keys.prioritized,
+      this.queue.keys.pc,
     ];
 
     const args = [
@@ -2132,8 +2180,8 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
    * This script is used when a job has been manually rate limited and needs
    * to be moved back to wait from active status.
    *
-   * @param client - Redis client
    * @param jobId - Job id
+   * @param token - Lock token of the job. Defaults to '0'.
    * @returns
    */
   async moveJobFromActiveToWait(jobId: string, token = '0') {

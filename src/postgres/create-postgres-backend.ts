@@ -12,24 +12,19 @@ import { PostgresQueueBackend } from './postgres-queue-backend';
  * dedicated `LISTEN` client); the high-level classes depend only on
  * `IQueueBackend` and never touch a `pg` client directly.
  *
- * The `opts.connection` value is forwarded to {@link PostgresConnection} and may
- * be a connection string, a node-postgres pool config (optionally carrying a
- * `schema`), or an already-built `pg.Pool` instance. `pg` is lazily required
- * only when a config/string is passed, so Redis-only users never need it
- * installed.
+ * Accepts a connection string, pool config (optionally carrying a `schema`),
+ * or an existing `pg.Pool`. The `pg` driver is loaded lazily for config/string
+ * connections; Redis-only users do not need it installed.
  *
  * Inject this into the queue classes (or set it as the process-wide default via
  * `setDefaultBackendFactory(createPostgresBackend)`) to back BullMQ with
  * PostgreSQL.
  */
-export const createPostgresBackend: BackendFactory<PostgresQueueBackend> = (
-  name,
-  opts,
-  factoryOpts = {},
-) => {
-  const connection = new PostgresConnection(
-    opts.connection as unknown as PostgresConnectionOptions,
-  );
+export const createPostgresBackend: BackendFactory<
+  PostgresQueueBackend,
+  PostgresConnectionOptions
+> = (name, opts, factoryOpts = {}) => {
+  const connection = new PostgresConnection(opts.connection);
 
   // Name a backend's dedicated, long-lived connection so it is discoverable via
   // getWorkers / getQueueEvents (pg_stat_activity) — the PostgreSQL analogue of

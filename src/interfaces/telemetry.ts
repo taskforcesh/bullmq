@@ -160,6 +160,22 @@ export interface ContextManager<Context = any> {
   active(): Context;
 
   /**
+   * Returns an empty context, detached from whatever context is currently
+   * active.
+   *
+   * This is used for long lived background loops (such as the stalled jobs
+   * checker), which must not inherit the context of whichever call happened to
+   * start them. Without it, context managers backed by `AsyncLocalStorage`
+   * would keep every iteration of the loop attached to that original span,
+   * producing a single trace that grows for the lifetime of the process.
+   *
+   * Optional: adapters built against older versions of this interface may omit
+   * this method. When unavailable, `withDetachedContext` preserves the active
+   * context for backward compatibility.
+   */
+  root?(): Context;
+
+  /**
    * Returns a serialized version of the current context. The metadata
    * is the mechanism used to propagate the context across a distributed
    * application.

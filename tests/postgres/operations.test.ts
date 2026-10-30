@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { createPostgresBackend, IQueueBackend, JobJson } from '../../src';
 import { getPostgresUrl } from './utils/postgres-url';
@@ -35,7 +35,7 @@ describe('PostgreSQL backend operations', () => {
   const newBackend = (): IQueueBackend =>
     createPostgresBackend(`ops-${randomUUID()}`, {
       connection: { connectionString: url, schema, migrate: true },
-    } as any);
+    });
 
   beforeAll(async () => {
     pool = new Pool({ connectionString: url });

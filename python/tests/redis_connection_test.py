@@ -23,6 +23,79 @@ class TestRedisConnectionSingleClient(unittest.TestCase):
         conn = RedisConnection({"host": "localhost", "single_connection_client": False})
         self.assertTrue(conn.conn.single_connection_client)
 
+    @patch.object(RedisConnection, 'loadCommands')
+    def test_blocking_timeout_raises_default_socket_timeout(self, _mock_load):
+        # redis-py >= 8 defaults socket_timeout to 5s, which is shorter than
+        # the 10s BZPOPMIN a worker may issue on its blocking connection.
+        conn = RedisConnection({"host": "localhost", "socket_timeout": 5}, blockingTimeout=10)
+        socket_timeout = conn.conn.connection_pool.connection_kwargs["socket_timeout"]
+        self.assertGreater(socket_timeout, 10)
+
+    @patch.object(RedisConnection, 'loadCommands')
+    def test_blocking_timeout_raises_url_socket_timeout(self, _mock_load):
+        conn = RedisConnection("redis://localhost:6379?socket_timeout=5", blockingTimeout=10)
+        socket_timeout = conn.conn.connection_pool.connection_kwargs["socket_timeout"]
+        self.assertGreater(socket_timeout, 10)
+
+    @patch.object(RedisConnection, 'loadCommands')
+    def test_blocking_timeout_updates_original_socket_timeout(self, _mock_load):
+        conn = RedisConnection({"host": "localhost", "socket_timeout": 5})
+        connection_kwargs = conn.conn.connection_pool.connection_kwargs
+        connection_kwargs["orig_socket_timeout"] = 5
+
+        conn._ensure_socket_timeout_exceeds(10)
+
+        self.assertGreater(connection_kwargs["socket_timeout"], 10)
+        self.assertEqual(
+            connection_kwargs["orig_socket_timeout"],
+            connection_kwargs["socket_timeout"],
+        )
+
+    @patch.object(RedisConnection, 'loadCommands')
+    def test_blocking_timeout_raises_default_url_socket_timeout(self, _mock_load):
+        conn = RedisConnection("redis://localhost:6379", blockingTimeout=10)
+        connection = conn.conn.connection_pool.make_connection()
+        self.assertTrue(
+            connection.socket_timeout is None or connection.socket_timeout > 10
+        )
+
+    @patch.object(RedisConnection, 'loadCommands')
+    def test_unbounded_blocking_timeout_disables_socket_timeout(self, _mock_load):
+        conn = RedisConnection(
+            {"host": "localhost", "socket_timeout": 5}, blockingTimeout=0
+        )
+        connection_kwargs = conn.conn.connection_pool.connection_kwargs
+        connection = conn.conn.connection_pool.make_connection()
+        self.assertIsNone(connection.socket_timeout)
+        if "orig_socket_timeout" in connection_kwargs:
+            self.assertIsNone(connection_kwargs["orig_socket_timeout"])
+
+    @patch.object(RedisConnection, 'loadCommands')
+    def test_blocking_timeout_keeps_larger_or_disabled_socket_timeout(self, _mock_load):
+        conn = RedisConnection({"host": "localhost", "socket_timeout": 30}, blockingTimeout=10)
+        self.assertEqual(conn.conn.connection_pool.connection_kwargs["socket_timeout"], 30)
+        conn = RedisConnection({"host": "localhost", "socket_timeout": None}, blockingTimeout=10)
+        self.assertIsNone(conn.conn.connection_pool.connection_kwargs["socket_timeout"])
+
+    @patch.object(RedisConnection, 'loadCommands')
+    def test_socket_timeout_untouched_without_blocking_timeout(self, _mock_load):
+        conn = RedisConnection({"host": "localhost", "socket_timeout": 5})
+        self.assertEqual(conn.conn.connection_pool.connection_kwargs["socket_timeout"], 5)
+
+    @patch.object(RedisConnection, 'loadCommands')
+    def test_worker_blocking_connection_outlasts_long_idle_wait(self, _mock_load):
+        from bullmq.backends import create_redis_backend
+        backend = create_redis_backend(
+            "test",
+            {"connection": {"host": "localhost"}, "drainDelay": 30.5},
+            with_blocking_connection=True,
+        )
+        blocking_kwargs = backend.blocking_connection.conn.connection_pool.connection_kwargs
+        socket_timeout = blocking_kwargs.get(
+            "socket_timeout", blocking_kwargs.get("orig_socket_timeout")
+        )
+        self.assertTrue(socket_timeout is None or socket_timeout > 31)
+
 class TestRedisConnectionGetRedisVersion(unittest.IsolatedAsyncioTestCase):
     @patch.object(RedisConnection, 'loadCommands')
     async def test_get_redis_version_returns_none_when_info_lacks_redis_version(self, _mock_load):
@@ -108,4 +181,3 @@ class TestRedisConnectionSkipFlags(unittest.IsolatedAsyncioTestCase):
         # capabilities should still be populated based on the assumed version.
         self.assertIn("canBlockFor1Ms", conn.capabilities)
         self.assertIn("canDoubleTimeout", conn.capabilities)
-

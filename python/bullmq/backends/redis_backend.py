@@ -17,6 +17,8 @@ blocking wait, ...) itself.
 from __future__ import annotations
 
 import asyncio
+import time
+import math
 from typing import Any, Optional, TYPE_CHECKING
 
 from bullmq.backend import Backend
@@ -24,7 +26,6 @@ from bullmq.redis_connection import RedisConnection
 from bullmq.scripts import Scripts
 from bullmq.utils import (
     is_redis_cluster,
-    get_cluster_nodes,
     get_node_client,
 )
 
@@ -181,15 +182,35 @@ class RedisBackend(Backend):
         return job_ids
 
     async def addFlow(self, entries: list[dict]) -> list[str]:
+        parents: dict[str, tuple[str, str]] = {}
         async with self.connection.conn.pipeline(transaction=True) as pipe:
             for entry in entries:
                 job = entry["job"]
                 scripts = getattr(getattr(job.queue, "backend", None), "scripts", self.scripts)
+                defer_parent_release = True
                 if entry.get("is_parent"):
-                    await scripts.addParentJob(job, pipe)
+                    await scripts.addParentJob(job, pipe, defer_parent_release)
                 else:
-                    await scripts.addJob(job, pipe)
+                    await scripts.addJob(job, pipe, defer_parent_release)
+
+                parent = getattr(job, "parent", None)
+                parent_key = getattr(job, "parentKey", None)
+                if parent and parent_key:
+                    parents[parent_key] = (
+                        parent.get("queueKey") or parent.get("queue_key"),
+                        parent.get("id"),
+                    )
+
+            for parent_key, (queue_key, parent_id) in parents.items():
+                await self.scripts.commands["releaseParentIfNoPendingDependencies"](
+                    keys=[parent_key, f"{parent_key}:dependencies"],
+                    args=[queue_key, parent_id, round(time.time() * 1000)],
+                    client=pipe,
+                )
+
             results = await pipe.execute()
+
+        results = results[: len(entries)]
         for index, job_id in enumerate(results):
             entries[index]["job"].id = job_id
         return results
@@ -297,17 +318,7 @@ class RedisBackend(Backend):
     async def extendLocks(
         self, job_ids: list[str], tokens: list[str], duration: int
     ) -> list:
-        multi = self.connection.conn.pipeline()
-        for job_id, token in zip(job_ids, tokens):
-            # The registered script is async; awaiting it buffers the command
-            # onto the pipeline (it does not execute until multi.execute()).
-            await self.scripts.extendLock(job_id, token, duration, multi)
-        renew_results = await multi.execute()
-        return [
-            job_id
-            for job_id, renewed in zip(job_ids, renew_results)
-            if int(renewed) <= 0
-        ]
+        return await self.scripts.extendJobLocks(job_ids, tokens, duration)
 
     # ============================================================
     # Job mutations
@@ -402,7 +413,7 @@ class RedisBackend(Backend):
     async def getClientList(self) -> list[str]:
         client = self.connection.conn
         if is_redis_cluster(client):
-            nodes = get_cluster_nodes(client)
+            nodes = await self.connection.cluster_nodes()
             return [
                 await self._client_list(get_node_client(node)) for node in nodes
             ]
@@ -542,7 +553,11 @@ def create_redis_backend(
 
     connection = RedisConnection(redis_opts, skipVersionCheck=skip_version_check)
     blocking_connection = (
-        RedisConnection(redis_opts, skipVersionCheck=skip_version_check)
+        RedisConnection(
+            redis_opts,
+            skipVersionCheck=skip_version_check,
+            blockingTimeout=max(10, math.ceil(opts.get("drainDelay", 5))),
+        )
         if with_blocking_connection
         else None
     )

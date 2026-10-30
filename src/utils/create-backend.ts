@@ -1,14 +1,36 @@
 import {
   BackendFactory,
+  ConnectionOptions,
   IQueueBackend,
+  IRedisClient,
   KeyPrefixOptions,
   QueueBaseOptions,
+  RedisConnectionClient,
 } from '../interfaces';
 import { RedisQueueBackend } from '../classes/redis-queue-backend';
 import { RedisConnection } from '../classes/redis-connection';
 import { QueueKeys } from '../classes/queue-keys';
 import { createIORedisClient, isIRedisClient } from '../classes/ioredis-client';
 import { isRedisInstance } from './index';
+
+/**
+ * Duplicates a caller-supplied client. Native clients (e.g. node-redis) use
+ * their own `duplicate()` so {@link RedisConnection} detects the driver of the
+ * copy without attaching adapter listeners to the caller's client.
+ */
+const duplicateClient = (
+  client: IRedisClient | RedisConnectionClient,
+  connectionName?: string,
+): IRedisClient | RedisConnectionClient => {
+  if (isIRedisClient(client) || typeof client.defineCommand === 'function') {
+    return (
+      isIRedisClient(client) ? client : createIORedisClient(client as any)
+    ).duplicate(connectionName ? { connectionName } : undefined);
+  }
+  return client.duplicate(
+    connectionName ? { name: connectionName } : undefined,
+  );
+};
 
 /**
  * Builds the dedicated, blocking connection that a worker needs so its blocking
@@ -27,10 +49,7 @@ const createBlockingConnection = (
 
   return new RedisConnection(
     isRedisInstance(opts.connection)
-      ? (isIRedisClient(opts.connection)
-          ? opts.connection
-          : createIORedisClient(opts.connection as any)
-        ).duplicate({ connectionName })
+      ? duplicateClient(opts.connection, connectionName)
       : { ...opts.connection, connectionName },
     {
       shared: false,
@@ -42,7 +61,8 @@ const createBlockingConnection = (
 
 /**
  * The default ({@link RedisConnection}-based) implementation of
- * {@link BackendFactory}. The returned backend owns its connection(s); the
+ * {@link BackendFactory}. The backend owns connections it creates, including
+ * duplicates, but leaves caller-owned clients open. The
  * high-level classes (Queue, Worker, FlowProducer, …) depend only on
  * {@link IQueueBackend} and never touch a Redis client directly.
  *
@@ -54,8 +74,14 @@ export const createRedisBackend: BackendFactory<RedisQueueBackend> = (
   opts,
   { blocking = false, withBlockingConnection = false } = {},
 ) => {
-  const connection = new RedisConnection(opts.connection, {
-    shared: isRedisInstance(opts.connection),
+  // A blocking consumer must not block the caller's shared Redis client.
+  const mainConnectionOpts =
+    blocking && isRedisInstance(opts.connection)
+      ? duplicateClient(opts.connection)
+      : opts.connection;
+
+  const connection = new RedisConnection(mainConnectionOpts, {
+    shared: !blocking && isRedisInstance(opts.connection),
     blocking,
     skipVersionCheck: opts.skipVersionCheck,
     skipWaitingForReady: opts.skipWaitingForReady,
@@ -85,8 +111,7 @@ export const createRedisBackend: BackendFactory<RedisQueueBackend> = (
  * pass an explicit `backendFactory`. Initialised to the Redis backend so the
  * default behaviour is unchanged.
  */
-let defaultBackendFactory: BackendFactory =
-  createRedisBackend as unknown as BackendFactory;
+let defaultBackendFactory: BackendFactory = createRedisBackend;
 
 /**
  * Overrides the process-wide default {@link BackendFactory}. Useful to point
@@ -95,20 +120,25 @@ let defaultBackendFactory: BackendFactory =
  * the existing test suite can run unchanged against another backend.
  *
  * Pass no argument (or `undefined`) to reset back to the Redis backend.
+ *
+ * Registration changes runtime behavior, not constructor type defaults.
+ * Use {@link withBackend} to retain the factory's types.
  */
-export function setDefaultBackendFactory(
-  factory?: BackendFactory<IQueueBackend>,
-): void {
+export function setDefaultBackendFactory<
+  B extends IQueueBackend = IQueueBackend,
+  C = ConnectionOptions,
+>(factory?: BackendFactory<B, C>): void {
   defaultBackendFactory =
-    factory ?? (createRedisBackend as unknown as BackendFactory);
+    (factory as unknown as BackendFactory) ?? createRedisBackend;
 }
 
 /**
  * Returns the current process-wide default {@link BackendFactory}, typed as the
- * caller's concrete backend `B`.
+ * caller's concrete backend `B` and connection-options type `C`.
  */
 export function getDefaultBackendFactory<
   B extends IQueueBackend = IQueueBackend,
->(): BackendFactory<B> {
-  return defaultBackendFactory as unknown as BackendFactory<B>;
+  C = ConnectionOptions,
+>(): BackendFactory<B, C> {
+  return defaultBackendFactory as unknown as BackendFactory<B, C>;
 }

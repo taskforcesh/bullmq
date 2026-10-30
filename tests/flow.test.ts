@@ -65,6 +65,67 @@ describe('flows', () => {
     await connection.quit();
   });
 
+  it('keeps a parent waiting when a child attachment fails', async () => {
+    const completedChildId = `completed-${randomUUID()}`;
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
+    try {
+      await worker.waitUntilReady();
+
+      const completed = new Promise<void>(resolve =>
+        worker.once('completed', () => resolve()),
+      );
+      await queue.add('completed-child', {}, { jobId: completedChildId });
+      await completed;
+    } finally {
+      await worker.close();
+    }
+
+    const flow = new FlowProducer({ connection, prefix });
+    try {
+      await flow.add({
+        name: 'source-parent',
+        queueName,
+        opts: { jobId: 'source-parent' },
+        children: [
+          {
+            name: 'conflicting-child',
+            queueName,
+            opts: { jobId: 'conflicting-child' },
+          },
+        ],
+      });
+
+      const target = await flow.add({
+        name: 'target-parent',
+        queueName,
+        opts: { jobId: 'target-parent' },
+        children: [
+          {
+            name: 'completed-child',
+            queueName,
+            opts: { jobId: completedChildId },
+          },
+          {
+            name: 'conflicting-child',
+            queueName,
+            opts: { jobId: 'conflicting-child' },
+          },
+        ],
+      });
+
+      expect(await target.job.getState()).toBe('waiting-children');
+      await expect(target.job.getDependenciesCount()).resolves.toMatchObject({
+        processed: 1,
+        unprocessed: 0,
+      });
+    } finally {
+      await flow.close();
+    }
+  });
+
   describe('when removeOnFail is true in last pending child', () => {
     it('moves parent to wait without getting stuck', async () => {
       const worker = new Worker(
@@ -2546,6 +2607,61 @@ describe('flows', () => {
 
         await worker.close();
         await flow.close();
+      });
+
+      describe('when there are other children pending to be added', async () => {
+        it('keeps parent in waiting-children until the new children complete', async () => {
+          const worker = new Worker(queueName, async () => {}, {
+            connection,
+            prefix,
+          });
+          const completing = new Promise<void>(resolve => {
+            worker.on('completed', (job: Job) => {
+              if (job.id === 'mon') {
+                resolve();
+              }
+            });
+          });
+
+          await queue.add('mon', {}, { jobId: 'mon' });
+          await completing;
+          await worker.close();
+
+          const flow = new FlowProducer({ connection, prefix });
+          const tree = await flow.add({
+            queueName,
+            name: 'tue',
+            opts: { jobId: 'tue' },
+            children: [
+              // Already exists and is completed: it must not release the
+              // parent, as the sibling below has not been added yet.
+              { name: 'mon', queueName, opts: { jobId: 'mon' } },
+              { name: 'wed', queueName, opts: { jobId: 'wed' } },
+            ],
+          });
+
+          expect(await tree.job.getState()).toBe('waiting-children');
+          expect(await queue.getJob('wed').then(job => job.getState())).toBe(
+            'waiting',
+          );
+
+          const worker2 = new Worker(queueName, async () => {}, {
+            connection,
+            prefix,
+          });
+          const completingParent = new Promise<void>(resolve => {
+            worker2.on('completed', (job: Job) => {
+              if (job.id === 'tue') {
+                resolve();
+              }
+            });
+          });
+
+          await completingParent;
+
+          await worker2.close();
+          await flow.close();
+        });
       });
     });
   });
@@ -6310,6 +6426,109 @@ describe('flows', () => {
         await cleanupQueue(parentQueueName);
       });
     });
+
+    describe('when retrying a failed child with ignoreDependencyOnFailure using queue.retryJobs', () => {
+      it('should move the child back to the parent dependencies', async () => {
+        const parentQueueName = `parent-queue-${randomUUID()}`;
+        const name = 'child-job';
+
+        const flow = new FlowProducer({ connection, prefix });
+        const tree = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            {
+              name,
+              data: { foo: 'bar' },
+              queueName,
+              opts: { ignoreDependencyOnFailure: true, attempts: 1 },
+            },
+          ],
+        });
+
+        const childrenWorker = new Worker(
+          queueName,
+          async () => {
+            throw new Error('error');
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+        const failing = new Promise<void>(resolve => {
+          childrenWorker.once('failed', () => resolve());
+        });
+
+        await childrenWorker.waitUntilReady();
+        await failing;
+        await childrenWorker.close();
+
+        await queue.retryJobs({ state: 'failed' });
+
+        const state = await tree.children![0].job.getState();
+        expect(state).toBe('waiting');
+
+        const { ignored, unprocessed } = await tree.job.getDependenciesCount({
+          ignored: true,
+          unprocessed: true,
+        });
+        expect(ignored).toBe(0);
+        expect(unprocessed).toBe(1);
+
+        await flow.close();
+        await cleanupQueue(parentQueueName);
+      });
+    });
+
+    describe('when retrying completed children using queue.retryJobs', () => {
+      it('should move the children back to the parent dependencies', async () => {
+        const parentQueueName = `parent-queue-${randomUUID()}`;
+        const name = 'child-job';
+
+        const flow = new FlowProducer({ connection, prefix });
+        const tree = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            { name, data: { idx: 0 }, queueName },
+            { name, data: { idx: 1 }, queueName },
+          ],
+        });
+
+        let completedCount = 0;
+        const childrenWorker = new Worker(queueName, async () => {}, {
+          connection,
+          prefix,
+        });
+        const completing = new Promise<void>(resolve => {
+          childrenWorker.on('completed', () => {
+            completedCount++;
+            if (completedCount === 2) {
+              resolve();
+            }
+          });
+        });
+
+        await childrenWorker.waitUntilReady();
+        await completing;
+        await childrenWorker.close();
+
+        await queue.retryJobs({ state: 'completed' });
+
+        const { processed, unprocessed } = await tree.job.getDependenciesCount({
+          processed: true,
+          unprocessed: true,
+        });
+        expect(processed).toBe(0);
+        expect(unprocessed).toBe(2);
+
+        await flow.close();
+        await cleanupQueue(parentQueueName);
+      });
+    });
   });
 
   describe('when root parent job has deduplication option', () => {
@@ -6490,6 +6709,35 @@ describe('flows', () => {
 
       expect(validJob).toBeDefined();
       expect(invalidJob).toBeUndefined();
+
+      await flow.close();
+    });
+  });
+
+  describe('when child flow node has keepLastIfActive deduplication', () => {
+    it('should reject the flow before adding a deferred child', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+
+      await expect(
+        flow.add({
+          name: 'root',
+          queueName,
+          children: [
+            {
+              name: 'child',
+              queueName,
+              opts: {
+                deduplication: {
+                  id: 'deferred-flow-child',
+                  keepLastIfActive: true,
+                },
+              },
+            },
+          ],
+        }),
+      ).rejects.toThrow(
+        'keepLastIfActive deduplication cannot be used on flow nodes with a parent',
+      );
 
       await flow.close();
     });
