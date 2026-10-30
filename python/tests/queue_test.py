@@ -819,34 +819,49 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
 class TestDriverInfo(unittest.IsolatedAsyncioTestCase):
-    """Tests for Redis client identification via DriverInfo"""
+    """Tests for Redis client identification (CLIENT SETINFO) of BullMQ-created clients"""
 
-    async def test_add_driver_info_sets_connection_kwargs(self):
-        """Test that _add_driver_info sets driver info on connection pool"""
-        from bullmq.redis_connection import RedisConnection
-        connection = RedisConnection({})
-        pool = getattr(connection.conn, "connection_pool", None)
-        self.assertIsNotNone(pool)
-        connection_kwargs = getattr(pool, "connection_kwargs", {})
-        self.assertTrue(
-            'driver_info' in connection_kwargs or 'lib_name' in connection_kwargs,
-            "Connection kwargs should contain either 'driver_info' or 'lib_name'"
-        )
+    @staticmethod
+    def lib_name(connection):
+        """Return the lib name a client reports to Redis, across redis-py versions."""
+        kwargs = connection.conn.connection_pool.connection_kwargs
+        driver_info = kwargs.get("driver_info")
+        if driver_info is not None:  # redis-py >= 7.2
+            return driver_info.formatted_name
+        return kwargs.get("lib_name")
 
-    async def test_add_driver_info_contains_bullmq(self):
-        """Test that driver info contains 'bullmq' identifier"""
-        from bullmq.redis_connection import RedisConnection
+    async def test_tags_client_created_from_options(self):
         from bullmq import __version__ as package_version
+        from bullmq.redis_connection import RedisConnection
+
         connection = RedisConnection({})
-        pool = getattr(connection.conn, "connection_pool", None)
-        connection_kwargs = getattr(pool, "connection_kwargs", {})
-        if 'driver_info' in connection_kwargs:
-            driver_info = connection_kwargs['driver_info']
-            self.assertIn('bullmq', driver_info.formatted_name.lower())
-        else:
-            lib_name = connection_kwargs['lib_name']
-            self.assertIn('bullmq', lib_name.lower())
-            self.assertIn(package_version, lib_name)
+
+        self.assertEqual(self.lib_name(connection), f"redis-py(bullmq_v{package_version})")
+
+    async def test_tags_client_created_from_url(self):
+        from bullmq import __version__ as package_version
+        from bullmq.redis_connection import RedisConnection
+
+        connection = RedisConnection("redis://localhost:6379")
+
+        self.assertEqual(self.lib_name(connection), f"redis-py(bullmq_v{package_version})")
+
+    async def test_respects_lib_name_from_options(self):
+        from bullmq.redis_connection import RedisConnection
+
+        connection = RedisConnection({"lib_name": "my-app"})
+
+        self.assertEqual(self.lib_name(connection), "my-app")
+
+    async def test_leaves_user_provided_client_untouched(self):
+        import redis.asyncio as redis
+        from bullmq.redis_connection import RedisConnection
+
+        client = redis.Redis()
+        connection = RedisConnection(client)
+
+        self.assertIs(connection.conn, client)
+        self.assertEqual(self.lib_name(connection), "redis-py")
 
 
 if __name__ == '__main__':
