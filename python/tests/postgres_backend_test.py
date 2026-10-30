@@ -390,6 +390,66 @@ class TestPostgresBackendWaitForJob(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(backend._next_delay_ms.await_count, 2)
 
 
+class TestPostgresBackendMetrics(unittest.IsolatedAsyncioTestCase):
+    async def test_get_metrics_returns_the_redis_shape(self):
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock(
+            return_value=SimpleNamespace(
+                first_map=lambda: {
+                    "total": 7,
+                    "prev_ts": 1486459440000,
+                    "prev_count": 6,
+                    "data": [3, 4],
+                    "num_points": 2,
+                }
+            )
+        )
+
+        metrics = await backend.getMetrics("completed", 0, 1)
+
+        self.assertEqual(metrics, [["7", "1486459440000", "6"], ["3", "4"], 2])
+        backend._run.assert_awaited_once_with(
+            "get_metrics", ["queue", "completed", 0, 1]
+        )
+
+    async def test_get_metrics_count_is_the_whole_series_not_the_page(self):
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock(
+            return_value=SimpleNamespace(
+                first_map=lambda: {
+                    "total": 7,
+                    "prev_ts": 0,
+                    "prev_count": 0,
+                    "data": [3, 4],
+                    "num_points": 5,
+                }
+            )
+        )
+
+        metrics = await backend.getMetrics("completed", 0, 1)
+
+        self.assertEqual(metrics[2], 5)
+
+    async def test_get_metrics_without_recorded_metrics(self):
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock(
+            # get_metrics.sql always returns one row, zeroed when nothing was recorded.
+            return_value=SimpleNamespace(
+                first_map=lambda: {
+                    "total": 0,
+                    "prev_ts": 0,
+                    "prev_count": 0,
+                    "data": [],
+                    "num_points": 0,
+                }
+            )
+        )
+
+        metrics = await backend.getMetrics("failed")
+
+        self.assertEqual(metrics, [["0", "0", "0"], [], 0])
+
+
 class TestPostgresBackendLockExtension(unittest.IsolatedAsyncioTestCase):
     async def test_extend_locks_batches_jobs_in_one_command(self):
         backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))

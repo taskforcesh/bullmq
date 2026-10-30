@@ -378,6 +378,31 @@ class Queue(EventEmitter):
             counts[f"{unique_priorities[index]}"] = val or 0
         return counts
 
+    async def getMetrics(self, type: str, start: int = 0, end: int = -1):
+        """
+        Get the metrics gathered for the queue, as job counts per minute.
+        Workers only gather them when created with the `metrics` option.
+
+        @param type: 'completed' or 'failed'.
+        @param start: Start point of the metrics, where 0 is the newest point to be returned.
+        @param end: End point of the metrics, where -1 is the oldest point to be returned.
+
+        @returns: A dict with "meta" ("count", "prevTS", "prevCount"), "data"
+        (the data points, newest first) and "count" (the number of data points stored).
+        """
+        meta, data, count = await self.backend.getMetrics(type, start, end)
+        total, prev_ts, prev_count = meta
+
+        return {
+            "meta": {
+                "count": int(total or 0),
+                "prevTS": int(prev_ts or 0),
+                "prevCount": int(prev_count or 0),
+            },
+            "data": [int(point or 0) for point in data],
+            "count": count,
+        }
+
     async def clean(self, grace: int, limit: int, type: str):
         """
         Cleans jobs from a queue. Similar to drain but keeps jobs within a certain

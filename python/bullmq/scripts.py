@@ -516,6 +516,12 @@ class Scripts:
 
         return self.commands["getCounts"](keys=keys, args=transformed_types)
 
+    def getMetrics(self, type: str, start: int = 0, end: int = -1):
+        keys = [self.toKey(f"metrics:{type}"),
+                self.toKey(f"metrics:{type}:data")]
+
+        return self.commands["getMetrics"](keys=keys, args=[start, end])
+
     def getCountsPerPriorityArgs(self, priorities):
         keys = [self.keys['wait'],
                 self.keys['prioritized']]

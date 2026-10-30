@@ -31,6 +31,7 @@ SCRIPT_DEFINITIONS = {
     "getCounts": "getCounts-1.lua",
     "getCountsPerPriority": "getCountsPerPriority-2.lua",
     "getJobs": "getJobs-1.lua",
+    "getMetrics": "getMetrics-2.lua",
     "getRanges": "getRanges-1.lua",
     "getState": "getState-8.lua",
     "getStateV2": "getStateV2-8.lua",

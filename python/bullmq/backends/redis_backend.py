@@ -393,6 +393,9 @@ class RedisBackend(Backend):
     async def getCounts(self, types: list) -> list:
         return await self.scripts.getCounts(types)
 
+    async def getMetrics(self, type: str, start: int = 0, end: int = -1) -> list:
+        return await self.scripts.getMetrics(type, start, end)
+
     async def getCountsPerPriority(self, priorities: list) -> list:
         return await self.scripts.getCountsPerPriority(priorities)
 
