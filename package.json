@@ -240,7 +240,6 @@
   },
   "packageManager": "yarn@1.22.22",
   "resolutions": {
-    "brace-expansion": "5.0.12",
     "fast-uri": "3.1.9",
     "js-yaml": "5.4.2",
     "tar": "7.5.22",
