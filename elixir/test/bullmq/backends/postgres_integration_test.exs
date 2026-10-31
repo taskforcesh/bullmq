@@ -290,6 +290,7 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     assert second.job.id == job_id
     assert {:ok, job} = Queue.get_job(queue, job_id, connection: conn, backend: Backends.Postgres)
     assert job.delay == 30_000
+
     assert {:ok, "delayed"} =
              Queue.get_job_state(queue, job_id, connection: conn, backend: Backends.Postgres)
   end
