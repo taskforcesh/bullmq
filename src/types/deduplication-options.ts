@@ -23,6 +23,14 @@ export type DeduplicationOptions = {
   replace?: boolean;
 
   /**
+   * Reschedule the existing job using the incoming job's delay, measured from
+   * the incoming timestamp, only while the existing job is delayed.
+   * Keeps the existing job ID and data. An omitted delay is treated as zero.
+   * Independent of `extend`; ignored when `replace` is true.
+   */
+  reschedule?: boolean;
+
+  /**
    * If true, when a job with the same deduplication ID is currently
    * active (being processed), the new job's data will be stored and
    * a new job will be created automatically when the active one

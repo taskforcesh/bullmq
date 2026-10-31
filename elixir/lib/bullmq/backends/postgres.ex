@@ -351,15 +351,16 @@ defmodule BullMQ.Backends.Postgres do
   defp batch_entry(queue, job, encoded_opts, add_to_waiting_children) do
     opts = Map.get(job, :opts) || %{}
     parent = Map.get(job, :parent)
+    delay = Map.get(job, :delay) || opt(opts, :delay, 0)
 
     %{
       "queue" => queue,
       "id" => Map.get(job, :id) || "",
       "name" => Map.get(job, :name),
       "data" => Map.get(job, :data) || %{},
-      "opts" => encoded_opts,
+      "opts" => Map.put(encoded_opts, :delay, delay),
       "priority" => opt(opts, :priority, 0),
-      "delay" => Map.get(job, :delay) || opt(opts, :delay, 0),
+      "delay" => delay,
       "timestamp" => Map.get(job, :timestamp) || now_ms(),
       "attempts" => opt(opts, :attempts, 1),
       "parentQueue" => batch_parent_queue(parent),

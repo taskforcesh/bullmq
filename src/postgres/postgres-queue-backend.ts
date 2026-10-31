@@ -568,6 +568,7 @@ export class PostgresQueueBackend
     parentKeyOpts: ParentKeyOpts = {},
   ): Promise<string> {
     const opts = (job.opts ?? {}) as JobsOptions;
+    const jobOpts = job.delay == null ? opts : { ...opts, delay: job.delay };
     const parentKey = parentKeyOpts.parentKey ?? job.parentKey ?? null;
     let rows: { id: string }[];
     try {
@@ -576,7 +577,7 @@ export class PostgresQueueBackend
         jobId || job.id || '',
         job.name,
         job.data ?? '{}',
-        JSON.stringify(opts ?? {}),
+        JSON.stringify(jobOpts ?? {}),
         job.priority ?? opts.priority ?? 0,
         job.delay ?? opts.delay ?? 0,
         job.timestamp ?? Date.now(),
@@ -654,7 +655,7 @@ export class PostgresQueueBackend
       id: jobId || data.id || '',
       name: data.name,
       data: data.data ?? '{}',
-      opts,
+      opts: data.delay == null ? opts : { ...opts, delay: data.delay },
       priority: data.priority ?? opts.priority ?? 0,
       delay: data.delay ?? opts.delay ?? 0,
       timestamp: data.timestamp ?? Date.now(),

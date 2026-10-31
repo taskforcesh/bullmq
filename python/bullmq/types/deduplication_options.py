@@ -34,6 +34,13 @@ class DeduplicationOptions(TypedDict, total=False):
     This is useful in debounce mode where you want to keep only the latest job data.
     """
 
+    reschedule: bool
+    """
+    Apply the incoming delay to the existing job only while it is delayed,
+    preserving its ID and data. An omitted delay is treated as zero.
+    Independent of extend; ignored when replace is true.
+    """
+
     keepLastIfActive: bool
     """
     If true, when a duplicate job is detected and the existing job is currently
