@@ -59,6 +59,121 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await worker.close()
         await queue.close()
 
+    async def test_fetches_next_job_when_completing_a_job(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        job_count = 5
+        added_jobs = [await queue.add("test", {"idx": i}) for i in range(job_count)]
+
+        async def process(job: Job, token: str):
+            return job.data["idx"]
+
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+
+        move_to_active_calls = 0
+        original_move_to_active = worker.backend.moveToActive
+
+        async def counting_move_to_active(*args, **kwargs):
+            nonlocal move_to_active_calls
+            move_to_active_calls += 1
+            return await original_move_to_active(*args, **kwargs)
+
+        worker.backend.moveToActive = counting_move_to_active
+
+        active_ids = []
+        completed_ids = []
+        all_completed = Future()
+
+        def on_completed(job, result):
+            completed_ids.append(job.id)
+            if len(completed_ids) == job_count:
+                all_completed.set_result(None)
+
+        worker.on("active", lambda job, prev: active_ids.append(job.id))
+        worker.on("completed", on_completed)
+
+        asyncio.ensure_future(worker.run())
+        await all_completed
+
+        expected_ids = [job.id for job in added_jobs]
+        self.assertEqual(completed_ids, expected_ids)
+        self.assertEqual(active_ids, expected_ids)
+        # Only the first job (and the final "queue is empty" check) go
+        # through moveToActive; every other job comes back from moveToFinished.
+        self.assertLessEqual(move_to_active_calls, 2)
+
+        await worker.close()
+        await queue.close()
+
+    async def test_does_not_fetch_next_job_when_paused(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        first_job = await queue.add("test", {"idx": 0})
+        second_job = await queue.add("test", {"idx": 1})
+
+        worker = None
+
+        async def process(job: Job, token: str):
+            if job.id == first_job.id:
+                await worker.pause(True)
+            return "done"
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        first_completed = Future()
+        worker.on("completed", lambda job, result: first_completed.set_result(job.id)
+                  if not first_completed.done() else None)
+
+        self.assertEqual(await first_completed, first_job.id)
+        await asyncio.sleep(0.1)
+
+        self.assertEqual(await second_job.getState(), "waiting")
+
+        await worker.close(force=True)
+        await queue.close()
+
+    async def test_close_waits_for_job_fetched_while_closing(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        await queue.add("test", {"idx": 0})
+        second_job = await queue.add("test", {"idx": 1})
+
+        started_ids = []
+        finished_ids = []
+
+        async def process(job: Job, token: str):
+            started_ids.append(job.id)
+            if job.id == second_job.id:
+                await asyncio.sleep(0.2)
+            finished_ids.append(job.id)
+            return "done"
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        # Hold the first moveToCompleted call (which already asked to fetch
+        # the next job) until close() has started.
+        move_to_completed_entered = asyncio.Event()
+        release_move_to_completed = asyncio.Event()
+        original_move_to_completed = worker.backend.moveToCompleted
+
+        async def gated_move_to_completed(*args, **kwargs):
+            if not move_to_completed_entered.is_set():
+                move_to_completed_entered.set()
+                await release_move_to_completed.wait()
+            return await original_move_to_completed(*args, **kwargs)
+
+        worker.backend.moveToCompleted = gated_move_to_completed
+
+        await move_to_completed_entered.wait()
+        close_task = asyncio.ensure_future(worker.close())
+        await asyncio.sleep(0.05)
+        release_move_to_completed.set()
+        await close_task
+
+        # A job fetched while closing must be fully processed before close()
+        # returns, never left active with the connection already closed.
+        self.assertEqual(started_ids, finished_ids)
+        self.assertNotEqual(await second_job.getState(), "active")
+
+        await queue.close()
+
     async def test_manual_process_jobs(self):
         queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}
