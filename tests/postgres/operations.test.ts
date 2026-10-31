@@ -414,4 +414,28 @@ describe('PostgreSQL backend operations', () => {
       }
     });
   });
+
+  it('rejects a bulk add when the parent of an entry does not exist', async () => {
+    const backend = newBackend();
+    try {
+      await backend.waitUntilReady();
+      const parentKey = 'missing-parents:p1';
+
+      await expect(
+        backend.addJobs([
+          { job: makeJob(), jobId: '' },
+          {
+            job: makeJob({
+              parent: { id: 'p1', queueKey: 'missing-parents' },
+              parentKey,
+            }),
+            jobId: '',
+            parentKeyOpts: { parentKey },
+          },
+        ]),
+      ).rejects.toThrow(`Missing key for parent job ${parentKey}. addJob`);
+    } finally {
+      await backend.close();
+    }
+  });
 });

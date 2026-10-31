@@ -638,7 +638,20 @@ export class PostgresQueueBackend
     const { rows } = await this.run<{ id: string }>('add_flow', [
       JSON.stringify(payload),
     ]);
-    return rows.map(r => r.id);
+    return rows.map((r, index) => {
+      // A negative-integer id is an error code (e.g. -5 = missing parent).
+      const code = Number(r.id);
+      if (Number.isInteger(code) && code < 0) {
+        const { job, jobId, parentKeyOpts } = entries[index];
+        throw finishedErrors({
+          code,
+          jobId,
+          parentKey: parentKeyOpts?.parentKey ?? job.parentKey,
+          command: 'addJob',
+        });
+      }
+      return r.id;
+    });
   }
 
   /** Builds one entry of the JSONB batch consumed by `add_flow`. */

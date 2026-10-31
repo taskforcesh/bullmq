@@ -218,4 +218,22 @@ describe('bulk jobs', () => {
     await processing;
     await worker.close();
   });
+
+  it('should throw when the parent of a job in the batch does not exist', async () => {
+    const parentId = randomUUID();
+    const parentQueue = qualify(queue, queueName);
+
+    await expect(
+      queue.addBulk([
+        { name: 'test', data: { idx: 0 } },
+        {
+          name: 'test',
+          data: { idx: 1 },
+          opts: { parent: { id: parentId, queue: parentQueue } },
+        },
+      ]),
+    ).rejects.toThrow(
+      `Missing key for parent job ${parentQueue}:${parentId}. addJob`,
+    );
+  });
 });
