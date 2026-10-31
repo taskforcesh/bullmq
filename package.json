@@ -144,7 +144,7 @@
     "ioredis": "5.11.1",
     "lint-staged": "17.6.0",
     "madge": "8.0.0",
-    "minimatch": "10.2.6",
+    "minimatch": "11.0.1",
     "moment": "2.31.0",
     "pg": "8.23.1",
     "prettier": "3.9.10",
