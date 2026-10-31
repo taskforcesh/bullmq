@@ -398,18 +398,19 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
         end
       end)
 
-    assert {:ok, 6} = Migrator.run_migrations(pool, legacy_schema)
-    assert {:ok, 6} = Migrator.run_migrations(pool, node_schema)
+    latest_version = Migrator.latest_schema_version()
+    assert {:ok, ^latest_version} = Migrator.run_migrations(pool, legacy_schema)
+    assert {:ok, ^latest_version} = Migrator.run_migrations(pool, node_schema)
 
     for schema <- [legacy_quoted, node_quoted] do
       %{rows: rows} =
         Postgrex.query!(
           pool,
-          "SELECT min_client_version FROM #{schema}.migration ORDER BY version",
+          "SELECT version, min_client_version FROM #{schema}.migration ORDER BY version",
           []
         )
 
-      assert rows == [[6], [6], [6], [6], [6], [6]]
+      assert rows == Enum.map(1..latest_version, fn version -> [version, 6] end)
     end
   end
 
