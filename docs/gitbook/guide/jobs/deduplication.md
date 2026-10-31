@@ -172,6 +172,22 @@ $queue->add('house', ['color' => 'blue'], [
 ```
 
 {% endtab %}
+{% tab title=".NET" %}
+
+```csharp
+await queue.AddAsync("house", new { color = "white" }, new JobsOptions
+{
+    Delay = 5000,
+    Deduplication = new DeduplicationOptions { Id = "house", Reschedule = true },
+});
+await queue.AddAsync("house", new { color = "blue" }, new JobsOptions
+{
+    Delay = 8000,
+    Deduplication = new DeduplicationOptions { Id = "house", Reschedule = true },
+});
+```
+
+{% endtab %}
 {% endtabs %}
 
 The original job keeps `{ color: 'white' }` and becomes eligible for processing

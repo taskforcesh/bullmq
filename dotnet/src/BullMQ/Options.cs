@@ -121,6 +121,9 @@ public sealed class BackoffOptions
 /// <summary>Options that control how a single job is added and processed.</summary>
 public sealed class JobsOptions
 {
+    /// <summary>Deduplicates adds using a shared identifier.</summary>
+    public DeduplicationOptions? Deduplication { get; set; }
+
     /// <summary>Optional explicit job id. Cannot be <c>"0"</c> or start with <c>"0:"</c>.</summary>
     public string? JobId { get; set; }
 
@@ -156,6 +159,28 @@ public sealed class JobsOptions
 
     /// <summary>Creates a shallow copy of these options.</summary>
     public JobsOptions Clone() => (JobsOptions)MemberwiseClone();
+}
+
+/// <summary>Controls deduplication using the shared Redis and PostgreSQL scripts.</summary>
+public sealed class DeduplicationOptions
+{
+    /// <summary>The deduplication identifier.</summary>
+    public required string Id { get; set; }
+
+    /// <summary>Key lifetime in milliseconds; omitted means until finalization.</summary>
+    public long? Ttl { get; set; }
+
+    /// <summary>Refreshes the TTL on duplicate adds.</summary>
+    public bool? Extend { get; set; }
+
+    /// <summary>Replaces an existing delayed job with the incoming job.</summary>
+    public bool? Replace { get; set; }
+
+    /// <summary>Applies the incoming delay while delayed, preserving ID and payload. Replace takes precedence.</summary>
+    public bool? Reschedule { get; set; }
+
+    /// <summary>Retains the latest successor while active. TTL is ignored until finalization.</summary>
+    public bool? KeepLastIfActive { get; set; }
 }
 
 /// <summary>Policy for keeping completed/failed jobs.</summary>

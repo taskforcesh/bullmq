@@ -93,6 +93,66 @@ await using var worker = new Worker("emails", async (job, ct) => "sent",
     new WorkerOptions { Postgres = pg, Concurrency = 5 });
 ```
 
+## Deduplication
+
+Set `JobsOptions.Deduplication` to suppress jobs with the same identifier.
+The same options work with Redis and PostgreSQL, single and bulk adds, and
+`QueueOptions.DefaultJobOptions`.
+
+```csharp
+await queue.AddAsync("refresh", new { version = 1 }, new JobsOptions
+{
+    Delay = 5000,
+    Deduplication = new DeduplicationOptions
+    {
+        Id = "refresh",
+        Reschedule = true,
+        Ttl = 10000,
+        Extend = true,
+    },
+});
+```
+
+- **Simple:** only `Id`; suppress duplicates until completion or failure.
+- **Throttle:** set `Ttl` in milliseconds to suppress duplicates for that window.
+- **Extend:** refresh the TTL on duplicate adds.
+- **Replace:** replace the existing delayed job with the incoming ID and payload.
+- **Reschedule:** retain the delayed job's ID, name and payload, but apply the
+  incoming delay relative to its timestamp. Omitted/zero delay makes it due.
+  Non-delayed jobs are unchanged. TTL extension is independent; `Replace`
+  takes precedence if both flags are enabled.
+- **KeepLastIfActive:** retain only the latest successor payload while the
+  winner is active; create it when that winner completes or fails. TTL is
+  ignored and the key stays live for the job lifecycle.
+
+A per-job deduplication object replaces the entire queue-default object.
+Duplicate adds return the winning ID, but their returned object still describes
+the incoming payload; use `queue.GetJobAsync(id)` to inspect stored job data.
+This matches the reference BullMQ API.
+
+```csharp
+var winner = await queue.GetDeduplicationJobIdAsync("refresh");
+await queue.RemoveDeduplicationKeyAsync("refresh"); // Unconditional removal.
+if (winner is not null && await queue.GetJobAsync(winner) is { } job)
+{
+    await job.RemoveDeduplicationKeyAsync(); // Removes only if still the owner.
+}
+```
+
+`QueueEvents.Deduplicated` exposes `DeduplicationId`, `JobId` and
+`DeduplicatedJobId`. The event is also delivered to `EventReceived`. Rescheduling
+additionally emits `Delayed`; replacement retains the scripts' `Removed` events.
+
+Flow validation happens before any writes. **Deduplication is forbidden on all
+nodes with children**, including root and nested parents. `Replace` must be
+omitted in flows, and `KeepLastIfActive` cannot be enabled on nodes with a parent.
+Eligible leaves support the other modes; standalone root leaves can also use
+`KeepLastIfActive`.
+
+Adding deduplication management extends `IQueueBackend` with winner lookup,
+unconditional deletion and conditional owner deletion; custom backend
+implementations must supply these operations.
+
 ## Development
 
 The shared Lua scripts live at the repository root under `rawScripts/` and are

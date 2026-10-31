@@ -69,6 +69,7 @@ public sealed class FlowProducer : IAsyncDisposable
     /// <summary>Adds a flow atomically and returns the created job tree.</summary>
     public async Task<FlowJobNode> AddAsync(FlowJob flow)
     {
+        ValidateDeduplication(flow, hasParent: false);
         var backend = await _backend.Value.ConfigureAwait(false);
         await backend.WaitUntilReadyAsync().ConfigureAwait(false);
 
@@ -76,6 +77,32 @@ public sealed class FlowProducer : IAsyncDisposable
         var tree = AddNode(backend, flow, parentOpts: null, entries);
         await backend.AddFlowAsync(entries).ConfigureAwait(false);
         return tree;
+    }
+
+    private static void ValidateDeduplication(FlowJob node, bool hasParent)
+    {
+        if (node.Opts?.Deduplication is { } dedup)
+        {
+            if (node.Children is { Count: > 0 })
+            {
+                throw new ArgumentException("Deduplication cannot be used on flow nodes with children");
+            }
+            if (dedup.Replace.HasValue)
+            {
+                throw new ArgumentException("Replace deduplication cannot be used in flows");
+            }
+            if (hasParent && dedup.KeepLastIfActive == true)
+            {
+                throw new ArgumentException("KeepLastIfActive deduplication cannot be used on flow nodes with a parent");
+            }
+        }
+        if (node.Children is { } children)
+        {
+            foreach (var child in children)
+            {
+                ValidateDeduplication(child, hasParent: true);
+            }
+        }
     }
 
     private FlowJobNode AddNode(

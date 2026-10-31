@@ -143,7 +143,10 @@ public sealed class PostgresBackend : IQueueBackend
         }
 
         var entries = jobs.Select(j => BatchEntry(j, Name, addToWaitingChildren: false)).ToList();
-        var result = await RunAsync("add_jobs_bulk", new object?[] { Name, JsonUtil.Serialize(entries) })
+        var result = jobs.Any(j => j.DeduplicationId is not null)
+            ? await RunAsync("add_flow", new object?[] { JsonUtil.Serialize(entries) }, op: "addJob")
+                .ConfigureAwait(false)
+            : await RunAsync("add_jobs_bulk", new object?[] { Name, JsonUtil.Serialize(entries) })
             .ConfigureAwait(false);
 
         var ids = result.Rows.Select(r => Str(r[0])!).ToArray();
@@ -450,6 +453,27 @@ public sealed class PostgresBackend : IQueueBackend
         var target = state is "wait" or "paused" ? "waiting" : state;
         var result = await RunAsync("is_job_in_state", new object?[] { Name, jobId, target }).ConfigureAwait(false);
         return ToBool(result.FirstMap()?.GetValueOrDefault("present"));
+    }
+
+    public async Task<string?> GetDeduplicationJobIdAsync(string id)
+    {
+        var result = await RunAsync("get_deduplication_job_id",
+            new object?[] { Name, id, NowMs() }).ConfigureAwait(false);
+        return result.FirstMap() is { } row ? Str(row["job_id"]) : null;
+    }
+
+    public async Task<long> DeleteDeduplicationKeyAsync(string id)
+    {
+        var result = await RunAsync("delete_deduplication_key",
+            new object?[] { Name, id }).ConfigureAwait(false);
+        return result.Rows.Count;
+    }
+
+    public async Task<long> RemoveDeduplicationKeyAsync(string id, string jobId)
+    {
+        var result = await RunAsync("remove_deduplication_key",
+            new object?[] { Name, id, jobId, NowMs() }).ConfigureAwait(false);
+        return result.Rows.Count;
     }
 
     public async Task<JobJson?> GetJobDataAsync(string jobId)
@@ -1041,6 +1065,7 @@ public sealed class PostgresBackend : IQueueBackend
             ["parent"] = parent,
             ["rjk"] = Str(Get("scheduler_id")),
             ["defa"] = Str(Get("deferred_failure")),
+            ["deid"] = Str(Get("dedup_id")),
         };
 
         return mapped.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);

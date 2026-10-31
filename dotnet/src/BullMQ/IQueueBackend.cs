@@ -187,6 +187,15 @@ public interface IQueueBackend : IAsyncDisposable
     /// <summary>Returns the stored data for a job, or null if missing.</summary>
     Task<JobJson?> GetJobDataAsync(string jobId);
 
+    /// <summary>Returns the live winner for a deduplication identifier.</summary>
+    Task<string?> GetDeduplicationJobIdAsync(string id);
+
+    /// <summary>Unconditionally removes a deduplication key.</summary>
+    Task<long> DeleteDeduplicationKeyAsync(string id);
+
+    /// <summary>Atomically removes a live key only if the job still owns it.</summary>
+    Task<long> RemoveDeduplicationKeyAsync(string id, string jobId);
+
     /// <summary>Returns a page of a job's logs together with the total count.</summary>
     Task<JobLogs> GetJobLogsAsync(string jobId, int start = 0, int end = -1, bool asc = true);
 
