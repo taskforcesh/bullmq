@@ -2180,6 +2180,11 @@ argparse@^2.0.1:
   resolved "https://registry.yarnpkg.com/argparse/-/argparse-2.0.1.tgz#246f50f3ca78a3240f6c997e8a9bd1eac49e4b38"
   integrity sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==
 
+argparse@^3.0.3:
+  version "3.0.4"
+  resolved "https://registry.yarnpkg.com/argparse/-/argparse-3.0.4.tgz#ba802dd75fdc3d5bdcb4339b713d62c6c5d4565d"
+  integrity sha512-fwWK3Zq22l4XJJjx5mcBHGikIk+hJqO+32dPm0Jur7+rtG5x1scOjSfdT9ZKeWHPpsya/l0HHK4tDImBkTrtvA==
+
 argue-cli@^3.1.0:
   version "3.2.0"
   resolved "https://registry.yarnpkg.com/argue-cli/-/argue-cli-3.2.0.tgz#15b9ff31e0ce316c9fd1ff1761188fa81995f1c5"
@@ -3901,12 +3906,12 @@ js-tokens@^4.0.0:
   resolved "https://registry.yarnpkg.com/js-tokens/-/js-tokens-4.0.0.tgz#19203fb59991df98e3a287050d4647cdeaf32499"
   integrity sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==
 
-js-yaml@4.2.0, js-yaml@5.4.2, js-yaml@^4.1.0, js-yaml@^4.3.2:
-  version "5.4.2"
-  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-5.4.2.tgz#eebc7a57e0bbe1d6b6d9416a72e7463082c7da85"
-  integrity sha512-m+aqu+LwO1O6sIopafj8HUVl5aawITwZQe/yHpMCKjaWBaA/d07B/QdMb3529REftiU+RMMHL3Vlsw3hON7vWg==
+js-yaml@4.2.0, js-yaml@5.5.0, js-yaml@^4.1.0, js-yaml@^4.3.2:
+  version "5.5.0"
+  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-5.5.0.tgz#ec843f09ffb2a54b6758a41eee109a1815d16442"
+  integrity sha512-paNr4LFIFPjeeSmwNYdrb8FafLLG/Cr2Af3GjbsHJ5CxIjH4r0c2emlmRdAtpPAieP1gRVzk6buBbVP5gBMGAg==
   dependencies:
-    argparse "^2.0.1"
+    argparse "^3.0.3"
 
 json-parse-better-errors@^1.0.1:
   version "1.0.2"

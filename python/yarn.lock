@@ -2861,10 +2861,10 @@ smart-buffer@^4.2.0:
   resolved "https://registry.yarnpkg.com/smart-buffer/-/smart-buffer-4.2.0.tgz#6e1d71fa4f18c05f7d0ff216dd16a481d0e8d9ae"
   integrity sha512-94hK0Hh8rPqQl2xXc3HsaBoOXKV20MToPkcXvwbISWLEs+64sBq5kFgn2kJDHb1Pry9yrP0dxrCI9RRci7RXKg==
 
-smol-toml@1.9.0, smol-toml@^1.3.1:
-  version "1.9.0"
-  resolved "https://registry.yarnpkg.com/smol-toml/-/smol-toml-1.9.0.tgz#f36b8dc7eb621c541c48f9fba6925dab95172817"
-  integrity sha512-hpd+HLON7HdZXqYchMM/+LaTTbdK0AU3NngIJ4KVyWbY9bfQqdL9cD+4yf6dUoU2Ap4VsU0JkQi6FxAI1B2mXQ==
+smol-toml@1.9.1, smol-toml@^1.3.1:
+  version "1.9.1"
+  resolved "https://registry.yarnpkg.com/smol-toml/-/smol-toml-1.9.1.tgz#1262834a084c3ce2985900450956a580f95cf243"
+  integrity sha512-j7WyPdf0CJoutMzMoPLF/bVXHtKZIT9Rb4eGeEbWw8X2t5oirjPgpL+OpaENZrILYaXqYwnVH+qgUwVbl+pUJQ==
 
 socks-proxy-agent@^8.0.3:
   version "8.0.5"
