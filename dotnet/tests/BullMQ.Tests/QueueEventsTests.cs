@@ -20,6 +20,39 @@ public abstract class QueueEventsTestsBase
     private static string UniqueName() => $"dotnet-qe-{Guid.NewGuid():N}";
 
     [Fact]
+    public async Task Deduplication_EmitsTypedAndRawEvents()
+    {
+        var q = UniqueName();
+        await using var queue = new Queue(q, NewQueueOptions());
+        var options = NewQueueEventsOptions();
+        options.LastEventId = "0";
+        await using var events = new QueueEvents(q, options);
+        var typed = new TaskCompletionSource<QueueEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var raw = new TaskCompletionSource<QueueEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        events.Deduplicated += e => typed.TrySetResult(e);
+        events.EventReceived += e => { if (e.Name == "deduplicated") raw.TrySetResult(e); };
+        try
+        {
+            await events.WaitUntilReadyAsync();
+            _ = events.RunAsync();
+            var first = await queue.AddAsync("first", null,
+                new JobsOptions { Deduplication = new() { Id = "event" } });
+            await queue.AddAsync("second", null,
+                new JobsOptions { JobId = "duplicate", Deduplication = new() { Id = "event" } });
+            var evt = await WaitForAsync(typed.Task, TimeSpan.FromSeconds(10));
+            Assert.Equal(first.Id, evt.JobId);
+            Assert.Equal("event", evt.DeduplicationId);
+            Assert.Equal("duplicate", evt.DeduplicatedJobId);
+            Assert.Equal(evt.Id, (await WaitForAsync(raw.Task, TimeSpan.FromSeconds(10))).Id);
+        }
+        finally
+        {
+            await events.CloseAsync();
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
     public async Task Emits_Completed_For_Processed_Job()
     {
         var q = UniqueName();

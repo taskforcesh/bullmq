@@ -66,6 +66,51 @@ defmodule BullMQ.Backends.RedisTest do
     assert {:ok, nil} = Backend.get_job_data(backend, job_id)
   end
 
+  test "reschedule preserves the delayed job and applies the incoming delay", %{
+    backend: backend,
+    conn: conn,
+    queue_name: queue_name
+  } do
+    for deduplication <- [
+          %{id: "atom", reschedule: true},
+          %{:id => "string", "reschedule" => true}
+        ] do
+      original =
+        Job.new(queue_name, "original", %{"foo" => "bar"},
+          delay: 60_000,
+          deduplication: deduplication
+        )
+
+      assert {:ok, id} = Backend.add_job(backend, original)
+      assert {:ok, stored} = Backend.get_job_data(backend, id)
+      assert stored["delay"] == "60000"
+      assert stored["timestamp"] == Integer.to_string(original.timestamp)
+
+      for delay <- [120_000, 30_000] do
+        incoming =
+          Job.new(queue_name, "incoming", %{"foo" => "baz"},
+            delay: delay,
+            deduplication: deduplication
+          )
+
+        assert {:ok, ^id} = Backend.add_job(backend, incoming)
+        assert {:ok, stored} = Backend.get_job_data(backend, id)
+        assert stored["name"] == "original"
+        assert Jason.decode!(stored["data"]) == %{"foo" => "bar"}
+        assert stored["delay"] == Integer.to_string(delay)
+
+        assert {:ok, score} =
+                 RedisConnection.command(conn, [
+                   "ZSCORE",
+                   Backend.to_key(backend, "delayed"),
+                   id
+                 ])
+
+        assert div(String.to_integer(score), 4096) == incoming.timestamp + delay
+      end
+    end
+  end
+
   test "queue metadata round-trips", %{backend: backend} do
     assert {:ok, _} = Backend.set_queue_meta(backend, %{"version" => "test-1", "paused" => "1"})
     assert {:ok, "test-1"} = Backend.get_queue_meta_field(backend, "version")

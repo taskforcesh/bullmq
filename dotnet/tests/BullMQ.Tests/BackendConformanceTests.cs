@@ -18,6 +18,174 @@ public abstract class BackendConformanceTests
 
     protected static string UniqueName() => $"dotnet-conf-{Guid.NewGuid():N}";
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Deduplication_Simple_ReleasesOnFinalization(bool fail)
+    {
+        var backend = await CreateBackendAsync();
+        try
+        {
+            var opts = new JobsOptions { Deduplication = new() { Id = "simple" } };
+            var first = await AddAsync(backend, opts: opts);
+            var duplicate = await AddAsync(backend, data: new { x = 2 }, opts: opts);
+            Assert.Equal(first.Id, duplicate.Id);
+            Assert.Equal(first.Id, await backend.GetDeduplicationJobIdAsync("simple"));
+            var stored = await Job.FromIdAsync(backend, "conf", first.Id!);
+            Assert.Equal("simple", stored!.DeduplicationId);
+            Assert.Equal("simple", stored.Opts.Deduplication!.Id);
+            await backend.MoveToActiveAsync(Token);
+            if (fail)
+                await backend.MoveToFailedAsync(first, "failed", false, Token, false);
+            else
+                await backend.MoveToCompletedAsync(first, "null", false, Token, false);
+            Assert.Null(await backend.GetDeduplicationJobIdAsync("simple"));
+            Assert.NotEqual(first.Id, (await AddAsync(backend, opts: opts)).Id);
+        }
+        finally { await CleanupAsync(backend); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Deduplication_Ttl_Extension(bool extend)
+    {
+        var backend = await CreateBackendAsync();
+        try
+        {
+            var first = await AddAsync(backend, opts: new JobsOptions
+            {
+                Deduplication = new() { Id = "ttl", Ttl = 200 },
+            });
+            await AddAsync(backend, opts: new JobsOptions
+            {
+                Deduplication = new() { Id = "ttl", Ttl = 10000, Extend = extend },
+            });
+            await Task.Delay(300);
+            Assert.Equal(extend ? first.Id : null, await backend.GetDeduplicationJobIdAsync("ttl"));
+        }
+        finally { await CleanupAsync(backend); }
+    }
+
+    [Theory]
+    [InlineData(120000L)]
+    [InlineData(30000L)]
+    [InlineData(0L)]
+    [InlineData(null)]
+    public async Task Deduplication_Reschedule_KeepsPayload(long? delay)
+    {
+        var backend = await CreateBackendAsync();
+        try
+        {
+            var first = await AddAsync(backend, name: "original", opts: new JobsOptions
+            {
+                Delay = 60000,
+                Deduplication = new() { Id = "reschedule" },
+            });
+            var duplicate = await AddAsync(backend, name: "incoming", data: new { x = 2 },
+                opts: new JobsOptions
+                {
+                    Delay = delay,
+                    Deduplication = new() { Id = "reschedule", Reschedule = true },
+                });
+            Assert.Equal(first.Id, duplicate.Id);
+            var stored = await backend.GetJobDataAsync(first.Id!);
+            Assert.Equal("original", stored!.Name);
+            Assert.Equal(1, System.Text.Json.JsonDocument.Parse(stored.Data).RootElement.GetProperty("x").GetInt32());
+            Assert.Equal(delay ?? 0, stored.Delay);
+            var next = await backend.MoveToActiveAsync(Token);
+            if ((delay ?? 0) == 0) Assert.Equal(first.Id, next.JobId);
+            else
+            {
+                Assert.False(next.HasJob);
+                Assert.InRange(next.DelayUntil, duplicate.Timestamp + delay.GetValueOrDefault() - 1,
+                    duplicate.Timestamp + delay.GetValueOrDefault() + 1);
+            }
+        }
+        finally { await CleanupAsync(backend); }
+    }
+
+    [Fact]
+    public async Task Deduplication_ReplacementAndKeyOwnership()
+    {
+        var backend = await CreateBackendAsync();
+        try
+        {
+            var first = await AddAsync(backend, opts: new JobsOptions
+            {
+                Delay = 60000,
+                Deduplication = new() { Id = "replace" },
+            });
+            var replacement = await AddAsync(backend, data: new { x = 2 }, opts: new JobsOptions
+            {
+                Delay = 30000,
+                Deduplication = new() { Id = "replace", Replace = true, Reschedule = true },
+            });
+            Assert.NotEqual(first.Id, replacement.Id);
+            Assert.Null(await backend.GetJobDataAsync(first.Id!));
+            Assert.Equal(0, await backend.RemoveDeduplicationKeyAsync("replace", first.Id!));
+            var stored = await Job.FromIdAsync(backend, "conf", replacement.Id!);
+            Assert.True(await stored!.RemoveDeduplicationKeyAsync());
+            Assert.False(await stored.RemoveDeduplicationKeyAsync());
+            await AddAsync(backend, opts: new JobsOptions { Deduplication = new() { Id = "replace" } });
+            Assert.Equal(1, await backend.DeleteDeduplicationKeyAsync("replace"));
+            Assert.Null(await backend.GetDeduplicationJobIdAsync("replace"));
+        }
+        finally { await CleanupAsync(backend); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Deduplication_NonDelayedJobsAreNotRescheduledOrReplaced(bool active)
+    {
+        var backend = await CreateBackendAsync();
+        try
+        {
+            var first = await AddAsync(backend, opts: new JobsOptions { Deduplication = new() { Id = "state" } });
+            if (active) await backend.MoveToActiveAsync(Token);
+            var duplicate = await AddAsync(backend, opts: new JobsOptions
+            {
+                Delay = 60000,
+                Deduplication = new() { Id = "state", Reschedule = true, Replace = true },
+            });
+            Assert.Equal(first.Id, duplicate.Id);
+            Assert.Equal(active ? JobState.Active : JobState.Waiting, await backend.GetStateAsync(first.Id!));
+            Assert.Equal(0, (await backend.GetJobDataAsync(first.Id!))!.Delay);
+        }
+        finally { await CleanupAsync(backend); }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Deduplication_ActiveSuccessor_UsesLatest(bool fail, bool fetchNext)
+    {
+        var backend = await CreateBackendAsync();
+        try
+        {
+            var opts = new JobsOptions
+            {
+                Deduplication = new() { Id = "active", KeepLastIfActive = true, Ttl = 1 },
+            };
+            var first = await AddAsync(backend, opts: opts);
+            await backend.MoveToActiveAsync(Token);
+            await AddAsync(backend, name: "discarded", opts: opts);
+            await AddAsync(backend, name: "latest", opts: opts);
+            var result = fail
+                ? await backend.MoveToFailedAsync(first, "failed", false, Token, fetchNext)
+                : await backend.MoveToCompletedAsync(first, "null", false, Token, fetchNext);
+            var next = fetchNext ? result.Next!.Value : await backend.MoveToActiveAsync(Token);
+            Assert.True(next.HasJob);
+            Assert.Equal("latest", next.Job!.Name);
+            Assert.NotEqual(first.Id, next.JobId);
+            Assert.Equal(next.JobId, await backend.GetDeduplicationJobIdAsync("active"));
+        }
+        finally { await CleanupAsync(backend); }
+    }
+
     private static async Task CleanupAsync(IQueueBackend backend)
     {
         try

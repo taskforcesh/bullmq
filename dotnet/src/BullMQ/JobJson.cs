@@ -37,6 +37,7 @@ public sealed class JobJson
     public string? ParentKey { get; set; }
     public string? Parent { get; set; }
     public string? DeferredFailure { get; set; }
+    public string? DeduplicationId { get; set; }
 
     /// <summary>Builds a <see cref="JobJson"/> from a flat key/value map.</summary>
     public static JobJson FromMap(IReadOnlyDictionary<string, string?> map, string? jobId = null)
@@ -68,6 +69,7 @@ public sealed class JobJson
             ParentKey = Get("parentKey"),
             Parent = Get("parent"),
             DeferredFailure = Get("defa"),
+            DeduplicationId = Get("deid"),
         };
 
         if (long.TryParse(Get("finishedOn"), out var fo))
