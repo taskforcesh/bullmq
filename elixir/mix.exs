@@ -65,7 +65,7 @@ defmodule BullMQ.MixProject do
   defp deps do
     [
       # Redis client
-      {:redix, "== 1.9.2"},
+      {:redix, "== 1.10.0"},
 
       # PostgreSQL client (optional backend)
       {:postgrex, "== 0.22.4", optional: true},
