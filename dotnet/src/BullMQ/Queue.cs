@@ -63,6 +63,16 @@ public sealed class Queue : IAsyncDisposable
         return await Job.CreateAsync(backend, Name, name, data, merged).ConfigureAwait(false);
     }
 
+    /// <summary>Returns the current live winner for a deduplication identifier.</summary>
+    public async Task<string?> GetDeduplicationJobIdAsync(string id) =>
+        await (await _backend.Value.ConfigureAwait(false))
+            .GetDeduplicationJobIdAsync(id).ConfigureAwait(false);
+
+    /// <summary>Unconditionally removes a deduplication key.</summary>
+    public async Task<long> RemoveDeduplicationKeyAsync(string id) =>
+        await (await _backend.Value.ConfigureAwait(false))
+            .DeleteDeduplicationKeyAsync(id).ConfigureAwait(false);
+
     /// <summary>Pauses the processing of this queue globally.</summary>
     public async Task PauseAsync()
     {
@@ -364,6 +374,7 @@ public sealed class Queue : IAsyncDisposable
         merged.RemoveOnComplete = opts.RemoveOnComplete ?? merged.RemoveOnComplete;
         merged.RemoveOnFail = opts.RemoveOnFail ?? merged.RemoveOnFail;
         merged.KeepLogs = opts.KeepLogs ?? merged.KeepLogs;
+        merged.Deduplication = opts.Deduplication ?? merged.Deduplication;
         return merged;
     }
 }

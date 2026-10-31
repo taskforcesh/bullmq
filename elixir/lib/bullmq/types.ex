@@ -200,12 +200,16 @@ defmodule BullMQ.Types do
   - `:ttl` - Time-to-live in milliseconds for the deduplication key
   - `:extend` - If true, extend the TTL on each duplicate job
   - `:replace` - If true, replace the job data when a duplicate is added (while delayed)
+  - `:reschedule` - Apply the incoming delay while the existing job is delayed,
+    preserving its ID and data. An omitted delay is zero. Independent of `:extend`;
+    ignored when `:replace` is true.
   """
   @type deduplication_opts :: %{
           required(:id) => String.t(),
           optional(:ttl) => duration_ms(),
           optional(:extend) => boolean(),
           optional(:replace) => boolean(),
+          optional(:reschedule) => boolean(),
           optional(:keep_last_if_active) => boolean()
         }
 

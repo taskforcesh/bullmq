@@ -52,6 +52,17 @@ class JobOptionsTest extends TestCase
         $this->assertFalse($options->lifo);
     }
 
+    public function testDeduplicationRescheduleIsPreserved(): void
+    {
+        foreach ([true, false] as $reschedule) {
+            $deduplication = ['id' => 'reschedule', 'reschedule' => $reschedule];
+            $options = JobOptions::fromArray(['deduplication' => $deduplication]);
+
+            $this->assertSame($deduplication, $options->deduplication);
+            $this->assertSame($deduplication, $options->toArray()['de']);
+        }
+    }
+
     public function testBackoffNormalization(): void
     {
         // Integer backoff

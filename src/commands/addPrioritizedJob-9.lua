@@ -94,7 +94,7 @@ end
 
 local deduplicationJobId = deduplicateJob(opts['de'], jobId, KEYS[5],
   deduplicationKey, eventsKey, maxEvents, args[1], args[3], ARGV[2], opts,
-  parentKey, parentData, parentDependenciesKey, repeatJobKey)
+  parentKey, parentData, parentDependenciesKey, repeatJobKey, timestamp)
 if deduplicationJobId then
   return deduplicationJobId
 end
