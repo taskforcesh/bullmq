@@ -144,7 +144,7 @@
     "ioredis": "5.11.1",
     "lint-staged": "17.6.0",
     "madge": "8.0.0",
-    "minimatch": "10.2.6",
+    "minimatch": "11.0.1",
     "moment": "2.31.0",
     "pg": "8.23.1",
     "prettier": "3.9.10",
@@ -240,7 +240,6 @@
   },
   "packageManager": "yarn@1.22.22",
   "resolutions": {
-    "brace-expansion": "5.0.12",
     "fast-uri": "3.1.9",
     "js-yaml": "5.4.2",
     "tar": "7.5.22",
