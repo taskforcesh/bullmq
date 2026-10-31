@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { createPostgresBackend, IQueueBackend, JobJson } from '../../src';
@@ -46,6 +46,259 @@ describe('PostgreSQL backend operations', () => {
   afterAll(async () => {
     await pool.end();
   });
+
+  it.each([1, 10])(
+    'locks dedup before jobs during obliteration with batch size %i',
+    async count => {
+      const backend = newBackend();
+      const producer = await pool.connect();
+      const obliterator = await pool.connect();
+      let obliteration:
+        | Promise<
+            { code: number; error?: never } | { error: Error; code?: never }
+          >
+        | undefined;
+      try {
+        await backend.waitUntilReady();
+        const queue = `lock-order-${randomUUID()}`;
+        await producer.query(`SET search_path TO "${schema}"`);
+        await obliterator.query(`SET search_path TO "${schema}"`);
+        const { rows: pidRows } = await obliterator.query<{ pid: number }>(
+          'SELECT pg_backend_pid() AS pid',
+        );
+        const now = Date.now();
+        await producer.query(
+          `SELECT add_job($1, 'winner', 'original', '{}'::jsonb,
+             '{"delay":60000,"deduplication":{"id":"dedup"}}'::jsonb,
+             0, 60000, $2, 1, NULL, NULL, NULL, 'dedup', NULL, false)`,
+          [queue, now],
+        );
+        await producer.query(
+          `INSERT INTO meta(queue, field, value) VALUES ($1, 'paused', '1')`,
+          [queue],
+        );
+        await producer.query('BEGIN');
+        await producer.query(
+          `SELECT job_id FROM dedup WHERE queue = $1 AND dedup_id = 'dedup' FOR UPDATE`,
+          [queue],
+        );
+        const { rows: holderRows } = await producer.query<{ pid: number }>(
+          'SELECT pg_backend_pid() AS pid',
+        );
+
+        // Record rejection immediately so a failure remains observed while
+        // the producer transaction is released in finally.
+        const pending = obliterator.query<{ code: number }>(
+          'SELECT obliterate($1, $2, true) AS code',
+          [queue, count],
+        );
+        obliteration = pending.then(
+          result => ({ code: result.rows[0].code }),
+          (error: Error) => ({ error }),
+        );
+        await vi.waitFor(async () => {
+          const { rows } = await pool.query<{ blockers: number[] }>(
+            'SELECT pg_blocking_pids($1) AS blockers',
+            [pidRows[0].pid],
+          );
+          expect(rows[0].blockers).toContain(holderRows[0].pid);
+        });
+
+        // If obliteration took the job lock first this raises 55P03. With
+        // dedup-first ordering, the producer can still finish its reschedule.
+        await producer.query(
+          'SELECT id FROM job WHERE queue = $1 FOR UPDATE NOWAIT',
+          [queue],
+        );
+        const { rows } = await producer.query<{ winner: string }>(
+          `SELECT deduplicate_job($1,
+             '{"id":"dedup","reschedule":true}'::jsonb, 'incoming', $2,
+             'incoming', '{"changed":true}'::jsonb, '{"delay":120000}'::jsonb) AS winner`,
+          [queue, now],
+        );
+        expect(rows[0].winner).toBe('winner');
+        await producer.query('COMMIT');
+        const outcome = await obliteration;
+        if (outcome.error) {
+          throw outcome.error;
+        }
+        expect(outcome.code).toBe(count === 1 ? 1 : 0);
+        const { rows: remaining } = await pool.query<{ count: string }>(
+          `SELECT count(*) FROM "${schema}".dedup WHERE queue = $1`,
+          [queue],
+        );
+        expect(Number(remaining[0].count)).toBe(count === 1 ? 1 : 0);
+        if (count === 1) {
+          const { rows: final } = await obliterator.query<{ code: number }>(
+            'SELECT obliterate($1, $2, true) AS code',
+            [queue, count],
+          );
+          expect(final[0].code).toBe(0);
+        }
+      } finally {
+        await producer.query('ROLLBACK');
+        if (obliteration) {
+          await obliteration;
+        }
+        producer.release();
+        obliterator.release();
+        await backend.close();
+      }
+    },
+  );
+
+  it.each([false, true])(
+    'prelocks bulk dedup keys before concurrent finish-and-fetch (reversed: %s)',
+    async reversed => {
+      const backend = newBackend();
+      const worker = await pool.connect();
+      const batch = await pool.connect();
+      let pending:
+        | Promise<
+            { ids: string[]; error?: never } | { error: Error; ids?: never }
+          >
+        | undefined;
+      try {
+        await backend.waitUntilReady();
+        const queue = `bulk-lock-${randomUUID()}`;
+        const now = Date.now();
+        const token = randomUUID();
+        await worker.query(`SET search_path TO "${schema}"`);
+        await batch.query(`SET search_path TO "${schema}"`);
+        await worker.query("SET statement_timeout TO '5s'");
+        await batch.query("SET statement_timeout TO '5s'");
+        const { rows: keys } = await worker.query<{ id: string; key: number }>(
+          `SELECT id, hashtext('bullmq:dedup:' || $1 || ':' || id) AS key
+             FROM unnest(ARRAY['first', 'second']) AS id ORDER BY key`,
+          [queue],
+        );
+        const [bKey, aKey] = keys;
+        const add = async (id: string, dedupId: string, delay: number) => {
+          await worker.query(
+            `SELECT add_job($1, $2, $2, '{"original":true}'::jsonb, $3::jsonb,
+               0, $4, $5, 1, NULL, NULL, NULL, $6, NULL, false)`,
+            [
+              queue,
+              id,
+              JSON.stringify({
+                delay,
+                deduplication: { id: dedupId, ttl: 600000 },
+              }),
+              delay,
+              now - 1000,
+              dedupId,
+            ],
+          );
+        };
+        await add('A', aKey.id, 0);
+        const { rows: active } = await worker.query<{ id: string }>(
+          'SELECT id FROM move_to_active($1, $2, 30000, $3, NULL, NULL, NULL)',
+          [queue, token, now],
+        );
+        expect(active.map(job => job.id)).toEqual(['A']);
+        await add('B', bKey.id, 1);
+
+        await worker.query('BEGIN');
+        await worker.query('SELECT pg_advisory_xact_lock($1)', [aKey.key]);
+        const { rows: workerPid } = await worker.query<{ pid: number }>(
+          'SELECT pg_backend_pid() AS pid',
+        );
+        const { rows: batchPid } = await batch.query<{ pid: number }>(
+          'SELECT pg_backend_pid() AS pid',
+        );
+        const entries = [
+          { id: 'incoming-B', dedupId: bKey.id },
+          { id: 'incoming-A', dedupId: aKey.id },
+        ].map(entry => ({
+          ...entry,
+          queue,
+          name: 'incoming',
+          data: '{"changed":true}',
+          timestamp: now - 1000,
+          delay: 1,
+          opts: {
+            delay: 1,
+            deduplication: { id: entry.dedupId, reschedule: true },
+          },
+        }));
+        if (reversed) {
+          entries.reverse();
+        }
+        pending = batch
+          .query<{ id: string }>('SELECT add_flow($1::jsonb) AS id', [
+            JSON.stringify(entries),
+          ])
+          .then(
+            result => ({ ids: result.rows.map(row => row.id) }),
+            (error: Error) => ({ error }),
+          );
+        await vi.waitFor(async () => {
+          const { rows } = await pool.query<{ blockers: number[] }>(
+            'SELECT pg_blocking_pids($1) AS blockers',
+            [batchPid[0].pid],
+          );
+          expect(rows[0].blockers).toContain(workerPid[0].pid);
+        });
+
+        // Both input orders must acquire B's smaller key before waiting on A,
+        // but neither may update B until every advisory lock is held.
+        const { rows: lock } = await worker.query<{ acquired: boolean }>(
+          'SELECT pg_try_advisory_xact_lock($1) AS acquired',
+          [bKey.key],
+        );
+        expect(lock[0].acquired).toBe(false);
+        await worker.query(
+          "SELECT id FROM job WHERE queue = $1 AND id = 'B' FOR UPDATE NOWAIT",
+          [queue],
+        );
+        const { rows: fetched } = await worker.query<{
+          id: string;
+          state: string;
+          data: { original: boolean };
+        }>(
+          `SELECT id, state, data FROM move_to_completed_fetch(
+             $1, 'A', $2, '{}'::jsonb, $3, false, NULL, NULL,
+             30000, $3, NULL, NULL, NULL)`,
+          [queue, token, now],
+        );
+        expect(fetched).toEqual([
+          { id: 'B', state: 'active', data: { original: true } },
+        ]);
+        await worker.query('COMMIT');
+        const outcome = await pending;
+        if (outcome.error) {
+          throw outcome.error;
+        }
+        expect(outcome.ids).toEqual(reversed ? ['A', 'B'] : ['B', 'A']);
+        const { rows: jobs } = await worker.query<{
+          id: string;
+          state: string;
+          delay_ms: string;
+          data: { original: boolean };
+        }>(
+          'SELECT id, state, delay_ms, data FROM job WHERE queue = $1 ORDER BY id',
+          [queue],
+        );
+        expect(jobs).toEqual([
+          {
+            id: 'A',
+            state: 'completed',
+            delay_ms: '0',
+            data: { original: true },
+          },
+          { id: 'B', state: 'active', delay_ms: '0', data: { original: true } },
+        ]);
+      } finally {
+        await worker.query('ROLLBACK');
+        if (pending) {
+          await pending;
+        }
+        worker.release();
+        batch.release();
+        await backend.close();
+      }
+    },
+  );
 
   it('adds a job (FIFO waiting) and reads it back', async () => {
     const backend = newBackend();

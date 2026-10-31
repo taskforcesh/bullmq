@@ -65,7 +65,7 @@ defmodule BullMQ.Backends.PostgresTest do
       Job.new(q, "original", %{"color" => "white"}, delay: 60_000, deduplication: deduplication)
 
     assert {:ok, id} = Backend.add_job(b, original)
-    assert Backends.Postgres.Migrator.latest_schema_version() == 6
+    assert Backends.Postgres.Migrator.latest_schema_version() >= 6
 
     for delay <- [120_000, 30_000] do
       incoming =

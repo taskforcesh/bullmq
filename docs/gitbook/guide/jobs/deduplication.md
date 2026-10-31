@@ -80,6 +80,17 @@ This mode is particularly useful for jobs that have a long running time or those
 
 ## Rescheduling a Delayed Job
 
+On PostgreSQL, obliteration locks existing deduplication rows before deleting
+jobs in each batch, matching the rescheduling lock order. This prevents the
+dedup/job lock inversion during concurrent rescheduling and final cleanup.
+Producers are not excluded for the entire multi-batch obliteration; pausing a
+queue only pauses processing, not adds.
+
+PostgreSQL bulk adds and flows acquire all deduplication advisory locks in
+lock-key order before modifying jobs. This prevents a bulk reschedule from
+holding a delayed job row while waiting on a finishing job's deduplication
+lock, allowing finish-and-fetch to promote that delayed job safely.
+
 Set `reschedule: true` to apply the incoming job's delay to an existing job with
 the same deduplication ID, but only while that job is still delayed. Unlike
 `replace`, this preserves the original job ID, name, data, and other options.
