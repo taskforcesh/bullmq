@@ -87,6 +87,18 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0008_bulk_dedup_lock_order.sql'),
   },
+  {
+    version: 9,
+    name: '0009_obliterate_bounded_dedup_locks',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0009_obliterate_bounded_dedup_locks.sql'),
+  },
+  {
+    version: 10,
+    name: '0010_obliterate_finalization_lock',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0010_obliterate_finalization_lock.sql'),
+  },
 ];
 
 /**

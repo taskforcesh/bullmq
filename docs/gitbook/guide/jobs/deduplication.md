@@ -80,11 +80,20 @@ This mode is particularly useful for jobs that have a long running time or those
 
 ## Rescheduling a Delayed Job
 
-On PostgreSQL, obliteration locks existing deduplication rows before deleting
-jobs in each batch, matching the rescheduling lock order. This prevents the
-dedup/job lock inversion during concurrent rescheduling and final cleanup.
+On PostgreSQL, intermediate obliteration batches lock only deduplication rows
+pointing to their selected jobs, using an indexed winner lookup. Deleting a
+parent cascades to its logs and dependency records, not its child jobs. The
+final batch locks all remaining queue deduplication rows before deleting jobs
+and cleaning up keys. This preserves bounded intermediate batches and prevents
+the dedup/job lock inversion during concurrent rescheduling and final cleanup.
 Producers are not excluded for the entire multi-batch obliteration; pausing a
 queue only pauses processing, not adds.
+
+Completion and failure acquire shared transaction advisory locks for their
+queue and any direct parent's queue before locking rows. Obliteration acquires
+the corresponding exclusive lock for each batch, so forced deletion cannot
+invert job/dedup locks with finalization. Finish-and-fetch retains the shared
+lock through its fetch; ordinary finalizations can still run concurrently.
 
 PostgreSQL bulk adds and flows acquire all deduplication advisory locks in
 lock-key order before modifying jobs. This prevents a bulk reschedule from
