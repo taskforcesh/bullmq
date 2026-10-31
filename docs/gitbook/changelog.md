@@ -1,3 +1,10 @@
+## [6.5.3](https://github.com/taskforcesh/bullmq/compare/v6.5.2...v6.5.3) (2026-10-31)
+
+
+### Bug Fixes
+
+* **node-redis:** clear ended status when connect() reopens the client ([#4952](https://github.com/taskforcesh/bullmq/issues/4952)) ([0928d9f](https://github.com/taskforcesh/bullmq/commit/0928d9f53bf8c11b66c156d1a56822f5a9a8acd7))
+
 ## [6.5.2](https://github.com/taskforcesh/bullmq/compare/v6.5.1...v6.5.2) (2026-10-30)
 
 
