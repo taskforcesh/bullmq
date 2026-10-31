@@ -91,9 +91,9 @@ public sealed class FlowProducer : IAsyncDisposable
             {
                 throw new ArgumentException("Replace deduplication cannot be used in flows");
             }
-            if (hasParent && dedup.KeepLastIfActive == true)
+            if (hasParent)
             {
-                throw new ArgumentException("KeepLastIfActive deduplication cannot be used on flow nodes with a parent");
+                throw new ArgumentException("Deduplication cannot be used on flow nodes with a parent");
             }
         }
         if (node.Children is { } children)

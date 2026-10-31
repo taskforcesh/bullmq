@@ -22,6 +22,10 @@ public abstract class FlowProducerTestsBase
     [InlineData("nested-parent")]
     [InlineData("replace")]
     [InlineData("active-child")]
+    [InlineData("simple-child")]
+    [InlineData("reschedule-child")]
+    [InlineData("ttl-child")]
+    [InlineData("nested-leaf")]
     public async Task Deduplication_InvalidFlowsFailBeforeWrites(string scenario)
     {
         var q = UniqueName();
@@ -37,6 +41,16 @@ public abstract class FlowProducerTestsBase
         }
         if (scenario == "replace") leaf.Opts = new() { Deduplication = new() { Id = "bad", Replace = false } };
         if (scenario == "active-child") leaf.Opts = new() { Deduplication = new() { Id = "bad", KeepLastIfActive = true } };
+        if (scenario == "simple-child") leaf.Opts = new() { Deduplication = new() { Id = "bad" } };
+        if (scenario == "reschedule-child") leaf.Opts = new() { Deduplication = new() { Id = "bad", Reschedule = true } };
+        if (scenario == "ttl-child") leaf.Opts = new() { Deduplication = new() { Id = "bad", Ttl = 10000, Extend = true } };
+        if (scenario == "nested-leaf")
+        {
+            leaf.Children = new[]
+            {
+                new FlowJob { Name = "grandchild", QueueName = q, Opts = new() { Deduplication = new() { Id = "bad" } } },
+            };
+        }
         await Assert.ThrowsAsync<ArgumentException>(() => producer.AddAsync(root));
         Assert.All((await queue.GetJobCountsAsync()).Values, count => Assert.Equal(0, count));
         await queue.ObliterateAsync(force: true);
@@ -65,34 +79,29 @@ public abstract class FlowProducerTestsBase
     }
 
     [Fact]
-    public async Task Deduplication_NestedLeavesShareWinnerWithoutLosingDependencies()
+    public async Task Deduplication_ChildCannotReuseStandaloneDelayedWinner()
     {
         var q = UniqueName();
         await using var queue = new Queue(q, NewQueueOptions());
         await using var producer = new FlowProducer(NewQueueOptions());
         try
         {
-            var tree = await producer.AddAsync(new FlowJob
+            var winner = await queue.AddAsync("standalone", new { original = true },
+                new JobsOptions { Delay = 60000, Deduplication = new() { Id = "child" } });
+            await Assert.ThrowsAsync<ArgumentException>(() => producer.AddAsync(new FlowJob
             {
                 Name = "parent",
                 QueueName = q,
                 Children = new[]
                 {
-                    new FlowJob { Name = "first", QueueName = q, Opts = new() { Deduplication = new() { Id = "child" } } },
-                    new FlowJob { Name = "duplicate", QueueName = q, Opts = new() { Deduplication = new() { Id = "child" } } },
+                    new FlowJob { Name = "child", QueueName = q, Opts = new() { Delay = 1, Deduplication = new() { Id = "child", Reschedule = true } } },
                 },
-            });
-            Assert.Equal(tree.Children![0].Job.Id, tree.Children[1].Job.Id);
-            Assert.Equal(JobState.WaitingChildren, await tree.Job.GetStateAsync());
-            var backend = await BackendBuilder.CreateAsync(q, NewWorkerOptions(), lockDuration: 30000);
-            try
-            {
-                var next = await backend.MoveToActiveAsync("flow-token");
-                var child = Job.FromJson(backend, q, next.Job!, next.JobId);
-                await backend.MoveToCompletedAsync(child, "null", false, "flow-token", false);
-            }
-            finally { await backend.CloseAsync(); }
-            Assert.Equal(JobState.Waiting, await tree.Job.GetStateAsync());
+            }));
+            Assert.Equal(JobState.Delayed, await winner.GetStateAsync());
+            var stored = await queue.GetJobAsync(winner.Id!);
+            Assert.Equal(60000, stored!.Delay);
+            Assert.Null(stored.Parent);
+            Assert.Equal(1, (await queue.GetJobCountsAsync()).Values.Sum());
         }
         finally { await queue.ObliterateAsync(force: true); }
     }

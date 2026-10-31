@@ -144,10 +144,13 @@ if (winner is not null && await queue.GetJobAsync(winner) is { } job)
 additionally emits `Delayed`; replacement retains the scripts' `Removed` events.
 
 Flow validation happens before any writes. **Deduplication is forbidden on all
-nodes with children**, including root and nested parents. `Replace` must be
-omitted in flows, and `KeepLastIfActive` cannot be enabled on nodes with a parent.
-Eligible leaves support the other modes; standalone root leaves can also use
-`KeepLastIfActive`.
+nodes with children and on every child node**, including nested leaves.
+Deduplication remains supported on standalone roots without children; `Replace`
+must be omitted in flows. A dedup winner may belong to another parent, and jobs
+cannot belong to multiple parents.
+Standalone root leaves support the other modes, including `KeepLastIfActive`.
+This stricter validation applies to the .NET flow API; other ports retain their
+existing behavior.
 
 Adding deduplication management extends `IQueueBackend` with winner lookup,
 unconditional deletion and conditional owner deletion; custom backend
