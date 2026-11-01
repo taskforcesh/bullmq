@@ -23,7 +23,7 @@ import {
   FlowProducer,
   RedisConnection,
 } from '../src/classes';
-import { randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 import * as sinon from 'sinon';
 
@@ -60,6 +60,30 @@ describe('RedisConnection', () => {
     };
   }
 
+  function createMockStandaloneClient(overrides: Record<string, any> = {}) {
+    return {
+      // Mark as already-augmented IRedisClient so RedisConnection skips
+      // createIORedisClient() and uses the mock directly.
+      __bullmq_iredis: true,
+      isCluster: false,
+      status: 'ready',
+      options: {},
+      on: sinon.stub(),
+      once: sinon.stub(),
+      off: sinon.stub(),
+      removeListener: sinon.stub(),
+      getMaxListeners: sinon.stub().returns(10),
+      setMaxListeners: sinon.stub(),
+      connect: sinon.stub().resolves(),
+      disconnect: sinon.stub(),
+      duplicate: sinon.stub(),
+      quit: sinon.stub().resolves('OK'),
+      defineCommand: sinon.stub(),
+      info: sinon.stub().resolves('redis_version:7.0.0'),
+      ...overrides,
+    };
+  }
+
   describe('constructor', () => {
     it('initializes with default extraOptions when none provided', () => {
       const connection = new RedisConnection({});
@@ -69,6 +93,7 @@ describe('RedisConnection', () => {
         skipVersionCheck: false,
         skipWaitingForReady: false,
         clusterReconnectTimeoutMs: 30_000,
+        disconnectTimeoutMs: 30_000,
       });
     });
 
@@ -391,6 +416,112 @@ describe('RedisConnection', () => {
       expect(cluster.connect.callCount).toBe(2);
 
       await connection.close(true);
+    });
+  });
+
+  // Regression for https://github.com/taskforcesh/bullmq/issues/4656:
+  // Worker.close() hung forever when Redis was unreachable, because
+  // disconnect() unconditionally awaited `this.client` (which resolves from
+  // the connection's init() promise) and that promise never settles while
+  // the client is stuck trying to reach a Redis that never responds.
+  describe('disconnect()', () => {
+    it('tears down immediately without waiting on `client` when the connection never became ready', async () => {
+      const client = createMockStandaloneClient({
+        status: 'reconnecting',
+      });
+      const connection = new RedisConnection(client as any, {
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+
+      // Simulate a connection that is still trying to reach Redis for the
+      // first time: init() never resolves, so `this.client`/`this.initializing`
+      // never settle and `this.status` stays 'initializing'.
+      (connection as any).initializing = new Promise(() => {});
+      (connection as any).status = 'initializing';
+      (connection as any)._client = client;
+
+      const result = await Promise.race([
+        connection.disconnect().then(() => 'disconnected'),
+        new Promise(resolve => setTimeout(() => resolve('timeout'), 200)),
+      ]);
+
+      expect(result).toBe('disconnected');
+      expect(client.disconnect.calledOnce).toBe(true);
+    });
+
+    it('does not leave an unhandled rejection when the stalled init() eventually rejects', async () => {
+      const client = createMockStandaloneClient({ status: 'reconnecting' });
+      const connection = new RedisConnection(client as any, {
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+
+      let rejectInitializing: (err: Error) => void;
+      (connection as any).initializing = new Promise((_, reject) => {
+        rejectInitializing = reject;
+      });
+      (connection as any).status = 'initializing';
+      (connection as any)._client = client;
+
+      await connection.disconnect();
+
+      // Should not throw / produce an unhandled rejection.
+      rejectInitializing(new Error('Connection is closed.'));
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
+
+    it('bounds the wait for the end/error event so disconnect() cannot hang forever', async () => {
+      const client = createMockStandaloneClient({ status: 'ready' });
+      // Never emit 'end' or 'error': simulates disconnect() racing an
+      // in-progress reconnect attempt where neither event fires.
+      const connection = new RedisConnection(client as any, {
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+        disconnectTimeoutMs: 50,
+      });
+
+      (connection as any).status = 'ready';
+      (connection as any)._client = client;
+      (connection as any).initializing = Promise.resolve(client);
+
+      const result = await Promise.race([
+        connection.disconnect().then(() => 'disconnected'),
+        new Promise(resolve => setTimeout(() => resolve('timeout'), 1000)),
+      ]);
+
+      expect(result).toBe('disconnected');
+      expect(client.disconnect.calledOnce).toBe(true);
+    });
+
+    it('resolves promptly via the end event under normal conditions', async () => {
+      let endHandler: () => void;
+      const client = createMockStandaloneClient({
+        status: 'ready',
+        once: sinon.stub().callsFake((event: string, handler: () => void) => {
+          if (event === 'end') {
+            endHandler = handler;
+          }
+        }),
+        disconnect: sinon.stub().callsFake(() => {
+          client.status = 'end';
+          endHandler?.();
+        }),
+      });
+      const connection = new RedisConnection(client as any, {
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+        disconnectTimeoutMs: 5000,
+      });
+
+      (connection as any).status = 'ready';
+      (connection as any)._client = client;
+      (connection as any).initializing = Promise.resolve(client);
+
+      const start = Date.now();
+      await connection.disconnect();
+      expect(Date.now() - start).toBeLessThan(1000);
+      expect(client.disconnect.calledOnce).toBe(true);
     });
   });
 
@@ -941,6 +1072,41 @@ describe('connection', () => {
 
     worker.on('error', err => {});
     await worker.close();
+  });
+
+  // Regression for https://github.com/taskforcesh/bullmq/issues/4656:
+  // unlike a DNS failure (the 'badhost' case above, which ioredis treats as
+  // terminal), a port that actively refuses connections (ECONNREFUSED) sends
+  // ioredis into an ongoing reconnect loop that never settles. close() used
+  // to hang forever in that case; it must now resolve within a bounded time.
+  it('closes a worker whose connection never became ready (ECONNREFUSED)', async () => {
+    const connection = new IORedis({
+      host: '127.0.0.1',
+      port: 16399, // ordinary port with nothing listening on it
+      maxRetriesPerRequest: null,
+      retryStrategy: () => 100,
+    });
+    connection.on('error', () => {});
+
+    const worker = new Worker('test', async () => {}, {
+      connection,
+      prefix,
+      whenCurrentJobsFinishedTimeout: 200,
+    });
+    worker.on('error', () => {});
+
+    // Give the main loop a chance to actually attempt its first blocking job
+    // fetch against the unreachable connection before closing - that pending
+    // fetch (not just a refused connection attempt) is what used to make
+    // close() hang forever.
+    await delay(300);
+
+    const result = await Promise.race([
+      worker.close().then(() => 'closed'),
+      new Promise(resolve => setTimeout(() => resolve('timeout'), 5000)),
+    ]);
+
+    expect(result).toBe('closed');
   });
 
   it('should close underlying redis connection when closing fast', async () => {
