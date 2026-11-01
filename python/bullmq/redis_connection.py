@@ -12,6 +12,7 @@ import warnings
 import os
 from bullmq.types.connection_options import ConnectionOptions
 from bullmq.utils import isRedisVersionLowerThan, is_redis_cluster, get_cluster_nodes, get_node_client
+from bullmq import __version__ as package_version
 
 basePath = os.path.dirname(os.path.realpath(__file__))
 
@@ -116,8 +117,38 @@ class RedisConnection:
         if blockingTimeout is not None and self.conn is not redisOpts:
             self._ensure_socket_timeout_exceeds(blockingTimeout)
 
+        if self.conn is not redisOpts and not (
+            isinstance(redisOpts, dict)
+            and ("driver_info" in redisOpts or "lib_name" in redisOpts)
+        ):
+            self._add_driver_info()
+
         self.commands = {}
         self.loadCommands()
+
+    def _add_driver_info(self) -> None:
+        """
+        Identify BullMQ to the Redis server through redis-py's client
+        identification (``CLIENT SETINFO``), so BullMQ connections show up as
+        ``redis-py(bullmq_vX.Y.Z)`` in ``CLIENT LIST``. Uses the ``DriverInfo``
+        API on redis-py >= 7.2 and falls back to ``lib_name`` on older
+        versions; ``lib_version`` is left to redis-py's own default. Only
+        clients created by this class are tagged: user-provided client
+        instances, and options that already carry ``driver_info`` or
+        ``lib_name``, are left untouched.
+        """
+        pool = getattr(self.conn, "connection_pool", None)
+        connection_kwargs = getattr(pool, "connection_kwargs", None)
+        if not isinstance(connection_kwargs, dict):
+            return
+        try:
+            from redis.driver_info import DriverInfo
+        except ImportError:
+            connection_kwargs["lib_name"] = f"redis-py(bullmq_v{package_version})"
+            return
+        connection_kwargs["driver_info"] = DriverInfo().add_upstream_driver(
+            "bullmq", package_version
+        )
 
     def _ensure_socket_timeout_exceeds(self, blocking_timeout: float) -> None:
         """
