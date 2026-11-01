@@ -170,7 +170,8 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         # A job fetched while closing must be fully processed before close()
         # returns, never left active with the connection already closed.
         self.assertEqual(started_ids, finished_ids)
-        self.assertNotEqual(await second_job.getState(), "active")
+        self.assertIn(second_job.id, finished_ids)
+        self.assertEqual(await second_job.getState(), "completed")
 
         await queue.close()
 
