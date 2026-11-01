@@ -666,6 +666,10 @@ class Worker(EventEmitter):
                 await asyncio.shield(teardown_task)
                 break
             except asyncio.CancelledError:
+                # A canceled teardown task raises at once on every await;
+                # stop waiting instead of spinning on it.
+                if teardown_task.done():
+                    raise
                 cancelled = True
 
         if cancelled:
@@ -694,6 +698,9 @@ class Worker(EventEmitter):
                         await asyncio.shield(wait_for_processing)
                         break
                     except asyncio.CancelledError:
+                        # Same as in close(): never spin on a canceled wait task.
+                        if wait_for_processing.done():
+                            raise
                         cancelled = True
         self.emit('paused')
 
