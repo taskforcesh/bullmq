@@ -175,6 +175,173 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
 
+    def _count_move_to_active_calls(self, worker: Worker) -> list[int]:
+        calls = [0]
+        original_move_to_active = worker.backend.moveToActive
+
+        async def counting_move_to_active(*args, **kwargs):
+            calls[0] += 1
+            return await original_move_to_active(*args, **kwargs)
+
+        worker.backend.moveToActive = counting_move_to_active
+        return calls
+
+    async def test_fetches_next_job_when_failing_a_job(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        job_count = 5
+        added_jobs = [await queue.add("test", {"idx": i}) for i in range(job_count)]
+
+        async def process(job: Job, token: str):
+            raise Exception("boom")
+
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+        move_to_active_calls = self._count_move_to_active_calls(worker)
+
+        active_ids = []
+        failed_ids = []
+        all_failed = Future()
+
+        def on_failed(job, err):
+            failed_ids.append(job.id)
+            if len(failed_ids) == job_count:
+                all_failed.set_result(None)
+
+        worker.on("active", lambda job, prev: active_ids.append(job.id))
+        worker.on("failed", on_failed)
+
+        asyncio.ensure_future(worker.run())
+        await all_failed
+
+        expected_ids = [job.id for job in added_jobs]
+        self.assertEqual(failed_ids, expected_ids)
+        self.assertEqual(active_ids, expected_ids)
+        # Only the first job (and the final "queue is empty" check) go
+        # through moveToActive; every other job comes back from moveToFinished.
+        self.assertLessEqual(move_to_active_calls[0], 2)
+        for job in added_jobs:
+            self.assertEqual(await queue.getJobState(job.id), "failed")
+
+        await worker.close()
+        await queue.close()
+
+    async def test_fetches_next_job_when_delaying_a_failed_job_for_retry(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        job_count = 3
+        added_jobs = [
+            await queue.add("test", {"idx": i},
+                            {"attempts": 2, "backoff": {"type": "fixed", "delay": 60000}})
+            for i in range(job_count)
+        ]
+
+        async def process(job: Job, token: str):
+            raise Exception("boom")
+
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+        move_to_active_calls = self._count_move_to_active_calls(worker)
+
+        failed_ids = []
+        all_failed = Future()
+
+        def on_failed(job, err):
+            failed_ids.append(job.id)
+            if len(failed_ids) == job_count:
+                all_failed.set_result(None)
+
+        worker.on("failed", on_failed)
+
+        asyncio.ensure_future(worker.run())
+        await all_failed
+
+        self.assertEqual(failed_ids, [job.id for job in added_jobs])
+        # Moving a job to delayed also returns the next job, as in Node.
+        self.assertLessEqual(move_to_active_calls[0], 2)
+        for job in added_jobs:
+            self.assertEqual(await queue.getJobState(job.id), "delayed")
+
+        await worker.close()
+        await queue.close()
+
+    async def test_immediate_retry_still_reprocesses_the_job(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        job = await queue.add("test", {"idx": 0}, {"attempts": 2})
+
+        attempts_seen = []
+
+        async def process(job: Job, token: str):
+            attempts_seen.append(job.attemptsMade)
+            if len(attempts_seen) == 1:
+                raise Exception("first attempt fails")
+            return "done"
+
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+        move_to_active_calls = self._count_move_to_active_calls(worker)
+
+        completed = Future()
+        failed_ids = []
+        worker.on("failed", lambda job, err: failed_ids.append(job.id))
+        worker.on("completed", lambda job, result: completed.set_result(job.id))
+
+        asyncio.ensure_future(worker.run())
+        self.assertEqual(await completed, job.id)
+        # The immediate retry (no backoff) goes back to wait through retryJob,
+        # which never fetches, so the job is picked up again by moveToActive.
+        self.assertGreaterEqual(move_to_active_calls[0], 2)
+        self.assertEqual(failed_ids, [job.id])
+        self.assertEqual(attempts_seen, [0, 1])
+        self.assertEqual(await queue.getJobState(job.id), "completed")
+
+        await worker.close()
+        await queue.close()
+
+    async def test_close_waits_for_job_fetched_while_closing_after_a_failure(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        first_job = await queue.add("test", {"idx": 0})
+        second_job = await queue.add("test", {"idx": 1})
+
+        started_ids = []
+        finished_ids = []
+
+        async def process(job: Job, token: str):
+            started_ids.append(job.id)
+            if job.id == first_job.id:
+                finished_ids.append(job.id)
+                raise Exception("boom")
+            await asyncio.sleep(0.2)
+            finished_ids.append(job.id)
+            return "done"
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        # Hold the first moveToFailed call (which already asked to fetch the
+        # next job) until close() has started.
+        move_to_failed_entered = asyncio.Event()
+        release_move_to_failed = asyncio.Event()
+        original_move_to_failed = worker.backend.moveToFailed
+
+        async def gated_move_to_failed(*args, **kwargs):
+            if not move_to_failed_entered.is_set():
+                move_to_failed_entered.set()
+                await release_move_to_failed.wait()
+            return await original_move_to_failed(*args, **kwargs)
+
+        worker.backend.moveToFailed = gated_move_to_failed
+
+        await move_to_failed_entered.wait()
+        close_task = asyncio.ensure_future(worker.close())
+        while not worker.closing:
+            await asyncio.sleep(0)
+        release_move_to_failed.set()
+        await close_task
+
+        # A job fetched while closing must be fully processed before close()
+        # returns, never left active with the connection already closed.
+        self.assertEqual(started_ids, finished_ids)
+        self.assertIn(second_job.id, finished_ids)
+        self.assertEqual(await queue.getJobState(first_job.id), "failed")
+        self.assertEqual(await second_job.getState(), "completed")
+
+        await queue.close()
+
     async def test_manual_process_jobs(self):
         queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}

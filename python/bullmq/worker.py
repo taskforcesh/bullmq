@@ -428,7 +428,7 @@ class Worker(EventEmitter):
     async def processJob(self, job: Job, token: str):
         """
         Process a job and, while it keeps getting one, the next job that
-        was fetched when moving the previous one to completed.
+        was fetched when moving the previous one to completed or failed.
 
         The chained jobs run in this same task, so the task keeps holding its
         concurrency slot, and close()/pause(), which wait for the tasks in
@@ -442,9 +442,9 @@ class Worker(EventEmitter):
         """
         Process a job and move it to completed or failed.
 
-        When the job completes, the same script call also fetches the next
-        job (as the Node worker does), saving one round trip per job.
-        Returns that job, if any.
+        When the job completes, fails, or is delayed for a retry with
+        backoff, the same script call also fetches the next job (as the Node
+        worker does), saving one round trip per job. Returns that job, if any.
         """
         next_job_data = None
         try:
@@ -485,7 +485,9 @@ class Worker(EventEmitter):
         except Exception as err:
             try:
                 if not self.forceClosing:
-                    await job.moveToFailed(err, token)
+                    next_job_data = await job.moveToFailed(
+                        err, token, fetchNext=self._shouldFetchNextJob()
+                    )
 
                 self.emit("failed", job, err)
             except Exception as err:
@@ -495,7 +497,7 @@ class Worker(EventEmitter):
             self.lockManager.untrack_job(job.id)
 
         # Handled outside the try block so an error here can never move the
-        # job that was just completed to failed.
+        # job that was just completed or failed to failed again.
         if next_job_data:
             next_job = await self.nextJobFromJobData(*next_job_data, token)
             if next_job:
