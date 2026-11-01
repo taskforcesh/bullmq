@@ -1550,6 +1550,8 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         child = await asyncio.create_subprocess_exec(sys.executable, "-c", script, cwd=package_root)
         try:
             returncode = await asyncio.wait_for(child.wait(), timeout=10)
+        except asyncio.TimeoutError:
+            self.fail(f"asyncio.run() did not return while {call} was waiting")
         finally:
             if child.returncode is None:
                 child.kill()
