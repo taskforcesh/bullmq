@@ -804,8 +804,7 @@ class Scripts:
                     "command": 'moveToFinished',
                     "state": 'active'
                     })
-            # 0 means no next job was fetched (fetchNext off, or nothing to
-            # fetch), same as moveToDelayed.
+            # 0 means no next job, as in moveToDelayed.
             if type(result) != int:
                 return raw2NextJobData(result)
         return None

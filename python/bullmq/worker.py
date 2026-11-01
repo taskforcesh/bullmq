@@ -426,26 +426,14 @@ class Worker(EventEmitter):
         )
 
     async def processJob(self, job: Job, token: str):
-        """
-        Process a job and, while it keeps getting one, the next job that
-        was fetched when moving the previous one to completed or failed.
-
-        The chained jobs run in this same task, so the task keeps holding its
-        concurrency slot, and close()/pause(), which wait for the tasks in
-        `self.processing`, also wait for the jobs fetched this way.
-        """
+        # Fetched jobs run in this same task so close()/pause(), which wait on
+        # self.processing, also wait for them.
         next_job = await self._processJobAndFetchNext(job, token)
         while next_job:
             next_job = await self._processJobAndFetchNext(next_job, next_job.token)
 
     async def _processJobAndFetchNext(self, job: Job, token: str) -> Job | None:
-        """
-        Process a job and move it to completed or failed.
-
-        When the job completes, fails, or is delayed for a retry with
-        backoff, the same script call also fetches the next job (as the Node
-        worker does), saving one round trip per job. Returns that job, if any.
-        """
+        """Process a job and return the next job fetched by the same script call, if any."""
         next_job_data = None
         try:
             # Set worker-level remove options on job if not already set
@@ -496,8 +484,7 @@ class Worker(EventEmitter):
             self.jobs.discard((job, token))
             self.lockManager.untrack_job(job.id)
 
-        # Handled outside the try block so an error here can never move the
-        # job that was just completed or failed to failed again.
+        # Outside the try so an error here never moves the finished job to failed.
         if next_job_data:
             next_job = await self.nextJobFromJobData(*next_job_data, token)
             if next_job:
@@ -506,8 +493,7 @@ class Worker(EventEmitter):
         return None
 
     def _shouldFetchNextJob(self) -> bool:
-        # Mirrors the Node worker: only fetch while there is room for another
-        # job and the worker is neither closing nor paused.
+        # Same condition as the Node worker.
         return (
             len(self.processing) <= self.opts.get("concurrency")
             and not (self.closing or self.paused)
