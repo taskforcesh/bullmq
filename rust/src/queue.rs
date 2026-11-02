@@ -2053,6 +2053,8 @@ impl Queue {
             self.keys.meta(),
             self.keys.active(),
             self.keys.marker(),
+            self.keys.prioritized(),
+            self.keys.pc(),
         ];
 
         let count_str = count.to_string();
@@ -2093,6 +2095,8 @@ impl Queue {
             self.keys.meta(),
             self.keys.active(),
             self.keys.marker(),
+            self.keys.prioritized(),
+            self.keys.pc(),
         ];
 
         let count_str = count.to_string();

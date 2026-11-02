@@ -659,7 +659,8 @@ class Scripts:
 
     def moveJobsToWaitArgs(self, state: str, count: int, timestamp: int) -> int:
         keys = self.getKeys(
-            ['', 'events', state, 'wait', 'paused', 'meta', 'active', 'marker'])
+            ['', 'events', state, 'wait', 'paused', 'meta', 'active', 'marker',
+             'prioritized', 'pc'])
 
         args = [count or 1000, timestamp or round(time.time()*1000), state]
         return (keys, args)

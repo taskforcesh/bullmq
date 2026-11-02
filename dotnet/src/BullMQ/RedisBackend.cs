@@ -669,7 +669,7 @@ public sealed class RedisBackend : IQueueBackend
 
     private async Task<long> MoveJobsToWaitAsync(string state, int count, long timestamp)
     {
-        var keys = MapKeys("", "events", state, "wait", "paused", "meta", "active", "marker");
+        var keys = MapKeys("", "events", state, "wait", "paused", "meta", "active", "marker", "prioritized", "pc");
         var args = new RedisValue[] { count > 0 ? count : 1000, timestamp, state };
         var result = await _connection.EvalAsync("moveJobsToWait", keys, args).ConfigureAwait(false);
         return result.Resp2Type == ResultType.Integer ? (long)result : 0;

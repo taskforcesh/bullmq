@@ -1944,6 +1944,8 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       this.queue.keys.meta,
       this.queue.keys.active,
       this.queue.keys.marker,
+      this.queue.keys.prioritized,
+      this.queue.keys.pc,
     ];
 
     const args = [count, timestamp, state];
