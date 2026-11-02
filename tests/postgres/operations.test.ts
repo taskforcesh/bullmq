@@ -316,6 +316,112 @@ describe('PostgreSQL backend operations', () => {
     },
   );
 
+  it('coordinates auto-ID producers with final obliteration', async () => {
+    const backend = newBackend();
+    const blocker = await pool.connect();
+    const producer = await pool.connect();
+    const obliterator = await pool.connect();
+    let adding:
+      | Promise<{ id: string; error?: never } | { error: Error; id?: never }>
+      | undefined;
+    let deleting:
+      | Promise<
+          { code: number; error?: never } | { error: Error; code?: never }
+        >
+      | undefined;
+    try {
+      await backend.waitUntilReady();
+      const queue = `auto-id-obliterate-${randomUUID()}`;
+      const now = Date.now();
+      for (const client of [blocker, producer, obliterator]) {
+        await client.query(`SET search_path TO "${schema}"`);
+        await client.query("SET statement_timeout TO '5s'");
+      }
+      await blocker.query(
+        `SELECT add_job($1, 'winner', 'original', '{}'::jsonb,
+           '{}'::jsonb, 0, 0, $2, 1, NULL, NULL, NULL, 'key', NULL, false)`,
+        [queue, now],
+      );
+      await blocker.query(
+        `INSERT INTO meta(queue, field, value) VALUES ($1, 'paused', '1')`,
+        [queue],
+      );
+
+      const { rows: blockerPid } = await blocker.query<{ pid: number }>(
+        'SELECT pg_backend_pid() AS pid',
+      );
+      const { rows: producerPid } = await producer.query<{ pid: number }>(
+        'SELECT pg_backend_pid() AS pid',
+      );
+      const { rows: obliteratorPid } = await obliterator.query<{
+        pid: number;
+      }>('SELECT pg_backend_pid() AS pid');
+
+      await blocker.query('BEGIN');
+      await blocker.query(
+        "SELECT dedup_id FROM dedup WHERE queue = $1 AND dedup_id = 'key' FOR UPDATE",
+        [queue],
+      );
+      deleting = obliterator
+        .query<{ code: number }>('SELECT obliterate($1, 10, true) AS code', [
+          queue,
+        ])
+        .then(
+          result => ({ code: result.rows[0].code }),
+          (error: Error) => ({ error }),
+        );
+      await vi.waitFor(async () => {
+        const { rows } = await pool.query<{ blockers: number[] }>(
+          'SELECT pg_blocking_pids($1) AS blockers',
+          [obliteratorPid[0].pid],
+        );
+        expect(rows[0].blockers).toContain(blockerPid[0].pid);
+      });
+
+      adding = producer
+        .query<{ id: string }>(
+          `SELECT add_job($1, '', 'incoming', '{}'::jsonb, '{}'::jsonb,
+             0, 0, $2, 1, NULL, NULL, NULL, 'key', NULL, false) AS id`,
+          [queue, now],
+        )
+        .then(
+          result => ({ id: result.rows[0].id }),
+          (error: Error) => ({ error }),
+        );
+      await vi.waitFor(async () => {
+        const { rows } = await pool.query<{ blockers: number[] }>(
+          'SELECT pg_blocking_pids($1) AS blockers',
+          [producerPid[0].pid],
+        );
+        expect(rows[0].blockers).toContain(obliteratorPid[0].pid);
+      });
+
+      await blocker.query('COMMIT');
+      const deleted = await deleting;
+      if (deleted.error) {
+        throw deleted.error;
+      }
+      expect(deleted.code).toBe(0);
+      const added = await adding;
+      if (added.error) {
+        throw added.error;
+      }
+      expect(added.id).toBe('1');
+    } finally {
+      await blocker.query('ROLLBACK');
+      if (deleting) {
+        await deleting;
+      }
+      if (adding) {
+        await adding;
+      }
+      blocker.release();
+      producer.release();
+      obliterator.release();
+      await backend.close();
+    }
+  });
+
   it('allows shared finalizers and coordinates the direct parent queue', async () => {
     const backend = newBackend();
     const finisher = await pool.connect();
