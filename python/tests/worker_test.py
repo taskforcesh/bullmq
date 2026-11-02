@@ -1570,6 +1570,30 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         event loop blocked."""
         await self.assert_asyncio_run_returns_while_waiting("worker.pause()")
 
+    async def test_pause_emits_paused_when_canceled_as_last_job_finishes(self):
+        """Test that pause() still emits 'paused' when its task is canceled in the
+        same loop iteration in which the last in-flight job finishes."""
+        async def process(job: Job, token: str):
+            return None
+
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+        paused = []
+        worker.on("paused", lambda: paused.append(True))
+        job_task = asyncio.get_running_loop().create_future()
+        worker.processing.add(job_task)
+
+        pause_task = asyncio.ensure_future(worker.pause())
+        await asyncio.sleep(0.01)  # give pause() time to reach asyncio.wait(self.processing, ...)
+        job_task.add_done_callback(lambda _: pause_task.cancel())
+        job_task.set_result(None)
+
+        with self.assertRaises(asyncio.CancelledError):
+            await pause_task
+
+        self.assertEqual(paused, [True])
+
+        await worker.close()
+
     async def test_external_run_cancellation_propagates(self):
         """Test that cancelling the run() task from outside (not via pause/close)
         propagates CancelledError correctly and cancels pending fetch/processing tasks."""
