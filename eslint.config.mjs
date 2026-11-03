@@ -67,9 +67,9 @@ export default defineConfig([
     'docs/gitbook/changelog.md',
     'docs/gitbook/bullmq-pro/changelog.md',
   ]),
+  eslintConfigPrettier,
   js.configs.recommended,
   ...typescriptEslintEslintPlugin.configs['flat/recommended'],
-  eslintConfigPrettier,
   {
     plugins: {
       tsdoc,
