@@ -69,3 +69,16 @@ BEGIN
   RETURN QUERY SELECT * FROM add_flow_unlocked(p_entries);
 END;
 $$;
+
+ALTER FUNCTION add_jobs_bulk(text, jsonb) RENAME TO add_jobs_bulk_unlocked;
+
+CREATE FUNCTION add_jobs_bulk(p_queue text, p_entries jsonb) RETURNS SETOF text
+LANGUAGE plpgsql
+SET search_path FROM CURRENT
+AS $$
+BEGIN
+  PERFORM lock_producer_queues(jsonb_build_array(
+    jsonb_build_object('queue', p_queue)));
+  RETURN QUERY SELECT * FROM add_jobs_bulk_unlocked(p_queue, p_entries);
+END;
+$$;
