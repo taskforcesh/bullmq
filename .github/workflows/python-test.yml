@@ -178,3 +178,62 @@ jobs:
           cd python
           export BULLMQ_TEST_PREFIX="{b}"
           pytest -v
+
+  python-postgres:
+    runs-on: ubuntu-latest
+    needs: changes
+
+    name: testing python@${{ matrix.python-version }}, postgres@${{ matrix.postgres-version }}
+
+    env:
+      should_run: ${{ needs.changes.outputs.should_run }}
+
+    strategy:
+      matrix:
+        python-version: ['3.13']
+        postgres-version: [16]
+
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres-version }}-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bullmq_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Skip when python inputs are unchanged
+        if: env.should_run != 'true'
+        run: echo "No python changes detected; skipping steps."
+      - name: Checkout repository
+        if: env.should_run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # No Node build: no Lua is loaded and the editable install reads src/postgres.
+      - name: Set up Python ${{ matrix.python-version }}
+        if: env.should_run == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        if: env.should_run == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "python/[test,postgres]"
+      # Only these suites run: the rest still flushes Redis directly. No custom prefix (rejected).
+      - name: Test with pytest
+        if: env.should_run == 'true'
+        env:
+          BULLMQ_TEST_BACKEND: postgres
+          BULLMQ_PG_URL: host=localhost port=5432 dbname=bullmq_test user=postgres password=postgres
+        run: |
+          cd python
+          pytest -v tests/metrics_test.py tests/postgres_backend_test.py
