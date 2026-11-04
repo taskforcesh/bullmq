@@ -18,6 +18,31 @@ public abstract class QueueTestsBase
     protected static string UniqueName() => $"dotnet-queue-{Guid.NewGuid():N}";
 
     [Fact]
+    public async Task Deduplication_DefaultsAndBulk_PreserveWinningIds()
+    {
+        var options = NewQueueOptions();
+        options.DefaultJobOptions = new() { Deduplication = new() { Id = "default" } };
+        await using var queue = new Queue(UniqueName(), options);
+        try
+        {
+            var first = await queue.AddAsync("original", new { x = 1 });
+            var bulk = await queue.AddBulkAsync(new[]
+            {
+                ("duplicate", (object?)new { x = 2 }, (JobsOptions?)null),
+                ("override", (object?)new { x = 3 }, new JobsOptions { Deduplication = new() { Id = "other" } }),
+            });
+            Assert.Equal(first.Id, bulk[0].Id);
+            Assert.NotEqual(first.Id, bulk[1].Id);
+            Assert.Equal(first.Id, await queue.GetDeduplicationJobIdAsync("default"));
+            Assert.Equal("original", (await queue.GetJobAsync(first.Id!))!.Name);
+            Assert.Equal(1, await queue.RemoveDeduplicationKeyAsync("default"));
+            Assert.Null(await queue.GetDeduplicationJobIdAsync("default"));
+            Assert.Equal("default", options.DefaultJobOptions.Deduplication!.Id);
+        }
+        finally { await queue.ObliterateAsync(force: true); }
+    }
+
+    [Fact]
     public async Task GetJobCounts_ReflectsWaitingAndDelayed()
     {
         var name = UniqueName();

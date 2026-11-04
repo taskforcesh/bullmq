@@ -1,3 +1,38 @@
+# [6.6.0](https://github.com/taskforcesh/bullmq/compare/v6.5.4...v6.6.0) (2026-11-04)
+
+
+### Features
+
+* **deduplication:** support schedule option (python) (elixir) (php) (rust) (dotnet) ([#5048](https://github.com/taskforcesh/bullmq/issues/5048)) ([31b151d](https://github.com/taskforcesh/bullmq/commit/31b151d3236183e3707f178a1b4c79b83f607bdf))
+
+## [6.5.4](https://github.com/taskforcesh/bullmq/compare/v6.5.3...v6.5.4) (2026-11-02)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpackr to v2.1.3 [security] ([#5051](https://github.com/taskforcesh/bullmq/issues/5051)) ([fce8223](https://github.com/taskforcesh/bullmq/commit/fce82231be63f2d31d9e98425fd13884f365f3ec))
+
+## [6.5.3](https://github.com/taskforcesh/bullmq/compare/v6.5.2...v6.5.3) (2026-10-31)
+
+
+### Bug Fixes
+
+* **node-redis:** clear ended status when connect() reopens the client ([#4952](https://github.com/taskforcesh/bullmq/issues/4952)) ([0928d9f](https://github.com/taskforcesh/bullmq/commit/0928d9f53bf8c11b66c156d1a56822f5a9a8acd7))
+
+## [6.5.2](https://github.com/taskforcesh/bullmq/compare/v6.5.1...v6.5.2) (2026-10-30)
+
+
+### Bug Fixes
+
+* **relay:** format exclusive time bounds without precision loss ([#5043](https://github.com/taskforcesh/bullmq/issues/5043)) ([19ae429](https://github.com/taskforcesh/bullmq/commit/19ae4294dc0fd0dfb59bd61a9a62d525d6589b72))
+
+## [6.5.1](https://github.com/taskforcesh/bullmq/compare/v6.5.0...v6.5.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
 # [6.5.0](https://github.com/taskforcesh/bullmq/compare/v6.4.2...v6.5.0) (2026-10-26)
 
 

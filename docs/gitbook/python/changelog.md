@@ -1,3 +1,36 @@
+# [3.5.0](https://github.com/taskforcesh/bullmq/compare/vpy3.4.6...vpy3.5.0) (2026-11-04)
+
+
+### Features
+
+* **deduplication:** support schedule option (python) (elixir) (php) (rust) (dotnet) ([#5048](https://github.com/taskforcesh/bullmq/issues/5048)) ([31b151d](https://github.com/taskforcesh/bullmq/commit/31b151d3236183e3707f178a1b4c79b83f607bdf))
+
+
+### Performance Improvements
+
+* **worker:** fetch next job when moving a job to completed [python] ([#5050](https://github.com/taskforcesh/bullmq/issues/5050)) ([04be3aa](https://github.com/taskforcesh/bullmq/commit/04be3aaf2e6dfb1664d14a7f4efb19fe0b31b6b9))
+
+## [3.4.6](https://github.com/taskforcesh/bullmq/compare/vpy3.4.5...vpy3.4.6) (2026-10-28)
+
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
+## [3.4.5](https://github.com/taskforcesh/bullmq/compare/vpy3.4.4...vpy3.4.5) (2026-10-27)
+
+
+### Bug Fixes
+
+* **worker:** keep blocking connection socket timeout above block timeout [python] ([#4990](https://github.com/taskforcesh/bullmq/issues/4990)) ([d4e749e](https://github.com/taskforcesh/bullmq/commit/d4e749e7b47b510e6677bc25dfeaef9048e0299f))
+
+## [3.4.4](https://github.com/taskforcesh/bullmq/compare/vpy3.4.3...vpy3.4.4) (2026-10-27)
+
+
+### Bug Fixes
+
+* **job:** make changePriority work and read priority from the job hash [python] ([#5022](https://github.com/taskforcesh/bullmq/issues/5022)) ([6dc4745](https://github.com/taskforcesh/bullmq/commit/6dc4745f1121e68dcbc77d5e59fb88d1b17cb5af))
+
 ## [3.4.3](https://github.com/taskforcesh/bullmq/compare/vpy3.4.2...vpy3.4.3) (2026-10-20)
 
 

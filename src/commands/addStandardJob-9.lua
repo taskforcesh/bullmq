@@ -35,6 +35,7 @@
             [7]  parent? {id, queueKey}
             [8]  repeat job key
             [9] deduplication key
+            [10] defer parent release (flow inserts)
 
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -61,6 +62,7 @@ local parentKey = args[5]
 local parent = args[7]
 local repeatJobKey = args[8]
 local deduplicationKey = args[9]
+local deferParentRelease = args[10]
 local parentData
 
 -- Includes
@@ -92,13 +94,13 @@ else
     if rcall("EXISTS", jobIdKey) == 1 then
         return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
             parentData, parentDependenciesKey, KEYS[5], eventsKey,
-            maxEvents, timestamp)
+            maxEvents, timestamp, deferParentRelease)
     end
 end
 
 local deduplicationJobId = deduplicateJob(opts['de'], jobId, KEYS[6],
   deduplicationKey, eventsKey, maxEvents, args[1], args[3], ARGV[2], opts,
-  parentKey, parentData, parentDependenciesKey, repeatJobKey)
+  parentKey, parentData, parentDependenciesKey, repeatJobKey, timestamp)
 if deduplicationJobId then
   return deduplicationJobId
 end

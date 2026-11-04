@@ -5,19 +5,9 @@ import prettier from 'eslint-plugin-prettier';
 import typescriptEslintEslintPlugin from '@typescript-eslint/eslint-plugin';
 import globals from 'globals';
 import tsParser from '@typescript-eslint/parser';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
-import { FlatCompat } from '@eslint/eslintrc';
+import eslintConfigPrettier from 'eslint-config-prettier/flat';
 import { builtinModules } from 'node:module';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  recommendedConfig: js.configs.recommended,
-  allConfig: js.configs.all,
-});
 
 const bareBuiltinModules = builtinModules.filter(
   m => !m.startsWith('_') && !m.includes(':'),
@@ -57,6 +47,7 @@ export default defineConfig([
     // Generated at build time by scripts/generateSqlScripts.js (inlined SQL).
     'src/postgres/sql-scripts.ts',
     'dist',
+    'elixir/deps',
     'php/vendor',
     'rust/target',
     '**/npm-debug.log*',
@@ -76,14 +67,10 @@ export default defineConfig([
     'docs/gitbook/changelog.md',
     'docs/gitbook/bullmq-pro/changelog.md',
   ]),
+  eslintConfigPrettier,
+  js.configs.recommended,
+  ...typescriptEslintEslintPlugin.configs['flat/recommended'],
   {
-    extends: compat.extends(
-      'prettier',
-      'eslint:recommended',
-      'plugin:@typescript-eslint/eslint-recommended',
-      'plugin:@typescript-eslint/recommended',
-    ),
-
     plugins: {
       tsdoc,
       promise,

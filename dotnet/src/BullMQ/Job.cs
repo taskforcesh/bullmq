@@ -86,6 +86,7 @@ public class Job
         Delay = opts.Delay ?? 0;
         Priority = opts.Priority ?? 0;
         Attempts = opts.Attempts ?? 0;
+        DeduplicationId = opts.Deduplication?.Id;
     }
 
     /// <summary>Creates a job and adds it to the queue via the backend.</summary>
@@ -120,6 +121,7 @@ public class Job
             RepeatJobKey = raw.RepeatJobKey,
             ParentKey = raw.ParentKey,
             DeferredFailure = raw.DeferredFailure,
+            DeduplicationId = raw.DeduplicationId ?? opts.Deduplication?.Id,
         };
 
         if (!string.IsNullOrEmpty(raw.Progress))
@@ -151,6 +153,11 @@ public class Job
 
     /// <summary>Returns the current state of this job.</summary>
     public Task<JobState> GetStateAsync() => _backend.GetStateAsync(Id!);
+
+    /// <summary>Removes the deduplication key only if this job still owns it.</summary>
+    public async Task<bool> RemoveDeduplicationKeyAsync() =>
+        DeduplicationId is not null &&
+        await _backend.RemoveDeduplicationKeyAsync(DeduplicationId, Id!).ConfigureAwait(false) > 0;
 
     /// <summary>Appends a row to this job's log. Returns the total log count.</summary>
     public Task<long> LogAsync(string logRow) =>
@@ -316,6 +323,21 @@ public class Job
 
         using var doc = JsonDocument.Parse(optsJson);
         var root = doc.RootElement;
+
+        if (root.TryGetProperty("deduplication", out var dedup) ||
+            root.TryGetProperty("de", out dedup))
+        {
+            opts.Deduplication = new DeduplicationOptions
+            {
+                Id = dedup.GetProperty("id").GetString()
+                    ?? throw new JsonException("Deduplication id must be a string"),
+                Ttl = dedup.TryGetProperty("ttl", out var ttl) ? ttl.GetInt64() : null,
+                Extend = dedup.TryGetProperty("extend", out var extend) ? extend.GetBoolean() : null,
+                Replace = dedup.TryGetProperty("replace", out var replace) ? replace.GetBoolean() : null,
+                Reschedule = dedup.TryGetProperty("reschedule", out var reschedule) ? reschedule.GetBoolean() : null,
+                KeepLastIfActive = dedup.TryGetProperty("keepLastIfActive", out var keepLast) ? keepLast.GetBoolean() : null,
+            };
+        }
 
         if (root.TryGetProperty("attempts", out var attempts) &&
             attempts.TryGetInt32(out var a))

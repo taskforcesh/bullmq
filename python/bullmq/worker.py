@@ -426,6 +426,15 @@ class Worker(EventEmitter):
         )
 
     async def processJob(self, job: Job, token: str):
+        # Fetched jobs run in this same task so close()/pause(), which wait on
+        # self.processing, also wait for them.
+        next_job = await self._processJobAndFetchNext(job, token)
+        while next_job:
+            next_job = await self._processJobAndFetchNext(next_job, next_job.token)
+
+    async def _processJobAndFetchNext(self, job: Job, token: str) -> Job | None:
+        """Process a job and return the next job fetched by the same script call, if any."""
+        next_job_data = None
         try:
             # Set worker-level remove options on job if not already set
             if "removeOnComplete" not in job.opts and "removeOnComplete" in self.opts:
@@ -451,7 +460,11 @@ class Worker(EventEmitter):
             else:
                 result = await self.processor(job, token)
             if not self.forceClosing:
-                await self.backend.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetch_next=False)
+                move_result = await self.backend.moveToCompleted(
+                    job, result, job.opts.get("removeOnComplete", False), token,
+                    fetch_next=self._shouldFetchNextJob(),
+                )
+                next_job_data = move_result["result"]
                 job.returnvalue = result
                 job.attemptsMade = job.attemptsMade + 1
             self.emit("completed", job, result)
@@ -460,7 +473,9 @@ class Worker(EventEmitter):
         except Exception as err:
             try:
                 if not self.forceClosing:
-                    await job.moveToFailed(err, token)
+                    next_job_data = await job.moveToFailed(
+                        err, token, fetchNext=self._shouldFetchNextJob()
+                    )
 
                 self.emit("failed", job, err)
             except Exception as err:
@@ -468,6 +483,21 @@ class Worker(EventEmitter):
         finally:
             self.jobs.discard((job, token))
             self.lockManager.untrack_job(job.id)
+
+        # Outside the try so an error here never moves the finished job to failed.
+        if next_job_data:
+            next_job = await self.nextJobFromJobData(*next_job_data, token)
+            if next_job:
+                self.emit("active", next_job, "waiting")
+            return next_job
+        return None
+
+    def _shouldFetchNextJob(self) -> bool:
+        # Same condition as the Node worker.
+        return (
+            len(self.processing) <= self.opts.get("concurrency")
+            and not (self.closing or self.paused)
+        )
 
     async def retryIfFailed(self, fn, opts=None):
         """

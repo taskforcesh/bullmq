@@ -1039,6 +1039,12 @@ pub struct DeduplicationOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub replace: Option<bool>,
 
+    /// Apply the incoming delay only while the existing job is delayed,
+    /// preserving its ID and data. An omitted delay is zero.
+    /// Independent of `extend`; ignored when `replace` is true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reschedule: Option<bool>,
+
     /// If true, store new job data when the deduplicated job is active,
     /// and create a new job automatically when the active one finishes.
     #[serde(skip_serializing_if = "Option::is_none")]

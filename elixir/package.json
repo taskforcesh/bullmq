@@ -8,6 +8,7 @@
     "elixir"
   ],
   "scripts": {
+    "format": "mix format",
     "semantic-release": "semantic-release",
     "semantic-release:debug": "semantic-release --no-ci --dry-run --debug"
   },

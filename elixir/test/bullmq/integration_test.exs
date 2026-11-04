@@ -471,6 +471,87 @@ defmodule BullMQ.IntegrationTest do
     end
 
     @tag :integration
+    test "extend_locks extends every lock and clears the jobs from the stalled set", %{conn: conn} do
+      queue_name = "test-script-locks-#{System.unique_integer([:positive])}"
+      ctx = Keys.context(@test_prefix, queue_name)
+      job_ids = ["locks-job-1", "locks-job-2"]
+      tokens = ["locks-token-1", "locks-token-2"]
+
+      for {job_id, token} <- Enum.zip(job_ids, tokens) do
+        {:ok, _} = Redix.command(conn, ["SET", Keys.lock(ctx, job_id), token, "PX", 1000])
+      end
+
+      {:ok, _} = Redix.command(conn, ["SADD", Keys.stalled(ctx) | job_ids])
+
+      assert {:ok, []} = Scripts.extend_locks(conn, ctx, job_ids, tokens, 30_000)
+
+      for job_id <- job_ids do
+        {:ok, ttl} = Redix.command(conn, ["PTTL", Keys.lock(ctx, job_id)])
+        assert ttl > 1000
+      end
+
+      assert {:ok, []} = Redix.command(conn, ["SMEMBERS", Keys.stalled(ctx)])
+    end
+
+    @tag :integration
+    test "drain removes the jobs' hashes and keeps job schedulers' delayed jobs", %{conn: conn} do
+      queue_name = "test-script-drain-#{System.unique_integer([:positive])}"
+      ctx = Keys.context(@test_prefix, queue_name)
+      job_id = "drain-job"
+      delayed_id = "drain-delayed-job"
+      scheduled_id = "repeat:drain-scheduler:1000"
+
+      # A queue that has run prioritized jobs holds its priority counter as a string.
+      {:ok, _} = Redix.command(conn, ["SET", Keys.pc(ctx), "3"])
+      {:ok, _} = Redix.command(conn, ["ZADD", Keys.repeat(ctx), "1000", "drain-scheduler"])
+
+      for id <- [job_id, delayed_id, scheduled_id] do
+        {:ok, _} = Redix.command(conn, ["HSET", Keys.job(ctx, id), "name", id])
+      end
+
+      {:ok, _} = Redix.command(conn, ["RPUSH", Keys.wait(ctx), job_id])
+
+      {:ok, _} =
+        Redix.command(conn, ["ZADD", Keys.delayed(ctx), "1", delayed_id, "2", scheduled_id])
+
+      assert {:ok, _} = Scripts.drain(conn, ctx, true)
+
+      assert {:ok, 0} = Redix.command(conn, ["EXISTS", Keys.wait(ctx)])
+      assert {:ok, 0} = Redix.command(conn, ["EXISTS", Keys.job(ctx, job_id)])
+      assert {:ok, 0} = Redix.command(conn, ["EXISTS", Keys.job(ctx, delayed_id)])
+      assert {:ok, [^scheduled_id]} = Redix.command(conn, ["ZRANGE", Keys.delayed(ctx), "0", "-1"])
+      assert {:ok, 1} = Redix.command(conn, ["EXISTS", Keys.job(ctx, scheduled_id)])
+    end
+
+    @tag :integration
+    test "promote moves a delayed job to the queue its priority selects", %{conn: conn} do
+      queue_name = "test-script-promote-#{System.unique_integer([:positive])}"
+      ctx = Keys.context(@test_prefix, queue_name)
+
+      for {job_id, priority} <- [{"plain-job", "0"}, {"priority-job", "5"}] do
+        {:ok, _} =
+          Redix.command(conn, [
+            "HSET",
+            Keys.job(ctx, job_id),
+            "priority",
+            priority,
+            "delay",
+            "60000"
+          ])
+
+        {:ok, _} = Redix.command(conn, ["ZADD", Keys.delayed(ctx), "9999999999999", job_id])
+
+        assert {:ok, 0} = Scripts.promote(conn, ctx, job_id)
+      end
+
+      assert {:ok, 0} = Redix.command(conn, ["ZCARD", Keys.delayed(ctx)])
+      assert {:ok, ["plain-job"]} = Redix.command(conn, ["LRANGE", Keys.wait(ctx), "0", "-1"])
+
+      assert {:ok, ["priority-job"]} =
+               Redix.command(conn, ["ZRANGE", Keys.prioritized(ctx), "0", "-1"])
+    end
+
+    @tag :integration
     test "pause script works", %{conn: conn} do
       queue_name = "test-script-pause-#{System.unique_integer([:positive])}"
       ctx = Keys.context(@test_prefix, queue_name)

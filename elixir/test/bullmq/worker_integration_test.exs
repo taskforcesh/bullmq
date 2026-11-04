@@ -2817,7 +2817,13 @@ defmodule BullMQ.WorkerIntegrationTest do
           processor: fn job ->
             send(test_pid, {:processing, job.id})
 
-            # Keep the job active long enough for its lock to expire.
+            # Drop the lock, as a crashed worker would, so renewal fails and the job stalls.
+            {:ok, _} =
+              BullMQ.RedisConnection.command(conn, [
+                "DEL",
+                Keys.lock(Keys.context(@test_prefix, queue_name), job.id)
+              ])
+
             Process.sleep(2_000)
 
             :ok
@@ -2894,7 +2900,13 @@ defmodule BullMQ.WorkerIntegrationTest do
 
                   send(test_pid, {:stalled_processing, job.id})
 
-                  # Let the lock expire.
+                  # Drop the lock, as a crashed worker would, so renewal fails and the job stalls.
+                  {:ok, _} =
+                    BullMQ.RedisConnection.command(conn, [
+                      "DEL",
+                      Keys.lock(Keys.context(@test_prefix, queue_name), job.id)
+                    ])
+
                   Process.sleep(2_000)
                 end
 

@@ -677,6 +677,9 @@ impl Queue {
         if dedup.replace.is_some() {
             count += 1;
         }
+        if dedup.reschedule.is_some() {
+            count += 1;
+        }
         if dedup.keep_last_if_active.is_some() {
             count += 1;
         }
@@ -696,6 +699,10 @@ impl Queue {
         if let Some(replace) = dedup.replace {
             write_str(&mut b, "replace").unwrap();
             write_bool(&mut b, replace).unwrap();
+        }
+        if let Some(reschedule) = dedup.reschedule {
+            write_str(&mut b, "reschedule").unwrap();
+            write_bool(&mut b, reschedule).unwrap();
         }
         if let Some(keep_last) = dedup.keep_last_if_active {
             write_str(&mut b, "keepLastIfActive").unwrap();

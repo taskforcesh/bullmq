@@ -4,10 +4,10 @@ description: BullMQ PHP client for adding jobs to queues.
 
 # Introduction
 
-The PHP package provides a **Queue client** that allows you to add jobs to BullMQ queues from your PHP applications. These jobs can then be processed by workers written in Node.js, Python, or Elixir.
+The PHP package provides a **Queue client** that allows you to add jobs to BullMQ queues from your PHP applications. These jobs can then be processed by workers written in any of the other BullMQ SDKs: Node.js, Python, Elixir, .NET or Rust.
 
 {% hint style="info" %}
-The PHP package only implements the Queue class (producer side). Workers are not included as PHP's execution model is not well-suited for long-running worker processes. Use Node.js, Python, or Elixir workers to process the jobs.
+The PHP package only implements the Queue class (producer side). Workers are not included as PHP's execution model is not well-suited for long-running worker processes. Use Node.js, Python, Elixir, .NET or Rust workers to process the jobs.
 {% endhint %}
 
 ### Installation
@@ -172,6 +172,8 @@ Jobs added with the PHP client are fully compatible with BullMQ workers in:
 - **Node.js** - Using the official [BullMQ](https://www.npmjs.com/package/bullmq) package
 - **Python** - Using the [BullMQ Python](https://pypi.org/project/bullmq/) package
 - **Elixir** - Using the [BullMQ Elixir](https://hex.pm/packages/bullmq) package
+- **.NET** - Using the [BullMQ .NET](https://www.nuget.org/packages/BullMQ) package
+- **Rust** - Using the [BullMQ Rust](https://crates.io/crates/bullmq-official) crate
 
 Example Node.js worker that processes jobs added from PHP:
 
@@ -231,7 +233,7 @@ $counts = $queue->getCountsPerPriority([0, 1, 2, 3]);
 ```
 
 {% hint style="warning" %}
-**Note on Job Schedulers**: Repeatable/scheduled jobs (cron patterns) should be created from the Node.js side using `JobScheduler`. The PHP client is designed for adding individual jobs, not managing schedulers.
+**Note on Job Schedulers**: Repeatable/scheduled jobs (cron patterns) should be created with one of the SDKs that support job schedulers, such as Node.js, Python, Elixir, .NET or Rust. The PHP client is designed for adding individual jobs, not managing schedulers.
 {% endhint %}
 
 ### More Information

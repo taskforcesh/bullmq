@@ -1,3 +1,17 @@
+# [1.5.0](https://github.com/taskforcesh/bullmq/compare/vrs1.4.4...vrs1.5.0) (2026-11-04)
+
+
+### Features
+
+* **deduplication:** support schedule option (python) (elixir) (php) (rust) (dotnet) ([#5048](https://github.com/taskforcesh/bullmq/issues/5048)) ([31b151d](https://github.com/taskforcesh/bullmq/commit/31b151d3236183e3707f178a1b4c79b83f607bdf))
+
+## [1.4.4](https://github.com/taskforcesh/bullmq/compare/vrs1.4.3...vrs1.4.4) (2026-10-28)
+
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
 ## [1.4.3](https://github.com/taskforcesh/bullmq/compare/vrs1.4.2...vrs1.4.3) (2026-10-23)
 
 
