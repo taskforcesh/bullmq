@@ -1399,7 +1399,10 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     return await this.execCommand(client, 'getJobs', args);
   }
 
-  private getCountsArgs(types: JobType[]): (string | number)[] {
+  private getCountsArgs(
+    types: JobType[],
+    delayedTimestamp?: number,
+  ): (string | number)[] {
     const queueKeys = this.queue.keys;
     const transformedTypes = types.map(type => {
       return type === 'waiting' ? 'wait' : type;
@@ -1407,14 +1410,20 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
 
     const keys: (string | number)[] = [queueKeys['']];
 
-    const args = [...transformedTypes];
+    const args: (string | number)[] =
+      delayedTimestamp === undefined
+        ? transformedTypes
+        : [delayedTimestamp, ...transformedTypes];
 
     return keys.concat(args);
   }
 
-  async getCounts(types: JobType[]): Promise<number[]> {
+  async getCounts(
+    types: JobType[],
+    delayedTimestamp?: number,
+  ): Promise<number[]> {
     const client = await this.queue.client;
-    const args = this.getCountsArgs(types);
+    const args = this.getCountsArgs(types, delayedTimestamp);
 
     return await this.execCommand(client, 'getCounts', args);
   }
