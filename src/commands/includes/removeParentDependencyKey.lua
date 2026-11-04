@@ -5,23 +5,19 @@
 ]]
 
 -- Includes
---- @include "addJobInTargetList"
 --- @include "destructureJobKey"
---- @include "isQueuePausedOrMaxed"
+--- @include "moveParentToWait"
 --- @include "removeJobKeys"
 
-local function _moveParentToWait(parentPrefix, parentId, emitEvent)
-  local isPausedOrMaxed =
-    isQueuePausedOrMaxed(parentPrefix .. "meta", parentPrefix .. "active")
-  addJobInTargetList(parentPrefix .. "wait", parentPrefix .. "marker", "RPUSH", isPausedOrMaxed, parentId)
-
-  if emitEvent then
-    local parentEventStream = parentPrefix .. "events"
-    rcall("XADD", parentEventStream, "*", "event", "waiting", "jobId", parentId, "prev", "waiting-children")
-  end
+local function _moveParentToWait(parentKey, parentId, timestamp, emitEvent)
+  -- Same as when the last child completes, so the parent keeps its priority
+  -- and delay. Callers that don't know the current time can't delay the
+  -- parent, so it becomes due right away.
+  local parentQueueKey = string.sub(parentKey, 1, #parentKey - #parentId - 1)
+  moveParentToWait(parentQueueKey, parentKey, parentId, timestamp or 0, not emitEvent)
 end
 
-local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debounceId)
+local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debounceId, timestamp)
   if parentKey then
     local parentDependenciesKey = parentKey .. ":dependencies"
     local result = rcall("SREM", parentDependenciesKey, jobKey)
@@ -36,16 +32,16 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debou
         if numRemovedElements == 1 then
           if hard then -- remove parent in same queue
             if parentPrefix == baseKey then
-              removeParentDependencyKey(parentKey, hard, nil, baseKey, nil)
+              removeParentDependencyKey(parentKey, hard, nil, baseKey, nil, timestamp)
               removeJobKeys(parentKey)
               if debounceId then
                 rcall("DEL", parentPrefix .. "de:" .. debounceId)
               end
             else
-              _moveParentToWait(parentPrefix, parentId)
+              _moveParentToWait(parentKey, parentId, timestamp)
             end
           else
-            _moveParentToWait(parentPrefix, parentId, true)
+            _moveParentToWait(parentKey, parentId, timestamp, true)
           end
         end
       end
@@ -69,16 +65,16 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debou
           if numRemovedElements == 1 then
             if hard then
               if parentPrefix == baseKey then
-                removeParentDependencyKey(missedParentKey, hard, nil, baseKey, nil)
+                removeParentDependencyKey(missedParentKey, hard, nil, baseKey, nil, timestamp)
                 removeJobKeys(missedParentKey)
                 if parentAttributes[2] then
                   rcall("DEL", parentPrefix .. "de:" .. parentAttributes[2])
                 end
               else
-                _moveParentToWait(parentPrefix, parentId)
+                _moveParentToWait(missedParentKey, parentId, timestamp)
               end
             else
-              _moveParentToWait(parentPrefix, parentId, true)
+              _moveParentToWait(missedParentKey, parentId, timestamp, true)
             end
           end
         end

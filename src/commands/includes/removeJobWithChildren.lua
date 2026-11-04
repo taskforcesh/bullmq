@@ -77,7 +77,7 @@ removeJobWithChildren = function(prefix, jobId, parentKey, options)
     -- Check if job is in the failed zset
     local failedSet = prefix .. "failed"
     if not (options.ignoreProcessed and rcall("ZSCORE", failedSet, jobId)) then
-        removeParentDependencyKey(jobKey, false, parentKey, nil)
+        removeParentDependencyKey(jobKey, false, parentKey, nil, nil, options.timestamp)
 
         if options.removeChildren then
             removeJobChildren(prefix, jobKey, options)
