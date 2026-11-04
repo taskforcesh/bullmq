@@ -6,6 +6,7 @@ const CHILD_KILL_TIMEOUT = 30_000;
 
 interface ChildPoolOpts extends SandboxedOptions {
   mainFile?: string;
+  idleTimeout?: number;
 }
 
 const supportCJS = () => {
@@ -20,6 +21,8 @@ export class ChildPool {
   retained: { [key: number]: Child } = {};
   free: { [key: string]: Child[] } = {};
   private opts: ChildPoolOpts;
+  private idleTimers = new Map<Child, NodeJS.Timeout>();
+  private idleKills = new Set<Promise<void>>();
 
   constructor({
     mainFile = supportCJS()
@@ -28,12 +31,24 @@ export class ChildPool {
     useWorkerThreads,
     workerForkOptions,
     workerThreadsOptions,
+    idleTimeout = 0,
   }: ChildPoolOpts) {
+    if (
+      !Number.isInteger(idleTimeout) ||
+      idleTimeout < 0 ||
+      idleTimeout > 2_147_483_647
+    ) {
+      throw new Error(
+        'idleTimeout must be an integer between 0 and 2147483647',
+      );
+    }
+
     this.opts = {
       mainFile,
       useWorkerThreads,
       workerForkOptions,
       workerThreadsOptions,
+      idleTimeout,
     };
   }
 
@@ -41,6 +56,7 @@ export class ChildPool {
     let child = this.getFree(processFile).pop();
 
     if (child) {
+      this.clearIdleTimer(child);
       this.retained[child.pid] = child;
       return child;
     }
@@ -90,9 +106,26 @@ export class ChildPool {
   release(child: Child): void {
     delete this.retained[child.pid];
     this.getFree(child.processFile).push(child);
+
+    if (this.opts.idleTimeout) {
+      this.clearIdleTimer(child);
+      const timer = setTimeout(() => {
+        // kill removes the child from the free pool before awaiting its exit,
+        // so a new job cannot retain a child that is shutting down.
+        const killing = this.kill(child, 'SIGTERM')
+          .catch(err => {
+            console.error('Failed to kill idle child:', err);
+          })
+          .finally(() => this.idleKills.delete(killing));
+        this.idleKills.add(killing);
+      }, this.opts.idleTimeout);
+      timer.unref();
+      this.idleTimers.set(child, timer);
+    }
   }
 
   remove(child: Child): void {
+    this.clearIdleTimer(child);
     delete this.retained[child.pid];
 
     const free = this.getFree(child.processFile);
@@ -116,7 +149,18 @@ export class ChildPool {
     this.retained = {};
     this.free = {};
 
-    await Promise.all(children.map(c => this.kill(c, 'SIGTERM')));
+    await Promise.all([
+      ...this.idleKills,
+      ...children.map(c => this.kill(c, 'SIGTERM')),
+    ]);
+  }
+
+  private clearIdleTimer(child: Child): void {
+    const timer = this.idleTimers.get(child);
+    if (timer) {
+      clearTimeout(timer);
+      this.idleTimers.delete(child);
+    }
   }
 
   getFree(id: string): Child[] {
