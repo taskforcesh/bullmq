@@ -830,6 +830,50 @@ function sandboxProcessTests(
       await worker.close();
     });
 
+    it('should await persisted data before continuing in a sandbox', async () => {
+      const worker = new Worker(
+        queueName,
+        __dirname + '/fixtures/fixture_processor_update_data_await.js',
+        { connection, prefix, useWorkerThreads },
+      );
+
+      try {
+        const job = await queue.add('test', { operation: 'persist' });
+        expect(await job.waitUntilFinished(queueEvents)).toEqual({
+          persisted: { updated: true },
+          local: { updated: true },
+        });
+      } finally {
+        await worker.close();
+      }
+    });
+
+    it('should return persistence errors to a sandboxed updateData caller', async () => {
+      const worker = new Worker(
+        queueName,
+        __dirname + '/fixtures/fixture_processor_update_data_await.js',
+        {
+          connection,
+          prefix,
+          useWorkerThreads,
+          workerForkOptions: { serialization: 'advanced' },
+        },
+      );
+
+      try {
+        const job = await queue.add('test', { operation: 'reject' });
+        expect(await job.waitUntilFinished(queueEvents)).toEqual({
+          rejected: true,
+          localType: 'bigint',
+        });
+        expect((await queue.getJob(job.id!))!.data).toEqual({
+          operation: 'reject',
+        });
+      } finally {
+        await worker.close();
+      }
+    });
+
     it('should process steps and complete', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_steps.js';
 
