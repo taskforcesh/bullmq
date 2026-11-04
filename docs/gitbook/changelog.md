@@ -1,3 +1,10 @@
+# [6.7.0](https://github.com/taskforcesh/bullmq/compare/v6.6.1...v6.7.0) (2026-11-04)
+
+
+### Features
+
+* **queue:** count delayed jobs before a timestamp ([#5026](https://github.com/taskforcesh/bullmq/issues/5026)) ([304edc3](https://github.com/taskforcesh/bullmq/commit/304edc32066f13f4bd943ce83299b09d7e202ae8))
+
 # [6.6.0](https://github.com/taskforcesh/bullmq/compare/v6.5.4...v6.6.0) (2026-11-04)
 
 
