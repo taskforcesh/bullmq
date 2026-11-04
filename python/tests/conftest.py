@@ -46,6 +46,8 @@ _REDIS_ONLY_TESTS = {
     "test_trim_events_manually_with_custom_prefix",
     "test_drain_count_added_unprocessed_jobs",
     "test_obliterate_with_force_true_should_succeed_with_active_jobs",
+    "test_change_delay_of_delayed_job",
+    "test_change_delay_of_job_that_is_not_delayed",
 }
 
 

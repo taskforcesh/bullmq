@@ -330,6 +330,9 @@ class RedisBackend(Backend):
     async def updateProgress(self, job_id: str, progress: Any) -> Any:
         return await self.scripts.updateProgress(job_id, progress)
 
+    async def changeDelay(self, job_id: str, delay: int) -> Any:
+        return await self.scripts.changeDelay(job_id, delay)
+
     async def changePriority(
         self, job_id: str, priority: int = 0, lifo: bool = False
     ) -> Any:
