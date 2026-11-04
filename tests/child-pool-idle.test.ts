@@ -1,5 +1,7 @@
 import { once } from 'node:events';
+import { execFile } from 'node:child_process';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ChildPool } from '../src/classes/child-pool';
 
@@ -155,4 +157,39 @@ describe('Child pool idle timeout validation', () => {
       );
     },
   );
+});
+
+it('keeps the first worker thread retained when an idle thread exits', async () => {
+  // A fresh Node process guarantees that the retained thread has ID 1.
+  // After an idle thread exits, Node reports its threadId as -1 and Child.pid
+  // therefore becomes 1. Removing it must not remove the retained thread.
+  const script = `
+    const { ChildPool } = require('./dist/cjs/classes/child-pool');
+    const { once } = require('node:events');
+    const { resolve } = require('node:path');
+    (async () => {
+      const pool = new ChildPool({
+        mainFile: resolve('dist/cjs/classes/main-worker.js'),
+        useWorkerThreads: true,
+        idleTimeout: 20,
+      });
+      const processor = resolve('tests/fixtures/fixture_processor_bar.js');
+      const retained = await pool.retain(processor);
+      const idle = await pool.retain(processor);
+      try {
+        const exited = once(idle, 'exit');
+        pool.release(idle);
+        await exited;
+        console.log(pool.retained[retained.pid] === retained);
+      } finally {
+        await pool.clean();
+        await retained.kill();
+      }
+    })().catch(err => { console.error(err); process.exitCode = 1; });
+  `;
+  const { stdout } = await promisify(execFile)(process.execPath, [
+    '-e',
+    script,
+  ]);
+  expect(stdout.trim()).toBe('true');
 });

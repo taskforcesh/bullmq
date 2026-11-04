@@ -126,7 +126,11 @@ export class ChildPool {
 
   remove(child: Child): void {
     this.clearIdleTimer(child);
-    delete this.retained[child.pid];
+    // A stopped worker thread has threadId -1, which Child.pid maps to 1.
+    // Do not remove another retained child whose ID happens to match.
+    if (this.retained[child.pid] === child) {
+      delete this.retained[child.pid];
+    }
 
     const free = this.getFree(child.processFile);
 
