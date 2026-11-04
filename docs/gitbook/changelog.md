@@ -1,3 +1,10 @@
+# [6.6.0](https://github.com/taskforcesh/bullmq/compare/v6.5.4...v6.6.0) (2026-11-04)
+
+
+### Features
+
+* **deduplication:** support schedule option (python) (elixir) (php) (rust) (dotnet) ([#5048](https://github.com/taskforcesh/bullmq/issues/5048)) ([31b151d](https://github.com/taskforcesh/bullmq/commit/31b151d3236183e3707f178a1b4c79b83f607bdf))
+
 ## [6.5.4](https://github.com/taskforcesh/bullmq/compare/v6.5.3...v6.5.4) (2026-11-02)
 
 
