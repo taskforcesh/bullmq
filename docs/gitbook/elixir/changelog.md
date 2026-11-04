@@ -1,3 +1,10 @@
+# [2.4.0](https://github.com/taskforcesh/bullmq/compare/vex2.3.5...vex2.4.0) (2026-11-04)
+
+
+### Features
+
+* **deduplication:** support schedule option (python) (elixir) (php) (rust) (dotnet) ([#5048](https://github.com/taskforcesh/bullmq/issues/5048)) ([31b151d](https://github.com/taskforcesh/bullmq/commit/31b151d3236183e3707f178a1b4c79b83f607bdf))
+
 ## [2.3.5](https://github.com/taskforcesh/bullmq/compare/vex2.3.4...vex2.3.5) (2026-10-30)
 
 
