@@ -649,14 +649,10 @@ defmodule BullMQ.Scripts do
     timestamp = get_job_timestamp(job) || System.system_time(:millisecond)
     job_id = get_job_id(job)
     job_name = get_job_name(job)
-    delay = get_job_delay(job)
     {parent_key, parent_deps_key, parent} = get_parent_info_full(job)
     repeat_job_key = get_repeat_job_key(job)
     deduplication_key = get_deduplication_key(job, ctx)
     defer_parent_release = Map.get(opts, :defer_parent_release, false)
-
-    # For delayed jobs, the timestamp should include the delay
-    delayed_timestamp = timestamp + delay
 
     # ARGV[1] msgpacked arguments array
     packed_args =
@@ -668,8 +664,8 @@ defmodule BullMQ.Scripts do
           job_id || "",
           # [3] name
           job_name,
-          # [4] delayed timestamp
-          delayed_timestamp,
+          # [4] timestamp (the Lua script adds the delay)
+          timestamp,
           # [5] parentKey?
           parent_key,
           # [6] parent dependencies key
@@ -1390,7 +1386,7 @@ defmodule BullMQ.Scripts do
 
     # Pack job_ids and tokens using msgpack for the Lua script
     args = [
-      Keys.key(ctx),
+      Keys.key_prefix(ctx),
       Msgpax.pack!(tokens, iodata: false),
       Msgpax.pack!(job_ids, iodata: false),
       duration
@@ -1515,12 +1511,12 @@ defmodule BullMQ.Scripts do
       Keys.paused(ctx),
       Keys.delayed(ctx),
       Keys.prioritized(ctx),
-      Keys.pc(ctx)
+      Keys.repeat(ctx)
     ]
 
     args = [
       # ARGV[1] prefix:queueName
-      Keys.key(ctx),
+      Keys.key_prefix(ctx),
       # ARGV[2] include delayed
       if(delayed?, do: 1, else: 0)
     ]
@@ -1650,18 +1646,18 @@ defmodule BullMQ.Scripts do
     keys = [
       Keys.delayed(ctx),
       Keys.wait(ctx),
-      Keys.pc(ctx),
-      Keys.prioritized(ctx),
       Keys.paused(ctx),
-      Keys.marker(ctx),
-      Keys.events(ctx),
       Keys.meta(ctx),
-      Keys.job(ctx, job_id)
+      Keys.prioritized(ctx),
+      Keys.active(ctx),
+      Keys.pc(ctx),
+      Keys.events(ctx),
+      Keys.marker(ctx)
     ]
 
     args = [
       # ARGV[1] prefix:queueName
-      Keys.key(ctx),
+      Keys.key_prefix(ctx),
       # ARGV[2] job id
       job_id
     ]
@@ -2167,7 +2163,7 @@ defmodule BullMQ.Scripts do
     # Build options map with BullMQ's short key names
     opts =
       %{}
-      |> maybe_add_opt("del", Map.get(job_opts, :delay) || Map.get(job_opts, "delay") || delay, 0)
+      |> maybe_add_opt("delay", Map.get(job_opts, :delay) || Map.get(job_opts, "delay") || delay, 0)
       |> maybe_add_opt(
         "priority",
         Map.get(job_opts, :priority) || Map.get(job_opts, "priority") || priority,
@@ -2268,6 +2264,12 @@ defmodule BullMQ.Scripts do
           case Map.get(d, :replace) || Map.get(d, "replace") do
             nil -> result
             v -> Map.put(result, "replace", v)
+          end
+
+        result =
+          case Map.get(d, :reschedule, Map.get(d, "reschedule")) do
+            nil -> result
+            v -> Map.put(result, "reschedule", v)
           end
 
         result =

@@ -1,3 +1,17 @@
+# [2.4.0](https://github.com/taskforcesh/bullmq/compare/vex2.3.5...vex2.4.0) (2026-11-04)
+
+
+### Features
+
+* **deduplication:** support schedule option (python) (elixir) (php) (rust) (dotnet) ([#5048](https://github.com/taskforcesh/bullmq/issues/5048)) ([31b151d](https://github.com/taskforcesh/bullmq/commit/31b151d3236183e3707f178a1b4c79b83f607bdf))
+
+## [2.3.5](https://github.com/taskforcesh/bullmq/compare/vex2.3.4...vex2.3.5) (2026-10-30)
+
+
+### Bug Fixes
+
+* **scripts:** pass the queue key prefix to extendLocks, drain and promote [elixir] fixes [#5038](https://github.com/taskforcesh/bullmq/issues/5038) ([#5041](https://github.com/taskforcesh/bullmq/issues/5041)) ([5971d9e](https://github.com/taskforcesh/bullmq/commit/5971d9ebdc6e92aec538ea4f8a05aeb99963e6a6))
+
 ## [2.3.4](https://github.com/taskforcesh/bullmq/compare/vex2.3.3...vex2.3.4) (2026-10-28)
 
 

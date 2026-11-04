@@ -11,6 +11,6 @@ local rcall = redis.call
 
 --- @include "includes/relayTime"
 
-local namespaces = rcall("ZRANGEBYSCORE", KEYS[1], "(" .. getRelayTime(), "+inf")
+local namespaces = rcall("ZRANGEBYSCORE", KEYS[1], getRelayTime() + 1, "+inf")
 table.sort(namespaces)
 return namespaces

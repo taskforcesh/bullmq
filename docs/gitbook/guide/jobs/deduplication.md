@@ -78,6 +78,152 @@ While this job is not moved to completed or failed state, next jobs added with s
 
 This mode is particularly useful for jobs that have a long running time or those that must not be duplicated until they are resolved, such as processing a file upload or performing a critical update that should not be repeated if the initial attempt is still in progress.
 
+## Rescheduling a Delayed Job
+
+On PostgreSQL, intermediate obliteration batches lock only deduplication rows
+pointing to their selected jobs, using an indexed winner lookup. Deleting a
+parent cascades to its logs and dependency records, not its child jobs. The
+final batch locks all remaining queue deduplication rows before deleting jobs
+and cleaning up keys. This preserves bounded intermediate batches and prevents
+the dedup/job lock inversion during concurrent rescheduling and final cleanup.
+Producers are not excluded for the entire multi-batch obliteration; pausing a
+queue only pauses processing, not adds.
+
+Completion and failure acquire shared transaction advisory locks for their
+queue and any direct parent's queue before locking rows. Obliteration acquires
+the corresponding exclusive lock for each batch, so forced deletion cannot
+invert job/dedup locks with finalization. Finish-and-fetch retains the shared
+lock through its fetch; ordinary finalizations can still run concurrently.
+
+PostgreSQL bulk adds and flows acquire all deduplication advisory locks in
+lock-key order before modifying jobs. This prevents a bulk reschedule from
+holding a delayed job row while waiting on a finishing job's deduplication
+lock, allowing finish-and-fetch to promote that delayed job safely.
+
+Set `reschedule: true` to apply the incoming job's delay to an existing job with
+the same deduplication ID, but only while that job is still delayed. Unlike
+`replace`, this preserves the original job ID, name, data, and other options.
+
+{% tabs %}
+{% tab title="TypeScript" %}
+
+```typescript
+await myQueue.add(
+  'house',
+  { color: 'white' },
+  {
+    delay: 5000,
+    deduplication: { id: 'house', reschedule: true },
+  },
+);
+
+await myQueue.add(
+  'house',
+  { color: 'blue' },
+  {
+    delay: 8000,
+    deduplication: { id: 'house', reschedule: true },
+  },
+);
+```
+
+{% endtab %}
+{% tab title="Python" %}
+
+```python
+await myQueue.add("house", {"color": "white"}, {
+    "delay": 5000,
+    "deduplication": {"id": "house", "reschedule": True},
+})
+await myQueue.add("house", {"color": "blue"}, {
+    "delay": 8000,
+    "deduplication": {"id": "house", "reschedule": True},
+})
+```
+
+{% endtab %}
+{% tab title="Elixir" %}
+
+```elixir
+BullMQ.Queue.add("Paint", "house", %{color: "white"},
+  connection: :my_redis,
+  delay: 5000,
+  deduplication: %{id: "house", reschedule: true}
+)
+BullMQ.Queue.add("Paint", "house", %{color: "blue"},
+  connection: :my_redis,
+  delay: 8000,
+  deduplication: %{id: "house", reschedule: true}
+)
+```
+
+{% endtab %}
+{% tab title="Rust" %}
+
+```rust
+use bullmq::DeduplicationOptions;
+use std::time::Duration;
+
+for (color, delay) in [("white", 5000), ("blue", 8000)] {
+    queue
+        .add("house", serde_json::json!({ "color": color }))
+        .delay(Duration::from_millis(delay))
+        .deduplication(DeduplicationOptions {
+            id: "house".into(),
+            reschedule: Some(true),
+            ..Default::default()
+        })
+        .await?;
+}
+```
+
+{% endtab %}
+{% tab title="PHP" %}
+
+```php
+$queue->add('house', ['color' => 'white'], [
+    'delay' => 5000,
+    'deduplication' => ['id' => 'house', 'reschedule' => true],
+]);
+$queue->add('house', ['color' => 'blue'], [
+    'delay' => 8000,
+    'deduplication' => ['id' => 'house', 'reschedule' => true],
+]);
+```
+
+{% endtab %}
+{% tab title=".NET" %}
+
+```csharp
+await queue.AddAsync("house", new { color = "white" }, new JobsOptions
+{
+    Delay = 5000,
+    Deduplication = new DeduplicationOptions { Id = "house", Reschedule = true },
+});
+await queue.AddAsync("house", new { color = "blue" }, new JobsOptions
+{
+    Delay = 8000,
+    Deduplication = new DeduplicationOptions { Id = "house", Reschedule = true },
+});
+```
+
+{% endtab %}
+{% endtabs %}
+
+The original job keeps `{ color: 'white' }` and becomes eligible for processing
+8000 milliseconds after the second add's timestamp. The delay can be shortened
+or lengthened; an omitted or zero delay makes the delayed job eligible
+immediately, subject to worker availability.
+
+Rescheduling is independent of TTL management. Combine it with `ttl` and
+`extend: true` to refresh the deduplication window as well. If the deduplication
+key has expired, a new job is added normally instead.
+
+Jobs that are no longer delayed are not rescheduled, and existing deduplication
+behavior (including `keepLastIfActive`) is preserved. If `replace: true` is also
+provided, replacement takes precedence over rescheduling. Rescheduling emits a
+`delayed` event for the existing job as well as the usual `deduplicated` event.
+
 ## Throttle Mode
 
 In the Throttle Mode, deduplication works by assigning a delay (Time to Live, TTL) to a job upon its creation. If a similar job (identified by a unique deduplication ID) is added during this delay period, it is ignored. This prevents the queue from being overwhelmed with multiple instances of the same task, thus optimizing the processing time and resource utilization.

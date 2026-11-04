@@ -516,6 +516,12 @@ class Scripts:
 
         return self.commands["getCounts"](keys=keys, args=transformed_types)
 
+    def getMetrics(self, type: str, start: int = 0, end: int = -1):
+        keys = [self.toKey(f"metrics:{type}"),
+                self.toKey(f"metrics:{type}:data")]
+
+        return self.commands["getMetrics"](keys=keys, args=[start, end])
+
     def getCountsPerPriorityArgs(self, priorities):
         keys = [self.keys['wait'],
                 self.keys['prioritized']]
@@ -804,7 +810,9 @@ class Scripts:
                     "command": 'moveToFinished',
                     "state": 'active'
                     })
-            return raw2NextJobData(result)
+            # 0 means no next job, as in moveToDelayed.
+            if type(result) != int:
+                return raw2NextJobData(result)
         return None
 
     def extendLock(self, jobId: str, token: str, duration: int, client: Optional[Redis] = None):

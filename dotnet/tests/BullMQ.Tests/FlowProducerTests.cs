@@ -17,6 +17,95 @@ public abstract class FlowProducerTestsBase
 
     private static string UniqueName() => $"dotnet-flow-{Guid.NewGuid():N}";
 
+    [Theory]
+    [InlineData("root-parent")]
+    [InlineData("nested-parent")]
+    [InlineData("replace")]
+    [InlineData("active-child")]
+    [InlineData("simple-child")]
+    [InlineData("reschedule-child")]
+    [InlineData("ttl-child")]
+    [InlineData("nested-leaf")]
+    public async Task Deduplication_InvalidFlowsFailBeforeWrites(string scenario)
+    {
+        var q = UniqueName();
+        await using var queue = new Queue(q, NewQueueOptions());
+        await using var producer = new FlowProducer(NewQueueOptions());
+        var leaf = new FlowJob { Name = "leaf", QueueName = q };
+        var root = new FlowJob { Name = "root", QueueName = q, Children = new[] { leaf } };
+        if (scenario == "root-parent") root.Opts = new() { Deduplication = new() { Id = "bad" } };
+        if (scenario == "nested-parent")
+        {
+            leaf.Children = new[] { new FlowJob { Name = "grandchild", QueueName = q } };
+            leaf.Opts = new() { Deduplication = new() { Id = "bad" } };
+        }
+        if (scenario == "replace") leaf.Opts = new() { Deduplication = new() { Id = "bad", Replace = false } };
+        if (scenario == "active-child") leaf.Opts = new() { Deduplication = new() { Id = "bad", KeepLastIfActive = true } };
+        if (scenario == "simple-child") leaf.Opts = new() { Deduplication = new() { Id = "bad" } };
+        if (scenario == "reschedule-child") leaf.Opts = new() { Deduplication = new() { Id = "bad", Reschedule = true } };
+        if (scenario == "ttl-child") leaf.Opts = new() { Deduplication = new() { Id = "bad", Ttl = 10000, Extend = true } };
+        if (scenario == "nested-leaf")
+        {
+            leaf.Children = new[]
+            {
+                new FlowJob { Name = "grandchild", QueueName = q, Opts = new() { Deduplication = new() { Id = "bad" } } },
+            };
+        }
+        await Assert.ThrowsAsync<ArgumentException>(() => producer.AddAsync(root));
+        Assert.All((await queue.GetJobCountsAsync()).Values, count => Assert.Equal(0, count));
+        await queue.ObliterateAsync(force: true);
+    }
+
+    [Fact]
+    public async Task Deduplication_RootLeavesReturnWinner()
+    {
+        var q = UniqueName();
+        await using var queue = new Queue(q, NewQueueOptions());
+        await using var producer = new FlowProducer(NewQueueOptions());
+        try
+        {
+            var leaf = new FlowJob
+            {
+                Name = "leaf",
+                QueueName = q,
+                Opts = new() { Delay = 60000, Deduplication = new() { Id = "leaf", Reschedule = true } },
+            };
+            var first = await producer.AddAsync(leaf);
+            var second = await producer.AddAsync(leaf);
+            Assert.Equal(first.Job.Id, second.Job.Id);
+            Assert.Equal(1, await queue.GetDelayedCountAsync());
+        }
+        finally { await queue.ObliterateAsync(force: true); }
+    }
+
+    [Fact]
+    public async Task Deduplication_ChildCannotReuseStandaloneDelayedWinner()
+    {
+        var q = UniqueName();
+        await using var queue = new Queue(q, NewQueueOptions());
+        await using var producer = new FlowProducer(NewQueueOptions());
+        try
+        {
+            var winner = await queue.AddAsync("standalone", new { original = true },
+                new JobsOptions { Delay = 60000, Deduplication = new() { Id = "child" } });
+            await Assert.ThrowsAsync<ArgumentException>(() => producer.AddAsync(new FlowJob
+            {
+                Name = "parent",
+                QueueName = q,
+                Children = new[]
+                {
+                    new FlowJob { Name = "child", QueueName = q, Opts = new() { Delay = 1, Deduplication = new() { Id = "child", Reschedule = true } } },
+                },
+            }));
+            Assert.Equal(JobState.Delayed, await winner.GetStateAsync());
+            var stored = await queue.GetJobAsync(winner.Id!);
+            Assert.Equal(60000, stored!.Delay);
+            Assert.Null(stored.Parent);
+            Assert.Equal(1, (await queue.GetJobCountsAsync()).Values.Sum());
+        }
+        finally { await queue.ObliterateAsync(force: true); }
+    }
+
     [Fact]
     public async Task Flow_ParentWaitsForChildren()
     {

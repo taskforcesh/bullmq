@@ -64,13 +64,13 @@ end
 
 if view == "counts" then
   return { rcall("ZCARD", KEYS[1]), lexCount("n|"), lexCount("t|"),
-    rcall("ZCOUNT", retainedKey, "(" .. getRelayTime(), "+inf") }
+    rcall("ZCOUNT", retainedKey, getRelayTime() + 1, "+inf") }
 end
 
 if view == "used" then
-  local now = "(" .. getRelayTime()
-  if rcall("ZCOUNT", KEYS[1], now, "+inf") > 0 or
-    rcall("ZCOUNT", retainedKey, now, "+inf") > 0 then
+  local after = getRelayTime() + 1
+  if rcall("ZCOUNT", KEYS[1], after, "+inf") > 0 or
+    rcall("ZCOUNT", retainedKey, after, "+inf") > 0 then
     return 1
   end
   return 0
@@ -119,7 +119,7 @@ elseif view == "patterns" then
 elseif view == "retained" then
   local offset, count = window()
   if count ~= 0 then
-    local topics = rcall("ZRANGEBYSCORE", retainedKey, "(" .. getRelayTime(),
+    local topics = rcall("ZRANGEBYSCORE", retainedKey, getRelayTime() + 1,
       "+inf", "WITHSCORES", "LIMIT", offset, count)
     for i = 1, #topics, 2 do
       local value = rcall("HMGET", baseKey .. ":" .. topics[i] .. ":ret", "m", "ts", "d")

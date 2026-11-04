@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "6.5.1",
+  "version": "6.6.0",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -83,11 +83,11 @@
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
-    "cron-parser": "5.10.2",
-    "msgpackr": "2.1.2",
+    "cron-parser": "5.10.3",
+    "msgpackr": "2.1.3",
     "node-abort-controller": "3.1.1",
     "semver": "7.8.5",
-    "tslib": "2.8.1"
+    "tslib": "2.9.1"
   },
   "peerDependencies": {
     "bullmq-otel": ">=2.0.0",
@@ -112,7 +112,6 @@
   "devDependencies": {
     "@commitlint/cli": "21.2.4",
     "@commitlint/config-conventional": "21.2.4",
-    "@eslint/eslintrc": "3.3.7",
     "@eslint/js": "10.0.1",
     "@semantic-release/changelog": "7.0.0",
     "@semantic-release/commit-analyzer": "13.0.1",
@@ -128,12 +127,12 @@
     "@types/pg": "8.23.1",
     "@types/semver": "7.8.0",
     "@types/sinon": "22.0.2",
-    "@typescript-eslint/eslint-plugin": "8.72.0",
-    "@typescript-eslint/parser": "8.72.0",
+    "@typescript-eslint/eslint-plugin": "8.72.1",
+    "@typescript-eslint/parser": "8.72.1",
     "@vitest/coverage-v8": "5.0.5",
     "coveralls-next": "6.0.2",
     "cpx2": "9.0.3",
-    "eslint": "10.13.0",
+    "eslint": "10.14.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "5.5.7",
     "eslint-plugin-promise": "7.3.0",
@@ -144,13 +143,13 @@
     "ioredis": "6.0.0",
     "lint-staged": "17.6.0",
     "madge": "8.0.0",
-    "minimatch": "10.2.6",
+    "minimatch": "11.0.3",
     "moment": "2.31.0",
     "pg": "8.23.1",
     "prettier": "3.9.10",
     "pretty-quick": "4.2.2",
     "progress": "2.0.3",
-    "redis": "6.3.0",
+    "redis": "6.3.1",
     "rimraf": "6.1.3",
     "rrule": "2.8.1",
     "semantic-release": "25.0.9",

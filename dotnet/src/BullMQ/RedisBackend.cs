@@ -818,6 +818,17 @@ public sealed class RedisBackend : IQueueBackend
         return !pos.IsNull;
     }
 
+    public async Task<string?> GetDeduplicationJobIdAsync(string id) =>
+        (string?)await _connection.Db.StringGetAsync($"{_keys[""]}de:{id}").ConfigureAwait(false);
+
+    public async Task<long> DeleteDeduplicationKeyAsync(string id) =>
+        await _connection.Db.KeyDeleteAsync($"{_keys[""]}de:{id}").ConfigureAwait(false) ? 1 : 0;
+
+    public async Task<long> RemoveDeduplicationKeyAsync(string id, string jobId) =>
+        (long)await _connection.EvalAsync("removeDeduplicationKey",
+            new RedisKey[] { $"{_keys[""]}de:{id}" },
+            new RedisValue[] { jobId }).ConfigureAwait(false);
+
     public async Task<JobJson?> GetJobDataAsync(string jobId)
     {
         var entries = await _connection.Db.HashGetAllAsync(ToKey(jobId)).ConfigureAwait(false);
@@ -1153,14 +1164,17 @@ public sealed class RedisBackend : IQueueBackend
             return Array.Empty<EventEntry>();
         }
 
-        // Shape: [[streamKey, [[id, [f1, v1, ...]], ...]]]
+        // RESP2 shape: [[streamKey, [[id, [f1, v1, ...]], ...]]]
+        // RESP3 maps are returned as a flat [streamKey, entries] array.
         var streams = (RedisResult[]?)result;
         if (streams is null || streams.Length == 0)
         {
             return Array.Empty<EventEntry>();
         }
 
-        var firstStream = (RedisResult[]?)streams[0];
+        var firstStream = result.Resp3Type == ResultType.Map
+            ? streams
+            : (RedisResult[]?)streams[0];
         if (firstStream is null || firstStream.Length < 2)
         {
             return Array.Empty<EventEntry>();
@@ -1286,7 +1300,7 @@ public sealed class RedisBackend : IQueueBackend
         }
 
         JobJson? job = null;
-        if (!arr[0].IsNull)
+        if (!arr[0].IsNull && arr[0].Resp2Type == ResultType.Array)
         {
             var flat = (RedisResult[]?)arr[0];
             if (flat is { Length: > 0 })
@@ -1295,7 +1309,7 @@ public sealed class RedisBackend : IQueueBackend
             }
         }
 
-        string? jobId = arr.Length > 1 && !arr[1].IsNull ? (string?)arr[1] : null;
+        string? jobId = job is not null && arr.Length > 1 && !arr[1].IsNull ? (string?)arr[1] : null;
         long rateLimitDelay = arr.Length > 2 ? ToLong(arr[2]) : 0;
         long delayUntil = arr.Length > 3 ? ToLong(arr[3]) : 0;
 
