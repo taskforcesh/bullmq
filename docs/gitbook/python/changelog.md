@@ -1,3 +1,15 @@
+# [3.5.0](https://github.com/taskforcesh/bullmq/compare/vpy3.4.6...vpy3.5.0) (2026-11-04)
+
+
+### Features
+
+* **deduplication:** support schedule option (python) (elixir) (php) (rust) (dotnet) ([#5048](https://github.com/taskforcesh/bullmq/issues/5048)) ([31b151d](https://github.com/taskforcesh/bullmq/commit/31b151d3236183e3707f178a1b4c79b83f607bdf))
+
+
+### Performance Improvements
+
+* **worker:** fetch next job when moving a job to completed [python] ([#5050](https://github.com/taskforcesh/bullmq/issues/5050)) ([04be3aa](https://github.com/taskforcesh/bullmq/commit/04be3aaf2e6dfb1664d14a7f4efb19fe0b31b6b9))
+
 ## [3.4.6](https://github.com/taskforcesh/bullmq/compare/vpy3.4.5...vpy3.4.6) (2026-10-28)
 
 
