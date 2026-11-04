@@ -69,6 +69,42 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0005_flow_parent_release.sql'),
   },
+  {
+    version: 6,
+    name: '0006_dedup_reschedule',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0006_dedup_reschedule.sql'),
+  },
+  {
+    version: 7,
+    name: '0007_obliterate_dedup_lock_order',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0007_obliterate_dedup_lock_order.sql'),
+  },
+  {
+    version: 8,
+    name: '0008_bulk_dedup_lock_order',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0008_bulk_dedup_lock_order.sql'),
+  },
+  {
+    version: 9,
+    name: '0009_obliterate_bounded_dedup_locks',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0009_obliterate_bounded_dedup_locks.sql'),
+  },
+  {
+    version: 10,
+    name: '0010_obliterate_finalization_lock',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0010_obliterate_finalization_lock.sql'),
+  },
+  {
+    version: 11,
+    name: '0011_obliterate_producer_lock',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0011_obliterate_producer_lock.sql'),
+  },
 ];
 
 /**
