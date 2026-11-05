@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import {
   DependenciesOpts,
   IQueueBackend,
@@ -568,6 +568,7 @@ export class PostgresQueueBackend
     parentKeyOpts: ParentKeyOpts = {},
   ): Promise<string> {
     const opts = (job.opts ?? {}) as JobsOptions;
+    const jobOpts = job.delay == null ? opts : { ...opts, delay: job.delay };
     const parentKey = parentKeyOpts.parentKey ?? job.parentKey ?? null;
     let rows: { id: string }[];
     try {
@@ -576,7 +577,7 @@ export class PostgresQueueBackend
         jobId || job.id || '',
         job.name,
         job.data ?? '{}',
-        JSON.stringify(opts ?? {}),
+        JSON.stringify(jobOpts ?? {}),
         job.priority ?? opts.priority ?? 0,
         job.delay ?? opts.delay ?? 0,
         job.timestamp ?? Date.now(),
@@ -654,7 +655,7 @@ export class PostgresQueueBackend
       id: jobId || data.id || '',
       name: data.name,
       data: data.data ?? '{}',
-      opts,
+      opts: data.delay == null ? opts : { ...opts, delay: data.delay },
       priority: data.priority ?? opts.priority ?? 0,
       delay: data.delay ?? opts.delay ?? 0,
       timestamp: data.timestamp ?? Date.now(),
@@ -1622,7 +1623,24 @@ export class PostgresQueueBackend
     return Number(rows[0].ttl);
   }
 
-  async getCounts(types: JobType[]): Promise<number[]> {
+  async getCounts(
+    types: JobType[],
+    delayedTimestamp?: number,
+  ): Promise<number[]> {
+    if (delayedTimestamp !== undefined && types.includes('delayed')) {
+      const otherTypes = types.filter(type => type !== 'delayed');
+      const [{ rows }, otherCounts] = await Promise.all([
+        this.run<{ count: string }>('get_delayed_count', [
+          this.queueName,
+          delayedTimestamp,
+        ]),
+        otherTypes.length ? this.getCounts(otherTypes) : Promise.resolve([]),
+      ]);
+      let index = 0;
+      return types.map(type =>
+        type === 'delayed' ? Number(rows[0].count) : otherCounts[index++],
+      );
+    }
     const { rows } = await this.run<Record<string, string>>('get_counts', [
       this.queueName,
     ]);

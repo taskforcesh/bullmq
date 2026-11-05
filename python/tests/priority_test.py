@@ -92,6 +92,41 @@ class TestPriority(unittest.IsolatedAsyncioTestCase):
         # Highest priority (red) must be processed first.
         self.assertEqual(processed_order, ["red", "blue"])
 
+    async def test_change_priority_reorders_waiting_jobs(self):
+        """Job.changePriority should move a waiting job ahead of jobs that
+        now have a lower priority."""
+        queue = Queue(self.queue_name, {"prefix": prefix})
+        await queue.pause()
+
+        blue = await queue.add("paint", {"color": "blue"}, {"priority": 10})
+        await queue.add("paint", {"color": "red"}, {"priority": 5})
+
+        await blue.changePriority({"priority": 1})
+
+        self.assertEqual(blue.priority, 1)
+        stored = await queue.getJob(blue.id)
+        self.assertEqual(stored.priority, 1)
+
+        processed_order: list = []
+        done = asyncio.get_running_loop().create_future()
+
+        async def processor(job, token):
+            processed_order.append(job.data["color"])
+            if len(processed_order) == 2:
+                done.set_result(True)
+            return job.data["color"]
+
+        worker = Worker(self.queue_name, processor, {"prefix": prefix})
+        await queue.resume()
+
+        try:
+            await asyncio.wait_for(done, timeout=10)
+        finally:
+            await worker.close()
+            await queue.close()
+
+        self.assertEqual(processed_order, ["blue", "red"])
+
 
 if __name__ == '__main__':
     unittest.main()

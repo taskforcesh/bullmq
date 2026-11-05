@@ -9,7 +9,8 @@ const legacyApiOrigin = 'https://api.docs.bullmq.io';
 export default defineConfig({
   title: 'BullMQ',
   description:
-    'The fastest, most reliable, Redis-based distributed queue for Node. ' +
+    'The fastest, most reliable distributed queue for Node.js, Bun, Python, ' +
+    'Elixir, .NET, Rust and PHP, on top of Redis or PostgreSQL. ' +
     'Carefully written for rock solid stability and atomicity.',
   lang: 'en-US',
   cleanUrls: true,

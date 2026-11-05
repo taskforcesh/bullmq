@@ -8,6 +8,7 @@ export default defineConfig({
       'tests/connection.test.ts',
       'tests/sandboxed_process.test.ts',
       'tests/worker.ioredis.test.ts',
+      'tests/relay.ioredis.test.ts',
       'tests/node-redis.test.ts',
       'tests/adapter-conformance.test.ts',
       'tests/bun-redis.test.ts',

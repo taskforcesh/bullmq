@@ -1,3 +1,45 @@
+# [7.50.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.49.0...v7.50.0) (2026-10-27)
+
+
+### Features
+
+* **worker:** allow changing worker-wide group concurrency at runtime ([#484](https://github.com/taskforcesh/bullmq-pro/issues/484)) ([#541](https://github.com/taskforcesh/bullmq-pro/issues/541)) ([c0a3762](https://github.com/taskforcesh/bullmq-pro/commit/c0a376212f4d8e598468fe3d63e3954c5bc34657))
+
+# [7.49.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.48.4...v7.49.0) (2026-10-15)
+
+
+### Features
+
+* **queue:** add ttlSeconds option to group concurrency and global concurrency ([#495](https://github.com/taskforcesh/bullmq-pro/issues/495)) ([d94a67a](https://github.com/taskforcesh/bullmq-pro/commit/d94a67a8d4895732ae8fdfe8276d3d3990805589))
+
+## [7.48.4](https://github.com/taskforcesh/bullmq-pro/compare/v7.48.3...v7.48.4) (2026-10-14)
+
+
+### Bug Fixes
+
+* **batch:** record bullmq.jobs.completed otel metric ([#490](https://github.com/taskforcesh/bullmq-pro/issues/490)) ([aab1eee](https://github.com/taskforcesh/bullmq-pro/commit/aab1eeebf4197b710f07276b195104b3bf1c3fff))
+
+## [7.48.3](https://github.com/taskforcesh/bullmq-pro/compare/v7.48.2...v7.48.3) (2026-09-26)
+
+
+### Bug Fixes
+
+* **worker:** keep group options in job scheduler iterations ([#478](https://github.com/taskforcesh/bullmq-pro/issues/478)) ([64eef76](https://github.com/taskforcesh/bullmq-pro/commit/64eef76d532f7476600f8966d7c84d07dd4be36e))
+
+## [7.48.2](https://github.com/taskforcesh/bullmq-pro/compare/v7.48.1...v7.48.2) (2026-09-25)
+
+
+### Bug Fixes
+
+* **worker:** keep group options in job scheduler iterations ([#476](https://github.com/taskforcesh/bullmq-pro/issues/476)) ([1d4c5ad](https://github.com/taskforcesh/bullmq-pro/commit/1d4c5ad03453dcdb082d11bf8f3e3911ce402a69)), closes [taskforcesh/bullmq-pro-support#115](https://github.com/taskforcesh/bullmq-pro-support/issues/115)
+
+## [7.48.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.48.0...v7.48.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **deps:** upgrade bullmq to v5.81.5 ([#474](https://github.com/taskforcesh/bullmq-pro/issues/474)) ([3d0ad92](https://github.com/taskforcesh/bullmq-pro/commit/3d0ad92752af4c868ad51aeeb8168f3d772098ac))
+
 # [7.48.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.47.1...v7.48.0) (2026-08-31)
 
 
@@ -64,7 +106,7 @@
 
 ### Bug Fixes
 
-* **queue:** consider groups when using removeOrphanedJobs method ([#432](https://github.com/taskforcesh/bullmq-pro/issues/432)) ([c191e6b](https://github.com/taskforcesh/bullmq-pro/commit/c191e6b2c047fc4b90f116780ee8449413367852))
+* **queue:** consider groups when using removeOphanedJobs method ([#432](https://github.com/taskforcesh/bullmq-pro/issues/432)) ([c191e6b](https://github.com/taskforcesh/bullmq-pro/commit/c191e6b2c047fc4b90f116780ee8449413367852))
 
 # [7.46.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.45.1...v7.46.0) (2026-05-21)
 

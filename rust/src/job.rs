@@ -325,7 +325,7 @@ impl Job {
             .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
 
         let processed_key = format!("{}:processed", ctx.keys.job_key(&self.id));
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
 
         let result: HashMap<String, String> = redis::cmd("HGETALL")
             .arg(&processed_key)
@@ -351,7 +351,7 @@ impl Job {
             .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
 
         let failed_key = format!("{}:failed", ctx.keys.job_key(&self.id));
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
 
         let result: HashMap<String, String> = redis::cmd("HGETALL")
             .arg(&failed_key)
@@ -386,7 +386,7 @@ impl Job {
         let failed_key = format!("{}:failed", job_key);
         let unsuccessful_key = format!("{}:unsuccessful", job_key);
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
         let mut pipe = redis::pipe();
         pipe.cmd("HLEN").arg(&processed_key);
         pipe.cmd("SCARD").arg(&deps_key);
@@ -426,7 +426,7 @@ impl Job {
         let processed_key = format!("{}:processed", job_key);
         let deps_key = format!("{}:dependencies", job_key);
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
 
         // Scan processed (hash: child key -> return value)
         let (next_processed_cursor, processed_flat): (u64, Vec<String>) = redis::cmd("HSCAN")
@@ -472,7 +472,7 @@ impl Job {
             .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
 
         let deps_key = format!("{}:dependencies", ctx.keys.job_key(&self.id));
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
 
         let result: Vec<String> = redis::cmd("SMEMBERS")
             .arg(&deps_key)
@@ -516,7 +516,7 @@ impl Job {
         let keys = vec![prefix_key];
         let args: Vec<&[u8]> = vec![job_key.as_bytes(), parent_key.as_bytes()];
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -593,7 +593,7 @@ impl Job {
             prefix_key.as_bytes(),
         ];
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -649,7 +649,7 @@ impl Job {
         let keys = vec![job_key, events_key, meta_key];
         let args: Vec<&[u8]> = vec![self.id.as_bytes(), progress_json.as_bytes()];
 
-        let mut redis_conn = ctx.conn.managed_conn();
+        let mut redis_conn = ctx.conn.connection();
         let result: redis::Value = script.execute(&mut redis_conn, &keys, &args).await?;
 
         match result {
@@ -689,7 +689,7 @@ impl Job {
         let keys = vec![job_key];
         let args: Vec<&[u8]> = vec![data_json.as_bytes()];
 
-        let mut redis_conn = ctx.conn.managed_conn();
+        let mut redis_conn = ctx.conn.connection();
         let result: redis::Value = script.execute(&mut redis_conn, &keys, &args).await?;
 
         match result {
@@ -729,7 +729,7 @@ impl Job {
         let keys = vec![job_key, logs_key];
         let args: Vec<&[u8]> = vec![self.id.as_bytes(), log_row.as_bytes(), keep_logs.as_bytes()];
 
-        let mut redis_conn = ctx.conn.managed_conn();
+        let mut redis_conn = ctx.conn.connection();
         let result: redis::Value = script.execute(&mut redis_conn, &keys, &args).await?;
 
         match result {
@@ -749,7 +749,7 @@ impl Job {
             .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
 
         let logs_key = format!("{}:logs", ctx.keys.job_key(&self.id));
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
 
         match keep_logs {
             Some(n) if n > 0 => {
@@ -840,7 +840,7 @@ impl Job {
             reset_ats.as_bytes(),
         ];
 
-        let mut redis_conn = ctx.conn.managed_conn();
+        let mut redis_conn = ctx.conn.connection();
         let result: redis::Value = script.execute(&mut redis_conn, &keys, &args).await?;
 
         match result {
@@ -892,7 +892,7 @@ impl Job {
         let job_id_bytes = self.id.as_bytes().to_vec();
         let args: Vec<&[u8]> = vec![&job_id_bytes];
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
@@ -960,7 +960,7 @@ impl Job {
         let dur_str = duration.to_string();
         let args: Vec<&[u8]> = vec![token.as_bytes(), dur_str.as_bytes(), self.id.as_bytes()];
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
         let result = script.execute(&mut conn, &script_keys, &args).await?;
 
         match result {
@@ -1002,7 +1002,7 @@ impl Job {
         let prefix = keys.key_prefix();
         let args: Vec<&[u8]> = vec![prefix.as_bytes(), self.id.as_bytes()];
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
         let result = script.execute(&mut conn, &script_keys, &args).await?;
 
         match result {
@@ -1045,7 +1045,7 @@ impl Job {
             job_key.as_bytes(),
         ];
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
         let result = script.execute(&mut conn, &script_keys, &args).await?;
 
         match result {
@@ -1092,7 +1092,7 @@ impl Job {
             lifo_str.as_bytes(),
         ];
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
         let result = script.execute(&mut conn, &script_keys, &args).await?;
 
         match result {
@@ -1226,7 +1226,7 @@ impl Job {
             &fields_to_update,
         ];
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
         let result = script.execute(&mut conn, &script_keys, &args).await?;
 
         match result {
@@ -1324,7 +1324,7 @@ impl Job {
             &opts_buf,            // ARGV[9]
         ];
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
         let result = script.execute(&mut conn, &script_keys, &args).await?;
 
         match result {
@@ -1382,7 +1382,7 @@ impl Job {
         let token = token.unwrap_or(&ctx.token);
         let args: Vec<&[u8]> = vec![self.id.as_bytes(), token.as_bytes(), job_key.as_bytes()];
 
-        let mut conn = ctx.conn.managed_conn();
+        let mut conn = ctx.conn.connection();
         let result = script.execute(&mut conn, &script_keys, &args).await?;
 
         match result {
@@ -1508,7 +1508,7 @@ impl Job {
         job_id: &str,
     ) -> Result<Option<Self>, Error> {
         let job_key = keys.job_key(job_id);
-        let mut redis_conn = conn.managed_conn();
+        let mut redis_conn = conn.connection();
         let fields: HashMap<String, String> = redis::cmd("HGETALL")
             .arg(&job_key)
             .query_async(&mut redis_conn)

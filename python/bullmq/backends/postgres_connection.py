@@ -32,6 +32,11 @@ MIGRATION_ADVISORY_LOCK_KEY = 0x42554C4C  # 1112493644
 # Lowest supported PostgreSQL major version.
 MINIMUM_POSTGRES_VERSION = 13
 
+# BullMQ major version recorded as `min_client_version` for migrations applied
+# by this runtime. Mirrors the Node.js `BULLMQ_MAJOR_VERSION` / Elixir
+# migrator's per-migration value, not this package's own (independent) version.
+BULLMQ_SCHEMA_MIN_CLIENT_VERSION = 6
+
 # libpq TCP keepalive settings applied to the dedicated LISTEN connection so a
 # silently dropped connection is detected within seconds (the OS default idle
 # time is typically two hours, far longer than a worker's block).
@@ -131,7 +136,21 @@ async def run_migrations(
         await cur.execute(
             "CREATE TABLE IF NOT EXISTS migration ("
             "version integer PRIMARY KEY, name text NOT NULL, "
+            "min_client_version integer NOT NULL, "
             "applied_at timestamptz NOT NULL DEFAULT now())"
+        )
+        # Compatibility with an existing version-4 (or earlier) ledger created
+        # before `min_client_version` existed: add the column if missing,
+        # backfill it, then enforce NOT NULL.
+        await cur.execute(
+            "ALTER TABLE migration ADD COLUMN IF NOT EXISTS min_client_version integer"
+        )
+        await cur.execute(
+            "UPDATE migration SET min_client_version = %s WHERE min_client_version IS NULL",
+            (BULLMQ_SCHEMA_MIN_CLIENT_VERSION,),
+        )
+        await cur.execute(
+            "ALTER TABLE migration ALTER COLUMN min_client_version SET NOT NULL"
         )
         await cur.execute("SELECT COALESCE(MAX(version), 0)::int FROM migration")
         current = (await cur.fetchone())[0]
@@ -141,8 +160,8 @@ async def run_migrations(
             if version > current:
                 await cur.execute(sql_loader.load_migration(filename))
                 await cur.execute(
-                    "INSERT INTO migration (version, name) VALUES (%s, %s)",
-                    (version, filename),
+                    "INSERT INTO migration (version, name, min_client_version) VALUES (%s, %s, %s)",
+                    (version, filename, BULLMQ_SCHEMA_MIN_CLIENT_VERSION),
                 )
                 current = version
 

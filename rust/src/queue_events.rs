@@ -501,7 +501,7 @@ impl QueueEvents {
         closing: Arc<AtomicBool>,
         tx: mpsc::UnboundedSender<QueueEventEntry>,
     ) {
-        let mut redis_conn = match conn.managed_dedicated_connection().await {
+        let mut redis_conn = match conn.dedicated_any_connection().await {
             Ok(c) => c,
             Err(e) => {
                 let _ = tx.send(QueueEventEntry {
@@ -544,7 +544,7 @@ impl QueueEvents {
                         // errors it observes, and a half-open socket never surfaces
                         // one. Rebuild it explicitly.
                         warn!(queue = %key, "queue events read exceeded its watchdog, reconnecting");
-                        match conn.managed_dedicated_connection().await {
+                        match conn.dedicated_any_connection().await {
                             Ok(c) => redis_conn = c,
                             Err(e) => {
                                 let _ = tx.send(QueueEventEntry {

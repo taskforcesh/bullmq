@@ -268,6 +268,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
   overrides.clientSetName = (name: string): Promise<any> =>
     (client as any).client('SETNAME', name);
   overrides.clientList = (): Promise<string> => (client as any).client('LIST');
+  overrides.clientInfo = (): Promise<string> => (client as any).client('INFO');
 
   // scan(cursor, { MATCH?, COUNT? }) — accepts either structured options or
   // ioredis varargs (used internally by `scanStream`).

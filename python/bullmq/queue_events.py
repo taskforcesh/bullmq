@@ -80,6 +80,7 @@ class QueueEvents(EventEmitter):
         self.redisConnection = RedisConnection(
             connection_opts,
             skipVersionCheck=opts.get("skipVersionCheck", False),
+            blockingTimeout=int(opts.get("blockingTimeout", 10000)) / 1000,
         )
         self.client = self.redisConnection.conn
 

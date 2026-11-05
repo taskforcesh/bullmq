@@ -44,6 +44,33 @@ alias BullMQ.Queue
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+await queue.DrainAsync();
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::Queue;
+
+let queue = Queue::new("paint").await?;
+
+queue.drain(false).await?;
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -56,18 +83,6 @@ $queue->drain();
 
 $queue->close();
 ?>
-```
-
-{% endtab %}
-
-{% tab title="Rust" %}
-
-```rust
-use bullmq::{Queue, QueueOptions};
-
-let queue = Queue::new("paint", QueueOptions::default()).await?;
-
-queue.drain(false).await?;
 ```
 
 {% endtab %}
@@ -118,6 +133,35 @@ alias BullMQ.Queue
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+// Also drain delayed jobs
+await queue.DrainAsync(delayed: true);
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::Queue;
+
+let queue = Queue::new("paint").await?;
+
+// Also drain delayed jobs
+queue.drain(true).await?;
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -131,19 +175,6 @@ $queue->drain(true);
 
 $queue->close();
 ?>
-```
-
-{% endtab %}
-
-{% tab title="Rust" %}
-
-```rust
-use bullmq::{Queue, QueueOptions};
-
-let queue = Queue::new("paint", QueueOptions::default()).await?;
-
-// Also drain delayed jobs
-queue.drain(true).await?;
 ```
 
 {% endtab %}
@@ -162,6 +193,9 @@ have pending children in other queues, or just moved to wait.
 
 Removes jobs in a specific state, but keeps jobs within a certain grace period.
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Queue } from 'bullmq';
 
@@ -173,6 +207,86 @@ const deletedJobIds = await queue.clean(
   'paused',
 );
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+import asyncio
+from bullmq import Queue
+
+async def main():
+    queue = Queue('paint')
+
+    deleted_job_ids = await queue.clean(
+        60000,  # 1 minute
+        1000,  # max number of jobs to clean
+        'paused',
+    )
+    await queue.close()
+
+asyncio.run(main())
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+var deletedJobIds = await queue.CleanAsync(
+    60000, // 1 minute
+    1000, // max number of jobs to clean
+    "paused");
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::Queue;
+
+let queue = Queue::new("paint").await?;
+
+let deleted_job_ids = queue
+    .clean(
+        60000, // 1 minute
+        1000,  // max number of jobs to clean
+        "paused",
+    )
+    .await?;
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+use BullMQ\Queue;
+
+$queue = new Queue('paint');
+
+$deletedJobIds = $queue->clean(
+    60000, // 1 minute
+    1000, // max number of jobs to clean
+    'paused',
+);
+
+$queue->close();
+?>
+```
+
+{% endtab %}
+{% endtabs %}
 
 # Obliterate
 
@@ -218,6 +332,33 @@ alias BullMQ.Queue
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+await queue.ObliterateAsync();
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::Queue;
+
+let queue = Queue::new("paint").await?;
+
+queue.obliterate(false, 1000).await?;
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -230,18 +371,6 @@ $queue->obliterate();
 
 $queue->close();
 ?>
-```
-
-{% endtab %}
-
-{% tab title="Rust" %}
-
-```rust
-use bullmq::{Queue, QueueOptions};
-
-let queue = Queue::new("paint", QueueOptions::default()).await?;
-
-queue.obliterate(false, 1000).await?;
 ```
 
 {% endtab %}
@@ -292,6 +421,35 @@ alias BullMQ.Queue
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+// Force obliteration even with active jobs
+await queue.ObliterateAsync(force: true);
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::Queue;
+
+let queue = Queue::new("paint").await?;
+
+// Force obliteration even with active jobs
+queue.obliterate(true, 1000).await?;
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -305,19 +463,6 @@ $queue->obliterate(['force' => true]);
 
 $queue->close();
 ?>
-```
-
-{% endtab %}
-
-{% tab title="Rust" %}
-
-```rust
-use bullmq::{Queue, QueueOptions};
-
-let queue = Queue::new("paint", QueueOptions::default()).await?;
-
-// Force obliteration even with active jobs
-queue.obliterate(true, 1000).await?;
 ```
 
 {% endtab %}

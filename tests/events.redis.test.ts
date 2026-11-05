@@ -12,7 +12,7 @@
  */
 import { getRedisClient } from './utils/get-redis-client';
 import { after } from './utils/lodash';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import {
   describe,
   beforeEach,

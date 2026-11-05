@@ -23,4 +23,7 @@ export * from './queue';
 export * from './redis-connection';
 export * from './sandbox';
 export * from './redis-queue-backend';
+export * from './redis-relay-backend';
+export * from './relay';
+export * from './relay-errors';
 export * from './worker';

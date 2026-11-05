@@ -1,6 +1,6 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import { AbortController } from '../classes/abort-controller';
-export { randomUUID } from 'crypto';
+export { randomUUID } from 'node:crypto';
 
 import {
   ConnectionClosedError,

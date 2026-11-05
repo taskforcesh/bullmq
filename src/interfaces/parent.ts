@@ -45,6 +45,14 @@ export type ParentKeyOpts = {
    * `waiting-children` state (waiting for children to complete) instead of `wait`.
    */
   addToWaitingChildren?: boolean;
+  /**
+   * If true, a child that already exists and is already completed will only
+   * record its processed dependency, without moving the parent out of
+   * `waiting-children`. Used by flow inserts, where the parent may still be
+   * waiting for sibling nodes that have not been added yet; the parent is
+   * released by a separate validation once the whole flow has been inserted.
+   */
+  deferParentRelease?: boolean;
   /** Redis key holding the parent's dependencies set. */
   parentDependenciesKey?: string;
   /** Fully-qualified Redis key of the parent job. */

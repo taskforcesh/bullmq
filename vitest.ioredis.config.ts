@@ -16,6 +16,7 @@ export default defineConfig({
       'tests/ioredis-client.test.ts',
       'tests/sandboxed_process.test.ts',
       'tests/worker.ioredis.test.ts',
+      'tests/relay.ioredis.test.ts',
     ],
     setupFiles: ['./vitest.setup.ts'],
     testTimeout: 10000,

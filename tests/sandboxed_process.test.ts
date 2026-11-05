@@ -1,7 +1,7 @@
-import { pathToFileURL } from 'url';
+import { pathToFileURL } from 'node:url';
 import { default as IORedis } from 'ioredis';
 import { after } from './utils/lodash';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import {
   describe,
   beforeEach,
@@ -30,7 +30,7 @@ import {
   randomUUID,
   removeAllQueueData,
 } from '../src/utils';
-import { existsSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
 const { stdout, stderr } = require('test-console');
 
 describe('Sandboxed process using child processes', () => {
@@ -2095,6 +2095,42 @@ function sandboxProcessTests(
 
       const job = await jobAdd;
       // check that the job did finish successfully
+      const jobResult = await job.waitUntilFinished(queueEvents);
+      expect(jobResult).toBe(42);
+    });
+
+    it('should allow the job to complete when force closing the worker', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
+      const worker = new Worker(queueName, processFile, {
+        autorun: false,
+        connection,
+        prefix,
+        useWorkerThreads,
+      });
+
+      // acquire and release a child here so the job starts on it right away
+      const initializedChild = await worker['childPool'].retain(processFile);
+      await worker['childPool'].release(initializedChild);
+
+      const onJobActive = new Promise<void>(resolve => {
+        worker.once('active', async () => {
+          await delay(100);
+          resolve();
+        });
+      });
+
+      const job = await queue.add('foo', {});
+
+      worker.run();
+
+      await onJobActive;
+
+      // The child is stopped gracefully on close(true), so the job still
+      // finishes, whether it runs in a process or in a worker thread.
+      await worker.close(true);
+
+      expect(!!initializedChild.killed).toEqual(true);
+
       const jobResult = await job.waitUntilFinished(queueEvents);
       expect(jobResult).toBe(42);
     });

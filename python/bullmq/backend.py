@@ -315,6 +315,10 @@ class Backend(ABC):
         """Return the job counts across the given states/types, in order."""
 
     @abstractmethod
+    async def getMetrics(self, type: str, start: int = 0, end: int = -1) -> list:
+        """Return ``[meta, data, count]`` for the queue's completed/failed metrics."""
+
+    @abstractmethod
     async def getCountsPerPriority(self, priorities: list) -> list:
         """Return the number of jobs per priority, in order."""
 

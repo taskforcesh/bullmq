@@ -16,6 +16,52 @@ import { getRedisClient } from './utils/get-redis-client';
 import { streamEntriesToEvents } from './utils/stream-events';
 import { delay, randomUUID } from '../src/utils';
 
+/**
+ * Move a waiting job onto the active list at a chosen position, or leave it
+ * waiting while other ids occupy active. Uses a Lua command so every Redis
+ * adapter can run the same setup.
+ */
+async function placeOnActiveList(
+  client: IRedisClient,
+  waitKey: string,
+  activeKey: string,
+  jobId: string,
+  position: 'head' | 'tail' | 'absent',
+  others: string[],
+): Promise<void> {
+  const command = 'placeOnActiveList';
+  client.defineCommand(command, {
+    numberOfKeys: 2,
+    lua: `
+      local waitKey = KEYS[1]
+      local activeKey = KEYS[2]
+      local position = ARGV[1]
+      local jobId = ARGV[2]
+      redis.call('DEL', activeKey)
+      if position ~= 'absent' then
+        redis.call('LREM', waitKey, 1, jobId)
+      end
+      if position == 'head' then
+        redis.call('LPUSH', activeKey, jobId)
+      end
+      for i = 3, #ARGV do
+        redis.call('RPUSH', activeKey, ARGV[i])
+      end
+      if position == 'tail' then
+        redis.call('RPUSH', activeKey, jobId)
+      end
+      return 1
+    `,
+  });
+  await client.runCommand(command, [
+    waitKey,
+    activeKey,
+    position,
+    jobId,
+    ...others,
+  ]);
+}
+
 describe('deduplication', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
@@ -86,6 +132,199 @@ describe('deduplication', () => {
 
       expect(originalJob).toBeDefined();
       expect(deduplicatedJob).toBeUndefined();
+    });
+
+    describe('when reschedule is provided as true', () => {
+      it.each([
+        { ttl: undefined, extend: false, keepLastIfActive: false },
+        { ttl: 30000, extend: false, keepLastIfActive: false },
+        { ttl: 30000, extend: true, keepLastIfActive: false },
+        { ttl: 30000, extend: true, keepLastIfActive: true },
+      ])('preserves the job and TTL semantics with %j', async options => {
+        const client = await getRedisClient(queue);
+        const timestamp = Date.now() + 60000;
+        const original = await queue.add(
+          'original',
+          { foo: 'bar' },
+          {
+            jobId: 'original',
+            timestamp,
+            delay: 10000,
+            priority: 2,
+            deduplication: { id: 'reschedule', ...options },
+          },
+        );
+        client.defineCommand('deduplicationTtl', {
+          numberOfKeys: 1,
+          lua: "return redis.call('PTTL', KEYS[1])",
+        });
+
+        for (const newDelay of [2000, 20000]) {
+          const incomingTimestamp = timestamp + 1000;
+          const result = await queue.add(
+            'incoming',
+            { foo: 'baz' },
+            {
+              jobId: `incoming-${newDelay}`,
+              timestamp: incomingTimestamp,
+              delay: newDelay,
+              priority: 1,
+              deduplication: {
+                id: 'reschedule',
+                ...options,
+                ttl: options.ttl ? 60000 : undefined,
+                reschedule: true,
+              },
+            },
+          );
+          expect(result.id).toBe(original.id);
+          const stored = await queue.getJob('original');
+          expect(stored?.name).toBe('original');
+          expect(stored?.data).toEqual({ foo: 'bar' });
+          expect(stored?.priority).toBe(2);
+          expect(stored?.timestamp).toBe(timestamp);
+          expect(stored?.delay).toBe(newDelay);
+          expect(await stored?.getState()).toBe('delayed');
+          expect(await queue.getJob(`incoming-${newDelay}`)).toBeUndefined();
+          const score = await client.zscore(queue.toKey('delayed'), 'original');
+          expect(Math.floor(Number(score) / 4096)).toBe(
+            incomingTimestamp + newDelay,
+          );
+          expect(Number(await client.zscore(queue.toKey('marker'), '1'))).toBe(
+            incomingTimestamp + newDelay,
+          );
+        }
+
+        const ttl = Number(
+          await client.runCommand('deduplicationTtl', [
+            queue.toKey('de:reschedule'),
+          ]),
+        );
+        if (!options.ttl || options.keepLastIfActive) {
+          expect(ttl).toBe(-1);
+        } else if (options.extend) {
+          expect(ttl).toBeGreaterThan(59000);
+        } else {
+          expect(ttl).toBeGreaterThan(0);
+          expect(ttl).toBeLessThanOrEqual(30000);
+        }
+        expect(await queue.getDelayedCount()).toBe(1);
+        const events = await client.xread([
+          { key: queue.toKey('events'), id: '0-0' },
+        ]);
+        const entries = streamEntriesToEvents(events?.[0]?.[1] ?? []);
+        expect(entries.filter(event => event.event === 'delayed')).toHaveLength(
+          3,
+        );
+        expect(
+          entries.filter(event => event.event === 'deduplicated'),
+        ).toHaveLength(2);
+        expect(entries.some(event => event.event === 'removed')).toBe(false);
+      });
+
+      it.each([undefined, 0])(
+        'makes the existing job due when the incoming delay is %s',
+        async newDelay => {
+          await queue.add(
+            'original',
+            { foo: 'bar' },
+            { jobId: 'original', delay: 60000, deduplication: { id: 'due' } },
+          );
+          const timestamp = Date.now();
+          await queue.add(
+            'incoming',
+            { foo: 'baz' },
+            {
+              timestamp,
+              delay: newDelay,
+              priority: newDelay === undefined ? undefined : 1,
+              deduplication: { id: 'due', reschedule: true },
+            },
+          );
+          const client = await getRedisClient(queue);
+          expect(
+            Math.floor(
+              Number(await client.zscore(queue.toKey('delayed'), 'original')) /
+                4096,
+            ),
+          ).toBe(timestamp);
+          const worker = new Worker(queueName, async () => {}, {
+            autorun: false,
+            connection,
+            prefix,
+          });
+          try {
+            const job = await worker.getNextJob('token', { block: false });
+            expect(job?.id).toBe('original');
+            expect(job?.data).toEqual({ foo: 'bar' });
+          } finally {
+            await worker.close();
+          }
+        },
+      );
+
+      it.each(['waiting', 'active'] as const)(
+        'does not reschedule a %s job',
+        async state => {
+          await queue.add(
+            'original',
+            { foo: 'bar' },
+            {
+              jobId: 'original',
+              deduplication: { id: 'not-delayed' },
+            },
+          );
+          const worker = new Worker(queueName, async () => {}, {
+            autorun: false,
+            connection,
+            prefix,
+          });
+          try {
+            if (state === 'active') {
+              await worker.getNextJob('token', { block: false });
+            }
+            await queue.add(
+              'incoming',
+              { foo: 'baz' },
+              {
+                delay: 60000,
+                deduplication: { id: 'not-delayed', reschedule: true },
+              },
+            );
+            const stored = await queue.getJob('original');
+            expect(await stored?.getState()).toBe(state);
+            expect(stored?.delay).toBe(0);
+            expect(stored?.data).toEqual({ foo: 'bar' });
+            expect(await queue.getDelayedCount()).toBe(0);
+          } finally {
+            await worker.close();
+          }
+        },
+      );
+
+      it('keeps replacement precedence', async () => {
+        await queue.add(
+          'original',
+          { foo: 'bar' },
+          {
+            jobId: 'original',
+            delay: 60000,
+            deduplication: { id: 'replace' },
+          },
+        );
+        const replacement = await queue.add(
+          'incoming',
+          { foo: 'baz' },
+          {
+            jobId: 'replacement',
+            delay: 30000,
+            deduplication: { id: 'replace', replace: true, reschedule: true },
+          },
+        );
+        expect(replacement.id).toBe('replacement');
+        expect(replacement.data).toEqual({ foo: 'baz' });
+        expect(await queue.getJob('original')).toBeUndefined();
+      });
     });
 
     describe('when job key no longer exists', () => {
@@ -1292,6 +1531,136 @@ describe('deduplication', () => {
       // job2 should have the same ID as job1 (was deduplicated)
       expect(job2.id).toBe(job1.id);
       expect(deduplicatedEvents).toHaveLength(1);
+      // Waiting is not active, so no proto-job is stored for later.
+      expect(
+        (await client.hgetall(queue.toKey(`dn:${deduplicationId}`)))?.jid,
+      ).toBeUndefined();
+    });
+
+    it('stores the next job when the deduplicated job is at index 0 of the active list', async () => {
+      const client = await getRedisClient(queue);
+      const deduplicationId = 'dedup-active-index-0';
+      const deduplicationNextKey = queue.toKey(`dn:${deduplicationId}`);
+      const activeKey = queue.toKey('active');
+
+      const job1 = await queue.add(
+        'test',
+        { seq: 1 },
+        {
+          jobId: 'dedup-head',
+          deduplication: { id: deduplicationId, keepLastIfActive: true },
+        },
+      );
+
+      // Place the job at index 0 with other ids behind it. LPOS returns 0
+      // for that slot, which must still count as a membership hit.
+      await placeOnActiveList(
+        client,
+        queue.toKey('wait'),
+        activeKey,
+        job1.id!,
+        'head',
+        ['other-a', 'other-b', 'other-c'],
+      );
+
+      const activeItems = await client.lrange(activeKey, 0, -1);
+      expect(activeItems).toEqual([job1.id, 'other-a', 'other-b', 'other-c']);
+      expect(await client.lpos(activeKey, job1.id!)).toBe(0);
+
+      const job2 = await queue.add(
+        'test',
+        { seq: 2 },
+        {
+          jobId: 'dedup-head-next',
+          deduplication: { id: deduplicationId, keepLastIfActive: true },
+        },
+      );
+
+      expect(job2.id).toBe(job1.id);
+      const pendingNextJob = await client.hgetall(deduplicationNextKey);
+      expect(pendingNextJob.jid).toBe('dedup-head-next');
+      expect(JSON.parse(pendingNextJob.data)).toEqual({ seq: 2 });
+    });
+
+    it('stores the next job when the deduplicated job is active past index 0', async () => {
+      const client = await getRedisClient(queue);
+      const deduplicationId = 'dedup-active-later-index';
+      const deduplicationNextKey = queue.toKey(`dn:${deduplicationId}`);
+      const activeKey = queue.toKey('active');
+
+      const job1 = await queue.add(
+        'test',
+        { seq: 1 },
+        {
+          jobId: 'dedup-tail',
+          deduplication: { id: deduplicationId, keepLastIfActive: true },
+        },
+      );
+
+      await placeOnActiveList(
+        client,
+        queue.toKey('wait'),
+        activeKey,
+        job1.id!,
+        'tail',
+        ['other-a', 'other-b'],
+      );
+
+      expect(await client.lpos(activeKey, job1.id!)).toBe(2);
+
+      const job2 = await queue.add(
+        'test',
+        { seq: 2 },
+        {
+          jobId: 'dedup-tail-next',
+          deduplication: { id: deduplicationId, keepLastIfActive: true },
+        },
+      );
+
+      expect(job2.id).toBe(job1.id);
+      expect((await client.hgetall(deduplicationNextKey)).jid).toBe(
+        'dedup-tail-next',
+      );
+    });
+
+    it('does not store a next job when other jobs are active but this one is not', async () => {
+      const client = await getRedisClient(queue);
+      const deduplicationId = 'dedup-not-in-active';
+      const deduplicationNextKey = queue.toKey(`dn:${deduplicationId}`);
+      const activeKey = queue.toKey('active');
+
+      const job1 = await queue.add(
+        'test',
+        { seq: 1 },
+        {
+          jobId: 'dedup-waiting',
+          deduplication: { id: deduplicationId, keepLastIfActive: true },
+        },
+      );
+
+      await placeOnActiveList(
+        client,
+        queue.toKey('wait'),
+        activeKey,
+        job1.id!,
+        'absent',
+        ['other-a', 'other-b'],
+      );
+      expect(await client.lpos(activeKey, job1.id!)).toBeNull();
+      expect(await job1.getState()).toBe('waiting');
+
+      const job2 = await queue.add(
+        'test',
+        { seq: 2 },
+        {
+          jobId: 'dedup-waiting-next',
+          deduplication: { id: deduplicationId, keepLastIfActive: true },
+        },
+      );
+
+      expect(job2.id).toBe(job1.id);
+      expect((await client.hgetall(deduplicationNextKey))?.jid).toBeUndefined();
+      expect(await queue.getJob('dedup-waiting-next')).toBeUndefined();
     });
 
     it('should replace stored data with latest when multiple jobs added while active', async () => {

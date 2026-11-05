@@ -86,7 +86,8 @@ defmodule BullMQ.RedisConnection do
 
   @default_pool_size 10
   @default_timeout 5000
-  @minimum_redis_version {6, 2, 0}
+  @minimum_redis_version {5, 0, 0}
+  @recommended_minimum_redis_version {6, 2, 0}
 
   @typedoc """
   Redis connection reference.
@@ -138,12 +139,45 @@ defmodule BullMQ.RedisConnection do
   end
 
   @doc """
+  Whether the connected Redis server supports fractional `BZPOPMIN` timeouts
+  (Redis 6.0+). Servers below that version require an integer timeout, so
+  callers must round up (e.g. via `ceil/1`) before blocking.
+  """
+  @spec can_double_timeout?(connection()) :: boolean()
+  def can_double_timeout?(conn) do
+    :persistent_term.get({__MODULE__, :can_double_timeout, conn}, false)
+  end
+
+  @doc """
+  Whether the connected Redis server handles a 1ms blocking timeout safely
+  (Redis 7.0.8+). Older servers can block forever on it, so callers must use
+  at least 2ms. Defaults to `true` when the version is unknown.
+  """
+  @spec can_block_for_1ms?(connection()) :: boolean()
+  def can_block_for_1ms?(conn) do
+    :persistent_term.get({__MODULE__, :can_block_for_1ms, conn}, true)
+  end
+
+  @doc """
+  Whether the connected Redis server supports `LPOS` (Redis 6.0.6+), which
+  lets scripts such as `getStateV2` skip scanning whole lists. Defaults to
+  `false` when the version is unknown.
+  """
+  @spec can_lpos?(connection()) :: boolean()
+  def can_lpos?(conn) do
+    :persistent_term.get({__MODULE__, :can_lpos, conn}, false)
+  end
+
+  @doc """
   Closes the Redis connection pool.
   """
   @spec close(connection(), timeout()) :: :ok | {:error, term()}
   def close(conn, timeout \\ 5000) do
     # Clean up persistent_term entries
     :persistent_term.erase({__MODULE__, :redis_opts, conn})
+    :persistent_term.erase({__MODULE__, :can_double_timeout, conn})
+    :persistent_term.erase({__MODULE__, :can_block_for_1ms, conn})
+    :persistent_term.erase({__MODULE__, :can_lpos, conn})
 
     # Stop the supervisor
     sup_name = Pool.supervisor_name(conn)
@@ -157,21 +191,46 @@ defmodule BullMQ.RedisConnection do
     :ok
   end
 
-  # Checks that Redis version meets minimum requirements (6.2+)
-  # Required for BZPOPMIN float timeout support and other features
+  # Checks that Redis version meets minimum requirements, and warns if below
+  # the recommended version, matching the Node.js port's behavior.
   defp check_redis_version!(conn) do
     case command(conn, ["INFO", "server"]) do
       {:ok, info} ->
         version = parse_redis_version(info)
 
         if version_lt?(version, @minimum_redis_version) do
-          {min_major, min_minor, _} = @minimum_redis_version
+          {min_major, min_minor, min_patch} = @minimum_redis_version
           {major, minor, patch} = version
 
           raise ArgumentError,
-                "BullMQ requires Redis version #{min_major}.#{min_minor}.0 or higher. " <>
+                "BullMQ requires Redis version #{min_major}.#{min_minor}.#{min_patch} or higher. " <>
                   "Current version: #{major}.#{minor}.#{patch}"
         end
+
+        if version_lt?(version, @recommended_minimum_redis_version) do
+          {rec_major, rec_minor, rec_patch} = @recommended_minimum_redis_version
+          {major, minor, patch} = version
+
+          Logger.warning(
+            "It is highly recommended to use a minimum Redis version of " <>
+              "#{rec_major}.#{rec_minor}.#{rec_patch}. Current: #{major}.#{minor}.#{patch}"
+          )
+        end
+
+        :persistent_term.put(
+          {__MODULE__, :can_double_timeout, conn},
+          not version_lt?(version, {6, 0, 0})
+        )
+
+        :persistent_term.put(
+          {__MODULE__, :can_block_for_1ms, conn},
+          not version_lt?(version, {7, 0, 8})
+        )
+
+        :persistent_term.put(
+          {__MODULE__, :can_lpos, conn},
+          not version_lt?(version, {6, 0, 6})
+        )
 
         :ok
 

@@ -5,17 +5,39 @@ import prettier from 'eslint-plugin-prettier';
 import typescriptEslintEslintPlugin from '@typescript-eslint/eslint-plugin';
 import globals from 'globals';
 import tsParser from '@typescript-eslint/parser';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
-import { FlatCompat } from '@eslint/eslintrc';
+import eslintConfigPrettier from 'eslint-config-prettier/flat';
+import { builtinModules } from 'node:module';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  recommendedConfig: js.configs.recommended,
-  allConfig: js.configs.all,
+const bareBuiltinModules = builtinModules.filter(
+  m => !m.startsWith('_') && !m.includes(':'),
+);
+
+/**
+ * Flags bare built-in static imports, e.g. `import "net"` should be `import "node:net"`.
+ * Used by `no-restricted-imports`
+ */
+const restrictedBuiltinPaths = bareBuiltinModules.map(name => ({
+  name,
+  message: `Use 'node:${name}' instead of '${name}'.`,
+}));
+
+/**
+ * Flags bare built-in calls, e.g. `require("net")` should be `require("node:net")`
+ * (also `import("net")`). Used by no-restricted-syntax.
+ */
+const restrictedBuiltinCalls = bareBuiltinModules.flatMap(name => {
+  const message = `Use 'node:${name}' instead of '${name}'.`;
+  return [
+    {
+      selector: `CallExpression[callee.name='require'][arguments.0.value='${name}']`,
+      message,
+    },
+    {
+      selector: `ImportExpression[source.value='${name}']`,
+      message,
+    },
+  ];
 });
 
 export default defineConfig([
@@ -25,7 +47,7 @@ export default defineConfig([
     // Generated at build time by scripts/generateSqlScripts.js (inlined SQL).
     'src/postgres/sql-scripts.ts',
     'dist',
-    'elixir',
+    'elixir/deps',
     'php/vendor',
     'rust/target',
     '**/npm-debug.log*',
@@ -45,14 +67,10 @@ export default defineConfig([
     'docs/gitbook/changelog.md',
     'docs/gitbook/bullmq-pro/changelog.md',
   ]),
+  eslintConfigPrettier,
+  js.configs.recommended,
+  ...typescriptEslintEslintPlugin.configs['flat/recommended'],
   {
-    extends: compat.extends(
-      'prettier',
-      'eslint:recommended',
-      'plugin:@typescript-eslint/eslint-recommended',
-      'plugin:@typescript-eslint/recommended',
-    ),
-
     plugins: {
       tsdoc,
       promise,
@@ -75,8 +93,10 @@ export default defineConfig([
         'error',
         {
           patterns: ['src/*'],
+          paths: restrictedBuiltinPaths,
         },
       ],
+      'no-restricted-syntax': ['error', ...restrictedBuiltinCalls],
       '@typescript-eslint/no-empty-interface': [
         'error',
         {

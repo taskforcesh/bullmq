@@ -2,6 +2,7 @@
   Function to debounce a job.
 ]]
 -- Includes
+--- @include "addDelayedJob"
 --- @include "deduplicateJobWithoutReplace"
 --- @include "recoverStaleDeduplicationKey"
 --- @include "removeJobKeys"
@@ -25,7 +26,7 @@ local function removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEven
 end
 
 local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicationKey, eventsKey, maxEvents,
-    prefix, jobName, jobData, fullOpts, parentKey, parentData, parentDependenciesKey, repeatJobKey)
+    prefix, jobName, jobData, fullOpts, parentKey, parentData, parentDependenciesKey, repeatJobKey, timestamp)
     local deduplicationId = deduplicationOpts and deduplicationOpts['id']
     if deduplicationId then
         if deduplicationOpts['replace'] then
@@ -70,9 +71,17 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
                 return
             end
         else
-            return deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts,
+            local currentDeduplicatedJobId = deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts,
                 jobId, deduplicationKey, eventsKey, maxEvents, prefix, jobName, jobData, fullOpts,
                 parentKey, parentData, parentDependenciesKey, repeatJobKey)
+            if currentDeduplicatedJobId and deduplicationOpts['reschedule'] and
+                rcall('ZSCORE', delayedKey, currentDeduplicatedJobId) then
+                local delay = tonumber(fullOpts['delay']) or 0
+                rcall('HSET', prefix .. currentDeduplicatedJobId, 'delay', delay)
+                addDelayedJob(currentDeduplicatedJobId, delayedKey, eventsKey, timestamp,
+                    maxEvents, prefix .. 'marker', delay)
+            end
+            return currentDeduplicatedJobId
         end
     end
 end

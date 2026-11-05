@@ -8,12 +8,13 @@
     "elixir"
   ],
   "scripts": {
+    "format": "mix format",
     "semantic-release": "semantic-release",
     "semantic-release:debug": "semantic-release --no-ci --dry-run --debug"
   },
   "devDependencies": {
-    "@commitlint/cli": "21.2.3",
-    "@commitlint/config-conventional": "21.2.3",
+    "@commitlint/cli": "21.2.4",
+    "@commitlint/config-conventional": "21.2.4",
     "@semantic-release/changelog": "7.0.0",
     "@semantic-release/commit-analyzer": "13.0.1",
     "@semantic-release/exec": "7.1.0",
@@ -76,6 +77,7 @@
   "resolutions": {
     "ajv": "8.20.0",
     "brace-expansion": "5.0.12",
+    "fast-uri": "3.1.9",
     "picomatch": "4.0.7",
     "tar": "7.5.22"
   }

@@ -1,4 +1,5 @@
 import type MarkdownIt from 'markdown-it';
+import { languageOrder } from './languages';
 
 // Maps GitBook hint styles to VitePress custom-container types.
 const HINT_STYLES: Record<string, string> = {
@@ -7,6 +8,37 @@ const HINT_STYLES: Record<string, string> = {
   danger: 'danger',
   success: 'tip',
 };
+
+/**
+ * Sorts the tabs of every `{% tabs %}` block whose titles are all runtime
+ * languages, so that languages always appear in the same order.
+ */
+export function sortLanguageTabs(src: string): string {
+  return src.replace(
+    /\{%\s*tabs\s*%\}([\s\S]*?)\{%\s*endtabs\s*%\}/g,
+    (block: string, body: string) => {
+      const tabs = [
+        ...body.matchAll(
+          /\{%\s*tab\s+title="([^"]*)"\s*%\}[\s\S]*?\{%\s*endtab\s*%\}/g,
+        ),
+      ].map(match => ({ title: match[1], content: match[0] }));
+
+      if (tabs.length < 2 || tabs.some(tab => languageOrder(tab.title) < 0)) {
+        return block;
+      }
+
+      const sorted = tabs
+        .map((tab, index) => ({ ...tab, index }))
+        .sort(
+          (a, b) =>
+            languageOrder(a.title) - languageOrder(b.title) ||
+            a.index - b.index,
+        );
+
+      return `{% tabs %}\n${sorted.map(tab => tab.content).join('\n\n')}\n{% endtabs %}`;
+    },
+  );
+}
 
 /**
  * Converts GitBook-flavoured Markdown into the equivalent VitePress Markdown.
@@ -20,7 +52,7 @@ const HINT_STYLES: Record<string, string> = {
  *  - `{% code title="..." %}`   -\> a labeled `::: code-group` block
  */
 export function transformGitbookMarkdown(src: string): string {
-  let out = src;
+  let out = sortLanguageTabs(src);
 
   // {% code title="file.ts" lineNumbers="true" %} ```lang ... ``` {% endcode %}
   out = out.replace(

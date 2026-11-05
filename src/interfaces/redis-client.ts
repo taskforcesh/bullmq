@@ -1,4 +1,4 @@
-import { Readable } from 'stream';
+import { Readable } from 'node:stream';
 
 /**
  * Redis client interface for BullMQ.
@@ -222,6 +222,7 @@ export interface IRedisClient {
   info(): Promise<string>;
   clientSetName(name: string): Promise<any>;
   clientList(): Promise<string>;
+  clientInfo(): Promise<string>;
 
   // ============================================================
   // Key scanning

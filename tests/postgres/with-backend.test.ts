@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { expect, it, vi } from 'vitest';
 import {
@@ -93,6 +93,84 @@ it('binds every constructor to the backend without changing global defaults', as
       flow.close(),
       queue.close(),
     ]);
+    const pool = new Pool({ connectionString: getPostgresUrl() });
+    try {
+      await pool.query(`DROP SCHEMA "${schema}" CASCADE`);
+    } finally {
+      await pool.end();
+    }
+  }
+});
+
+it('does not release a flow parent after a child attachment fails', async () => {
+  const schema = `flow_${randomUUID().replace(/-/g, '')}`;
+  const connection = {
+    connectionString: getPostgresUrl(),
+    schema,
+    migrate: true,
+  };
+  const { Queue, Worker, FlowProducer } = withBackend(createPostgresBackend);
+  const completedQueueName = `completed-${randomUUID()}`;
+  const flowQueueName = `flow-${randomUUID()}`;
+  const queue = new Queue(completedQueueName, { connection });
+  let worker: InstanceType<typeof Worker> | undefined;
+  const flow = new FlowProducer({ connection });
+
+  try {
+    await queue.waitUntilReady();
+    await flow.waitUntilReady();
+
+    worker = new Worker(completedQueueName, async () => {}, { connection });
+    await worker.waitUntilReady();
+    const completed = new Promise<void>(resolve =>
+      worker!.once('completed', () => resolve()),
+    );
+    const completedChildId = `completed-${randomUUID()}`;
+    await queue.add('completed-child', {}, { jobId: completedChildId });
+    await completed;
+    await worker.close();
+    worker = undefined;
+
+    await flow.add({
+      name: 'source-parent',
+      queueName: flowQueueName,
+      opts: { jobId: 'source-parent' },
+      children: [
+        {
+          name: 'conflicting-child',
+          queueName: flowQueueName,
+          opts: { jobId: 'conflicting-child' },
+        },
+      ],
+    });
+
+    const target = await flow.add({
+      name: 'target-parent',
+      queueName: flowQueueName,
+      opts: { jobId: 'target-parent' },
+      children: [
+        {
+          name: 'completed-child',
+          queueName: completedQueueName,
+          opts: { jobId: completedChildId },
+        },
+        {
+          name: 'conflicting-child',
+          queueName: flowQueueName,
+          opts: { jobId: 'conflicting-child' },
+        },
+      ],
+    });
+
+    expect(await target.job.getState()).toBe('waiting-children');
+    await expect(target.job.getDependenciesCount()).resolves.toMatchObject({
+      processed: 1,
+      unprocessed: 0,
+    });
+  } finally {
+    await worker?.close();
+    await flow.close();
+    await queue.close();
     const pool = new Pool({ connectionString: getPostgresUrl() });
     try {
       await pool.query(`DROP SCHEMA "${schema}" CASCADE`);

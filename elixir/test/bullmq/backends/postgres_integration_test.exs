@@ -16,7 +16,18 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
   @moduletag :postgres
   @moduletag timeout: 30_000
 
-  alias BullMQ.{Backend, Backends, Job, Queue, Worker, QueueEvents, FlowProducer, JobScheduler}
+  alias BullMQ.{
+    Backend,
+    Backends,
+    FlowProducer,
+    Job,
+    JobScheduler,
+    Queue,
+    QueueEvents,
+    Worker
+  }
+
+  alias BullMQ.Backends.Postgres.{Migrator, SqlLoader}
 
   @postgres_url System.get_env("POSTGRES_URL", "postgres://localhost:5432/bullmq_test")
 
@@ -254,6 +265,153 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     assert Enum.sort(names) == ["child_a", "child_b", "parent"]
 
     Worker.close(worker)
+  end
+
+  test "FlowProducer reschedules a deduplicated job using the incoming delay", %{
+    conn: conn,
+    queue: queue
+  } do
+    deduplication = %{id: "flow-reschedule", reschedule: true}
+
+    flow = fn delay ->
+      %{
+        name: "delayed",
+        queue_name: queue,
+        data: %{},
+        opts: %{delay: delay, deduplication: deduplication}
+      }
+    end
+
+    {:ok, first} = FlowProducer.add(flow.(60_000), connection: conn, backend: Backends.Postgres)
+    job_id = first.job.id
+
+    {:ok, second} = FlowProducer.add(flow.(30_000), connection: conn, backend: Backends.Postgres)
+
+    assert second.job.id == job_id
+    assert {:ok, job} = Queue.get_job(queue, job_id, connection: conn, backend: Backends.Postgres)
+    assert job.delay == 30_000
+
+    assert {:ok, "delayed"} =
+             Queue.get_job_state(queue, job_id, connection: conn, backend: Backends.Postgres)
+  end
+
+  test "FlowProducer keeps parent blocked after a completed child is reused", %{
+    conn: conn,
+    queue: queue
+  } do
+    test_pid = self()
+
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue,
+        connection: conn,
+        processor: fn job -> {:ok, job.name} end,
+        on_completed: fn job, _result -> send(test_pid, {:completed, job.id}) end
+      )
+
+    {:ok, completed_child} =
+      Queue.add(queue, "already-completed", %{}, connection: conn, job_id: "completed-child")
+
+    assert_receive {:completed, child_id}, 10_000
+    assert child_id == completed_child.id
+    Worker.close(worker)
+
+    flow = %{
+      name: "parent",
+      queue_name: queue,
+      data: %{},
+      children: [
+        %{
+          name: "existing-child",
+          queue_name: queue,
+          data: %{},
+          opts: %{job_id: completed_child.id}
+        },
+        %{name: "pending-child", queue_name: queue, data: %{}}
+      ]
+    }
+
+    {:ok, result} = FlowProducer.add(flow, connection: conn, backend: Backends.Postgres)
+
+    assert {:ok, "waiting-children"} =
+             Queue.get_job_state(
+               queue,
+               result.job.id,
+               connection: conn,
+               backend: Backends.Postgres
+             )
+
+    assert {:ok, 1} = Job.get_dependencies_count(result.job)
+  end
+
+  test "Elixir migrator upgrades ledgers with and without compatibility columns", %{conn: conn} do
+    pool = Backends.Postgres.Connection.pool(conn)
+    suffix = System.unique_integer([:positive])
+    legacy_schema = "elixir_legacy_migration_#{suffix}"
+    node_schema = "elixir_node_migration_#{suffix}"
+    legacy_quoted = Migrator.quote_schema_name(legacy_schema)
+    node_quoted = Migrator.quote_schema_name(node_schema)
+
+    Postgrex.query!(pool, "CREATE SCHEMA #{legacy_quoted}", [])
+    Postgrex.query!(pool, "CREATE SCHEMA #{node_quoted}", [])
+
+    on_exit(fn ->
+      Postgrex.query!(pool, "DROP SCHEMA IF EXISTS #{legacy_quoted} CASCADE", [])
+      Postgrex.query!(pool, "DROP SCHEMA IF EXISTS #{node_quoted} CASCADE", [])
+    end)
+
+    Postgrex.query!(
+      pool,
+      "CREATE TABLE #{legacy_quoted}.migration (" <>
+        "version integer PRIMARY KEY, name text NOT NULL, " <>
+        "applied_at timestamptz NOT NULL DEFAULT now())",
+      []
+    )
+
+    Postgrex.query!(
+      pool,
+      "CREATE TABLE #{node_quoted}.migration (" <>
+        "version integer PRIMARY KEY, name text NOT NULL, " <>
+        "min_client_version integer NOT NULL, " <>
+        "applied_at timestamptz NOT NULL DEFAULT now())",
+      []
+    )
+
+    {:ok, _} =
+      Postgrex.transaction(pool, fn migration_conn ->
+        Postgrex.query!(migration_conn, "SET LOCAL search_path TO #{node_quoted}", [])
+
+        for {version, file} <- [
+              {1, "0001_schema.sql"},
+              {2, "0002_functions.sql"},
+              {3, "0003_dedup_stale_key.sql"}
+            ] do
+          SqlLoader.load_migration(file)
+          |> Migrator.split_statements()
+          |> Enum.each(fn statement -> Postgrex.query!(migration_conn, statement, []) end)
+
+          Postgrex.query!(
+            migration_conn,
+            "INSERT INTO migration (version, name, min_client_version) VALUES ($1, $2, $3)",
+            [version, Path.rootname(file), 6]
+          )
+        end
+      end)
+
+    latest_version = Migrator.latest_schema_version()
+    assert {:ok, ^latest_version} = Migrator.run_migrations(pool, legacy_schema)
+    assert {:ok, ^latest_version} = Migrator.run_migrations(pool, node_schema)
+
+    for schema <- [legacy_quoted, node_quoted] do
+      %{rows: rows} =
+        Postgrex.query!(
+          pool,
+          "SELECT version, min_client_version FROM #{schema}.migration ORDER BY version",
+          []
+        )
+
+      assert rows == Enum.map(1..latest_version, fn version -> [version, 6] end)
+    end
   end
 
   test "FlowProducer honors a per-call backend override", %{conn: conn, queue: queue} do

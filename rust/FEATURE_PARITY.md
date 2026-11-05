@@ -139,7 +139,7 @@ Compared against Node.js BullMQ (master branch). Updated: 2026-06-18.
 | Configurable URL                               | ✅            |
 | Typed options (host/port/username/password/db) | ✅            |
 | TLS (`rediss://`)                              | ✅            |
-| Redis Cluster                                  | ❌            |
+| Redis Cluster                                  | ✅            |
 | Sentinel support                               | ❌            |
 | Dragonfly compatibility                        | 🚧 (untested) |
 
@@ -174,7 +174,7 @@ testing convenience in Node.js and is prone to misuse in production.
 | Prometheus metrics export         | ✅               |
 | TLS connections                   | ✅               |
 | Sandboxed processors              | ❌ (N/A in Rust) |
-| Redis Cluster                     | ❌               |
+| Redis Cluster                     | ✅               |
 | Telemetry / OpenTelemetry         | ❌               |
 | QueueEvents (cross-process)       | ✅               |
 
@@ -233,9 +233,10 @@ Lua scripts already vendored: `removeOrphanedJobs-1`, `removeRepeatable-3`,
 
 - **`Job.wait_until_finished`** — mainly a testing convenience in Node.js and
   prone to misuse in production; not needed by the Rust test suite.
-- **Redis Cluster & Sentinel** — requires new CI infrastructure (cluster/sentinel
-  docker-compose services) and a `RedisConnection` refactor over single/cluster/
-  sentinel clients.
+- **Sentinel** — requires new CI infrastructure (sentinel services) and a
+  sentinel-aware connector for `RedisConnection`. Redis Cluster is supported via
+  `RedisConnectionOptions::cluster_nodes` (queues need a hash-tagged prefix or
+  name, e.g. `{bull}`).
 - **Telemetry / OpenTelemetry** — optional `tracing`/`opentelemetry` spans behind
   a cargo feature.
 - **Sandboxed processors / worker threads** — not applicable in Rust; users run
