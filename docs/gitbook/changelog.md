@@ -5,6 +5,14 @@
 
 * **queue:** count delayed jobs before a timestamp ([#5026](https://github.com/taskforcesh/bullmq/issues/5026)) ([304edc3](https://github.com/taskforcesh/bullmq/commit/304edc32066f13f4bd943ce83299b09d7e202ae8))
 
+## [6.6.1](https://github.com/taskforcesh/bullmq/compare/v6.6.0...v6.6.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cron-parser to v5.10.3 [security] ([#5061](https://github.com/taskforcesh/bullmq/issues/5061)) ([5152f03](https://github.com/taskforcesh/bullmq/commit/5152f03f80a993b1e5eaf0704e286376bcf0abcb))
+* **sandbox:** let worker threads finish their current job on close(true) ([#4991](https://github.com/taskforcesh/bullmq/issues/4991)) ([467afe5](https://github.com/taskforcesh/bullmq/commit/467afe555e3b9ff8c3a504a7da1ffee001edbde5))
+
 # [6.6.0](https://github.com/taskforcesh/bullmq/compare/v6.5.4...v6.6.0) (2026-11-04)
 
 
