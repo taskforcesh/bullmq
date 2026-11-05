@@ -53,7 +53,7 @@ jobs:
         with:
           filters: |
             lua:
-              - 'golang/commands/**/*.lua'
+              - 'src/commands/**/*.lua'
               - 'package.json'
               - 'yarn.lock'
               - 'scripts/**'

@@ -4,7 +4,7 @@ on:
   push:
     branches: [master]
     paths:
-      - 'golang/commands/**/*.lua'
+      - 'src/commands/**/*.lua'
       - 'package.json'
       - 'yarn.lock'
       - 'scripts/**'
@@ -21,7 +21,7 @@ on:
   pull_request:
     branches: [master, next]
     paths:
-      - 'golang/commands/**/*.lua'
+      - 'src/commands/**/*.lua'
       - 'package.json'
       - 'yarn.lock'
       - 'scripts/**'
