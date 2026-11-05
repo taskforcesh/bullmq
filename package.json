@@ -138,7 +138,7 @@
     "eslint-plugin-promise": "7.3.0",
     "eslint-plugin-tsdoc": "0.5.4",
     "fast-glob": "3.3.3",
-    "globals": "17.13.0",
+    "globals": "17.14.0",
     "husky": "9.1.7",
     "ioredis": "5.11.1",
     "lint-staged": "17.6.0",
