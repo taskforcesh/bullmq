@@ -183,18 +183,12 @@ func (p Progress) Raw() string {
 // Number returns the progress as a float. It reports false when the progress is
 // not a plain number.
 func (p Progress) Number() (float64, bool) {
-	var n json.Number
-	if err := json.Unmarshal(p.rawOrZero(), &n); err != nil {
+	var v any
+	if err := json.Unmarshal(p.rawOrZero(), &v); err != nil {
 		return 0, false
 	}
-	if n == "" {
-		return 0, false
-	}
-	v, err := n.Float64()
-	if err != nil {
-		return 0, false
-	}
-	return v, true
+	n, ok := v.(float64)
+	return n, ok
 }
 
 // Decode unmarshals a structured progress value into out.
