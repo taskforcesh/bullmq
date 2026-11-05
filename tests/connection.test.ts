@@ -1095,18 +1095,26 @@ describe('connection', () => {
     });
     worker.on('error', () => {});
 
-    // Give the main loop a chance to actually attempt its first blocking job
-    // fetch against the unreachable connection before closing - that pending
-    // fetch (not just a refused connection attempt) is what used to make
-    // close() hang forever.
-    await delay(300);
+    try {
+      // Give the main loop a chance to actually attempt its first blocking
+      // job fetch against the unreachable connection before closing - that
+      // pending fetch (not just a refused connection attempt) is what used
+      // to make close() hang forever.
+      await delay(300);
 
-    const result = await Promise.race([
-      worker.close().then(() => 'closed'),
-      new Promise(resolve => setTimeout(() => resolve('timeout'), 5000)),
-    ]);
+      const result = await Promise.race([
+        worker.close().then(() => 'closed'),
+        new Promise(resolve => setTimeout(() => resolve('timeout'), 5000)),
+      ]);
 
-    expect(result).toBe('closed');
+      expect(result).toBe('closed');
+    } finally {
+      // `connection` was supplied by the caller (shared connection), so
+      // Worker.close() does not own or disconnect it - do that ourselves,
+      // otherwise this client is left retrying against the unreachable port
+      // forever in the background after the test ends.
+      connection.disconnect();
+    }
   });
 
   it('should close underlying redis connection when closing fast', async () => {
