@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	bullmq "github.com/taskforcesh/bullmq/golang"
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 // A caller-supplied client whose read timeout is shorter than DrainDelay must

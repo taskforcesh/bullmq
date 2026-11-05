@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	bullmq "github.com/taskforcesh/bullmq/golang"
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 // collectEvents starts a QueueEvents listener and returns a snapshot function.

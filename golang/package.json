@@ -45,6 +45,12 @@
           "changelogFile": "../docs/gitbook/golang/changelog.md"
         }
       ],
+      [
+        "@semantic-release/exec",
+        {
+          "successCmd": "if [ -n \"$GITHUB_OUTPUT\" ]; then echo \"version=${nextRelease.version}\" >> \"$GITHUB_OUTPUT\"; fi"
+        }
+      ],
       "@semantic-release/github"
     ]
   },

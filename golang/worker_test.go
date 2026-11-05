@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	bullmq "github.com/taskforcesh/bullmq/golang"
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 func TestWorkerProcessesJobs(t *testing.T) {

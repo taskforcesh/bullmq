@@ -9,13 +9,13 @@ description: BullMQ is available as a native Go package with full context-aware 
 Add BullMQ to your project via `go get`:
 
 ```bash
-go get github.com/taskforcesh/bullmq/golang
+go get github.com/taskforcesh/bullmq-go
 ```
 
 It is imported in code under the `bullmq` package name:
 
 ```go
-import bullmq "github.com/taskforcesh/bullmq/golang"
+import bullmq "github.com/taskforcesh/bullmq-go"
 ```
 
 BullMQ for Go requires:
@@ -38,7 +38,7 @@ import (
 	"context"
 	"log"
 
-	bullmq "github.com/taskforcesh/bullmq/golang"
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 func main() {
@@ -70,7 +70,7 @@ import (
 	"errors"
 	"log"
 
-	bullmq "github.com/taskforcesh/bullmq/golang"
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 func main() {

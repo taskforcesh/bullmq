@@ -23,10 +23,18 @@ same Lua scripts, which live in `src/commands` at the root of this repository.
 ## Installation
 
 ```sh
-go get github.com/taskforcesh/bullmq/golang
+go get github.com/taskforcesh/bullmq-go
 ```
 
-## Building from this repository
+## Building from source
+
+The source of truth for this port is the
+[`golang/`](https://github.com/taskforcesh/bullmq/tree/master/golang) directory
+of the main BullMQ repository. The
+[bullmq-go](https://github.com/taskforcesh/bullmq-go) repository is published
+automatically on every Go release and already contains the generated Lua
+commands, so `go get` works out of the box. Contributions should be made to
+the main BullMQ repository.
 
 The Lua commands are **not** committed to the `golang` directory. They are
 generated from the shared sources so that every port stays byte-for-byte
@@ -53,7 +61,7 @@ import (
 	"context"
 	"log"
 
-	bullmq "github.com/taskforcesh/bullmq/golang"
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 func main() {

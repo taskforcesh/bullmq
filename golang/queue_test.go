@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	bullmq "github.com/taskforcesh/bullmq/golang"
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 func TestQueueAddStoresTheJob(t *testing.T) {
