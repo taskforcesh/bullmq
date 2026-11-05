@@ -13,6 +13,7 @@ import (
 // A caller-supplied client whose read timeout is shorter than DrainDelay must
 // not produce I/O errors while the queue is idle.
 func TestWorkerSharedClientShortReadTimeout(t *testing.T) {
+	requireRedis(t)
 	rdb := redis.NewClient(&redis.Options{
 		Addr:        redisAddr(),
 		ReadTimeout: 300 * time.Millisecond,
