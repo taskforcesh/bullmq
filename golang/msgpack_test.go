@@ -241,6 +241,38 @@ func TestProgressEncoding(t *testing.T) {
 	}
 }
 
+func TestProgressNumberOnlyAcceptsJSONNumbers(t *testing.T) {
+	numeric := []struct {
+		value any
+		want  float64
+	}{{42, 42}, {0, 0}, {-3, -3}, {12.5, 12.5}}
+	for _, tc := range numeric {
+		p, err := JSONProgress(tc.value)
+		if err != nil {
+			t.Fatalf("JSONProgress(%v): %v", tc.value, err)
+		}
+		if n, ok := p.Number(); !ok || n != tc.want {
+			t.Errorf("JSONProgress(%v).Number() = %v, %v; want %v, true", tc.value, n, ok, tc.want)
+		}
+	}
+
+	nonNumeric := []any{"42", "", "abc", true, nil, []int{1}, map[string]int{"done": 3}}
+	for _, v := range nonNumeric {
+		p, err := JSONProgress(v)
+		if err != nil {
+			t.Fatalf("JSONProgress(%v): %v", v, err)
+		}
+		if n, ok := p.Number(); ok {
+			t.Errorf("JSONProgress(%#v).Number() = %v, true; want false", v, n)
+		}
+	}
+
+	var unset Progress
+	if n, ok := unset.Number(); !ok || n != 0 {
+		t.Errorf("zero Progress.Number() = %v, %v; want 0, true", n, ok)
+	}
+}
+
 func TestMergeJobOptions(t *testing.T) {
 	defaults := &JobOptions{Attempts: Int64(5), RemoveOnComplete: RemoveAll(), JobID: "ignored"}
 	merged := mergeJobOptions(&JobOptions{Attempts: Int64(2), JobID: "custom"}, defaults)

@@ -65,8 +65,10 @@ func (b *RedisBackend) prepareAdd(job NewJob) (redisAdd, error) {
 }
 
 // parseReply validates the reply of the add* command and extracts the job id.
+// Only integer replies are status codes; string replies are always job ids,
+// even when they look like a negative number (for example a custom id "-01").
 func (a redisAdd) parseReply(res any) (string, error) {
-	if code, ok := asInt64(res); ok && code < 0 {
+	if code, ok := res.(int64); ok && code < 0 {
 		return "", scriptError(a.scriptName, code)
 	}
 	jobID, ok := asString(res)

@@ -215,3 +215,86 @@ func TestQueueEventsReportsPauseAndResume(t *testing.T) {
 		return hasEvent(events, "paused", "") && hasEvent(events, "resumed", "")
 	})
 }
+
+// stuckReadBackend is a backend whose ReadEvents ignores its context and
+// blocks until released, like a driver that cannot interrupt a blocked read.
+type stuckReadBackend struct {
+	bullmq.Backend
+	reading chan struct{}
+	release chan struct{}
+	closed  chan struct{}
+}
+
+func (b *stuckReadBackend) LastEventID(context.Context) (string, error) { return "0-0", nil }
+
+func (b *stuckReadBackend) ReadEvents(context.Context, string, time.Duration) ([]bullmq.QueueEvent, error) {
+	select {
+	case b.reading <- struct{}{}:
+	default:
+	}
+	<-b.release
+	return nil, nil
+}
+
+func (b *stuckReadBackend) Close() error {
+	close(b.closed)
+	return nil
+}
+
+func TestQueueEventsCloseHonorsTimeoutWhileReadIsBlocked(t *testing.T) {
+	backend := &stuckReadBackend{
+		reading: make(chan struct{}, 1),
+		release: make(chan struct{}),
+		closed:  make(chan struct{}),
+	}
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(backend.release) }) }
+	t.Cleanup(release)
+
+	qe, err := bullmq.NewQueueEvents("stuck-read", &bullmq.QueueEventsOptions{
+		Backend: func(string, bullmq.BackendOptions) (bullmq.Backend, error) {
+			return backend, nil
+		},
+		BlockingTimeout: 100 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewQueueEvents: %v", err)
+	}
+
+	runDone := make(chan struct{})
+	go func() {
+		defer close(runDone)
+		_ = qe.Run(context.Background())
+	}()
+	select {
+	case <-backend.reading:
+	case <-time.After(5 * time.Second):
+		t.Fatal("ReadEvents was never called")
+	}
+
+	closeDone := make(chan error, 1)
+	go func() { closeDone <- qe.Close() }()
+
+	// Close must give up waiting after BlockingTimeout+1s and close the
+	// backend, even though the read is still blocked.
+	select {
+	case err := <-closeDone:
+		if err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close stayed blocked behind the in-flight read")
+	}
+	select {
+	case <-backend.closed:
+	default:
+		t.Fatal("backend was not closed")
+	}
+
+	release()
+	select {
+	case <-runDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return once the read was released")
+	}
+}

@@ -88,16 +88,14 @@ func (qe *QueueEvents) Errors() <-chan error { return qe.errs }
 // Run starts consuming the event stream and blocks until ctx is cancelled or
 // Close is called.
 func (qe *QueueEvents) Run(ctx context.Context) error {
-	var err error
 	started := false
-	qe.runOnce.Do(func() {
-		started = true
-		err = qe.run(ctx)
-	})
+	// runOnce only claims startup. The loop must run outside it, otherwise
+	// Close would block in runOnce.Do for as long as the loop is reading.
+	qe.runOnce.Do(func() { started = true })
 	if !started {
 		return ErrQueueEventsClosed
 	}
-	return err
+	return qe.run(ctx)
 }
 
 func (qe *QueueEvents) run(ctx context.Context) error {
