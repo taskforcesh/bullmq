@@ -156,6 +156,14 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     if (this.statusOverride) {
       return this.statusOverride;
     }
+    // A drop the adapter is reconnecting from is not the end of the client,
+    // whether the reconnect is pending or in progress: ioredis reports
+    // 'reconnecting' there. `RedisConnection.waitUntilReady` treats 'end' as
+    // terminal, so a Queue or Worker initialized during the reconnect would
+    // otherwise fail every command for good.
+    if (this.reconnecting && !this.closing) {
+      return 'reconnecting';
+    }
     if (this.closed) {
       return 'end';
     }
@@ -234,15 +242,15 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
         return;
       }
 
-      // Unexpected close – attempt auto-reconnect
+      // Unexpected close – attempt auto-reconnect. Scheduled before the
+      // events, so their listeners already see 'reconnecting'.
       this.closed = true;
+      this._scheduleReconnect();
       this.emit('close');
 
       if (error) {
         this.emit('error', error);
       }
-
-      this._scheduleReconnect();
     };
   }
 
