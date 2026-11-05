@@ -52,6 +52,8 @@ func NewQueueEvents(queueName string, opts *QueueEventsOptions) (*QueueEvents, e
 	}
 	if o.BlockingTimeout <= 0 {
 		o.BlockingTimeout = 5 * time.Second
+	} else if o.BlockingTimeout < time.Millisecond {
+		return nil, configError("blockingTimeout must be at least 1ms")
 	}
 	if o.BufferSize <= 0 {
 		o.BufferSize = 128
