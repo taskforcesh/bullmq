@@ -851,7 +851,22 @@ export class RedisConnection extends EventEmitter {
           await this.initializing;
         }
         if (!this.extraOptions.shared) {
-          if (status == 'initializing' || force) {
+          // `quit()` only resolves promptly when ioredis can actually flush
+          // it: if the live client isn't ready (never connected, or lost the
+          // connection and is stuck reconnecting), `quit()` either goes
+          // through ioredis's offline-queue fast path (only taken when that
+          // queue is otherwise empty) or, if any other command is already
+          // queued ahead of it (e.g. a job fetch the worker issued before
+          // close() was called), it queues behind that command and may never
+          // resolve while the connection stays unreachable. Force-disconnect
+          // in that case instead of risking an unbounded wait.
+          // See https://github.com/taskforcesh/bullmq/issues/4656.
+          const liveStatus = this._client['status'];
+          const isLiveReady =
+            liveStatus === 'ready' ||
+            (liveStatus === 'connect' && isRedisCluster(this._client));
+
+          if (status == 'initializing' || force || !isLiveReady) {
             // If we have not still connected to Redis, we need to disconnect.
             this._client.disconnect();
             // Suppress any rejection from the in-flight init() so it doesn't
