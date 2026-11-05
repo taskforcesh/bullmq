@@ -793,7 +793,25 @@ export class RedisConnection extends EventEmitter {
   }
 
   async reconnect(): Promise<void> {
-    const client = await this.client;
+    // `disconnect()` may have torn down a connection that never reached
+    // 'ready' (see its own comment) by acting on `this._client` directly
+    // without ever letting `this.initializing` settle successfully - it may
+    // still be pending, or about to reject once ioredis notices the forced
+    // disconnect. Don't let that stop us from reconnecting: fall back to the
+    // live client directly so a caller like `pause()`, which disconnects and
+    // then immediately reconnects, isn't left stuck awaiting a promise that
+    // will never resolve to a usable client.
+    // See https://github.com/taskforcesh/bullmq/issues/4656.
+    let client: RedisClient;
+    try {
+      client = await this.client;
+    } catch (error) {
+      if (!this._client) {
+        throw error;
+      }
+      client = this._client;
+    }
+
     for (;;) {
       if (
         client.status === 'ready' ||
