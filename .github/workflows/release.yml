@@ -590,104 +590,31 @@ jobs:
       # Publishes the Go port (including the generated Lua commands) to
       # taskforcesh/bullmq-go, which is the repository Go users `go get`.
       # The golang directory in this repository remains the source of truth.
+      # Pending versions are resolved from the golang/v* source tags, not from
+      # this run's semantic-release output, so a run that failed after the
+      # source tag was created, or a rerun with nothing new to release,
+      # completes the missing tag, commit and release in bullmq-go.
       - name: Publish Go module to bullmq-go
-        if: ${{ success() && steps.semantic_release_golang.outputs.version != '' }}
+        if: ${{ !cancelled() }}
         env:
           GH_TOKEN: ${{ secrets.BULLMQ_GO_REPO_TOKEN }}
-          BULLMQ_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.semantic_release_golang.outputs.version }}
+          SOURCE_GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_REPO: taskforcesh/bullmq-go
         run: |
-          set -euo pipefail
-
-          TAG="v${VERSION}"
-          SOURCE_TAG="golang/v${VERSION}"
-          echo "Publishing Go module ${TAG} to ${TARGET_REPO}"
-
-          # Go modules v2+ must carry the major version suffix in their path,
-          # so golang/go.mod has to be bumped (module and imports) by hand
-          # before releasing a new major.
-          MAJOR="${VERSION%%.*}"
-          TARGET_MODULE="github.com/${TARGET_REPO}"
-          if [ "$MAJOR" -ge 2 ]; then
-            TARGET_MODULE="${TARGET_MODULE}/v${MAJOR}"
+          if [ -z "$GH_TOKEN" ]; then
+            if [[ "$commitmsg" == *"[golang]"* || "$commitmsg" == *"(golang)"* ]]; then
+              echo "::error::BULLMQ_GO_REPO_TOKEN is not configured; cannot publish to ${TARGET_REPO}"
+              exit 1
+            fi
+            echo "::warning::BULLMQ_GO_REPO_TOKEN is not configured; skipping Go publication check"
+            exit 0
           fi
-          SOURCE_MODULE=$(cd golang && go list -m)
-          if [ "$SOURCE_MODULE" != "$TARGET_MODULE" ]; then
-            echo "::error::golang/go.mod declares '${SOURCE_MODULE}' but ${TAG} requires '${TARGET_MODULE}'"
-            exit 1
-          fi
-
-          if ! ls golang/commands/*.lua > /dev/null 2>&1; then
-            echo "::error::Generated Lua commands are missing in golang/commands"
-            exit 1
-          fi
-
-          DEST="${RUNNER_TEMP}/bullmq-go"
-          rm -rf "$DEST"
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPO}.git" "$DEST"
-          TARGET_BRANCH=$(git -C "$DEST" symbolic-ref --short HEAD)
-
-          if git -C "$DEST" ls-remote --exit-code --tags origin "refs/tags/${TAG}" > /dev/null; then
-            echo "::error::Tag ${TAG} already exists in ${TARGET_REPO}"
-            exit 1
-          fi
-
-          # Mirror the port; node tooling and the source .gitignore (which
-          # ignores the generated Lua commands) are not published.
-          rsync -a --delete \
-            --exclude='.git/' \
-            --exclude='node_modules/' \
-            --exclude='package.json' \
-            --exclude='yarn.lock' \
-            --exclude='.gitignore' \
-            golang/ "$DEST/"
-          cp LICENSE "$DEST/LICENSE"
-          cp docs/gitbook/golang/changelog.md "$DEST/CHANGELOG.md"
-          cat > "$DEST/.gitignore" << 'EOF'
-          # Go build output
-          /bin/
-          *.test
-          *.out
-          coverage.txt
-          EOF
-
-          # Make sure the published module builds with the embedded commands.
-          (cd "$DEST" && go build ./... && go vet ./...)
-
-          cd "$DEST"
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add -A
-          if [[ -n $(git diff --cached --name-only) ]]; then
-            git commit -m "chore(release): ${TAG}" \
-              -m "Generated from ${GITHUB_REPOSITORY}@${GITHUB_SHA} (${SOURCE_TAG})."
-          else
-            echo "No file changes for ${TAG}; tagging current ${TARGET_BRANCH}"
-          fi
-          git tag -a "$TAG" -m "$TAG"
-          git push origin "HEAD:${TARGET_BRANCH}"
-          git push origin "refs/tags/${TAG}"
-
-          # Reuse the release notes generated for the source tag.
-          NOTES_FILE="${RUNNER_TEMP}/bullmq-go-notes.md"
-          if ! GH_TOKEN="$BULLMQ_GITHUB_TOKEN" gh release view "$SOURCE_TAG" \
-              --repo "$GITHUB_REPOSITORY" --json body -q .body > "$NOTES_FILE" \
-              || [ ! -s "$NOTES_FILE" ]; then
-            echo "See [CHANGELOG.md](./CHANGELOG.md) for details." > "$NOTES_FILE"
-          fi
-          gh release create "$TAG" \
-            --repo "$TARGET_REPO" \
-            --title "$TAG" \
-            --notes-file "$NOTES_FILE" \
-            --verify-tag
-
-          # Warm the Go module proxy so the version is immediately available.
-          cd "$RUNNER_TEMP"
-          GOPROXY=https://proxy.golang.org GO111MODULE=on \
-            go list -m "${TARGET_MODULE}@${TAG}" || true
+          git fetch --tags --force origin
+          bash scripts/publishGolang.sh
+      # Not gated on the publish step, so the changelog PR is still created
+      # when publishing to bullmq-go failed and has to be resumed.
       - name: Create PR with Go release changes
-        if: ${{ success() && steps.semantic_release_golang.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.semantic_release_golang.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
