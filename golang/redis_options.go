@@ -34,11 +34,12 @@ func (o RedisOptions) build() (redis.UniversalClient, bool) {
 		addr = "127.0.0.1:6379"
 	}
 	return redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Username: o.Username,
-		Password: o.Password,
-		DB:       o.DB,
-		PoolSize: o.PoolSize,
+		Addr:                  addr,
+		Username:              o.Username,
+		Password:              o.Password,
+		DB:                    o.DB,
+		PoolSize:              o.PoolSize,
+		ContextTimeoutEnabled: true,
 	}), true
 }
 
