@@ -114,7 +114,7 @@ func (b *RedisBackend) AddJobs(ctx context.Context, jobs []NewJob) ([]string, er
 			if err != nil {
 				return err
 			}
-			cmds[i] = s.run(ctx, pipe, a.keys, a.argv1, a.payload, a.opts)
+			cmds[i] = s.script.Eval(ctx, pipe, a.keys, a.argv1, a.payload, a.opts)
 		}
 		return nil
 	})
