@@ -247,6 +247,14 @@ export class Worker<
   protected running = false;
   protected mainLoopRunning: Promise<void> | null = null;
 
+  // Tracks whether the backend's connection(s) have ever reached a ready
+  // state (set once `backend.waitUntilReady()` resolves below). Used by
+  // `whenCurrentJobsFinished()` to tell "the connection never came up" apart
+  // from "a job is legitimately still processing" - the timeout it applies
+  // should only ever kick in for the former.
+  // See https://github.com/taskforcesh/bullmq/issues/4656.
+  private connectionReady = false;
+
   static RateLimitError(): Error {
     return new RateLimitError();
   }
@@ -424,7 +432,10 @@ export class Worker<
     // surfaced via the 'error' event wired up in QueueBase.
     this.backend
       .waitUntilReady()
-      .then(() => setTimeout(() => this.emit('ready'), 0))
+      .then(() => {
+        this.connectionReady = true;
+        setTimeout(() => this.emit('ready'), 0);
+      })
       .catch(() => {});
   }
 
@@ -1578,37 +1589,45 @@ export class Worker<
       // the main connection is unreachable and has never reached 'ready', a
       // command issued before close() (e.g. the initial job fetch) can be
       // waiting on that connection becoming ready - which may never happen -
-      // so mainLoopRunning would never resolve either. Bound the wait so
-      // close() always terminates instead of hanging the process forever.
+      // so mainLoopRunning would never resolve either.
+      //
+      // Only bound the wait in that specific case. A healthy connection that
+      // is simply processing a long-running job must be allowed to finish
+      // normally - `connectionReady` is what tells the two apart, so a slow
+      // job on a working connection is never cut short here.
       // See https://github.com/taskforcesh/bullmq/issues/4656.
-      const timeoutMs =
-        this.opts.whenCurrentJobsFinishedTimeout ??
-        WHEN_CURRENT_JOBS_FINISHED_TIMEOUT_MS;
-      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-      try {
-        await Promise.race([
-          this.mainLoopRunning,
-          new Promise<void>(resolve => {
-            timeoutHandle = setTimeout(() => {
-              this.emit(
-                'error',
-                new Error(
-                  'BullMQ: timed out waiting for the main loop to finish ' +
-                    `while closing (after ${timeoutMs}ms). ` +
-                    'This can happen when the Redis connection is unreachable ' +
-                    'and a command issued before close() is still pending. ' +
-                    'Proceeding with shutdown without waiting further.',
-                ),
-              );
-              resolve();
-            }, timeoutMs);
-            // Don't keep the event loop alive solely for this timer.
-            timeoutHandle.unref?.();
-          }),
-        ]);
-      } finally {
-        if (timeoutHandle) {
-          clearTimeout(timeoutHandle);
+      if (this.connectionReady) {
+        await this.mainLoopRunning;
+      } else {
+        const timeoutMs =
+          this.opts.whenCurrentJobsFinishedTimeout ??
+          WHEN_CURRENT_JOBS_FINISHED_TIMEOUT_MS;
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            this.mainLoopRunning,
+            new Promise<void>(resolve => {
+              timeoutHandle = setTimeout(() => {
+                this.emit(
+                  'error',
+                  new Error(
+                    'BullMQ: timed out waiting for the main loop to finish ' +
+                      `while closing (after ${timeoutMs}ms). ` +
+                      'This can happen when the Redis connection is unreachable ' +
+                      'and a command issued before close() is still pending. ' +
+                      'Proceeding with shutdown without waiting further.',
+                  ),
+                );
+                resolve();
+              }, timeoutMs);
+              // Don't keep the event loop alive solely for this timer.
+              timeoutHandle.unref?.();
+            }),
+          ]);
+        } finally {
+          if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+          }
         }
       }
     } else {
