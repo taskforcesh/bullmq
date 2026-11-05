@@ -182,8 +182,8 @@ func (o *WorkerOptions) applyDefaults() error {
 		if o.LockRenewTime < time.Millisecond {
 			return configError("lockRenewTime must be at least 1ms")
 		}
-		if o.LockRenewTime >= o.LockDuration {
-			return configError("lockRenewTime must be less than lockDuration")
+		if o.LockRenewTime >= time.Duration(o.LockDuration.Milliseconds())*time.Millisecond {
+			return configError("lockRenewTime must be less than lockDuration rounded down to milliseconds")
 		}
 	}
 	if o.StalledInterval > 0 && o.StalledInterval < time.Millisecond && !o.SkipStalledCheck {
