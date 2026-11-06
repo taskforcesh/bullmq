@@ -121,6 +121,16 @@ func (b *RedisBackend) QueueName() string { return b.keys.Name() }
 // QualifiedName returns `{prefix}:{queue}`.
 func (b *RedisBackend) QualifiedName() string { return b.keys.Base() }
 
+// ResolveParent returns the parent reference and `{prefix}:{queue}:{id}` key
+// that are stored for a job added under parent.
+func (b *RedisBackend) ResolveParent(parent *ParentOptions) (*ParentKeys, string, error) {
+	queueKey, err := resolveParentQueueKey(b.keys.Prefix(), parent.Queue)
+	if err != nil {
+		return nil, "", err
+	}
+	return &ParentKeys{ID: parent.ID, QueueKey: queueKey}, queueKey + ":" + parent.ID, nil
+}
+
 // ClientName returns `{prefix}:{base64(queue)}{suffix}`.
 func (b *RedisBackend) ClientName(suffix string) string { return b.keys.ClientName(suffix) }
 

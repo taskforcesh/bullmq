@@ -203,6 +203,11 @@ func (b *RedisBackend) WaitForJob(ctx context.Context, timeout time.Duration) er
 	return err
 }
 
+// SignalWork adds the base marker that WaitForJob blocks on.
+func (b *RedisBackend) SignalWork(ctx context.Context) error {
+	return b.rdb.ZAdd(ctx, b.keys.Marker(), redis.Z{Score: 0, Member: "0"}).Err()
+}
+
 // LastEventID returns the id of the newest event stream entry, or "0-0" when
 // the stream is empty.
 func (b *RedisBackend) LastEventID(ctx context.Context) (string, error) {

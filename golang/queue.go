@@ -85,7 +85,7 @@ func (q *Queue) Add(ctx context.Context, name string, data any, opts *JobOptions
 	if err != nil {
 		return nil, err
 	}
-	return q.newAddedJob(id, nj), nil
+	return q.newAddedJob(id, nj)
 }
 
 // AddBulk inserts every job in one backend operation. For Redis that is a
@@ -116,14 +116,16 @@ func (q *Queue) AddBulk(ctx context.Context, specs []JobSpec) ([]*Job, error) {
 
 	jobs := make([]*Job, len(prepared))
 	for i, nj := range prepared {
-		jobs[i] = q.newAddedJob(ids[i], nj)
+		if jobs[i], err = q.newAddedJob(ids[i], nj); err != nil {
+			return nil, err
+		}
 	}
 	return jobs, nil
 }
 
 // newAddedJob builds the Job returned to the caller of Add or AddBulk.
-func (q *Queue) newAddedJob(id string, nj NewJob) *Job {
-	return &Job{
+func (q *Queue) newAddedJob(id string, nj NewJob) (*Job, error) {
+	job := &Job{
 		ID:        id,
 		Name:      nj.Name,
 		Data:      nj.Data,
@@ -134,6 +136,15 @@ func (q *Queue) newAddedJob(id string, nj NewJob) *Job {
 		QueueName: q.Name(),
 		backend:   q.backend,
 	}
+	if nj.Opts.Parent != nil {
+		parent, parentKey, err := q.backend.ResolveParent(nj.Opts.Parent)
+		if err != nil {
+			return nil, err
+		}
+		job.Parent = parent
+		job.ParentKey = parentKey
+	}
+	return job, nil
 }
 
 // prepareJob validates a JobSpec, merges the queue defaults and serializes the

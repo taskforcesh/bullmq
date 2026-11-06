@@ -57,6 +57,13 @@ type Backend interface {
 	// used for example as a flow parent reference. Redis: `{prefix}:{queue}`.
 	QualifiedName() string
 
+	// ResolveParent resolves the parent a job is added under into the
+	// identifiers the backend persists, without touching the datastore. It
+	// returns the parent reference and the backend-specific parent key
+	// (Redis: `{prefix}:{queue}:{id}`), matching what fetching the job later
+	// reports as [JobRecord.Parent] and [JobRecord.ParentKey].
+	ResolveParent(parent *ParentOptions) (*ParentKeys, string, error)
+
 	// ClientName builds the connection name used for worker discovery. Redis:
 	// `{prefix}:{base64(queue)}{suffix}`.
 	ClientName(suffix string) string
@@ -240,6 +247,13 @@ type Backend interface {
 	// available, a delayed job came due, or ctx is done. A timeout is not an
 	// error. It uses the connection dedicated to blocking reads.
 	WaitForJob(ctx context.Context, timeout time.Duration) error
+
+	// SignalWork wakes workers blocked in WaitForJob so they look for work
+	// again. The signal is level-triggered: it is kept until a waiter consumes
+	// it, so it is not lost when no worker is waiting yet. Workers call it
+	// when they free capacity that eligible jobs may have been waiting for,
+	// for example under a global concurrency limit.
+	SignalWork(ctx context.Context) error
 }
 
 // BackendOptions describes the role of the backend being built by a

@@ -2,6 +2,7 @@ package bullmq
 
 import (
 	"context"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -109,17 +110,7 @@ func (b *RedisBackend) AddJobs(ctx context.Context, jobs []NewJob) ([]string, er
 		prepared[i] = a
 	}
 
-	cmds := make([]*redis.Cmd, len(prepared))
-	_, err := b.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		for i, a := range prepared {
-			s, err := getScript(a.scriptName)
-			if err != nil {
-				return err
-			}
-			cmds[i] = s.script.Eval(ctx, pipe, a.keys, a.argv1, a.payload, a.opts)
-		}
-		return nil
-	})
+	cmds, err := b.execAdds(ctx, prepared)
 	if err != nil {
 		return nil, err
 	}
@@ -139,6 +130,103 @@ func (b *RedisBackend) AddJobs(ctx context.Context, jobs []NewJob) ([]string, er
 	return ids, nil
 }
 
+// execAdds runs the prepared add* commands in one MULTI/EXEC. Each distinct
+// script is loaded once up front so the transaction carries only EVALSHA
+// calls instead of repeating the script text for every job.
+//
+// A NOSCRIPT reply means the server dropped the cache between the load and
+// the EXEC (for example a failover); that command never ran, so only those
+// commands are resubmitted, with the full script text, in a second
+// transaction. Commands that already ran are never replayed.
+func (b *RedisBackend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.Cmd, error) {
+	loaded := make(map[string]*luaScript)
+	var loadCmds []*redis.StringCmd
+	_, err := b.rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		for _, a := range prepared {
+			if _, done := loaded[a.scriptName]; done {
+				continue
+			}
+			s, err := getScript(a.scriptName)
+			if err != nil {
+				return err
+			}
+			loaded[a.scriptName] = s
+			loadCmds = append(loadCmds, s.script.Load(ctx, pipe))
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range loadCmds {
+		if err := c.Err(); err != nil {
+			return nil, err
+		}
+	}
+
+	submit := func(indexes []int, useSHA bool) ([]*redis.Cmd, error) {
+		cmds := make([]*redis.Cmd, len(indexes))
+		_, execErr := b.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+			for n, i := range indexes {
+				a := prepared[i]
+				s := loaded[a.scriptName]
+				if useSHA {
+					cmds[n] = s.script.EvalSha(ctx, pipe, a.keys, a.argv1, a.payload, a.opts)
+				} else {
+					cmds[n] = s.script.Eval(ctx, pipe, a.keys, a.argv1, a.payload, a.opts)
+				}
+			}
+			return nil
+		})
+		// Per-command errors are inspected by the caller; surface the
+		// transaction error only when no command carries one.
+		for _, c := range cmds {
+			if err := c.Err(); err != nil && err != redis.Nil {
+				return cmds, nil
+			}
+		}
+		return cmds, execErr
+	}
+
+	all := make([]int, len(prepared))
+	for i := range all {
+		all[i] = i
+	}
+	cmds, err := submit(all, true)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]*redis.Cmd, len(prepared))
+	var missing []int
+	var hardErr error
+	for i, c := range cmds {
+		results[i] = c
+		switch err := c.Err(); {
+		case err == nil || err == redis.Nil:
+		case strings.HasPrefix(err.Error(), "NOSCRIPT"):
+			missing = append(missing, i)
+		case hardErr == nil:
+			hardErr = err
+		}
+	}
+	if hardErr != nil {
+		return nil, hardErr
+	}
+	if len(missing) == 0 {
+		return results, nil
+	}
+
+	retried, err := submit(missing, false)
+	if err != nil {
+		return nil, err
+	}
+	for n, i := range missing {
+		results[i] = retried[n]
+	}
+	return results, nil
+}
+
 // packAddArgs builds ARGV[1] of the add* commands: a msgpack array of
 // [keyPrefix, customId, name, timestamp, parentKey, parentDepsKey, parent,
 // repeatJobKey, deduplicationKey].
@@ -152,15 +240,14 @@ func (b *RedisBackend) packAddArgs(opts *JobOptions, name string, timestamp int6
 	args[3] = timestamp
 
 	if opts.Parent != nil {
-		parentQueueKey, err := resolveParentQueueKey(b.keys.Prefix(), opts.Parent.Queue)
+		parentRef, parentKey, err := b.ResolveParent(opts.Parent)
 		if err != nil {
 			return nil, err
 		}
-		parentKey := parentQueueKey + ":" + opts.Parent.ID
 
 		parent := map[string]any{
-			"id":       opts.Parent.ID,
-			"queueKey": parentQueueKey,
+			"id":       parentRef.ID,
+			"queueKey": parentRef.QueueKey,
 		}
 		for key, enabled := range map[string]bool{
 			"fpof": opts.failParentOnFailureVal(),

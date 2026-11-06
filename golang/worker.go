@@ -71,6 +71,11 @@ type Worker struct {
 
 	paused atomic.Bool
 
+	// starving is true while the fetch loop may be waiting for work that is
+	// only blocked by capacity held by this worker's own in-flight jobs (for
+	// example a queue global concurrency lower than the worker concurrency).
+	starving atomic.Bool
+
 	mu     sync.Mutex
 	active map[string]*activeJob
 }
@@ -264,6 +269,10 @@ func (w *Worker) fetchLoop(loopCtx, jobCtx context.Context) error {
 		case <-slots:
 		}
 
+		// Other slots busy: a fetch that finds nothing may be blocked by the
+		// capacity those jobs hold, so their completion must wake the loop.
+		w.starving.Store(len(slots) < cap(slots)-1)
+
 		if w.IsPaused() {
 			slots <- struct{}{}
 			if !sleepCtx(loopCtx, 100*time.Millisecond) {
@@ -301,9 +310,27 @@ func (w *Worker) fetchLoop(loopCtx, jobCtx context.Context) error {
 		processing.Add(1)
 		go func(job *Job) {
 			defer processing.Done()
-			defer func() { slots <- struct{}{} }()
+			defer func() {
+				slots <- struct{}{}
+				w.signalCapacityFreed(loopCtx)
+			}()
 			w.processJob(jobCtx, job)
 		}(job)
+	}
+}
+
+// signalCapacityFreed wakes a fetch loop that is waiting for work which only
+// this worker's own in-flight jobs were holding back. Finishing a job does not
+// otherwise add a marker, so without this the loop would sleep for the rest of
+// the drain delay.
+func (w *Worker) signalCapacityFreed(ctx context.Context) {
+	if !w.starving.Load() || ctx.Err() != nil {
+		return
+	}
+	sctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := w.backend.SignalWork(sctx); err != nil && ctx.Err() == nil {
+		w.emitError(err)
 	}
 }
 
