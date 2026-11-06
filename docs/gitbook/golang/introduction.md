@@ -236,6 +236,8 @@ queue, err := bullmq.NewQueue("my-queue", &bullmq.QueueOptions{
 The Go implementation uses the same Lua scripts and Redis data structures as
 the Node.js, Python, Rust and .NET versions. This means:
 
-- Jobs added by Node.js workers can be processed by Go workers (and vice versa)
-- Queue state is fully shared across all language implementations
-- You can mix languages in a single deployment
+- Ordinary jobs added by Node.js can be processed by Go workers (and vice versa)
+- Queue state is shared across language implementations
+- You can mix languages in a single deployment, subject to feature support
+
+**Job scheduler restriction:** Do not attach Go workers to queues containing job-scheduler or repeatable jobs. Go workers cannot create the next iteration, so claiming one stops that schedule even if Node.js workers share the queue. Keep scheduler jobs on separate queues consumed only by scheduler-capable workers.
