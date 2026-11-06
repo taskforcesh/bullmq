@@ -503,35 +503,35 @@
   resolved "https://registry.yarnpkg.com/@microsoft/tsdoc/-/tsdoc-0.17.1.tgz#b8bb5062280827c4a54443297701a3e70dc1018d"
   integrity sha512-VHyYyyoH63jFoO3shpw9Zfijk5v/9p/VrClW35z0/q6ooK7sSmxpzOkS4iZPxs3vO4XtBW4H38HRAKkAMIK7DA==
 
-"@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4":
-  version "3.0.4"
-  resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-darwin-arm64/-/msgpackr-extract-darwin-arm64-3.0.4.tgz#22619f76a6b10ba78c8b74025b0d9754cad69cc7"
-  integrity sha512-LCkGo6JDfaBhgST7UpPWgNgLINpcpabaHfyz5OBx75nUYxBsaEPxjnyNjWpeb/xBup/682QnBfRBy2/LvPutZQ==
+"@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.6":
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-darwin-arm64/-/msgpackr-extract-darwin-arm64-3.0.6.tgz#d92e26b4a401f79824a8569f3fd0059618ef9a6d"
+  integrity sha512-ugMD1XQPQ0usC3F1frfZzZsNs9uf9Xyxe86GO078Mg0dVY+FQA8TlPL8P5EQwavZs0dUe2LjWJnt4TyQl3pUvw==
 
-"@msgpackr-extract/msgpackr-extract-darwin-x64@3.0.4":
-  version "3.0.4"
-  resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-darwin-x64/-/msgpackr-extract-darwin-x64-3.0.4.tgz#c2fc0573afe08b0cf213e66eef76842b121d1577"
-  integrity sha512-zExlW9zUJKZH/tOtVMttwjKa4Xm/3KcNjnE3dPN92uCktwavMxpgCA3MoJK/DOnTWsQgo224OaST27/mPNAf+w==
+"@msgpackr-extract/msgpackr-extract-darwin-x64@3.0.6":
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-darwin-x64/-/msgpackr-extract-darwin-x64-3.0.6.tgz#c98ffeb47af18cbf2b60a8c2e2bf86f28a70bc7b"
+  integrity sha512-9ESac1RNLXH7jPZri+aOSoWOG3YpxFUdxgcrjlcANf2wDbEUf55bY3R+uGQqYkqcFLF91EkoAcDsJPbbGj84Sw==
 
-"@msgpackr-extract/msgpackr-extract-linux-arm64@3.0.4":
-  version "3.0.4"
-  resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-linux-arm64/-/msgpackr-extract-linux-arm64-3.0.4.tgz#4e3822f5522e18ed92611b894dc5db1bc882f39d"
-  integrity sha512-dgX0P/9wGPJeHFBG+ZmhgE6bmtMt7NP5CRBGyyktpopdk/mW4POnrpQsSLtKI1dwpc+pPLuXHDh6vvskyQE/sw==
+"@msgpackr-extract/msgpackr-extract-linux-arm64@3.0.6":
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-linux-arm64/-/msgpackr-extract-linux-arm64-3.0.6.tgz#07e49bd69bf131493b15a37a8704f28c2c02e955"
+  integrity sha512-zHceGhbGw8RQG6oSKK/43ieOjutwb/yVXa5kmdJCfFCLbTdOkd4TGfvbiic70VJf8uomuV4AwOfFxe1i2/ZLmQ==
 
-"@msgpackr-extract/msgpackr-extract-linux-arm@3.0.4":
-  version "3.0.4"
-  resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-linux-arm/-/msgpackr-extract-linux-arm-3.0.4.tgz#27ec4bc7eb6c311c982a50f1a6e1e1414638a6f8"
-  integrity sha512-Tg3yX65f5GbtXLkrYEHE5oibZG9epyYWas7FogTTEJeDEF9JlXJzKgXaNhT3UXlTOeA+AfZpYZYZ0uPj7Cfquw==
+"@msgpackr-extract/msgpackr-extract-linux-arm@3.0.6":
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-linux-arm/-/msgpackr-extract-linux-arm-3.0.6.tgz#314116ca2be9ad08572db6cbe20ec37b107b487c"
+  integrity sha512-tAObEkjmQ77IgZfg6UEyEUgKP9vLVMkq2KK8WNa5P7hIieevSMHxyKcqM4zCV+TiZu8q7XmWLrqqlSuaZ5Z0zA==
 
-"@msgpackr-extract/msgpackr-extract-linux-x64@3.0.4":
-  version "3.0.4"
-  resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-linux-x64/-/msgpackr-extract-linux-x64-3.0.4.tgz#37317d833c7d01d086f6155fa59c478adb6839f6"
-  integrity sha512-8TNXMEjJc3QEy7R/x1INhgiU+XakDAFUzBhaz7+Rbrs8NH5UQeHQxxmzsSBJGyV6I1jW79undiQm8tOI+D+8FQ==
+"@msgpackr-extract/msgpackr-extract-linux-x64@3.0.6":
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-linux-x64/-/msgpackr-extract-linux-x64-3.0.6.tgz#965d7ac06fe7af592fe914f528e697c9d3cd6920"
+  integrity sha512-7zKNTbhIGdVO4gsGFNd39g5Go3jN+fuizvWe8SrbGSck9Pcr8x9I5GbtUX1JzBLMaUuI/tcB0JKEYn8RNjKhFg==
 
-"@msgpackr-extract/msgpackr-extract-win32-x64@3.0.4":
-  version "3.0.4"
-  resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-win32-x64/-/msgpackr-extract-win32-x64-3.0.4.tgz#a1c79dcc9ae5f8c02aea8c2f144e5af6a822e5e8"
-  integrity sha512-CmCXPQrkbwExx3j946/PtHWHbYJiCRBRDl4BlkRQcJB/YOwQxJRTpoo7aTsortjgoJ1x7opzTSxn7C+ASSLVjQ==
+"@msgpackr-extract/msgpackr-extract-win32-x64@3.0.6":
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-win32-x64/-/msgpackr-extract-win32-x64-3.0.6.tgz#7ee3649e37993a3501ce9a11c68776804a40072f"
+  integrity sha512-J1mT1tp4v9aqcRwUtFrdJ94yei2SlIKm243nWK5bCyOPNnnNknaPzjG6a2Aa5OSfXE36rrth0X2OPHpispZTJw==
 
 "@nodelib/fs.scandir@2.1.5":
   version "2.1.5"
@@ -4446,10 +4446,10 @@ mimic-fn@^4.0.0:
   resolved "https://registry.yarnpkg.com/mimic-fn/-/mimic-fn-4.0.0.tgz#60a90550d5cb0b239cca65d893b1a53b29871ecc"
   integrity sha512-vqiC06CuhBTUdZH+RYl8sFrL096vA45Ok5ISO6sE/Mr1jRbGH4Csnhi8f3wKVl7x8mO4Au7Ir9D3Oyv1VYMFJw==
 
-minimatch@11.0.3:
-  version "11.0.3"
-  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-11.0.3.tgz#d794539f77c0a98ea4adca473768d1e1357204f5"
-  integrity sha512-iny/40PEGkNJQ5/Pv6z3nm6FbRAby32GeZRjCUJk2WnNDbgPSTcdI+DDvLqsgBdD4cD5sMtMheqPPnehCCa8Nw==
+minimatch@11.0.4:
+  version "11.0.4"
+  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-11.0.4.tgz#3ed156790c2754647ee94dab305a3f93cd16481e"
+  integrity sha512-/UJ1dEoVQTjPNDh6SGlUo+ueLMmoHTas4q+8yaAR/5t6nLAIiBDJtoYUh20IYleix7ehiQkgczb84PE3uzHkxg==
   dependencies:
     "@isaacs/nonrecursive-glob-match" "^1.0.3"
     brace-expansion "^5.0.12"
@@ -4561,26 +4561,26 @@ ms@^2.1.2, ms@^2.1.3:
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.1.3.tgz#574c8138ce1d2b5861f0b44579dbadd60c6615b2"
   integrity sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==
 
-msgpackr-extract@^3.0.4:
-  version "3.0.4"
-  resolved "https://registry.yarnpkg.com/msgpackr-extract/-/msgpackr-extract-3.0.4.tgz#d252698947f7a1a62478d22bfb789ba48dd4c1ac"
-  integrity sha512-4kmO/MdyUIkLIvTPr8VHLil4AtoKIoniWPIEk5+CDy0xnWC84azhSFmuJ7PxZdsYtiP5kEeQsORAVIeMgxT+Hw==
+msgpackr-extract@^3.0.6:
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/msgpackr-extract/-/msgpackr-extract-3.0.6.tgz#9310c17b9aef6416253101dc0deb4090caaf11f3"
+  integrity sha512-prUB8+Gc/1rEzaNo+3Rjo0Hdi6gFjQ9Td0mDsvAIkSGUyp6EADdEBiU71ZP5Mj4jCG+vai0qSNV+yisQAMYuSQ==
   dependencies:
     node-gyp-build-optional-packages "5.2.2"
   optionalDependencies:
-    "@msgpackr-extract/msgpackr-extract-darwin-arm64" "3.0.4"
-    "@msgpackr-extract/msgpackr-extract-darwin-x64" "3.0.4"
-    "@msgpackr-extract/msgpackr-extract-linux-arm" "3.0.4"
-    "@msgpackr-extract/msgpackr-extract-linux-arm64" "3.0.4"
-    "@msgpackr-extract/msgpackr-extract-linux-x64" "3.0.4"
-    "@msgpackr-extract/msgpackr-extract-win32-x64" "3.0.4"
+    "@msgpackr-extract/msgpackr-extract-darwin-arm64" "3.0.6"
+    "@msgpackr-extract/msgpackr-extract-darwin-x64" "3.0.6"
+    "@msgpackr-extract/msgpackr-extract-linux-arm" "3.0.6"
+    "@msgpackr-extract/msgpackr-extract-linux-arm64" "3.0.6"
+    "@msgpackr-extract/msgpackr-extract-linux-x64" "3.0.6"
+    "@msgpackr-extract/msgpackr-extract-win32-x64" "3.0.6"
 
-msgpackr@2.1.3:
-  version "2.1.3"
-  resolved "https://registry.yarnpkg.com/msgpackr/-/msgpackr-2.1.3.tgz#4cd4967edd17307a1dbd69c21735f2a0fb94d3a4"
-  integrity sha512-C8pQ8SJjwH9C9JiCe5asXWvJC3melOxMuBj7vpTY95096ay6r1wPXG0XN56wMaRpzRPE3hdf4ufukia/j+beKQ==
+msgpackr@2.1.4:
+  version "2.1.4"
+  resolved "https://registry.yarnpkg.com/msgpackr/-/msgpackr-2.1.4.tgz#6cef448167a2c2d5ae6ad63ba85ada522b84fb71"
+  integrity sha512-TvP18sX5U3MXoHHSUZen/FagaNTEJObyb8OlnJcNbqN6Ux/oCwYJrHhCOzi31bItyW/Efz1IDnRDKQ23j4ZuvA==
   optionalDependencies:
-    msgpackr-extract "^3.0.4"
+    msgpackr-extract "^3.0.6"
 
 mute-stream@^3.0.0:
   version "3.0.0"
@@ -5762,7 +5762,12 @@ semver-regex@^4.0.5:
   resolved "https://registry.yarnpkg.com/semver-regex/-/semver-regex-4.0.5.tgz#fbfa36c7ba70461311f5debcb3928821eb4f9180"
   integrity sha512-hunMQrEy1T6Jr2uEVjrAIqjwWcQTgOAcIM52C8MY1EZSD3DDNft04XzvYKPqjED65bNVVko0YI38nYeEHCX3yw==
 
-semver@7.8.5, semver@^7.1.1, semver@^7.1.2, semver@^7.3.2, semver@^7.3.5, semver@^7.3.7, semver@^7.5.2, semver@^7.5.3, semver@^7.6.0, semver@^7.7.2, semver@^7.7.3, semver@^7.8.5:
+semver@7.8.6:
+  version "7.8.6"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-7.8.6.tgz#67c0cda133a3ceb6f70b803e67625bf969000424"
+  integrity sha512-9lpSSU4Mly3mrtruwLs1eLK6+gzbzqeBFwRNjIjE+9LuDpWdYctrQlQ3ej1Ilgi7gknpsTRnPoLP8DpCHqHIJw==
+
+semver@^7.1.1, semver@^7.1.2, semver@^7.3.2, semver@^7.3.5, semver@^7.3.7, semver@^7.5.2, semver@^7.5.3, semver@^7.6.0, semver@^7.7.2, semver@^7.7.3, semver@^7.8.5:
   version "7.8.5"
   resolved "https://registry.yarnpkg.com/semver/-/semver-7.8.5.tgz#39b646037dd50c14fb451e7e4cac58ed8b863f69"
   integrity sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==
