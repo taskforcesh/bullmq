@@ -97,7 +97,7 @@ func (b *RedisBackend) GetJob(ctx context.Context, jobID string) (*JobRecord, er
 // GetState returns the state of a job.
 func (b *RedisBackend) GetState(ctx context.Context, jobID string) (JobState, error) {
 	k := b.keys
-	res, err := b.runScript(ctx, "getState", []string{
+	res, err := b.runScript(ctx, "getStateV2", []string{
 		k.Completed(), k.Failed(), k.Delayed(), k.Active(),
 		k.Wait(), k.Paused(), k.WaitingChildren(), k.Prioritized(),
 	}, jobID)
