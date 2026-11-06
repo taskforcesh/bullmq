@@ -86,7 +86,7 @@
     "cron-parser": "5.10.3",
     "msgpackr": "2.1.4",
     "node-abort-controller": "3.1.1",
-    "semver": "7.8.5",
+    "semver": "7.8.6",
     "tslib": "2.9.1"
   },
   "peerDependencies": {
