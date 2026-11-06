@@ -151,6 +151,22 @@ function wrapRedisInstance(instance: any): IRedisClient {
   return createIORedisClient(instance);
 }
 
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  // The loser of the race must not surface as an unhandled rejection.
+  promise.catch(() => {});
+  if (signal.aborted) {
+    return Promise.reject(new ConnectionClosedError());
+  }
+  let onAbort: () => void;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      onAbort = () => reject(new ConnectionClosedError());
+      signal.addEventListener('abort', onAbort);
+    }),
+  ]).finally(() => signal.removeEventListener('abort', onAbort));
+}
+
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
   static recommendedMinimumVersion = '6.2.0';
@@ -335,7 +351,7 @@ export class RedisConnection extends EventEmitter {
     }
 
     if (client.status === 'wait') {
-      return client.connect();
+      return signal ? untilAborted(client.connect(), signal) : client.connect();
     }
 
     if (client.status === 'end') {
@@ -748,7 +764,7 @@ export class RedisConnection extends EventEmitter {
   async reconnect(): Promise<void> {
     const client = await this.client;
     this.closeController ??= new AbortController();
-    const { signal } = this.closeController;
+    const signal = this.closeController.signal as AbortSignal;
 
     for (;;) {
       if (this.closing) {
@@ -763,25 +779,13 @@ export class RedisConnection extends EventEmitter {
       }
 
       if (client.status === 'wait' || client.status === 'end') {
-        const connecting = client.connect();
-        connecting.catch(() => {});
-        if (signal.aborted) {
-          throw new ConnectionClosedError();
-        }
-        let onAbort: () => void;
-        const aborted = new Promise<never>((_, reject) => {
-          onAbort = () => reject(new ConnectionClosedError());
-          signal.addEventListener('abort', onAbort);
-        });
         try {
-          await Promise.race([connecting, aborted]);
+          await untilAborted(client.connect(), signal);
         } catch (error) {
           if (this.closing || signal.aborted) {
             throw new ConnectionClosedError();
           }
           throw error;
-        } finally {
-          signal.removeEventListener('abort', onAbort!);
         }
         if (this.closing) {
           throw new ConnectionClosedError();

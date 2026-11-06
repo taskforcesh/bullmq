@@ -503,6 +503,29 @@ describe('RedisConnection', () => {
       expect(client.listenerCount('end')).toBe(0);
       expect(client.listenerCount('error')).toBe(0);
     });
+
+    it('aborts an in-flight lazy connect()', async () => {
+      let resolveConnect!: () => void;
+      const client: any = {
+        status: 'wait',
+        isCluster: false,
+        connect: sinon.stub().returns(
+          new Promise<void>(resolve => {
+            resolveConnect = resolve;
+          }),
+        ),
+      };
+      const controller = new AbortController();
+      const remove = sinon.spy(controller.signal, 'removeEventListener');
+
+      const pending = RedisConnection.waitUntilReady(client, controller.signal);
+      expect(client.connect.calledOnce).toBe(true);
+      controller.abort();
+
+      await expect(pending).rejects.toThrow(ConnectionClosedError);
+      expect(remove.calledOnce).toBe(true);
+      resolveConnect();
+    });
   });
 
   describe('reconnect()', () => {
