@@ -8,6 +8,7 @@
 --- @include "addJobInTargetList"
 --- @include "destructureJobKey"
 --- @include "isQueuePausedOrMaxed"
+--- @include "removeDeduplicationKeyIfNeededOnRemoval"
 --- @include "removeJobKeys"
 
 local function _moveParentToWait(parentPrefix, parentId, emitEvent)
@@ -21,7 +22,7 @@ local function _moveParentToWait(parentPrefix, parentId, emitEvent)
   end
 end
 
-local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debounceId)
+local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
   if parentKey then
     local parentDependenciesKey = parentKey .. ":dependencies"
     local result = rcall("SREM", parentDependenciesKey, jobKey)
@@ -36,11 +37,10 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debou
         if numRemovedElements == 1 then
           if hard then -- remove parent in same queue
             if parentPrefix == baseKey then
-              removeParentDependencyKey(parentKey, hard, nil, baseKey, nil)
+              local parentDeduplicationId = rcall("HGET", parentKey, "deid")
+              removeParentDependencyKey(parentKey, hard, nil, baseKey)
               removeJobKeys(parentKey)
-              if debounceId then
-                rcall("DEL", parentPrefix .. "de:" .. debounceId)
-              end
+              removeDeduplicationKeyIfNeededOnRemoval(parentPrefix, parentId, parentDeduplicationId)
             else
               _moveParentToWait(parentPrefix, parentId)
             end
@@ -52,8 +52,7 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debou
       return true
     end
   else
-    local parentAttributes = rcall("HMGET", jobKey, "parentKey", "deid")
-    local missedParentKey = parentAttributes[1]
+    local missedParentKey = rcall("HGET", jobKey, "parentKey")
     if( (type(missedParentKey) == "string") and missedParentKey ~= ""
       and (rcall("EXISTS", missedParentKey) == 1)) then
       local parentDependenciesKey = missedParentKey .. ":dependencies"
@@ -69,11 +68,10 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debou
           if numRemovedElements == 1 then
             if hard then
               if parentPrefix == baseKey then
-                removeParentDependencyKey(missedParentKey, hard, nil, baseKey, nil)
+                local parentDeduplicationId = rcall("HGET", missedParentKey, "deid")
+                removeParentDependencyKey(missedParentKey, hard, nil, baseKey)
                 removeJobKeys(missedParentKey)
-                if parentAttributes[2] then
-                  rcall("DEL", parentPrefix .. "de:" .. parentAttributes[2])
-                end
+                removeDeduplicationKeyIfNeededOnRemoval(parentPrefix, parentId, parentDeduplicationId)
               else
                 _moveParentToWait(parentPrefix, parentId)
               end
