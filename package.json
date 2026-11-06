@@ -86,7 +86,7 @@
     "cron-parser": "5.10.3",
     "msgpackr": "2.1.4",
     "node-abort-controller": "3.1.1",
-    "semver": "7.8.5",
+    "semver": "7.8.6",
     "tslib": "2.9.1"
   },
   "peerDependencies": {
@@ -143,7 +143,7 @@
     "ioredis": "5.11.1",
     "lint-staged": "17.6.0",
     "madge": "8.0.0",
-    "minimatch": "11.0.3",
+    "minimatch": "11.0.4",
     "moment": "2.31.0",
     "pg": "8.23.1",
     "prettier": "3.9.10",
