@@ -50,9 +50,80 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Prints -1, 0 or 1 when $1 is lower than, equal to or greater than $2 following
+# SemVer precedence: core versions compare numerically, a prerelease is lower
+# than its release, and prerelease identifiers compare one by one (numeric
+# identifiers numerically and below alphanumeric ones, which compare in ASCII
+# order; a shorter list is lower when all earlier identifiers are equal).
+# `sort -V` is not SemVer aware, it places 1.0.0 before 1.0.0-rc.1.
+semver_cmp() {
+  local LC_ALL=C
+  local a="$1" b="$2" apre="" bpre=""
+  if [[ "$a" == *-* ]]; then apre="${a#*-}"; fi
+  if [[ "$b" == *-* ]]; then bpre="${b#*-}"; fi
+
+  local a1 a2 a3 b1 b2 b3
+  IFS=. read -r a1 a2 a3 <<< "${a%%-*}"
+  IFS=. read -r b1 b2 b3 <<< "${b%%-*}"
+  local x y
+  for pair in "$a1 $b1" "$a2 $b2" "$a3 $b3"; do
+    read -r x y <<< "$pair"
+    if [ $((10#$x)) -lt $((10#$y)) ]; then echo -1; return 0; fi
+    if [ $((10#$x)) -gt $((10#$y)) ]; then echo 1; return 0; fi
+  done
+
+  if [ -z "$apre" ] && [ -z "$bpre" ]; then echo 0; return 0; fi
+  if [ -z "$apre" ]; then echo 1; return 0; fi
+  if [ -z "$bpre" ]; then echo -1; return 0; fi
+
+  local -a aid bid
+  IFS=. read -ra aid <<< "$apre"
+  IFS=. read -ra bid <<< "$bpre"
+  local i=0
+  while [ "$i" -lt "${#aid[@]}" ] && [ "$i" -lt "${#bid[@]}" ]; do
+    x="${aid[$i]}"
+    y="${bid[$i]}"
+    i=$((i + 1))
+    if [ "$x" = "$y" ]; then continue; fi
+    if [[ "$x" =~ ^[0-9]+$ ]] && [[ "$y" =~ ^[0-9]+$ ]]; then
+      if [ $((10#$x)) -lt $((10#$y)) ]; then echo -1; else echo 1; fi
+      return 0
+    fi
+    if [[ "$x" =~ ^[0-9]+$ ]]; then echo -1; return 0; fi
+    if [[ "$y" =~ ^[0-9]+$ ]]; then echo 1; return 0; fi
+    if [[ "$x" < "$y" ]]; then echo -1; else echo 1; fi
+    return 0
+  done
+  if [ "${#aid[@]}" -lt "${#bid[@]}" ]; then echo -1; return 0; fi
+  if [ "${#aid[@]}" -gt "${#bid[@]}" ]; then echo 1; return 0; fi
+  echo 0
+}
+
 # True when $1 is strictly lower than $2 in version order.
 version_lt() {
-  [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]
+  [ "$(semver_cmp "$1" "$2")" = "-1" ]
+}
+
+# Sorts the versions read from stdin (one per line) in ascending SemVer order.
+semver_sort() {
+  local -a sorted=()
+  local line i j
+  while IFS= read -r line; do
+    if [ -z "$line" ]; then continue; fi
+    i=${#sorted[@]}
+    sorted+=("$line")
+    while [ "$i" -gt 0 ]; do
+      j=$((i - 1))
+      if [ "$(semver_cmp "${sorted[$j]}" "$line")" = "1" ]; then
+        sorted[$i]="${sorted[$j]}"
+        i=$j
+      else
+        break
+      fi
+    done
+    sorted[$i]="$line"
+  done
+  if [ "${#sorted[@]}" -gt 0 ]; then printf '%s\n' "${sorted[@]}"; fi
 }
 
 target_has_release() {
@@ -207,7 +278,7 @@ warm_proxy() {
 SOURCE_VERSIONS=()
 while IFS= read -r line; do
   if [ -n "$line" ]; then SOURCE_VERSIONS+=("$line"); fi
-done < <(git tag --list 'golang/v*' | sed 's#^golang/v##' | grep -E "$SEMVER" | sort -V || true)
+done < <(git tag --list 'golang/v*' | sed 's#^golang/v##' | grep -E "$SEMVER" | semver_sort || true)
 if [ "${#SOURCE_VERSIONS[@]}" -eq 0 ]; then
   echo "No golang/v* source tags found; nothing to publish."
   exit 0
@@ -218,7 +289,7 @@ while IFS= read -r line; do
   if [ -n "$line" ]; then TARGET_VERSIONS+=("$line"); fi
 done < <(
   git ls-remote --tags --refs "$TARGET_REMOTE" 'refs/tags/v*' \
-    | sed 's#.*refs/tags/v##' | grep -E "$SEMVER" | sort -V || true
+    | sed 's#.*refs/tags/v##' | grep -E "$SEMVER" | semver_sort || true
 )
 LATEST_TARGET=""
 if [ "${#TARGET_VERSIONS[@]}" -gt 0 ]; then
