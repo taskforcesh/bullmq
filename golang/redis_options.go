@@ -80,6 +80,7 @@ func (o RedisOptions) buildBlocking(name string, readTimeout time.Duration) (red
 			opt.MaxIdleConns = 0
 			opt.MaxActiveConns = 0
 			opt.ReadTimeout = readTimeout
+			opt.ContextTimeoutEnabled = true
 			opt.ClientName = name
 			return redis.NewClient(&opt), true
 		}
@@ -90,12 +91,13 @@ func (o RedisOptions) buildBlocking(name string, readTimeout time.Duration) (red
 		addr = "127.0.0.1:6379"
 	}
 	return redis.NewClient(&redis.Options{
-		Addr:        addr,
-		Username:    o.Username,
-		Password:    o.Password,
-		DB:          o.DB,
-		PoolSize:    1,
-		ReadTimeout: readTimeout,
-		ClientName:  name,
+		Addr:                  addr,
+		Username:              o.Username,
+		Password:              o.Password,
+		DB:                    o.DB,
+		PoolSize:              1,
+		ReadTimeout:           readTimeout,
+		ClientName:            name,
+		ContextTimeoutEnabled: true,
 	}), true
 }
