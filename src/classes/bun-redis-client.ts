@@ -156,7 +156,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     if (this.statusOverride) {
       return this.statusOverride;
     }
-    // A drop the adapter is reconnecting from is not the end of the client,
+    // A dropped connection that the adapter is reconnecting from is not the end of the client,
     // whether the reconnect is pending or in progress: ioredis reports
     // 'reconnecting' there. `RedisConnection.waitUntilReady` treats 'end' as
     // terminal, so a Queue or Worker initialized during the reconnect would
