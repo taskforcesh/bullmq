@@ -15,8 +15,11 @@
 local rcall = redis.call
 local queueBaseKey = ARGV[1]
 
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/removeListJobs"
 --- @include "includes/removeZSetJobs"
+
+allowWritesOnOOM(KEYS[1])
 
 -- We must not remove delayed jobs if they are associated to a job scheduler.
 local scheduledJobs = {}

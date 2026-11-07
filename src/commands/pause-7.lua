@@ -19,8 +19,11 @@
 local rcall = redis.call
 
 -- Includes
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/getWaitPlusPrioritizedCount"
+
+allowWritesOnOOM(KEYS[1])
 
 local markerKey = KEYS[7]
 local emitEvent = ARGV[2] ~= "0"

@@ -14,6 +14,11 @@
 ]]
 local rcall = redis.call
 
+-- Includes
+--- @include "includes/allowWritesOnOOM"
+
+allowWritesOnOOM(KEYS[1])
+
 local stalledKey = KEYS[1]
 local baseKey = ARGV[1]
 local tokens = cmsgpack.unpack(ARGV[2])
