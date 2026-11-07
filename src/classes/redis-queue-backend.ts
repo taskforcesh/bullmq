@@ -722,14 +722,25 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       );
     }
 
-    const results = (await pipeline.exec()) as [null | Error, string][];
+    const results = (await pipeline.exec()) as [
+      null | Error,
+      string | number,
+    ][];
 
     const ids: string[] = [];
-    for (const [err, id] of results) {
+    for (const [index, [err, id]] of results.entries()) {
       if (err) {
         throw err;
       }
-      ids.push(id);
+      if (<number>id < 0) {
+        throw this.finishedErrors({
+          code: <number>id,
+          jobId: entries[index].jobId,
+          parentKey: entries[index].parentKeyOpts?.parentKey,
+          command: 'addJob',
+        });
+      }
+      ids.push(<string>id);
     }
     return ids;
   }
