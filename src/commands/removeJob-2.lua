@@ -9,6 +9,7 @@
       ARGV[1] jobId
       ARGV[2] remove children
       ARGV[3] queue prefix
+      ARGV[4] timestamp
 
     Events:
       'removed'
@@ -35,7 +36,8 @@ if not isLocked(prefix, jobId, shouldRemoveChildren) then
     local options = {
         removeChildren = shouldRemoveChildren == "1",
         ignoreProcessed = false,
-        ignoreLocked = false
+        ignoreLocked = false,
+        timestamp = ARGV[4]
     }
 
     removeJobWithChildren(prefix, jobId, nil, options)
