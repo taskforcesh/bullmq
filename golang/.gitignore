@@ -1,0 +1,9 @@
+# Generated: shared Lua command scripts copied from ../rawScripts by
+# `yarn copy:lua:golang`. Single source of truth lives in the repo root.
+commands/*.lua
+
+# Go build output
+/bin/
+*.test
+*.out
+coverage.txt

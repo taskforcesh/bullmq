@@ -4,6 +4,10 @@ on:
     branches:
       - master
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   HUSKY: 0
 
@@ -557,6 +561,112 @@ jobs:
                 --base master
 
               echo "Created PR for release vnet${VERSION}"
+              git checkout origin/master
+            else
+              echo "No changes to commit after staging files"
+              git checkout origin/master
+              git branch -D $BRANCH_NAME
+            fi
+          else
+            echo "No changes detected after semantic-release"
+          fi
+
+      # Go Release
+      - name: Setup Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: '1.25'
+          cache-dependency-path: golang/go.sum
+      - name: Copy Lua scripts for Go
+        if: ${{ contains(env.commitmsg, '[golang]') || contains(env.commitmsg, '(golang)') }}
+        run: yarn copy:lua:golang
+      - name: Install Node dependencies for Go
+        if: ${{ contains(env.commitmsg, '[golang]') || contains(env.commitmsg, '(golang)') }}
+        working-directory: golang
+        run: yarn install --frozen-lockfile --non-interactive
+      - name: Release Go
+        id: semantic_release_golang
+        if: ${{ contains(env.commitmsg, '[golang]') || contains(env.commitmsg, '(golang)') }}
+        working-directory: golang
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+      # Publishes the Go port (including the generated Lua commands) to
+      # taskforcesh/bullmq-go, which is the repository Go users `go get`.
+      # The golang directory in this repository remains the source of truth.
+      # Pending versions are resolved from the golang/v* source tags, not from
+      # this run's semantic-release output, so a run that failed after the
+      # source tag was created, or a rerun with nothing new to release,
+      # completes the missing tag, commit and release in bullmq-go.
+      - name: Publish Go module to bullmq-go
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ secrets.BULLMQ_GO_REPO_TOKEN }}
+          SOURCE_GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_REPO: taskforcesh/bullmq-go
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            if [[ "$commitmsg" == *"[golang]"* || "$commitmsg" == *"(golang)"* ]]; then
+              echo "::error::BULLMQ_GO_REPO_TOKEN is not configured; cannot publish to ${TARGET_REPO}"
+              exit 1
+            fi
+            echo "::warning::BULLMQ_GO_REPO_TOKEN is not configured; skipping Go publication check"
+            exit 0
+          fi
+          git fetch --tags --force origin
+          bash scripts/publishGolang.sh
+      # Not gated on the publish step, so the changelog PR is still created
+      # when publishing to bullmq-go failed and has to be resumed.
+      - name: Create PR with Go release changes
+        if: ${{ !cancelled() && steps.semantic_release_golang.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASED_VERSION: ${{ steps.semantic_release_golang.outputs.version }}
+        working-directory: golang
+        run: |
+          # Check if there are any changes to commit
+          if [[ -n $(git status --porcelain) ]]; then
+            VERSION="${RELEASED_VERSION}"
+            if [[ -z "$VERSION" ]]; then
+              # Fall back to the latest Go tag created by semantic-release
+              git fetch --tags origin
+              VERSION=$(git describe --tags --match 'golang/v*' --abbrev=0 | sed 's#^golang/v##')
+            fi
+            BRANCH_NAME="release/vgo${VERSION}"
+
+            echo "Creating PR for Go release version: vgo${VERSION}"
+
+            # Create and switch to new branch
+            git checkout -b $BRANCH_NAME
+
+            # Configure git
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+
+            # Add and commit changes (only add files that exist)
+            git add ../docs/gitbook/golang/changelog.md || true
+
+            # Check if there are actually changes to commit after adding
+            if [[ -n $(git diff --cached --name-only) ]]; then
+              git commit -m "chore(release): vgo${VERSION}"
+
+              # Push the branch
+              git push origin $BRANCH_NAME
+
+              # Create PR using GitHub CLI
+              gh pr create \
+                --title "chore(release): vgo${VERSION}" \
+                --body "Automated release PR for Go version vgo${VERSION}
+
+              This PR contains:
+              - Updated docs/gitbook/golang/changelog.md
+
+              Please review and merge to complete the release process." \
+                --head $BRANCH_NAME \
+                --base master
+
+              echo "Created PR for release vgo${VERSION}"
               git checkout origin/master
             else
               echo "No changes to commit after staging files"
