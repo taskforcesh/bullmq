@@ -6,8 +6,6 @@
       'removed'
 ]]
 
-local rcall = redis.call
-
 -- Includes
 --- @include "destructureJobKey"
 --- @include "getOrSetMaxEvents"
