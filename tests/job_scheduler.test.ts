@@ -2115,6 +2115,7 @@ describe('Job Scheduler', () => {
         prefix,
         autorun: false,
       });
+      await worker.waitUntilReady();
 
       const completing = new Promise<void>(resolve => {
         worker.on('completed', () => {
