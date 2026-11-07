@@ -1273,6 +1273,33 @@ describe('PostgreSQL backend operations', () => {
     });
   });
 
+  it('emits a removed event with the previous state when a job is removed', async () => {
+    const queueName = `ops-${randomUUID()}`;
+    const backend = createPostgresBackend(queueName, {
+      connection: { connectionString: url, schema, migrate: true },
+    });
+    try {
+      await backend.waitUntilReady();
+      const waiting = await backend.addJob(makeJob(), '');
+      const delayed = await backend.addJob(makeJob({ delay: 60_000 }), '');
+
+      expect(await backend.remove(waiting, false)).toBe(1);
+      expect(await backend.remove(delayed, true)).toBe(1);
+
+      const { rows } = await pool.query(
+        `SELECT data FROM "${schema}".event
+          WHERE queue = $1 AND event = 'removed' ORDER BY id`,
+        [queueName],
+      );
+      expect(rows.map(row => row.data)).toEqual([
+        { jobId: waiting, prev: 'waiting' },
+        { jobId: delayed, prev: 'delayed' },
+      ]);
+    } finally {
+      await backend.close();
+    }
+  });
+
   it('removeOnComplete: true removes the job on completion', async () => {
     const backend = newBackend();
     try {

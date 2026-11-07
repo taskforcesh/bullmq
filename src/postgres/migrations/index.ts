@@ -105,6 +105,13 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0011_obliterate_producer_lock.sql'),
   },
+  {
+    version: 12,
+    name: '0012_remove_emits_removed_event',
+    // Function-body fix only (CREATE OR REPLACE, identical signature).
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0012_remove_emits_removed_event.sql'),
+  },
 ];
 
 /**
