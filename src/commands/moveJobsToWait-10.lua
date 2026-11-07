@@ -1,7 +1,6 @@
 --[[
-  Move completed, failed or delayed jobs to wait.
-
-  Note: Does not support jobs with priorities.
+  Move completed, failed or delayed jobs to wait, or to prioritized
+  if the job has a priority.
 
   Input:
     KEYS[1] base key
@@ -12,6 +11,8 @@
     KEYS[6] 'meta'
     KEYS[7] 'active'
     KEYS[8] 'marker'
+    KEYS[9] 'prioritized'
+    KEYS[10] 'pc' priority counter
 
     ARGV[1] count
     ARGV[2] timestamp
@@ -30,6 +31,7 @@ local rcall = redis.call;
 --- @include "includes/addBaseMarkerIfNeeded"
 --- @include "includes/batches"
 --- @include "includes/getOrSetMaxEvents"
+--- @include "includes/getPriorityScore"
 --- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/moveChildBackToParentDependencies"
 
@@ -61,9 +63,22 @@ if (#jobs > 0) then
               "waiting", "jobId", key, "prev", ARGV[3]);
     end
 
+    local standardJobs = {}
+    for i, key in ipairs(jobs) do
+        local priority = tonumber(rcall("HGET", KEYS[1] .. key, "priority")) or 0
+        if priority == 0 then
+            standardJobs[#standardJobs + 1] = key
+        else
+            rcall("ZADD", KEYS[9], getPriorityScore(priority, KEYS[10]), key)
+        end
+    end
+
     for from, to in batches(#jobs, 7000) do
         rcall("ZREM", KEYS[3], unpack(jobs, from, to))
-        rcall("LPUSH", KEYS[4], unpack(jobs, from, to))
+    end
+
+    for from, to in batches(#standardJobs, 7000) do
+        rcall("LPUSH", KEYS[4], unpack(standardJobs, from, to))
     end
 
     addBaseMarkerIfNeeded(KEYS[8], isPausedOrMaxed)
