@@ -65,7 +65,7 @@ defmodule BullMQ.MixProject do
   defp deps do
     [
       # Redis client
-      {:redix, "== 1.9.2"},
+      {:redix, "== 1.10.0"},
 
       # PostgreSQL client (optional backend)
       {:postgrex, "== 0.22.4", optional: true},
@@ -74,7 +74,7 @@ defmodule BullMQ.MixProject do
       {:nimble_pool, "== 1.1.0"},
 
       # Configuration validation
-      {:nimble_options, "== 1.1.1"},
+      {:nimble_options, "== 1.2.0"},
 
       # JSON encoding/decoding
       {:jason, "== 1.4.5"},
