@@ -2113,6 +2113,7 @@ describe('Job Scheduler', () => {
       const worker = new Worker(queueName, async () => {}, {
         connection,
         prefix,
+        autorun: false,
       });
 
       const completing = new Promise<void>(resolve => {
@@ -2126,6 +2127,7 @@ describe('Job Scheduler', () => {
       expect(delayedCount).toBe(1);
 
       await repeatableJob!.promote();
+      worker.run();
       await completing;
 
       const delayedCount2 = await queue.getDelayedCount();
