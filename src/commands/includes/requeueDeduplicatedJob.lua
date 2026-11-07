@@ -23,7 +23,15 @@ local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
     local nextId = rcall("INCR", prefix .. "id") .. ""
     local storedJobId = nextData[8] -- index 8 = "jid" (8th field in the HMGET call above)
     local newJobId
-    if storedJobId then
+    -- A job can be created under the stored id between the proto-job being
+    -- stored and this requeue running, and storeAndEnqueueJob writes the hash
+    -- with HMSET -- so reusing the id would overwrite that job rather than
+    -- fail. addStandardJob guards the same move with EXISTS and returns a
+    -- duplicate code to its caller; there is no caller to return one to here,
+    -- so fall back to the counter id already reserved above, which keeps the
+    -- requeue correct at the cost of the custom id.
+    if storedJobId and storedJobId ~= "" and
+        rcall("EXISTS", prefix .. storedJobId) == 0 then
       newJobId = storedJobId
     else
       newJobId = nextId
