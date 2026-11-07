@@ -1,4 +1,11 @@
-# [6.7.1](https://github.com/taskforcesh/bullmq/compare/v6.7.0...v6.7.1) (2026-11-06)
+## [6.7.2](https://github.com/taskforcesh/bullmq/compare/v6.7.1...v6.7.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **deps:** pin dependencies [security] ([#5002](https://github.com/taskforcesh/bullmq/issues/5002)) ([fe30cde](https://github.com/taskforcesh/bullmq/commit/fe30cde1f1f586e6824c523760cf9aa608f4f822))
+
+## [6.7.1](https://github.com/taskforcesh/bullmq/compare/v6.7.0...v6.7.1) (2026-11-06)
 
 
 ### Bug Fixes
