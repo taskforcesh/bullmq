@@ -52,6 +52,10 @@ import type { NoInferType } from '../types/no-infer';
 // ceiling used when a backend does not delegate its own `maximumBlockTimeout`.
 const defaultMaximumBlockTimeout = 10;
 
+// Upper bound for how long a graceful close() will wait for the main loop to
+// drain on its own. See whenCurrentJobsFinished() for why this is needed.
+const WHEN_CURRENT_JOBS_FINISHED_TIMEOUT_MS = 30_000;
+
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
@@ -243,6 +247,14 @@ export class Worker<
   protected running = false;
   protected mainLoopRunning: Promise<void> | null = null;
 
+  // Tracks whether the backend's connection(s) have ever reached a ready
+  // state (set once `backend.waitUntilReady()` resolves below). Used by
+  // `whenCurrentJobsFinished()` to tell "the connection never came up" apart
+  // from "a job is legitimately still processing" - the timeout it applies
+  // should only ever kick in for the former.
+  // See https://github.com/taskforcesh/bullmq/issues/4656.
+  private connectionReady = false;
+
   static RateLimitError(): Error {
     return new RateLimitError();
   }
@@ -420,7 +432,10 @@ export class Worker<
     // surfaced via the 'error' event wired up in QueueBase.
     this.backend
       .waitUntilReady()
-      .then(() => setTimeout(() => this.emit('ready'), 0))
+      .then(() => {
+        this.connectionReady = true;
+        setTimeout(() => this.emit('ready'), 0);
+      })
       .catch(() => {});
   }
 
@@ -1567,7 +1582,54 @@ export class Worker<
     // bzpopmin call is still in flight when the main loop awaits its result.
     if (this.mainLoopRunning) {
       await this.backend.disconnectBlocking(true);
-      await this.mainLoopRunning;
+
+      // this.closing is already set by the time we get here (close() sets it
+      // before calling this method), so under normal conditions the main
+      // loop's retry logic observes it and winds down quickly. However, if
+      // the main connection is unreachable and has never reached 'ready', a
+      // command issued before close() (e.g. the initial job fetch) can be
+      // waiting on that connection becoming ready - which may never happen -
+      // so mainLoopRunning would never resolve either.
+      //
+      // Only bound the wait in that specific case. A healthy connection that
+      // is simply processing a long-running job must be allowed to finish
+      // normally - `connectionReady` is what tells the two apart, so a slow
+      // job on a working connection is never cut short here.
+      // See https://github.com/taskforcesh/bullmq/issues/4656.
+      if (this.connectionReady) {
+        await this.mainLoopRunning;
+      } else {
+        const timeoutMs =
+          this.opts.whenCurrentJobsFinishedTimeout ??
+          WHEN_CURRENT_JOBS_FINISHED_TIMEOUT_MS;
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            this.mainLoopRunning,
+            new Promise<void>(resolve => {
+              timeoutHandle = setTimeout(() => {
+                this.emit(
+                  'error',
+                  new Error(
+                    'BullMQ: timed out waiting for the main loop to finish ' +
+                      `while closing (after ${timeoutMs}ms). ` +
+                      'This can happen when the Redis connection is unreachable ' +
+                      'and a command issued before close() is still pending. ' +
+                      'Proceeding with shutdown without waiting further.',
+                  ),
+                );
+                resolve();
+              }, timeoutMs);
+              // Don't keep the event loop alive solely for this timer.
+              timeoutHandle.unref?.();
+            }),
+          ]);
+        } finally {
+          if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+          }
+        }
+      }
     } else {
       reconnect = false;
     }
