@@ -287,9 +287,19 @@ export class QueueGetters<
 
   /**
    * Returns the number of jobs in delayed status.
+   *
+   * @param timestamp - Optional Unix timestamp as a safe integer in milliseconds.
+   * When provided, only counts jobs scheduled strictly before this timestamp.
    */
-  getDelayedCount(): Promise<number> {
-    return this.getJobCountByTypes('delayed');
+  async getDelayedCount(timestamp?: number): Promise<number> {
+    if (timestamp === undefined) {
+      return this.getJobCountByTypes('delayed');
+    }
+    if (!Number.isSafeInteger(timestamp)) {
+      throw new Error('timestamp must be a safe integer in milliseconds');
+    }
+    const [count] = await this.backend.getCounts(['delayed'], timestamp);
+    return count;
   }
 
   /**
