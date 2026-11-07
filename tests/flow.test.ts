@@ -181,6 +181,47 @@ describe('flows', () => {
     });
   });
 
+  describe('when the last unfinished child of a deduplicated parent is cleaned', () => {
+    it('removes the parent and its deduplication key', async () => {
+      const dedupId = 'dedup-parent-removed-with-child';
+      const token = 'dedup-parent-token';
+      const parent = await queue.add(
+        'parent',
+        {},
+        { deduplication: { id: dedupId } },
+      );
+      expect(await queue.getDeduplicationJobId(dedupId)).toBe(parent.id);
+
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+        autorun: false,
+      });
+      await worker.waitUntilReady();
+      const activeParent = (await worker.getNextJob(token)) as Job;
+      expect(activeParent.id).toBe(parent.id);
+
+      await queue.add(
+        'child',
+        {},
+        {
+          delay: 60000,
+          parent: { id: parent.id!, queue: queue.qualifiedName },
+        },
+      );
+      const shouldWait = await activeParent.moveToWaitingChildren(token);
+      expect(shouldWait).toBe(true);
+      expect(await activeParent.getState()).toBe('waiting-children');
+
+      await queue.clean(0, 10, 'delayed');
+
+      expect(await queue.getJob(parent.id!)).toBeUndefined();
+      expect(await queue.getDeduplicationJobId(dedupId)).toBeNull();
+
+      await worker.close();
+    });
+  });
+
   describe('when removeOnComplete is true in children', () => {
     it('keeps children results in parent', async () => {
       const worker = new Worker(
