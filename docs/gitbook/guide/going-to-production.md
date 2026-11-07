@@ -16,6 +16,8 @@ Even though persistence is very fast, it will have some effect on performance, s
 
 Redis is used quite often as a cache, meaning that it will remove keys according to some defined policy when it reaches several levels of memory consumption. BullMQ on the other hand cannot work properly if Redis evicts keys arbitrarily. **Therefore is very important to configure the `maxmemory-policy` setting to `noeviction`.** This is the **only** setting that guarantees the correct behavior of the queues.
 
+Check [Redis™ out of memory](redis-out-of-memory.md) to learn how BullMQ behaves when Redis reaches `maxmemory`, and how much headroom you should leave.
+
 ### Automatic reconnections
 
 In a production setting, one of the things that are crucial for system robustness is to be able to recover automatically after connection issues. It is impossible to guarantee that a connection between BullMQ and Redis will always stay online. However, the important thing is that it recovers as fast as possible when the connection can be re-established without any human intervention.

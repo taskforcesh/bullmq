@@ -257,6 +257,17 @@ export const DELAY_TIME_5 = 5000;
 
 export const DELAY_TIME_1 = 100;
 
+/**
+ * Checks if an error is the one Redis returns when a command is rejected
+ * because `maxmemory` has been reached (with the `noeviction` policy).
+ */
+export function isOOMError(error: Error): boolean {
+  return (
+    typeof error?.message === 'string' &&
+    error.message.includes('OOM command not allowed')
+  );
+}
+
 export function isNotConnectionError(error: Error): boolean {
   if (error instanceof ConnectionClosedError) {
     return false;

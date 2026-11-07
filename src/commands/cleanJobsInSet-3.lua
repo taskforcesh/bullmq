@@ -29,8 +29,11 @@ if limit > 0 then
 end
 
 -- Includes
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/cleanList"
 --- @include "includes/cleanSet"
+
+allowWritesOnOOM(KEYS[1])
 
 local result
 if ARGV[4] == "active" then
