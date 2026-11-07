@@ -22,9 +22,12 @@ local baseKey = KEYS[2]
 local rcall = redis.call
 
 -- Includes
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/removeJobs"
 --- @include "includes/removeListJobs"
 --- @include "includes/removeZSetJobs"
+
+allowWritesOnOOM(KEYS[1])
 
 local function removeLockKeys(keys)
   for i, key in ipairs(keys) do

@@ -14,7 +14,10 @@
 ]]
 
 -- Includes
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/removeJobWithChildren"
+
+allowWritesOnOOM(KEYS[1])
 
 local prefix = ARGV[1]
 local jobId = ARGV[2]

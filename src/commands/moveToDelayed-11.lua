@@ -35,12 +35,15 @@
 local rcall = redis.call
 
 -- Includes
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/fetchNextJob"
 --- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/removeLock"
 --- @include "includes/updateJobFields"
+
+allowWritesOnOOM(KEYS[1])
 
 local jobKey = KEYS[5]
 local markerKey = KEYS[1]

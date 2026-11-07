@@ -33,6 +33,7 @@
 local rcall = redis.call
 
 -- Includes
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/addJobInTargetList"
 --- @include "includes/addJobWithPriority"
 --- @include "includes/getOrSetMaxEvents"
@@ -40,6 +41,8 @@ local rcall = redis.call
 --- @include "includes/promoteDelayedJobs"
 --- @include "includes/removeLock"
 --- @include "includes/updateJobFields"
+
+allowWritesOnOOM(KEYS[1])
 
 local isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[5], KEYS[1])
 local markerKey = KEYS[10]
