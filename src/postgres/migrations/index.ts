@@ -105,6 +105,14 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0011_obliterate_producer_lock.sql'),
   },
+  {
+    version: 12,
+    name: '0012_retry_jobs_parent_deps',
+    // Function-body fix only (CREATE OR REPLACE, identical signature, no DDL),
+    // so clients from the same major keep working against the updated schema.
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0012_retry_jobs_parent_deps.sql'),
+  },
 ];
 
 /**
