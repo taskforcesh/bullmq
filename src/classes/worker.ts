@@ -247,13 +247,20 @@ export class Worker<
   protected running = false;
   protected mainLoopRunning: Promise<void> | null = null;
 
-  // Tracks whether the backend's connection(s) have ever reached a ready
-  // state (set once `backend.waitUntilReady()` resolves below). Used by
-  // `whenCurrentJobsFinished()` to tell "the connection never came up" apart
-  // from "a job is legitimately still processing" - the timeout it applies
-  // should only ever kick in for the former.
+  // Tracks job fetches currently in flight, i.e. awaiting the backend's
+  // connection becoming ready via moveToActive() - the operation that can
+  // hang indefinitely when that connection is unreachable (never connected,
+  // or dropped out and stuck reconnecting), unlike job processing, which has
+  // its own bounded mechanisms (lock renewal, processor timeouts) and must
+  // always be allowed to finish normally.
+  //
+  // A fetch is tracked for its entire lifetime, however long it has already
+  // been running, so `whenCurrentJobsFinished()` can force-settle whichever
+  // ones are still pending once it decides to stop waiting - which happens
+  // fresh on every close(), regardless of whether the connection was ever
+  // ready in the past.
   // See https://github.com/taskforcesh/bullmq/issues/4656.
-  private connectionReady = false;
+  private inFlightFetches = new Map<object, () => void>();
 
   static RateLimitError(): Error {
     return new RateLimitError();
@@ -433,7 +440,6 @@ export class Worker<
     this.backend
       .waitUntilReady()
       .then(() => {
-        this.connectionReady = true;
         setTimeout(() => this.emit('ready'), 0);
       })
       .catch(() => {});
@@ -815,14 +821,14 @@ export class Worker<
         this.blockUntil = await this.waiting;
 
         if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
-          job = await this.moveToActive(token, this.opts.name);
+          job = await this.trackedMoveToActive(token, this.opts.name);
         }
       } finally {
         this.waiting = null;
       }
     } else {
       if (!this.isRateLimited()) {
-        job = await this.moveToActive(token, this.opts.name);
+        job = await this.trackedMoveToActive(token, this.opts.name);
       }
     }
 
@@ -871,6 +877,29 @@ export class Worker<
     this.updateDelays(rateLimitDelay, delayUntil);
 
     return this.nextJobFromJobData(jobData, id, token);
+  }
+
+  private async trackedMoveToActive(
+    token: string,
+    name?: string,
+  ): Promise<Job<DataType, ResultType, NameType, ProgressType> | undefined> {
+    const key = {};
+    let settleEarly: (() => void) | undefined;
+    const forcedUndefined = new Promise<undefined>(resolve => {
+      settleEarly = () => resolve(undefined);
+    });
+    this.inFlightFetches.set(key, settleEarly as () => void);
+
+    const fetching = this.moveToActive(token, name);
+    // Don't let a fetch that's force-settled (because we stopped waiting for
+    // it) but later actually rejects become an unhandled rejection.
+    fetching.catch(() => {});
+
+    try {
+      return await Promise.race([fetching, forcedUndefined]);
+    } finally {
+      this.inFlightFetches.delete(key);
+    }
   }
 
   private async waitForJob(blockUntil: number): Promise<number> {
@@ -1586,49 +1615,48 @@ export class Worker<
       // this.closing is already set by the time we get here (close() sets it
       // before calling this method), so under normal conditions the main
       // loop's retry logic observes it and winds down quickly. However, if
-      // the main connection is unreachable and has never reached 'ready', a
-      // command issued before close() (e.g. the initial job fetch) can be
-      // waiting on that connection becoming ready - which may never happen -
-      // so mainLoopRunning would never resolve either.
+      // the main connection is unreachable, a fetch (issued before or during
+      // close()) can be waiting on that connection becoming ready - which
+      // may never happen - so mainLoopRunning would never resolve either.
       //
-      // Only bound the wait in that specific case. A healthy connection that
-      // is simply processing a long-running job must be allowed to finish
-      // normally - `connectionReady` is what tells the two apart, so a slow
-      // job on a working connection is never cut short here.
+      // Force-settle any fetch still in flight once bounded, rather than
+      // racing mainLoopRunning as a whole: that way the bound only ever
+      // applies to fetching - never to job processing, which is a separate
+      // promise in the main loop's queue and must always be allowed to
+      // finish normally - and it is re-evaluated fresh on every close(), so
+      // a connection that drops out *after* running fine for a while is
+      // bounded exactly like one that never came up in the first place.
       // See https://github.com/taskforcesh/bullmq/issues/4656.
-      if (this.connectionReady) {
-        await this.mainLoopRunning;
-      } else {
+      if (this.inFlightFetches.size > 0) {
         const timeoutMs =
           this.opts.whenCurrentJobsFinishedTimeout ??
           WHEN_CURRENT_JOBS_FINISHED_TIMEOUT_MS;
-        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-        try {
-          await Promise.race([
-            this.mainLoopRunning,
-            new Promise<void>(resolve => {
-              timeoutHandle = setTimeout(() => {
-                this.emit(
-                  'error',
-                  new Error(
-                    'BullMQ: timed out waiting for the main loop to finish ' +
-                      `while closing (after ${timeoutMs}ms). ` +
-                      'This can happen when the Redis connection is unreachable ' +
-                      'and a command issued before close() is still pending. ' +
-                      'Proceeding with shutdown without waiting further.',
-                  ),
-                );
-                resolve();
-              }, timeoutMs);
-              // Don't keep the event loop alive solely for this timer.
-              timeoutHandle.unref?.();
-            }),
-          ]);
-        } finally {
-          if (timeoutHandle) {
-            clearTimeout(timeoutHandle);
+        const timeoutHandle = setTimeout(() => {
+          if (this.inFlightFetches.size > 0) {
+            this.emit(
+              'error',
+              new Error(
+                'BullMQ: timed out waiting for a job fetch to settle while ' +
+                  `closing (after ${timeoutMs}ms). This can happen when the ` +
+                  'Redis connection is unreachable and a fetch issued before ' +
+                  'or during close() is still pending. Proceeding with ' +
+                  'shutdown without waiting further for it.',
+              ),
+            );
+            for (const settleEarly of this.inFlightFetches.values()) {
+              settleEarly();
+            }
           }
+        }, timeoutMs);
+        // Don't keep the event loop alive solely for this timer.
+        timeoutHandle.unref?.();
+        try {
+          await this.mainLoopRunning;
+        } finally {
+          clearTimeout(timeoutHandle);
         }
+      } else {
+        await this.mainLoopRunning;
       }
     } else {
       reconnect = false;
