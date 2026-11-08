@@ -736,19 +736,90 @@ export class RedisConnection extends EventEmitter {
     // never-connected blocking connection can still be torn down instead of
     // hanging forever. See https://github.com/taskforcesh/bullmq/issues/4656.
     if (this.status === 'initializing') {
-      this._client?.disconnect();
+      const client = this._client;
       this.initializing?.catch(() => {});
+
+      // `status === 'initializing'` only means `init()` hasn't resolved yet
+      // - the live client underneath it may already be 'ready' (e.g. still
+      // running its version-check INFO command) or further along than
+      // 'wait'/'connecting'/'reconnecting'. Only a live socket ('ready', an
+      // actual in-flight 'connecting' attempt, or 'connect' for a cluster)
+      // has anything async to wait for: ioredis's disconnect() while
+      // 'wait'/'reconnecting' just cancels the pending retry timer - there
+      // is no open stream yet to close, so it never emits 'end' at all, and
+      // waiting for it here would mean waiting out the full disconnect
+      // timeout for nothing. Only in the live-socket case can an immediate
+      // `reconnect()` right after race the teardown and observe stale
+      // pre-disconnect status, so only that case needs `wait: true` to bound
+      // a real wait for 'end'/'error'.
+      const hasLiveSocket =
+        !!client &&
+        (client.status === 'ready' ||
+          client.status === 'connecting' ||
+          (client.status === 'connect' && isRedisCluster(client)));
+
+      if (!client || !wait || !hasLiveSocket) {
+        client?.disconnect();
+        return;
+      }
+
+      let _resolve, _reject;
+      const disconnecting = new Promise<void>((resolve, reject) => {
+        increaseMaxListeners(client, 2);
+        client.once('end', resolve);
+        client.once('error', reject);
+        _resolve = resolve;
+        _reject = reject;
+      });
+
+      client.disconnect();
+
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          disconnecting,
+          new Promise<void>(resolve => {
+            timeoutHandle = setTimeout(
+              resolve,
+              this.extraOptions.disconnectTimeoutMs ??
+                DEFAULT_DISCONNECT_TIMEOUT_MS,
+            );
+            timeoutHandle.unref?.();
+          }),
+        ]).catch(() => {});
+      } finally {
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
+        decreaseMaxListeners(client, 2);
+        client.removeListener('end', _resolve);
+        client.removeListener('error', _reject);
+      }
       return;
     }
 
     const client = await this.client;
     if (client.status !== 'end') {
-      let _resolve, _reject;
+      // A connection that dropped out after being 'ready' and is now stuck
+      // reconnecting (e.g. Redis became unreachable mid-flight) has no live
+      // socket to close: ioredis's disconnect() while 'wait'/'connecting'/
+      // 'reconnecting' just cancels the pending retry timer and never emits
+      // 'end' at all (there is nothing open to close), so waiting for it
+      // here would mean waiting out the full disconnect timeout for
+      // nothing. Only a live socket - 'ready', 'connecting' (an actual
+      // in-flight connection attempt), or 'connect' for a cluster - has
+      // anything async to wait for.
+      // See https://github.com/taskforcesh/bullmq/issues/4656.
+      const hasLiveSocket =
+        client.status === 'ready' ||
+        client.status === 'connecting' ||
+        (client.status === 'connect' && isRedisCluster(client));
 
-      if (!wait) {
+      if (!wait || !hasLiveSocket) {
         return client.disconnect();
       }
 
+      let _resolve, _reject;
       const disconnecting = new Promise<void>((resolve, reject) => {
         increaseMaxListeners(client, 2);
 
@@ -760,11 +831,11 @@ export class RedisConnection extends EventEmitter {
 
       client.disconnect();
 
-      // Belt-and-braces bound: even once connected, `disconnect()` can race
-      // an in-progress reconnect attempt and leave `'end'`/`'error'` unfired
-      // (see the linked issue's cluster/reconnect variant). Don't let that
-      // leave this promise - and therefore callers like Worker.close() -
-      // pending forever.
+      // Belt-and-braces bound: even with a live socket, `disconnect()` can
+      // race an in-progress reconnect attempt and leave `'end'`/`'error'`
+      // unfired (see the linked issue's cluster/reconnect variant). Don't
+      // let that leave this promise - and therefore callers like
+      // Worker.close() - pending forever.
       let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
       try {
         await Promise.race([
