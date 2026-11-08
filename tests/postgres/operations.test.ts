@@ -967,6 +967,19 @@ describe('PostgreSQL backend operations', () => {
     }
   });
 
+  it('keeps counting waiting jobs while the queue is paused', async () => {
+    const backend = newBackend();
+    try {
+      await backend.waitUntilReady();
+      await backend.addJob(makeJob(), '');
+      await backend.setQueueMeta({ paused: '1' });
+
+      expect(await backend.getCounts(['wait', 'waiting'])).toEqual([1, 1]);
+    } finally {
+      await backend.close();
+    }
+  });
+
   it('claims the next job with moveToActive and completes it', async () => {
     const backend = newBackend();
     try {
