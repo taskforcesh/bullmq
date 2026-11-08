@@ -200,7 +200,11 @@ export class RedisConnection extends EventEmitter {
   protected _client: RedisClient;
 
   private readonly opts: RedisOptions;
-  private readonly initializing: Promise<RedisClient>;
+  // Not readonly: reconnect() replaces this with a fresh resolved promise
+  // once a connection that never settled successfully (see its own comment)
+  // comes back up, so the `client` getter stops handing every future caller
+  // the same stale pending/rejected promise.
+  private initializing: Promise<RedisClient>;
 
   private version: string;
   protected packageVersion = packageVersion;
@@ -867,36 +871,42 @@ export class RedisConnection extends EventEmitter {
     // `disconnect()` may have torn down a connection that never reached
     // 'ready' (see its own comment) by acting on `this._client` directly
     // without ever letting `this.initializing` settle successfully - it may
-    // still be pending, or about to reject once ioredis notices the forced
-    // disconnect. Don't let that stop us from reconnecting: fall back to the
-    // live client directly so a caller like `pause()`, which disconnects and
-    // then immediately reconnects, isn't left stuck awaiting a promise that
-    // will never resolve to a usable client.
+    // still be pending (not just about to reject), so plainly `await`ing
+    // `this.client` here could hang forever instead of giving us a client to
+    // reconnect. `this._client` is always the same underlying client that
+    // `this.initializing` is (or was) initializing - `init()` never swaps it
+    // for a different instance after construction - so operating on it
+    // directly is always at least as current and never less safe. Prefer it
+    // whenever it exists so a caller like `pause()`, which disconnects and
+    // then immediately reconnects, isn't stuck awaiting a promise that may
+    // never resolve to a usable client.
     // See https://github.com/taskforcesh/bullmq/issues/4656.
-    let client: RedisClient;
-    try {
-      client = await this.client;
-    } catch (error) {
-      if (!this._client) {
-        throw error;
-      }
-      client = this._client;
-    }
+    const client: RedisClient = this._client ?? (await this.client);
 
     for (;;) {
       if (
         client.status === 'ready' ||
         (client.status === 'connect' && isRedisCluster(client))
       ) {
+        this.repairInitializing(client);
         return;
       }
 
       if (client.status === 'wait' || client.status === 'end') {
-        return client.connect();
+        await client.connect();
+        this.repairInitializing(client);
+        return;
       }
 
       try {
         await RedisConnection.waitUntilReady(client);
+        // `waitUntilReady()` can resolve successfully even though the client
+        // reached a terminal `'end'` state rather than `'ready'` (it treats a
+        // clean close with no prior error as success, not failure - see its
+        // own `handleEnd` logic). Don't assume resolution means ready: loop
+        // back around so the `'wait'/'end'` branch above calls `connect()`
+        // when that's what actually happened.
+        continue;
       } catch (error) {
         if (
           !['end', 'connecting', 'connect', 'reconnecting'].includes(
@@ -907,6 +917,25 @@ export class RedisConnection extends EventEmitter {
         }
       }
     }
+  }
+
+  // After a successful reconnect driven directly off `this._client` (see
+  // `reconnect()`), make sure the public `client` getter - which always
+  // returns `this.initializing` - reflects reality for every future caller,
+  // not just this one call. Without this, a connection that disconnect()
+  // tore down before it ever reached 'ready' would leave `this.initializing`
+  // permanently pending/rejected even after reconnect() brings the live
+  // client back up, so every later `await this.client` (close(), other
+  // commands) would still hang or throw on the stale promise.
+  // See https://github.com/taskforcesh/bullmq/issues/4656.
+  private repairInitializing(client: RedisClient): void {
+    if (this.status !== 'closing' && this.status !== 'closed') {
+      this.status = 'ready';
+    }
+    this.initializing = Promise.resolve(client);
+    // Swallow any rejection from the promise we're replacing so it doesn't
+    // surface as an unhandled rejection once nothing awaits it anymore.
+    this.initializing.catch(() => {});
   }
 
   async close(force = false): Promise<void> {
