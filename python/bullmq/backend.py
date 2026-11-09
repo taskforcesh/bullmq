@@ -280,6 +280,16 @@ class Backend(ABC):
     ) -> Any:
         """Change the priority (and optionally lifo) of a waiting job."""
 
+    async def changeDelay(self, job_id: str, delay: int) -> Any:
+        """Move a delayed job to ``delay`` milliseconds from now.
+
+        Only the Redis adapter implements this so far; other backends raise
+        :class:`NotImplementedError` instead of an ``AttributeError``.
+        """
+        raise NotImplementedError(
+            f"changeDelay is not supported by {type(self).__name__}"
+        )
+
     @abstractmethod
     async def addLog(self, job_id: str, log_row: str, keep_logs: int = 0) -> int:
         """Append a row to a job's log, optionally trimming old entries."""

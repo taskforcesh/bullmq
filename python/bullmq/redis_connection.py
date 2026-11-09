@@ -23,6 +23,7 @@ SCRIPT_DEFINITIONS = {
     "addParentJob": "addParentJob-6.lua",
     "addPrioritizedJob": "addPrioritizedJob-9.lua",
     "getJobScheduler": "getJobScheduler-1.lua",
+    "changeDelay": "changeDelay-4.lua",
     "changePriority": "changePriority-7.lua",
     "cleanJobsInSet": "cleanJobsInSet-3.lua",
     "drain": "drain-5.lua",

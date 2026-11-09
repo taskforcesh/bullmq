@@ -395,6 +395,28 @@ class Scripts:
                     })
         return None
 
+    def changeDelayArgs(self, job_id: str, delay: int):
+        keys = self.getKeys(['delayed', 'meta', 'marker', 'events'])
+
+        args = [delay, round(time.time() * 1000), job_id, self.toKey(job_id)]
+
+        return (keys, args)
+
+    async def changeDelay(self, job_id: str, delay: int):
+        keys, args = self.changeDelayArgs(job_id, delay)
+
+        result = await self.commands["changeDelay"](keys=keys, args=args)
+
+        if isinstance(result, int):
+            if result < 0:
+                raise self.finishedErrors({
+                    "code": result,
+                    "jobId": job_id,
+                    "command": 'changeDelay',
+                    "state": 'delayed'
+                    })
+        return None
+
     async def addJobScheduler(
         self,
         job_scheduler_id: str,
