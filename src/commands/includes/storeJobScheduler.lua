@@ -58,8 +58,20 @@ local function storeJobScheduler(schedulerId, schedulerKey, repeatKey, nextMilli
     table.insert(optionalValues, templateData)
   end
 
+  -- Keep the existing iteration count if the scheduler already exists.
+  -- Only a brand new scheduler is seeded from the count option
+  -- (count + 1, matching the iteration number used in the job options),
+  -- falling back to 1 when no count is given.
+  local ic = rcall("HGET", schedulerKey, "ic")
+  if not ic then
+    if opts['count'] then
+      ic = opts['count'] + 1
+    else
+      ic = 1
+    end
+  end
   table.insert(optionalValues, "ic")
-  table.insert(optionalValues, rcall("HGET", schedulerKey, "ic") or 1)
+  table.insert(optionalValues, ic)
 
   rcall("DEL", schedulerKey) -- remove all attributes and then re-insert new ones
   rcall("HMSET", schedulerKey, "name", opts['name'], unpack(optionalValues))
