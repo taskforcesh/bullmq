@@ -879,6 +879,48 @@ describe('Job Scheduler', () => {
     });
   });
 
+  describe('when count is provided in repeat options', () => {
+    it('should seed the iteration count of a new job scheduler', async () => {
+      const job = await queue.upsertJobScheduler(
+        'test-count',
+        { every: 1000, count: 100 },
+        { name: 'backoff' },
+      );
+
+      const scheduler = await queue.getJobScheduler('test-count');
+
+      // count is the iteration count of the previous iteration, so the job
+      // created for the first iteration gets count + 1 and the scheduler
+      // starts from the same value.
+      expect(scheduler?.iterationCount).toBe(101);
+
+      expect(job?.opts.repeat?.count).toBe(101);
+    });
+
+    it('should seed the iteration count again after the scheduler was removed', async () => {
+      await queue.upsertJobScheduler('test-count', { every: 1000, count: 100 });
+      await queue.removeJobScheduler('test-count');
+
+      expect(await queue.getJobScheduler('test-count')).toBeUndefined();
+
+      await queue.upsertJobScheduler('test-count', { every: 1000, count: 300 });
+
+      const scheduler = await queue.getJobScheduler('test-count');
+      expect(scheduler?.iterationCount).toBe(301);
+    });
+
+    it('should not reset the iteration count of an existing job scheduler', async () => {
+      await queue.upsertJobScheduler('test-count', { every: 1000, count: 100 });
+
+      // Upserting an already running scheduler (e.g. on app restart) keeps
+      // its current iteration count.
+      await queue.upsertJobScheduler('test-count', { every: 1000, count: 500 });
+
+      const scheduler = await queue.getJobScheduler('test-count');
+      expect(scheduler?.iterationCount).toBe(101);
+    });
+  });
+
   describe('when job scheduler does not exist', () => {
     it('should return undefined', async () => {
       const scheduler = await queue.getJobScheduler('test');
