@@ -2851,7 +2851,11 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     ) as Promise<[string, string, string] | null>;
     // If the watchdog abandons this command below, its (possibly much later)
     // rejection must not surface as an unhandled promise rejection.
-    bzpopmin.catch((): null => null);
+    let settled = false;
+    const markSettled = () => {
+      settled = true;
+    };
+    bzpopmin.then(markSettled, markSettled);
 
     // We cannot trust that the blocking connection stays blocking for exactly
     // the expected time due to issues in Redis and IORedis. In particular,
@@ -2871,13 +2875,21 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     let watchdog: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<null>(resolve => {
       watchdog = setTimeout(
-        () => {
-          timedOut = true;
-          // Resolve the wait as a timeout so the worker loop always advances.
-          // The (possibly stuck) command is abandoned and the connection is
-          // re-established in the `finally` block — see the note there.
-          resolve(null);
-        },
+        // Node runs due timers before it reads sockets, so after the event
+        // loop was blocked the reply may be sitting unread. `setImmediate`
+        // runs after that read, so a command that did answer is not treated
+        // as stuck.
+        () =>
+          setImmediate(() => {
+            if (settled) {
+              return;
+            }
+            timedOut = true;
+            // Resolve the wait as a timeout so the worker loop always advances.
+            // The (possibly stuck) command is abandoned and the connection is
+            // re-established in the `finally` block — see the note there.
+            resolve(null);
+          }),
         roundedTimeout * 1000 + 1000,
       );
     });
@@ -2938,7 +2950,11 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
 
     // If the watchdog abandons this command below, its (possibly much later)
     // rejection must not surface as an unhandled promise rejection.
-    xread.catch((): null => null);
+    let settled = false;
+    const markSettled = () => {
+      settled = true;
+    };
+    xread.then(markSettled, markSettled);
 
     // Same class of hang as `waitForJob` (#4479): the event-stream connection
     // must use `maxRetriesPerRequest: null`, and with that setting IORedis
@@ -2952,13 +2968,21 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     let timedOut = false;
     let watchdog: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<null>(resolve => {
-      watchdog = setTimeout(() => {
-        timedOut = true;
-        // Resolve as a timeout so the consumer loop always advances. The
-        // (possibly stuck) command is abandoned and the connection
-        // re-established in the `finally` block — see the note there.
-        resolve(null);
-      }, blockTimeout + 1000);
+      // Deferred to `setImmediate` for the same reason as in `waitForJob`.
+      watchdog = setTimeout(
+        () =>
+          setImmediate(() => {
+            if (settled) {
+              return;
+            }
+            timedOut = true;
+            // Resolve as a timeout so the consumer loop always advances. The
+            // (possibly stuck) command is abandoned and the connection
+            // re-established in the `finally` block — see the note there.
+            resolve(null);
+          }),
+        blockTimeout + 1000,
+      );
     });
 
     try {
