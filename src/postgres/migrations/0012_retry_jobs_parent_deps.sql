@@ -15,6 +15,13 @@
 --
 -- A parent that has already left `waiting-children` is not moved back there.
 -- That matches Redis: retrying a child re-pends the dependency and nothing else.
+--
+-- Advisory locks follow move_to_failed / handle_child_failure: the failing
+-- job's own `bullmq:parent:<queue>:<id>` key, then its parent's. Every key is
+-- taken before any row lock. Deeper jobs are locked first (a child is always
+-- deeper than its parent); same-depth keys use hashtext order so two retries
+-- take overlapping keys in the same order. A NULL count moves at most 1000
+-- jobs, matching the Redis backend. Callers loop until this returns 0.
 
 CREATE OR REPLACE FUNCTION retry_jobs(
   p_queue text, p_state text, p_count integer, p_timestamp bigint
@@ -24,12 +31,13 @@ SET search_path FROM CURRENT
 AS $$
 DECLARE
   v_ids    text[];
-  v_parent record;
+  v_key    record;
   v_rows   jsonb;
   v_moved  integer := 0;
+  -- Redis retryFinishedJobs defaults an omitted count to 1000 and the queue
+  -- methods loop. LIMIT NULL would lock every distinct parent until commit.
+  v_limit  integer := COALESCE(p_count, 1000);
 BEGIN
-  -- The caller loops until this returns 0. `LIMIT NULL` (count omitted) moves
-  -- every matching job in one call, same as the 0002 function.
   SELECT array_agg(id)
     INTO v_ids
     FROM (
@@ -39,29 +47,54 @@ BEGIN
          AND state = p_state::job_state
          AND (p_timestamp IS NULL OR finished_at_ms <= p_timestamp)
        ORDER BY finished_at_ms
-       LIMIT p_count
+       LIMIT v_limit
     ) picked;
 
   IF v_ids IS NULL THEN
     RETURN 0;
   END IF;
 
-  -- Lock every direct parent before any child or parent row lock. Completion
-  -- takes the same `bullmq:parent:<queue>:<id>` advisory lock before it
-  -- decrements `pending_deps`, so the two cannot deadlock on the parent row.
-  -- Hash order keeps two overlapping retries from deadlocking each other.
-  FOR v_parent IN
-    SELECT parent_queue, parent_id
-      FROM job
-     WHERE queue = p_queue
-       AND id = ANY(v_ids)
-       AND parent_queue IS NOT NULL
-       AND parent_id IS NOT NULL
-     GROUP BY parent_queue, parent_id
-     ORDER BY hashtext('bullmq:parent:' || parent_queue || ':' || parent_id)
+  -- Selected jobs and their direct parents. Own keys are included so a retried
+  -- parent (itself a child in another queue) is locked before its row is
+  -- updated. Depth is the number of parent hops along existing rows, so a
+  -- missing parent row still counts as one hop and sorts after its child.
+  FOR v_key IN
+    WITH RECURSIVE keys AS (
+      SELECT p_queue AS queue, picked_id AS id
+        FROM unnest(v_ids) AS picked_id
+      UNION
+      SELECT parent_queue, parent_id
+        FROM job
+       WHERE queue = p_queue
+         AND id = ANY(v_ids)
+         AND parent_queue IS NOT NULL
+         AND parent_id IS NOT NULL
+    ),
+    walk AS (
+      SELECT k.queue, k.id, k.queue AS cur_queue, k.id AS cur_id, 0 AS depth
+        FROM keys k
+      UNION ALL
+      SELECT w.queue, w.id, j.parent_queue, j.parent_id, w.depth + 1
+        FROM walk w
+        JOIN job j ON j.queue = w.cur_queue AND j.id = w.cur_id
+       WHERE j.parent_queue IS NOT NULL
+         AND j.parent_id IS NOT NULL
+         AND w.depth < 1000
+    ),
+    depths AS (
+      SELECT queue, id, MAX(depth) AS depth
+        FROM walk
+       GROUP BY queue, id
+    )
+    SELECT queue, id
+      FROM depths
+     ORDER BY depth DESC,
+              hashtext('bullmq:parent:' || queue || ':' || id),
+              queue,
+              id
   LOOP
     PERFORM pg_advisory_xact_lock(
-      hashtext('bullmq:parent:' || v_parent.parent_queue || ':' || v_parent.parent_id));
+      hashtext('bullmq:parent:' || v_key.queue || ':' || v_key.id));
   END LOOP;
 
   -- Move the jobs first, then re-pend parents in a second statement. A
