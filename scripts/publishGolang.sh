@@ -285,10 +285,11 @@ if [ "${#SOURCE_VERSIONS[@]}" -eq 0 ]; then
 fi
 
 TARGET_VERSIONS=()
+REMOTE_TAGS=$(git ls-remote --tags --refs "$TARGET_REMOTE" 'refs/tags/v*')
 while IFS= read -r line; do
   if [ -n "$line" ]; then TARGET_VERSIONS+=("$line"); fi
 done < <(
-  git ls-remote --tags --refs "$TARGET_REMOTE" 'refs/tags/v*' \
+  printf '%s\n' "$REMOTE_TAGS" \
     | sed 's#.*refs/tags/v##' | grep -E "$SEMVER" | semver_sort || true
 )
 LATEST_TARGET=""
