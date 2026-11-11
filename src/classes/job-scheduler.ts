@@ -4,6 +4,7 @@ import {
   IQueueBackend,
   JobSchedulerJson,
   JobSchedulerTemplateJson,
+  JobSchedulerRepeatOptions,
   RepeatBaseOptions,
   RepeatOptions,
 } from '../interfaces';
@@ -125,7 +126,7 @@ export class JobScheduler<
 
   async upsertJobScheduler<T = any, R = any, N extends string = string>(
     jobSchedulerId: string,
-    repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis'>,
+    repeatOpts: Omit<JobSchedulerRepeatOptions, 'key' | 'prevMillis'>,
     jobName: N,
     jobData: T,
     opts: JobSchedulerTemplateOptions,
