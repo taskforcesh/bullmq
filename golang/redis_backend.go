@@ -52,11 +52,19 @@ func NewRedisBackend(name string, redisOpts RedisOptions, opts BackendOptions) (
 	if err != nil {
 		return nil, err
 	}
+	clientName := keys.ClientName(opts.ClientNameSuffix)
+	if opts.WithBlockingConnection {
+		for _, c := range clientName {
+			if c < '!' || c > '~' {
+				return nil, configError("redis client name %q must contain only printable ASCII characters without spaces", clientName)
+			}
+		}
+	}
 	rdb, owned := redisOpts.build()
 	b := &RedisBackend{rdb: rdb, owned: owned, keys: keys, blocking: rdb}
 	if opts.WithBlockingConnection {
 		b.blocking, b.blockingOwned = redisOpts.buildBlocking(
-			keys.ClientName(opts.ClientNameSuffix), opts.BlockTimeout+blockingReadSlack)
+			clientName, opts.BlockTimeout+blockingReadSlack)
 	}
 	return b, nil
 }
