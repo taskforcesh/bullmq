@@ -1240,6 +1240,76 @@ describe('workers', () => {
     });
   });
 
+  describe('when Redis rejects commands because maxmemory is reached', () => {
+    const oomError = () =>
+      new Error(
+        "OOM command not allowed when used memory > 'maxmemory'. script: abc",
+      );
+
+    it('retries with an exponential backoff and emits the error', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+        runRetryDelay: 500,
+      });
+      await worker.waitUntilReady();
+
+      const workerDelay = sandbox.stub(worker, 'delay').resolves();
+      const errors: Error[] = [];
+      worker.on('error', err => errors.push(err));
+
+      let calls = 0;
+      const fn = async () => {
+        calls++;
+        if (calls <= 5) {
+          throw oomError();
+        }
+        return 'ok';
+      };
+
+      try {
+        await expect(
+          worker['retryIfFailed'](fn, {
+            delayInMs: 500,
+            onlyEmitError: true,
+          }),
+        ).resolves.toBe('ok');
+        expect(calls).toBe(6);
+        expect(errors).toHaveLength(5);
+        expect(workerDelay.getCalls().map(call => call.args[0])).toEqual([
+          100, 200, 400, 500, 500,
+        ]);
+      } finally {
+        await worker.close();
+      }
+    });
+
+    it('does not retry when retryOnOOM is false', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const workerDelay = sandbox.stub(worker, 'delay').resolves();
+      worker.on('error', () => {});
+
+      try {
+        await expect(
+          worker['retryIfFailed'](() => Promise.reject(oomError()), {
+            delayInMs: 500,
+            retryOnOOM: false,
+          }),
+        ).rejects.toThrow(/OOM command not allowed/);
+        expect(workerDelay.called).toBe(false);
+      } finally {
+        await worker.close();
+      }
+    });
+  });
+
   describe('when waiting for a job', () => {
     it('reconnects blocking transport after a connection error (#4378)', async () => {
       const worker = new Worker(queueName, NoopProc, {

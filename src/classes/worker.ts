@@ -22,6 +22,7 @@ import {
   DELAY_TIME_1,
   forwardConnectionError,
   isNotConnectionError,
+  isOOMError,
   randomUUID,
   withDetachedContext,
 } from '../utils';
@@ -1013,7 +1014,7 @@ export class Worker<
 
             return !hasLegacyKeyShape || isJobScheduler;
           },
-          { delayInMs: this.opts.runRetryDelay },
+          { delayInMs: this.opts.runRetryDelay, retryOnOOM: false },
         );
 
         if (job.repeatJobKey && !shouldScheduleRepeat) {
@@ -1583,6 +1584,12 @@ export class Worker<
       span?: Span;
       maxRetries?: number;
       onlyEmitError?: boolean;
+      /**
+       * Retry with backoff when Redis rejects the command because maxmemory
+       * has been reached. Defaults to true. Producer-like operations (such as
+       * adding the next job of a scheduler) should not wait for memory.
+       */
+      retryOnOOM?: boolean;
     },
   ): Promise<T> {
     let retry = 0;
@@ -1593,6 +1600,32 @@ export class Worker<
         return await fn();
       } catch (err) {
         opts.span?.recordException((<Error>err).message);
+
+        // Redis is over maxmemory: retry with an exponential backoff instead of
+        // spinning, so the worker can continue once memory is freed.
+        if (opts.retryOnOOM !== false && isOOMError(<Error>err)) {
+          if (this.closing || this.closed) {
+            if (opts.onlyEmitError) {
+              return;
+            }
+            throw err;
+          }
+
+          if (!this.paused) {
+            this.emit('error', <Error>err);
+          }
+
+          if (retry + 1 >= maxRetries) {
+            throw err;
+          }
+
+          const backoff = Math.min(
+            DELAY_TIME_1 * 2 ** Math.min(retry, 16),
+            opts.delayInMs || DELAY_TIME_1,
+          );
+          await this.delay(backoff, this.abortDelayController);
+          continue;
+        }
 
         if (isNotConnectionError(<Error>err)) {
           // Emit error when not paused or closing; optionally swallow (no throw) when opts.onlyEmitError is set.
