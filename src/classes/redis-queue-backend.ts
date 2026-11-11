@@ -1024,7 +1024,12 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       this.queue.toKey(name),
     );
 
-    const args = [jobId, removeChildren ? 1 : 0, this.queue.toKey('')];
+    const args = [
+      jobId,
+      removeChildren ? 1 : 0,
+      this.queue.toKey(''),
+      Date.now(),
+    ];
 
     return keys.concat(args);
   }
@@ -1054,6 +1059,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       this.queue.keys.meta,
       this.queue.toKey(''),
       jobId,
+      Date.now(),
     ];
 
     await this.execCommand(client, 'removeUnprocessedChildren', args);
@@ -1292,9 +1298,9 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   ): (string | number)[] {
     const queueKeys = this.queue.keys;
 
-    const keys: string[] = [queueKeys['']];
+    const keys: (string | number)[] = [queueKeys['']];
 
-    const args = [this.queue.toKey(jobId), parentKey];
+    const args = [this.queue.toKey(jobId), parentKey, Date.now()];
 
     return keys.concat(args);
   }

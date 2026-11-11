@@ -8,7 +8,7 @@
 --- @include "addJobWithPriority"
 --- @include "isQueuePausedOrMaxed"
 
-local function moveParentToWait(parentQueueKey, parentKey, parentId, timestamp)
+local function moveParentToWait(parentQueueKey, parentKey, parentId, timestamp, skipEvents)
     local parentWaitKey = parentQueueKey .. ":wait"
     local parentActiveKey = parentQueueKey .. ":active"
     local parentMetaKey = parentQueueKey .. ":meta"
@@ -23,8 +23,10 @@ local function moveParentToWait(parentQueueKey, parentKey, parentId, timestamp)
         local score = delayedTimestamp * 0x1000
         local parentDelayedKey = parentQueueKey .. ":delayed"
         rcall("ZADD", parentDelayedKey, score, parentId)
-        rcall("XADD", parentQueueKey .. ":events", "*", "event", "delayed", "jobId", parentId, "delay",
-            delayedTimestamp)
+        if not skipEvents then
+            rcall("XADD", parentQueueKey .. ":events", "*", "event", "delayed", "jobId", parentId, "delay",
+                delayedTimestamp)
+        end
 
         addDelayMarkerIfNeeded(parentMarkerKey, parentDelayedKey)
     else
@@ -38,7 +40,9 @@ local function moveParentToWait(parentQueueKey, parentKey, parentId, timestamp)
                 parentQueueKey .. ":pc", isPausedOrMaxed)
         end
 
-        rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting", "jobId", parentId, "prev",
-            "waiting-children")
+        if not skipEvents then
+            rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting", "jobId", parentId, "prev",
+                "waiting-children")
+        end
     end
 end

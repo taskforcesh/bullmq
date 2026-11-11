@@ -8,6 +8,7 @@
       
       ARGV[1] prefix
       ARGV[2] jobId
+      ARGV[3] timestamp
 
     Events:
       'removed' for every children removed
@@ -25,7 +26,8 @@ local metaKey = KEYS[2]
 local options = {
   removeChildren = "1",
   ignoreProcessed = true,
-  ignoreLocked = true
+  ignoreLocked = true,
+  timestamp = ARGV[3]
 }
 
 removeJobChildren(prefix, jobKey, options) 

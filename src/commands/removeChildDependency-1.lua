@@ -7,6 +7,7 @@
 
     ARGV[1] job key
     ARGV[2] parent key
+    ARGV[3] timestamp
 
     Output:
        0  - OK
@@ -25,7 +26,7 @@ if rcall("EXISTS", jobKey) ~= 1 then return -1 end
 
 if rcall("EXISTS", parentKey) ~= 1 then return -5 end
 
-if removeParentDependencyKey(jobKey, false, parentKey, KEYS[1], nil) then
+if removeParentDependencyKey(jobKey, false, parentKey, KEYS[1], nil, ARGV[3]) then
   rcall("HDEL", jobKey, "parentKey", "parent")
 
   return 0

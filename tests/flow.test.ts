@@ -774,6 +774,65 @@ describe('flows', () => {
     });
   });
 
+  describe('when the last pending child of a parent is removed', () => {
+    const removals = {
+      'child.remove()': (child: Job) => child.remove(),
+      'child.removeChildDependency()': (child: Job) =>
+        child.removeChildDependency(),
+      'parent.removeUnprocessedChildren()': (_child: Job, parent: Job) =>
+        parent.removeUnprocessedChildren(),
+    };
+
+    for (const [name, removeChild] of Object.entries(removals)) {
+      describe(`with ${name}`, () => {
+        it('keeps the priority of the parent', async () => {
+          const flow = new FlowProducer({ connection, prefix });
+          const { job, children } = await flow.add({
+            name: 'parent',
+            data: {},
+            queueName,
+            opts: { priority: 5 },
+            children: [{ name: 'child', data: {}, queueName }],
+          });
+
+          await removeChild(children![0].job, job);
+
+          expect(await job.getState()).toBe('prioritized');
+          const prioritized = await queue.getPrioritized();
+          expect(prioritized.map(j => j.id)).toEqual([job.id]);
+          const waiting = await queue.getWaiting();
+          expect(waiting.map(j => j.id)).not.toContain(job.id);
+
+          await flow.close();
+        });
+
+        it('keeps the delay of the parent', async () => {
+          const flow = new FlowProducer({ connection, prefix });
+          const { job, children } = await flow.add({
+            name: 'parent',
+            data: {},
+            queueName,
+            opts: { delay: 60000 },
+            children: [{ name: 'child', data: {}, queueName }],
+          });
+
+          const before = Date.now();
+          await removeChild(children![0].job, job);
+
+          expect(await job.getState()).toBe('delayed');
+          const score = Number(
+            await connection.zscore(`${prefix}:${queueName}:delayed`, job.id!),
+          );
+          const delayedUntil = Math.floor(score / 0x1000);
+          expect(delayedUntil).toBeGreaterThanOrEqual(before + 60000);
+          expect(delayedUntil).toBeLessThanOrEqual(Date.now() + 60000);
+
+          await flow.close();
+        });
+      });
+    }
+  });
+
   describe('when ignoreDependencyOnFailure is provided', async () => {
     it('moves parent to wait after children fail', async () => {
       const parentQueueName = `parent-queue-${randomUUID()}`;
