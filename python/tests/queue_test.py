@@ -818,5 +818,51 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         
         await queue.close()
 
+class TestDriverInfo(unittest.IsolatedAsyncioTestCase):
+    """Tests for Redis client identification (CLIENT SETINFO) of BullMQ-created clients"""
+
+    @staticmethod
+    def lib_name(connection):
+        """Return the lib name a client reports to Redis, across redis-py versions."""
+        kwargs = connection.conn.connection_pool.connection_kwargs
+        driver_info = kwargs.get("driver_info")
+        if driver_info is not None:  # redis-py >= 7.2
+            return driver_info.formatted_name
+        return kwargs.get("lib_name")
+
+    async def test_tags_client_created_from_options(self):
+        from bullmq import __version__ as package_version
+        from bullmq.redis_connection import RedisConnection
+
+        connection = RedisConnection({})
+
+        self.assertEqual(self.lib_name(connection), f"redis-py(bullmq_v{package_version})")
+
+    async def test_tags_client_created_from_url(self):
+        from bullmq import __version__ as package_version
+        from bullmq.redis_connection import RedisConnection
+
+        connection = RedisConnection("redis://localhost:6379")
+
+        self.assertEqual(self.lib_name(connection), f"redis-py(bullmq_v{package_version})")
+
+    async def test_respects_lib_name_from_options(self):
+        from bullmq.redis_connection import RedisConnection
+
+        connection = RedisConnection({"lib_name": "my-app"})
+
+        self.assertEqual(self.lib_name(connection), "my-app")
+
+    async def test_leaves_user_provided_client_untouched(self):
+        import redis.asyncio as redis
+        from bullmq.redis_connection import RedisConnection
+
+        client = redis.Redis()
+        connection = RedisConnection(client)
+
+        self.assertIs(connection.conn, client)
+        self.assertEqual(self.lib_name(connection), "redis-py")
+
+
 if __name__ == '__main__':
     unittest.main()

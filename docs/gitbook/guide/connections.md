@@ -186,6 +186,24 @@ Note that in the third example, even though the ioredis instance is being reused
 For backwards compatibility, BullMQ continues to accept a raw `IORedis` instance via the `connection` option even though internally it now relies on the `IRedisClient` adapter interface. To bridge the two, the instance is wrapped in a transparent proxy that exposes `IRedisClient`: it adds `runCommand` for Lua script dispatch and structured-options forms of `hset`, `set`, `zrange`, `zrevrange`, `xadd`, `xread`, `xtrim`, and `scan` (the native ioredis varargs forms keep working). `pipeline()` and `multi()` return augmented transactions, and `duplicate()` returns another wrapped proxy rather than the raw duplicated client. Every other property — events, options, ioredis-specific methods — is forwarded straight to your underlying instance, which is never mutated.
 {% endhint %}
 
+### Client identification
+
+ioredis can identify itself to the server with [`CLIENT SETINFO`](https://redis.io/docs/latest/commands/client-setinfo/), and BullMQ uses that to tag the connections it owns: every ioredis client BullMQ creates from connection options, and every duplicate it derives from a client you pass in, gets `clientInfoTag` set to `bullmq_v<version>` unless a tag is already present. Those connections then show up in `CLIENT LIST` / `CLIENT INFO` with `lib-name=ioredis(bullmq_v6.5.1)` instead of a plain `ioredis`, which makes it easy to tell BullMQ traffic apart when debugging or monitoring a Redis server.
+
+```typescript
+import { Queue } from 'bullmq';
+
+// Tagged as ioredis(bullmq_v<version>)
+const queue = new Queue('myQueue', { connection: { host: 'localhost' } });
+
+// Use your own tag instead
+const taggedQueue = new Queue('myQueue', {
+  connection: { host: 'localhost', clientInfoTag: 'my-app' },
+});
+```
+
+A client instance you pass to BullMQ is never modified, and if it already has a `clientInfoTag`, the duplicates BullMQ creates from it inherit that tag. `CLIENT SETINFO` requires Redis 7.2 or newer; on older servers ioredis ignores the error, so nothing changes for the Redis 6.2 baseline. Clients created through the other adapters (node-redis, Bun, Valkey Glide) are not tagged by BullMQ, so configure identification on the client itself, for example `createClient({ clientInfoTag: 'bullmq' })` for node-redis.
+
 ### Using node-redis
 
 BullMQ does not create node-redis clients directly. Create the raw client in your application and wrap it with `createNodeRedisClient` before passing it to BullMQ.
