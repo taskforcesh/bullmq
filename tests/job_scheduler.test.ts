@@ -1257,6 +1257,57 @@ describe('Job Scheduler', () => {
       delayStub.restore();
     });
 
+    it('should expose the internal iteration count to the strategy', async () => {
+      const counts: (number | undefined)[] = [];
+      const settings = {
+        repeatStrategy: (millis, opts) => {
+          counts.push(opts.count);
+          return getNextMillis(millis, opts);
+        },
+      };
+      const currentQueue = new Queue(queueName, {
+        connection,
+        prefix,
+        settings,
+      });
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          clock.tick(ONE_SECOND + 100);
+        },
+        { connection, prefix, settings },
+      );
+      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+
+      clock.setSystemTime(new Date('2017-02-07 9:24:00'));
+
+      // A count provided by the caller is ignored
+      await currentQueue.upsertJobScheduler('test', {
+        pattern: '* * * * * *',
+        count: 10,
+      } as any);
+
+      clock.tick(ONE_SECOND + 100);
+
+      let completed = 0;
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', () => {
+          if (++completed == 3) {
+            resolve();
+          }
+        });
+      });
+
+      await completing;
+      await currentQueue.close();
+      await worker.close();
+      delayStub.restore();
+
+      expect(counts[0]).toBeUndefined();
+      expect(counts.slice(1, 4)).toEqual([1, 2, 3]);
+    });
+
     describe('when differentiating strategy by job name', () => {
       it('should repeat every 2 seconds', async () => {
         // TODO: Move timeout to test options: { timeout: 10000 }
