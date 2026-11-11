@@ -1,3 +1,10 @@
+## [6.7.4](https://github.com/taskforcesh/bullmq/compare/v6.7.3...v6.7.4) (2026-11-11)
+
+
+### Bug Fixes
+
+* **postgres:** count waiting jobs while the queue is paused ([#5095](https://github.com/taskforcesh/bullmq/issues/5095)) fixes [#5083](https://github.com/taskforcesh/bullmq/issues/5083) ([5228077](https://github.com/taskforcesh/bullmq/commit/52280774cf3413d10a8c970fd7dc93be6a509fea))
+
 ## [6.7.3](https://github.com/taskforcesh/bullmq/compare/v6.7.2...v6.7.3) (2026-11-10)
 
 
