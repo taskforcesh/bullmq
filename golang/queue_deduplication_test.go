@@ -96,6 +96,10 @@ func TestDeduplicationSuppressesDuplicatesAndClearsKeyOnCompletion(t *testing.T)
 		return n == 0
 	})
 
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
 	// With the key gone the same id starts a new window.
 	again := addDeduped(t, ctx, q, "again", de, nil)
 	if again.ID == first.ID {
