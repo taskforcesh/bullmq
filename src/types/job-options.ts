@@ -1,5 +1,5 @@
 import { BaseJobOptions } from '../interfaces/base-job-options';
-import { RepeatOptions } from '../interfaces/repeat-options';
+import { JobSchedulerRepeatOptions } from '../interfaces/repeat-options';
 import { DeduplicationOptions } from './deduplication-options';
 
 /**
@@ -63,5 +63,5 @@ export type JobsOptions = BaseJobOptions & CompressableJobOptions;
  * use `Queue.upsertJobScheduler` to schedule repeating jobs.
  */
 export interface JobSchedulerJobOptions extends JobsOptions {
-  repeat?: Omit<RepeatOptions, 'key' | 'jobId'>;
+  repeat?: Omit<JobSchedulerRepeatOptions, 'key' | 'jobId'>;
 }
