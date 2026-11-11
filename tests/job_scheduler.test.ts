@@ -13,11 +13,11 @@ import {
 import * as sinon from 'sinon';
 import { rrulestr } from 'rrule';
 import { Job, Queue, QueueEvents, getNextMillis, Worker } from '../src/classes';
-import { JobsOptions, JobSchedulerJobOptions } from '../src/types';
+import { JobSchedulerJobOptions } from '../src/types';
 import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
-import { IRedisClient } from '../src/interfaces';
+import { IRedisClient, JobSchedulerRepeatOptions } from '../src/interfaces';
 
 const moment = require('moment');
 
@@ -1190,7 +1190,7 @@ describe('Job Scheduler', () => {
     it('should repeat every 2 seconds', async () => {
       // TODO: Move timeout to test options: { timeout: 15000 }
       const settings = {
-        repeatStrategy: (millis, opts) => {
+        repeatStrategy: (millis: number, opts) => {
           const currentDate =
             opts.startDate && new Date(opts.startDate) > new Date(millis)
               ? new Date(opts.startDate)
@@ -1260,7 +1260,7 @@ describe('Job Scheduler', () => {
     it('should expose the internal iteration count to the strategy', async () => {
       const counts: (number | undefined)[] = [];
       const settings = {
-        repeatStrategy: (millis, opts) => {
+        repeatStrategy: (millis: number, opts: JobSchedulerRepeatOptions) => {
           counts.push(opts.count);
           return getNextMillis(millis, opts);
         },
@@ -1429,7 +1429,7 @@ describe('Job Scheduler', () => {
           'rrule',
           {
             pattern: '*/2 * * * * *',
-            startDate: new Date('2017-02-07 9:24:05'),
+            startDate: new Date('2017-02-07T15:24:05.000Z'),
           },
           {
             name: 'standard',
