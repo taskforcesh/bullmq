@@ -77,7 +77,7 @@ to better reflect datastore-agnostic semantics:
 
 ### Minimum supported Node.js version
 
-BullMQ v6 requires **Node.js 14.17.0 or newer**.
+BullMQ v6 requires **Node.js 14.18.0 or newer**.
 
 ## Migrating legacy repeatable jobs
 

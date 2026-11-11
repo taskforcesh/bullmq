@@ -1,3 +1,38 @@
+## [6.7.4](https://github.com/taskforcesh/bullmq/compare/v6.7.3...v6.7.4) (2026-11-11)
+
+
+### Bug Fixes
+
+* **postgres:** count waiting jobs while the queue is paused ([#5095](https://github.com/taskforcesh/bullmq/issues/5095)) fixes [#5083](https://github.com/taskforcesh/bullmq/issues/5083) ([5228077](https://github.com/taskforcesh/bullmq/commit/52280774cf3413d10a8c970fd7dc93be6a509fea))
+
+## [6.7.3](https://github.com/taskforcesh/bullmq/compare/v6.7.2...v6.7.3) (2026-11-10)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cron-parser to v5.10.4 ([#5098](https://github.com/taskforcesh/bullmq/issues/5098)) ([6b7fd10](https://github.com/taskforcesh/bullmq/commit/6b7fd10ce096d7b7b402c6996ff832df1ce38a96))
+
+## [6.7.2](https://github.com/taskforcesh/bullmq/compare/v6.7.1...v6.7.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **deps:** pin dependencies [security] ([#5002](https://github.com/taskforcesh/bullmq/issues/5002)) ([fe30cde](https://github.com/taskforcesh/bullmq/commit/fe30cde1f1f586e6824c523760cf9aa608f4f822))
+
+## [6.7.1](https://github.com/taskforcesh/bullmq/compare/v6.7.0...v6.7.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* **deps:** update dependency semver to v7.8.6 ([#5077](https://github.com/taskforcesh/bullmq/issues/5077)) ([85194b6](https://github.com/taskforcesh/bullmq/commit/85194b6b8549b222e23cea6f4adc29c918565c6a))
+
+# [6.7.0](https://github.com/taskforcesh/bullmq/compare/v6.6.1...v6.7.0) (2026-11-04)
+
+
+### Features
+
+* **queue:** count delayed jobs before a timestamp ([#5026](https://github.com/taskforcesh/bullmq/issues/5026)) ([304edc3](https://github.com/taskforcesh/bullmq/commit/304edc32066f13f4bd943ce83299b09d7e202ae8))
+
 ## [6.6.1](https://github.com/taskforcesh/bullmq/compare/v6.6.0...v6.6.1) (2026-11-04)
 
 

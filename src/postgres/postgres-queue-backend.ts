@@ -1647,20 +1647,18 @@ export class PostgresQueueBackend
     const counts = rows[0];
     const waiting = Number(counts.waiting);
     const prioritized = Number(counts.prioritized);
-    const isPaused = counts.paused === '1';
 
     const lookup: Record<string, number> = {
       active: Number(counts.active),
       completed: Number(counts.completed),
       failed: Number(counts.failed),
       delayed: Number(counts.delayed),
-      // When paused, waiting jobs are reported as paused (the queue isn't
-      // physically moving them — see the O(1) pause flag).
-      wait: isPaused ? 0 : waiting,
-      waiting: isPaused ? 0 : waiting,
+      // Pausing only sets queue metadata, so the jobs stay in the `waiting`
+      // state and keep being counted as waiting, as on Redis.
+      wait: waiting,
+      waiting: waiting,
       prioritized,
       'waiting-children': Number(counts['waiting-children']),
-      paused: isPaused ? waiting : 0,
     };
     return types.map(type => lookup[type] ?? 0);
   }
