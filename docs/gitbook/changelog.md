@@ -1,3 +1,11 @@
+## [6.7.5](https://github.com/taskforcesh/bullmq/compare/v6.7.4...v6.7.5) (2026-11-11)
+
+
+### Bug Fixes
+
+* **schedulers:** remove unused count option property that must be internal ([#5109](https://github.com/taskforcesh/bullmq/issues/5109)) ([09b4832](https://github.com/taskforcesh/bullmq/commit/09b48329afc70adac2cf437adaf1c448ad5538ef))
+* **telemetry:** record original job errors on the processing span ([#4915](https://github.com/taskforcesh/bullmq/issues/4915)) ([cf91c88](https://github.com/taskforcesh/bullmq/commit/cf91c887f6a0a7d383c74345f78127764161157a))
+
 ## [6.7.4](https://github.com/taskforcesh/bullmq/compare/v6.7.3...v6.7.4) (2026-11-11)
 
 
