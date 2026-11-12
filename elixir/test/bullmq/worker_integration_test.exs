@@ -3252,6 +3252,7 @@ defmodule BullMQ.WorkerIntegrationTest do
           concurrency: 1,
           processor: fn _job ->
             send(test_pid, {:processing, self()})
+
             receive do
               :finish -> {:ok, :done}
             end
@@ -3269,6 +3270,82 @@ defmodule BullMQ.WorkerIntegrationTest do
       refute_receive {:processing, _}, 200
 
       Worker.close(worker, force: true)
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "close returns after an active autonomous worker crashes", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, _} =
+        Queue.add_bulk(
+          queue_name,
+          [{"job", %{}, []}, {"job", %{}, []}],
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 1,
+          processor: fn _job ->
+            send(test_pid, {:processing, self()})
+
+            receive do
+              :finish -> {:ok, :done}
+            end
+          end
+        )
+
+      assert_receive {:processing, processor_pid}, 5_000
+
+      worker_ref = Process.monitor(worker)
+      close_task = Task.async(fn -> Worker.close(worker, timeout: 10_000) end)
+      wait_for_close_waiter(worker)
+
+      Process.exit(processor_pid, :kill)
+
+      assert :ok = Task.await(close_task, 2_000)
+      assert_receive {:DOWN, ^worker_ref, :process, ^worker, :normal}, 2_000
+      refute_receive {:processing, _}, 200
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "close returns after an in-flight autonomous worker crashes", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 1,
+          processor: fn _job -> {:ok, :done} end
+        )
+
+      in_flight_pid = spawn(fn -> Process.sleep(:infinity) end)
+
+      :sys.replace_state(worker, fn state ->
+        %{state | in_flight_workers: MapSet.put(state.in_flight_workers, in_flight_pid)}
+      end)
+
+      worker_ref = Process.monitor(worker)
+      close_task = Task.async(fn -> Worker.close(worker, timeout: 10_000) end)
+      wait_for_close_waiter(worker)
+
+      send(worker, {:EXIT, in_flight_pid, :killed})
+
+      assert :ok = Task.await(close_task, 2_000)
+      assert_receive {:DOWN, ^worker_ref, :process, ^worker, :normal}, 2_000
+      Process.exit(in_flight_pid, :kill)
     end
 
     @tag :integration
@@ -3336,6 +3413,24 @@ defmodule BullMQ.WorkerIntegrationTest do
   # ---------------------------------------------------------------------------
   # Helper Functions
   # ---------------------------------------------------------------------------
+
+  defp wait_for_close_waiter(worker, timeout \\ 5_000) do
+    deadline = System.monotonic_time(:millisecond) + timeout
+    do_wait_for_close_waiter(worker, deadline)
+  end
+
+  defp do_wait_for_close_waiter(worker, deadline) do
+    if is_tuple(:sys.get_state(worker).closing) do
+      :ok
+    else
+      if System.monotonic_time(:millisecond) >= deadline do
+        flunk("Timed out waiting for close waiter")
+      else
+        Process.sleep(10)
+        do_wait_for_close_waiter(worker, deadline)
+      end
+    end
+  end
 
   defp wait_for_pause_waiter(worker, timeout \\ 5_000) do
     deadline = System.monotonic_time(:millisecond) + timeout

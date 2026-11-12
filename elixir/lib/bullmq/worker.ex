@@ -1288,7 +1288,7 @@ defmodule BullMQ.Worker do
       # Schedule replacement worker
       send(self(), :fetch_jobs)
       new_state = %{state | in_flight_workers: in_flight_workers}
-      {:noreply, maybe_release_pause_waiters(new_state)}
+      check_closing_or_fetch(new_state)
     else
       case Map.get(state.worker_pids, pid) do
         nil ->
@@ -1313,7 +1313,7 @@ defmodule BullMQ.Worker do
           send(self(), :fetch_jobs)
 
           new_state = %{state | active_jobs: active_jobs, worker_pids: worker_pids}
-          {:noreply, maybe_release_pause_waiters(new_state)}
+          check_closing_or_fetch(new_state)
       end
     end
   end

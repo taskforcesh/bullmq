@@ -8,10 +8,9 @@ defmodule BullMQ.JobScheduler do
 
   > #### Node.js Interoperability Note {: .warning}
   >
-  > **Seconds field:** Node.js supports an optional 6th field for seconds at the
-  > beginning (`second minute hour day month weekday`). Elixir's `crontab` library
-  > uses standard 5-field format by default. **6-field expressions with seconds
-  > from Node.js will fail to parse in Elixir.**
+  > **Seconds field:** Like Node.js, Elixir supports an optional 6th field for
+  > seconds at the beginning (`second minute hour day month weekday`), so
+  > 6-field expressions created in Node.js are parsed the same way in Elixir.
   >
   > **Sunday:** Elixir uses `7` for Sunday, Node.js uses `0` (or `7`).
   > Use `7` for Sunday to ensure compatibility.
@@ -19,12 +18,11 @@ defmodule BullMQ.JobScheduler do
   > | Feature | Elixir | Node.js | Compatible? |
   > |---------|--------|---------|-------------|
   > | 5-field (no seconds) | ✅ | ✅ | ✅ Yes |
-  > | 6-field (with seconds) | ❌ | ✅ | ❌ No |
+  > | 6-field (with seconds) | ✅ | ✅ | ✅ Yes |
   > | Sunday = 7 | ✅ | ✅ | ✅ Yes |
   > | Sunday = 0 | ❌ | ✅ | ❌ No |
   >
   > **For cross-platform compatibility:**
-  > - Use 5-field cron expressions (no seconds)
   > - Use `7` for Sunday, not `0`
   > - Or use interval-based schedulers (`:every`)
 
