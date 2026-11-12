@@ -4,6 +4,7 @@ import { loadNavigation } from './sidebar';
 
 const { nav, sidebar } = loadNavigation();
 const legacyApiOrigin = 'https://api.docs.bullmq.io';
+const hostname = 'https://docs.bullmq.io';
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -15,6 +16,22 @@ export default defineConfig({
   lang: 'en-US',
   cleanUrls: true,
   lastUpdated: true,
+  sitemap: { hostname },
+
+  // One canonical URL per page. Folder pages (GitBook README.md, rewritten to
+  // index.md) live at /guide/queues/, other pages at /guide/connections, and
+  // each also answers at the other form, so search engines need the canonical.
+  transformPageData(pageData) {
+    const path = pageData.relativePath
+      .replace(/(^|\/)index\.md$/, '$1')
+      .replace(/\.md$/, '');
+    const url = `${hostname}/${path}`;
+    pageData.frontmatter.head ??= [];
+    pageData.frontmatter.head.push(
+      ['link', { rel: 'canonical', href: url }],
+      ['meta', { property: 'og:url', content: url }],
+    );
+  },
 
   // Content lives in ./gitbook (migrated from the GitBook site).
   srcDir: 'gitbook',
