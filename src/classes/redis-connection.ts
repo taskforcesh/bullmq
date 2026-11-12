@@ -442,6 +442,24 @@ export class RedisConnection extends EventEmitter {
       await RedisConnection.waitUntilReady(this._client);
     }
 
+    await this.completeInitialization();
+
+    return this._client;
+  }
+
+  // Everything init() still needs to do once the client is confirmed ready:
+  // register BullMQ's Lua commands and finish Redis version/capability
+  // discovery. Split out from init() so reconnect() can re-run exactly this
+  // part - and only this part - on a client whose original init() call
+  // returned (via waitUntilReady() rejecting, e.g. because Redis was
+  // unreachable) before ever reaching it. Re-running the earlier parts of
+  // init() (client creation, event listener registration) would either be a
+  // no-op or, worse, register duplicate listeners, so this is deliberately
+  // the smallest idempotent slice: loadCommands() only defines a command if
+  // it isn't already defined, and getRedisVersionAndType() is a plain
+  // re-fetch with no side effects of its own.
+  // See https://github.com/taskforcesh/bullmq/issues/4656.
+  private async completeInitialization(): Promise<void> {
     this.loadCommands(this.packageVersion);
 
     if (this._client['status'] !== 'end') {
@@ -492,8 +510,6 @@ export class RedisConnection extends EventEmitter {
 
       this.status = 'ready';
     }
-
-    return this._client;
   }
 
   private patchBlockingClusterClient(): void {
@@ -888,13 +904,13 @@ export class RedisConnection extends EventEmitter {
         client.status === 'ready' ||
         (client.status === 'connect' && isRedisCluster(client))
       ) {
-        this.repairInitializing(client);
+        await this.repairInitializing(client);
         return;
       }
 
       if (client.status === 'wait' || client.status === 'end') {
         await client.connect();
-        this.repairInitializing(client);
+        await this.repairInitializing(client);
         return;
       }
 
@@ -927,8 +943,22 @@ export class RedisConnection extends EventEmitter {
   // permanently pending/rejected even after reconnect() brings the live
   // client back up, so every later `await this.client` (close(), other
   // commands) would still hang or throw on the stale promise.
+  //
+  // The original init() may itself have returned early - its
+  // waitUntilReady() call can reject (e.g. Redis was unreachable at the
+  // time) before init() ever reaches loadCommands() or version/capability
+  // discovery, in which case `this.version` is still unset. A client in that
+  // state is "ready" at the ioredis level but was never fully initialized by
+  // BullMQ, so publishing it as-is would let callers run Lua commands that
+  // were never defined on it. Detect that case via the unset `version` and
+  // complete the same initialization init() would have done, before
+  // publishing the client as ready.
   // See https://github.com/taskforcesh/bullmq/issues/4656.
-  private repairInitializing(client: RedisClient): void {
+  private async repairInitializing(client: RedisClient): Promise<void> {
+    if (this.version === undefined) {
+      await this.completeInitialization();
+    }
+
     if (this.status !== 'closing' && this.status !== 'closed') {
       this.status = 'ready';
     }

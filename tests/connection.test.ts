@@ -605,6 +605,17 @@ describe('RedisConnection', () => {
       Object.defineProperty(connection, 'client', {
         get: () => Promise.resolve(client),
       });
+      // reconnect() now completes initialization (loadCommands() +
+      // version/capability discovery) via completeInitialization() the same
+      // way init() does, in case the original init() never got that far
+      // (see completeInitialization()'s own comment). That reads/writes
+      // `this._client` directly (not the mocked `client` getter above), and
+      // skips the real version check here so these pure status-transition
+      // tests don't need a real Redis client to answer INFO -
+      // `skipVersionCheck` already short-circuits getRedisVersionAndType()
+      // the same way for a real connection.
+      connection._client = client;
+      connection.skipVersionCheck = true;
       return connection as RedisConnection;
     }
 
@@ -615,6 +626,9 @@ describe('RedisConnection', () => {
       client.connect = sinon.stub().callsFake(async () => {
         client.status = 'ready';
       });
+      // loadCommands(), called from completeInitialization(), needs this to
+      // exist on whatever `this._client` resolves to.
+      client.defineCommand = sinon.stub();
       return client;
     }
 
@@ -625,6 +639,20 @@ describe('RedisConnection', () => {
       await connection.reconnect();
 
       expect(client.connect.called).toBe(false);
+    });
+
+    it('completes initialization (registers commands) if the original init() never got that far (#4656)', async () => {
+      const client = createClient('ready');
+      const connection = createConnection(client);
+      // Simulate init()'s own waitUntilReady() call having rejected before
+      // init() ever reached loadCommands()/version discovery - the client
+      // is 'ready' at the ioredis level, but BullMQ never finished
+      // initializing it.
+      expect((connection as any).version).toBeUndefined();
+
+      await connection.reconnect();
+
+      expect(client.defineCommand.called).toBe(true);
     });
 
     it.each(['wait', 'end'])('connects from status %s', async status => {
