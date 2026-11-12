@@ -1,4 +1,13 @@
+---
+description: >-
+  How to connect BullMQ to Redis, Valkey or Dragonfly: the connection option,
+  reusing connections, and using ioredis, node-redis, Bun's Redis client or
+  Valkey GLIDE.
+---
+
 # Connections
+
+To connect BullMQ to Redis™, pass a `connection` option with the host and port of your server, or an existing client, to every `Queue`, `Worker`, `QueueEvents` and `FlowProducer` you create. Without it, BullMQ connects to `localhost` on port 6379.
 
 In order to start working with a Queue, a connection to a datastore is necessary. By default BullMQ uses Redis™ (or a compatible server such as Valkey or Dragonfly), and this page describes how to configure those connections. If you are using PostgreSQL instead, see [PostgreSQL backend](postgresql.md#connection-options).
 

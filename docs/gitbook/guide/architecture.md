@@ -7,6 +7,8 @@ description: >-
 
 # Architecture
 
+A BullMQ job moves through a fixed set of states. It starts in **wait**, **prioritized** or **delayed** (or **waiting-children** if it is the parent of a flow), becomes **active** when a worker picks it up, and ends as **completed** or **failed**. Every transition is atomic, whether the jobs are stored in Redis™ or in PostgreSQL.
+
 In order to use the full potential of BullMQ queues, it is important to understand the lifecycle of a job. From the moment a producer calls the [`add`](https://docs.bullmq.io/api/classes/v6.Queue.html#add) method on a `Queue` instance, a job enters a lifecycle where it will be in different states, until its completion or failure (although technically a failed job could be retried and get a new lifecycle).
 
 <figure><img src="../.gitbook/assets/simple-architecture.png" alt="Diagram showing the lifecycle of a job in a queue, including wait, prioritized, delayed, active, completed, and failed states"><figcaption><p>Lifecycle of a job - Queue</p></figcaption></figure>

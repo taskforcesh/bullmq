@@ -1,4 +1,23 @@
+---
+description: >-
+  Checklist for running BullMQ in production: Redis persistence and
+  noeviction, automatic reconnections, error logging, monitoring, graceful
+  shutdown, auto-removal of jobs and protecting job data.
+---
+
 # Going to production
+
+Before you run BullMQ in production, make sure that:
+
+- Redis™ [persistence](#persistence) is enabled, preferably AOF.
+- The Redis™ [`maxmemory-policy`](#max-memory-policy) is `noeviction`.
+- Your connections [reconnect automatically](#automatic-reconnections).
+- You [log the errors](#log-errors) of your queues and workers.
+- You get [alerts](#monitoring-and-alerts) when jobs fail, workers stop or jobs pile up.
+- Your workers [shut down gracefully](#gracefully-shut-down-workers) on `SIGINT` and `SIGTERM`.
+- Finished jobs are [removed automatically](#auto-job-removal).
+- Job data holds [no sensitive information](#protecting-data) in clear text.
+- [Unhandled exceptions and rejections](#unhandled-exceptions-and-rejections) do not crash your processes.
 
 In this chapter, we will offer crucial considerations and tips to help you achieve a robust solution when deploying your BullMQ-based application to production.
 
