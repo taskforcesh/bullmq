@@ -1233,6 +1233,57 @@ describe('workers', () => {
 
       await closePromise;
     });
+
+    it('releases a job back to wait if its fetch is abandoned during close() but later succeeds (#4656)', async () => {
+      await queue.add('test', { foo: 'bar' });
+
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+        autorun: false,
+        whenCurrentJobsFinishedTimeout: 100,
+      });
+      await worker.waitUntilReady();
+
+      // Stub moveToActive() so its underlying promise outlives the
+      // whenCurrentJobsFinishedTimeout window - simulating a fetch that
+      // close() force-settles to undefined (because it decided to stop
+      // waiting) but whose real Lua call later actually resolves
+      // successfully, having already moved the job to active and locked it
+      // under its token. Stubbed - and the worker's loop started - only
+      // after waitUntilReady(), with autorun disabled, so there's no window
+      // for the real (unstubbed) moveToActive() to grab the job first.
+      let releaseDelay: () => void;
+      const delayGate = new Promise<void>(resolve => {
+        releaseDelay = resolve;
+      });
+      const original = (worker as any).moveToActive.bind(worker);
+      sandbox
+        .stub(worker as any, 'moveToActive')
+        .callsFake(async (...args: any[]) => {
+          await delayGate;
+          return original(...args);
+        });
+
+      worker.run();
+      await delay(50);
+
+      await worker.close();
+
+      // At this point close() has already returned (bounded by the 100ms
+      // whenCurrentJobsFinishedTimeout), well before the stubbed
+      // moveToActive() is allowed to proceed. Now let the real fetch
+      // actually run, as if Redis had been unreachable and just came back.
+      releaseDelay();
+      await delay(200);
+
+      // Without the fix, the job would be left active with no processor and
+      // no lock renewal. With it, trackedMoveToActive() notices the fetch
+      // was abandoned and releases the job back to wait.
+      const counts = await queue.getJobCounts('active', 'wait');
+      expect(counts.active).toBe(0);
+      expect(counts.wait).toBe(1);
+    });
   });
 
   describe('when waiting for a job', () => {

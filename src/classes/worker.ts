@@ -884,16 +884,32 @@ export class Worker<
     name?: string,
   ): Promise<Job<DataType, ResultType, NameType, ProgressType> | undefined> {
     const key = {};
+    let abandoned = false;
     let settleEarly: (() => void) | undefined;
     const forcedUndefined = new Promise<undefined>(resolve => {
-      settleEarly = () => resolve(undefined);
+      settleEarly = () => {
+        abandoned = true;
+        resolve(undefined);
+      };
     });
     this.inFlightFetches.set(key, settleEarly as () => void);
 
     const fetching = this.moveToActive(token, name);
-    // Don't let a fetch that's force-settled (because we stopped waiting for
-    // it) but later actually rejects become an unhandled rejection.
-    fetching.catch(() => {});
+    // If this fetch gets force-settled below (because we stopped waiting for
+    // it) but `moveToActive()` later actually succeeds, the Lua script has
+    // already moved that job to active and locked it under `token` - nobody
+    // is left to process it or renew its lock, so it would otherwise sit
+    // active until stalled-job recovery eventually reclaims it. Release it
+    // back to wait as soon as we notice, and in any case never let a fetch
+    // that's been abandoned here surface as an unhandled rejection.
+    // See https://github.com/taskforcesh/bullmq/issues/4656.
+    fetching
+      .then(job => {
+        if (abandoned) {
+          return job.moveToWait(token).catch(() => {});
+        }
+      })
+      .catch(() => {});
 
     try {
       return await Promise.race([fetching, forcedUndefined]);
