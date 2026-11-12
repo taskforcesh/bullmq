@@ -197,28 +197,30 @@ describe('flows', () => {
         prefix,
         autorun: false,
       });
-      await worker.waitUntilReady();
-      const activeParent = (await worker.getNextJob(token)) as Job;
-      expect(activeParent.id).toBe(parent.id);
+      try {
+        await worker.waitUntilReady();
+        const activeParent = (await worker.getNextJob(token)) as Job;
+        expect(activeParent.id).toBe(parent.id);
 
-      await queue.add(
-        'child',
-        {},
-        {
-          delay: 60000,
-          parent: { id: parent.id!, queue: queue.qualifiedName },
-        },
-      );
-      const shouldWait = await activeParent.moveToWaitingChildren(token);
-      expect(shouldWait).toBe(true);
-      expect(await activeParent.getState()).toBe('waiting-children');
+        await queue.add(
+          'child',
+          {},
+          {
+            delay: 60000,
+            parent: { id: parent.id!, queue: queue.qualifiedName },
+          },
+        );
+        const shouldWait = await activeParent.moveToWaitingChildren(token);
+        expect(shouldWait).toBe(true);
+        expect(await activeParent.getState()).toBe('waiting-children');
 
-      await queue.clean(0, 10, 'delayed');
+        await queue.clean(0, 10, 'delayed');
 
-      expect(await queue.getJob(parent.id!)).toBeUndefined();
-      expect(await queue.getDeduplicationJobId(dedupId)).toBeNull();
-
-      await worker.close();
+        expect(await queue.getJob(parent.id!)).toBeUndefined();
+        expect(await queue.getDeduplicationJobId(dedupId)).toBeNull();
+      } finally {
+        await worker.close();
+      }
     });
   });
 
