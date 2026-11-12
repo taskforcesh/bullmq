@@ -1284,6 +1284,33 @@ describe('workers', () => {
       expect(counts.active).toBe(0);
       expect(counts.wait).toBe(1);
     });
+
+    it('bounds close() even when the blocking wait for a job is stuck, not just a fetch (#4656)', async () => {
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+        autorun: false,
+        whenCurrentJobsFinishedTimeout: 100,
+      });
+      await worker.waitUntilReady();
+
+      // Simulate waitForJob() being stuck - e.g. its own watchdog firing
+      // resetBlockedConnection(), whose reconnect() retries forever against
+      // an unreachable Redis (see redis-queue-backend.ts). This never
+      // resolves on its own, so without trackedWaitForJob() tracking it,
+      // whenCurrentJobsFinished() would have nothing to bound and close()
+      // would hang.
+      sandbox
+        .stub(worker as any, 'waitForJob')
+        .callsFake(() => new Promise(() => {}));
+
+      worker.run();
+      await delay(50);
+
+      const start = Date.now();
+      await worker.close();
+      expect(Date.now() - start).toBeLessThan(2000);
+    });
   });
 
   describe('when waiting for a job', () => {
