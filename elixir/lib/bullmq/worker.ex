@@ -854,7 +854,7 @@ defmodule BullMQ.Worker do
 
     new_state = set_paused(%{state | closing: true}, true)
 
-    if force or map_size(state.active_jobs) == 0 do
+    if force or not has_active_work?(state) do
       Enum.each(new_state.pause_waiters, &GenServer.reply(&1, :ok))
       # Let terminate/2 handle cleanup
       {:stop, :normal, :ok, %{new_state | pause_waiters: []}}
@@ -974,8 +974,8 @@ defmodule BullMQ.Worker do
   end
 
   def handle_info(:fetch_jobs, state) do
-    # Count both active jobs and in-flight workers (spawned but not yet with a job)
-    # to prevent spawning more than concurrency workers
+    # Count active jobs and workers that have not yet registered their next job
+    # to prevent spawning more than concurrency workers.
     in_use = map_size(state.active_jobs) + MapSet.size(state.in_flight_workers)
     available_slots = state.concurrency - in_use
 
@@ -1054,7 +1054,7 @@ defmodule BullMQ.Worker do
   end
 
   def handle_info({:worker_job_finished, worker_pid, job_id}, state) do
-    # Autonomous worker finished a job - clean up tracking
+    # Keep the process in flight until it reports its next job or stops.
     # The worker handles Redis updates itself, coordinator just tracks state
     if state.lock_manager do
       LockManager.untrack_job(state.lock_manager, job_id)
@@ -1068,6 +1068,7 @@ defmodule BullMQ.Worker do
       state
       | active_jobs: active_jobs,
         worker_pids: worker_pids,
+        in_flight_workers: MapSet.put(state.in_flight_workers, worker_pid),
         cancellation_tokens: cancellation_tokens
     }
 
@@ -1277,16 +1278,17 @@ defmodule BullMQ.Worker do
   # Handle EXIT signals from autonomous worker processes
   # Note: LockManager exits are handled separately above
   def handle_info({:EXIT, pid, reason}, state) do
-    # Check if this is an in-flight worker (spawned but hasn't got a job yet)
+    # Check if this worker is between jobs.
     if MapSet.member?(state.in_flight_workers, pid) do
       Logger.warning(
-        "[BullMQ.Worker] In-flight worker #{inspect(pid)} crashed before getting a job: #{inspect(reason)}"
+        "[BullMQ.Worker] Worker #{inspect(pid)} crashed without an active job: #{inspect(reason)}"
       )
 
       in_flight_workers = MapSet.delete(state.in_flight_workers, pid)
       # Schedule replacement worker
       send(self(), :fetch_jobs)
-      {:noreply, %{state | in_flight_workers: in_flight_workers}}
+      new_state = %{state | in_flight_workers: in_flight_workers}
+      {:noreply, maybe_release_pause_waiters(new_state)}
     else
       case Map.get(state.worker_pids, pid) do
         nil ->
@@ -1310,7 +1312,8 @@ defmodule BullMQ.Worker do
           # Schedule replacement worker
           send(self(), :fetch_jobs)
 
-          {:noreply, %{state | active_jobs: active_jobs, worker_pids: worker_pids}}
+          new_state = %{state | active_jobs: active_jobs, worker_pids: worker_pids}
+          {:noreply, maybe_release_pause_waiters(new_state)}
       end
     end
   end
@@ -2348,7 +2351,7 @@ defmodule BullMQ.Worker do
     cond do
       is_reference(state.closing) or is_tuple(state.closing) ->
         # We're waiting to close
-        if map_size(state.active_jobs) == 0 do
+        if not has_active_work?(state) do
           cleanup(state)
           GenServer.reply(state.closing, :ok)
           {:stop, :normal, %{state | closing: true}}
@@ -2363,8 +2366,8 @@ defmodule BullMQ.Worker do
         # Already waiting, don't start another wait or spawn more workers
         {:noreply, state}
 
-      map_size(state.worker_pids) == 0 and map_size(state.active_jobs) == 0 ->
-        # All workers have stopped AND no active jobs - start blocking wait
+      not has_active_work?(state) ->
+        # No active work remains - start blocking wait
         # This matches Node.js behavior: only one blocking call when queue is empty
         start_blocking_wait(state)
 

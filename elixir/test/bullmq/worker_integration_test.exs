@@ -3227,11 +3227,133 @@ defmodule BullMQ.WorkerIntegrationTest do
 
       Worker.close(worker)
     end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "pause returns after an active autonomous worker crashes", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, _} =
+        Queue.add_bulk(
+          queue_name,
+          [{"job", %{}, []}, {"job", %{}, []}],
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 1,
+          processor: fn _job ->
+            send(test_pid, {:processing, self()})
+            receive do
+              :finish -> {:ok, :done}
+            end
+          end
+        )
+
+      assert_receive {:processing, processor_pid}, 5_000
+
+      pause_task = Task.async(fn -> Worker.pause(worker) end)
+      wait_for_pause_waiter(worker)
+
+      Process.exit(processor_pid, :kill)
+
+      assert :ok = Task.await(pause_task, 5_000)
+      refute_receive {:processing, _}, 200
+
+      Worker.close(worker, force: true)
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "pause waits across the completion callback and next-job handoff", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, first_job} =
+        Queue.add(queue_name, "job", %{}, connection: conn, prefix: @test_prefix)
+
+      {:ok, second_job} =
+        Queue.add(queue_name, "job", %{}, connection: conn, prefix: @test_prefix)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 1,
+          processor: fn job ->
+            send(test_pid, {:processing, job.id, self()})
+
+            if job.id == first_job.id do
+              {:ok, :done}
+            else
+              receive do
+                :finish -> {:ok, :done}
+              end
+            end
+          end,
+          on_completed: fn job, _result ->
+            if job.id == first_job.id do
+              send(test_pid, {:first_completion_callback, self()})
+
+              receive do
+                :continue -> :ok
+              end
+            end
+
+            send(test_pid, {:completed, job.id})
+          end
+        )
+
+      assert_receive {:first_completion_callback, callback_pid}, 5_000
+
+      pause_task = Task.async(fn -> Worker.pause(worker) end)
+      wait_for_pause_waiter(worker)
+
+      send(callback_pid, :continue)
+      assert_receive {:processing, second_job_id, second_processor_pid}, 5_000
+      assert second_job_id == second_job.id
+      refute Task.yield(pause_task, 100)
+
+      send(second_processor_pid, :finish)
+      assert_receive {:completed, ^second_job_id}, 5_000
+      assert :ok = Task.await(pause_task, 5_000)
+
+      Worker.close(worker)
+    end
   end
 
   # ---------------------------------------------------------------------------
   # Helper Functions
   # ---------------------------------------------------------------------------
+
+  defp wait_for_pause_waiter(worker, timeout \\ 5_000) do
+    deadline = System.monotonic_time(:millisecond) + timeout
+    do_wait_for_pause_waiter(worker, deadline)
+  end
+
+  defp do_wait_for_pause_waiter(worker, deadline) do
+    if :sys.get_state(worker).pause_waiters != [] do
+      :ok
+    else
+      if System.monotonic_time(:millisecond) >= deadline do
+        flunk("Timed out waiting for pause waiter")
+      else
+        Process.sleep(10)
+        do_wait_for_pause_waiter(worker, deadline)
+      end
+    end
+  end
 
   # Wait for cancellation token to be triggered or timeout
   defp wait_for_cancellation_or_timeout(cancel_token, timeout_ms) do
