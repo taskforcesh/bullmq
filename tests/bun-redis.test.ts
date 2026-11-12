@@ -278,6 +278,42 @@ describe('bun redis adapter', () => {
     });
   });
 
+  describe('recovering from a dropped connection', () => {
+    it('reports reconnecting, not end, so a Queue created meanwhile still works', async () => {
+      // Bun reconnects a killed client by itself without firing `onclose`;
+      // with its auto-reconnect off (as once its retries are spent, or when a
+      // connection fails while connecting) the adapter's own reconnect runs.
+      const raw = new RedisClient(`redis://${redisHost}:${redisPort}`, {
+        autoReconnect: false,
+      });
+      const dropped = createBunRedisClient(raw);
+      await dropped.connect();
+      // An unexpected close is also emitted as 'error'.
+      dropped.on('error', () => {});
+      const queueName = `test-bun-${randomUUID()}`;
+      let queue: Queue | undefined;
+      try {
+        const id = await raw.send('CLIENT', ['ID']);
+        const closed = new Promise(resolve => dropped.once('close', resolve));
+        await rawClient.send('CLIENT', ['KILL', 'ID', String(id)]);
+        await closed;
+
+        // The adapter reconnects on its own, so this is not the end of the
+        // client: `RedisConnection.waitUntilReady` treats 'end' as terminal.
+        expect(dropped.status).toBe('reconnecting');
+
+        queue = new Queue(queueName, { connection: dropped, prefix });
+        const job = await queue.add('after-drop', { foo: 'bar' });
+        expect(job.id).toBeDefined();
+        expect(dropped.status).toBe('ready');
+      } finally {
+        await queue?.close();
+        await cleanQueue(queueName);
+        await dropped.quit();
+      }
+    });
+  });
+
   describe('Queue operations via bun adapter', () => {
     let queue: Queue;
     let queueName: string;
