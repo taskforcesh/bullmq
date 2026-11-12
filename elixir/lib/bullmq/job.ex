@@ -561,6 +561,35 @@ defmodule BullMQ.Job do
     end
   end
 
+  @removal_opt_keys %{
+    remove_on_complete: ["removeOnComplete", "remove_on_complete"],
+    remove_on_fail: ["removeOnFail", "remove_on_fail"]
+  }
+
+  @doc false
+  # Returns the job's own `remove_on_complete`/`remove_on_fail` setting, or nil
+  # when the job does not define one. Jobs read from Redis use the camelCase
+  # keys shared with the other SDKs; older Elixir jobs also stored snake_case.
+  @spec removal_opt(t(), :remove_on_complete | :remove_on_fail) :: term()
+  def removal_opt(%__MODULE__{opts: opts}, key) when is_map_key(@removal_opt_keys, key) do
+    keys = [key | Map.fetch!(@removal_opt_keys, key)]
+
+    Enum.find_value(keys, fn k ->
+      case lookup_opt(opts, k) do
+        nil -> nil
+        value -> {:found, value}
+      end
+    end)
+    |> case do
+      {:found, value} -> value
+      nil -> nil
+    end
+  end
+
+  defp lookup_opt(opts, key) when is_map(opts), do: Map.get(opts, key)
+  defp lookup_opt(opts, key) when is_list(opts) and is_atom(key), do: Keyword.get(opts, key)
+  defp lookup_opt(_opts, _key), do: nil
+
   # ============================================
   # Manual Processing Methods
   # ============================================
@@ -601,7 +630,10 @@ defmodule BullMQ.Job do
     script_opts = [
       fetch_next: Keyword.get(opts, :fetch_next, true),
       lock_duration: Keyword.get(opts, :lock_duration, 30_000),
-      remove_on_complete: Keyword.get(opts, :remove_on_complete),
+      remove_on_complete:
+        Keyword.get_lazy(opts, :remove_on_complete, fn ->
+          removal_opt(job, :remove_on_complete)
+        end),
       attempts: job.attempts_made
     ]
 
@@ -659,7 +691,8 @@ defmodule BullMQ.Job do
     script_opts = [
       fetch_next: Keyword.get(opts, :fetch_next, false),
       lock_duration: Keyword.get(opts, :lock_duration, 30_000),
-      remove_on_fail: Keyword.get(opts, :remove_on_fail),
+      remove_on_fail:
+        Keyword.get_lazy(opts, :remove_on_fail, fn -> removal_opt(job, :remove_on_fail) end),
       attempts: job.attempts_made
     ]
 

@@ -2993,8 +2993,464 @@ defmodule BullMQ.WorkerIntegrationTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Job auto-removal options
+  # ---------------------------------------------------------------------------
+
+  describe "Job auto-removal options" do
+    @tag :integration
+    @tag timeout: 15_000
+    test "worker honours age in an atom-keyed map that also has count", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, :done} end,
+          remove_on_complete: %{count: 100, age: 1},
+          on_completed: fn _job, _result -> send(test_pid, :completed) end
+        )
+
+      jobs = Enum.map(1..3, fn i -> {"job", %{value: i}, []} end)
+      {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: conn, prefix: @test_prefix)
+      for _ <- 1..3, do: assert_receive(:completed, 5_000)
+
+      Process.sleep(1_200)
+
+      {:ok, _} =
+        Queue.add(queue_name, "trigger", %{}, connection: conn, prefix: @test_prefix)
+
+      assert_receive(:completed, 5_000)
+
+      {:ok, counts} = Queue.get_counts(queue_name, connection: conn, prefix: @test_prefix)
+      assert counts.completed == 1
+
+      Worker.close(worker)
+    end
+
+    @tag :integration
+    @tag timeout: 10_000
+    test "worker honours per-job remove_on_complete and remove_on_fail", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            if job.name == "fail", do: {:error, "boom"}, else: {:ok, :done}
+          end,
+          on_completed: fn job, _result -> send(test_pid, {:completed, job.id}) end,
+          on_failed: fn job, _reason -> send(test_pid, {:failed, job.id}) end
+        )
+
+      {:ok, removed} =
+        Queue.add(queue_name, "ok", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          remove_on_complete: true
+        )
+
+      {:ok, kept} = Queue.add(queue_name, "ok", %{}, connection: conn, prefix: @test_prefix)
+
+      {:ok, failed} =
+        Queue.add(queue_name, "fail", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          remove_on_fail: true
+        )
+
+      for id <- [removed.id, kept.id], do: assert_receive({:completed, ^id}, 5_000)
+      failed_id = failed.id
+      assert_receive({:failed, ^failed_id}, 5_000)
+
+      assert {:ok, nil} =
+               Queue.get_job(queue_name, removed.id, connection: conn, prefix: @test_prefix)
+
+      assert {:ok, %Job{}} =
+               Queue.get_job(queue_name, kept.id, connection: conn, prefix: @test_prefix)
+
+      assert {:ok, nil} =
+               Queue.get_job(queue_name, failed.id, connection: conn, prefix: @test_prefix)
+
+      Worker.close(worker)
+    end
+
+    @tag :integration
+    @tag timeout: 10_000
+    test "per-job remove_on_complete takes precedence over the worker option", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, :done} end,
+          remove_on_complete: true,
+          on_completed: fn job, _result -> send(test_pid, {:completed, job.id}) end
+        )
+
+      {:ok, job} =
+        Queue.add(queue_name, "keep", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          remove_on_complete: false
+        )
+
+      job_id = job.id
+      assert_receive({:completed, ^job_id}, 5_000)
+
+      assert {:ok, %Job{}} =
+               Queue.get_job(queue_name, job_id, connection: conn, prefix: @test_prefix)
+
+      Worker.close(worker)
+    end
+
+    @tag :integration
+    test "stores removal options with the keys used by the other SDKs", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      {:ok, job} =
+        Queue.add(queue_name, "job", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          remove_on_complete: %{age: 3600, count: 10},
+          remove_on_fail: 5
+        )
+
+      ctx = Keys.new(queue_name, prefix: @test_prefix)
+
+      {:ok, raw_opts} =
+        BullMQ.RedisConnection.command(conn, ["HGET", Keys.job(ctx, job.id), "opts"])
+
+      opts = Jason.decode!(raw_opts)
+
+      assert opts["removeOnComplete"] == %{"age" => 3600, "count" => 10}
+      assert opts["removeOnFail"] == 5
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Pausing workers
+  # ---------------------------------------------------------------------------
+
+  describe "Pausing workers" do
+    @tag :integration
+    @tag timeout: 15_000
+    test "pause waits for active jobs and stops fetching new ones", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 1,
+          processor: fn _job ->
+            Process.sleep(300)
+            {:ok, :done}
+          end,
+          on_active: fn job -> send(test_pid, {:active, job.id}) end,
+          on_completed: fn job, _result -> send(test_pid, {:completed, job.id}) end
+        )
+
+      jobs = Enum.map(1..3, fn i -> {"job", %{value: i}, []} end)
+      {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: conn, prefix: @test_prefix)
+
+      assert_receive {:active, first_id}, 5_000
+      :ok = Worker.pause(worker)
+
+      # The active job finished before pause returned...
+      assert_received {:completed, ^first_id}
+
+      # ...and no new job is started while paused.
+      refute_receive {:active, _}, 800
+
+      {:ok, counts} = Queue.get_counts(queue_name, connection: conn, prefix: @test_prefix)
+      assert counts.completed == 1
+      assert counts.waiting == 2
+
+      :ok = Worker.resume(worker)
+      for _ <- 1..2, do: assert_receive({:completed, _}, 5_000)
+
+      Worker.close(worker)
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "pause with force: true does not wait for active jobs", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 1,
+          processor: fn _job ->
+            Process.sleep(500)
+            {:ok, :done}
+          end,
+          on_active: fn job -> send(test_pid, {:active, job.id}) end,
+          on_completed: fn job, _result -> send(test_pid, {:completed, job.id}) end
+        )
+
+      jobs = Enum.map(1..2, fn i -> {"job", %{value: i}, []} end)
+      {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: conn, prefix: @test_prefix)
+
+      assert_receive {:active, first_id}, 5_000
+      :ok = Worker.pause(worker, force: true)
+      refute_received {:completed, ^first_id}
+
+      # The active job still completes, but the next one is not started.
+      assert_receive {:completed, ^first_id}, 2_000
+      refute_receive {:active, _}, 800
+
+      Worker.close(worker)
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "pause returns after an active autonomous worker crashes", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, _} =
+        Queue.add_bulk(
+          queue_name,
+          [{"job", %{}, []}, {"job", %{}, []}],
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 1,
+          processor: fn _job ->
+            send(test_pid, {:processing, self()})
+
+            receive do
+              :finish -> {:ok, :done}
+            end
+          end
+        )
+
+      assert_receive {:processing, processor_pid}, 5_000
+
+      pause_task = Task.async(fn -> Worker.pause(worker) end)
+      wait_for_pause_waiter(worker)
+
+      Process.exit(processor_pid, :kill)
+
+      assert :ok = Task.await(pause_task, 5_000)
+      refute_receive {:processing, _}, 200
+
+      Worker.close(worker, force: true)
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "close returns after an active autonomous worker crashes", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, _} =
+        Queue.add_bulk(
+          queue_name,
+          [{"job", %{}, []}, {"job", %{}, []}],
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 1,
+          processor: fn _job ->
+            send(test_pid, {:processing, self()})
+
+            receive do
+              :finish -> {:ok, :done}
+            end
+          end
+        )
+
+      assert_receive {:processing, processor_pid}, 5_000
+
+      worker_ref = Process.monitor(worker)
+      close_task = Task.async(fn -> Worker.close(worker, timeout: 10_000) end)
+      wait_for_close_waiter(worker)
+
+      Process.exit(processor_pid, :kill)
+
+      assert :ok = Task.await(close_task, 2_000)
+      assert_receive {:DOWN, ^worker_ref, :process, ^worker, :normal}, 2_000
+      refute_receive {:processing, _}, 200
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "close returns after an in-flight autonomous worker crashes", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 1,
+          processor: fn _job -> {:ok, :done} end
+        )
+
+      in_flight_pid = spawn(fn -> Process.sleep(:infinity) end)
+
+      :sys.replace_state(worker, fn state ->
+        %{state | in_flight_workers: MapSet.put(state.in_flight_workers, in_flight_pid)}
+      end)
+
+      worker_ref = Process.monitor(worker)
+      close_task = Task.async(fn -> Worker.close(worker, timeout: 10_000) end)
+      wait_for_close_waiter(worker)
+
+      send(worker, {:EXIT, in_flight_pid, :killed})
+
+      assert :ok = Task.await(close_task, 2_000)
+      assert_receive {:DOWN, ^worker_ref, :process, ^worker, :normal}, 2_000
+      Process.exit(in_flight_pid, :kill)
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "pause waits across the completion callback and next-job handoff", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, first_job} =
+        Queue.add(queue_name, "job", %{}, connection: conn, prefix: @test_prefix)
+
+      {:ok, second_job} =
+        Queue.add(queue_name, "job", %{}, connection: conn, prefix: @test_prefix)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 1,
+          processor: fn job ->
+            send(test_pid, {:processing, job.id, self()})
+
+            if job.id == first_job.id do
+              {:ok, :done}
+            else
+              receive do
+                :finish -> {:ok, :done}
+              end
+            end
+          end,
+          on_completed: fn job, _result ->
+            if job.id == first_job.id do
+              send(test_pid, {:first_completion_callback, self()})
+
+              receive do
+                :continue -> :ok
+              end
+            end
+
+            send(test_pid, {:completed, job.id})
+          end
+        )
+
+      assert_receive {:processing, first_job_id, _first_processor_pid}, 5_000
+      assert first_job_id == first_job.id
+      assert_receive {:first_completion_callback, callback_pid}, 5_000
+
+      pause_task = Task.async(fn -> Worker.pause(worker) end)
+      wait_for_pause_waiter(worker)
+
+      send(callback_pid, :continue)
+      assert_receive {:processing, second_job_id, second_processor_pid}, 5_000
+      assert second_job_id == second_job.id
+      refute Task.yield(pause_task, 100)
+
+      send(second_processor_pid, :finish)
+      assert_receive {:completed, ^second_job_id}, 5_000
+      assert :ok = Task.await(pause_task, 5_000)
+
+      Worker.close(worker)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Helper Functions
   # ---------------------------------------------------------------------------
+
+  defp wait_for_close_waiter(worker, timeout \\ 5_000) do
+    deadline = System.monotonic_time(:millisecond) + timeout
+    do_wait_for_close_waiter(worker, deadline)
+  end
+
+  defp do_wait_for_close_waiter(worker, deadline) do
+    if is_tuple(:sys.get_state(worker).closing) do
+      :ok
+    else
+      if System.monotonic_time(:millisecond) >= deadline do
+        flunk("Timed out waiting for close waiter")
+      else
+        Process.sleep(10)
+        do_wait_for_close_waiter(worker, deadline)
+      end
+    end
+  end
+
+  defp wait_for_pause_waiter(worker, timeout \\ 5_000) do
+    deadline = System.monotonic_time(:millisecond) + timeout
+    do_wait_for_pause_waiter(worker, deadline)
+  end
+
+  defp do_wait_for_pause_waiter(worker, deadline) do
+    if :sys.get_state(worker).pause_waiters != [] do
+      :ok
+    else
+      if System.monotonic_time(:millisecond) >= deadline do
+        flunk("Timed out waiting for pause waiter")
+      else
+        Process.sleep(10)
+        do_wait_for_pause_waiter(worker, deadline)
+      end
+    end
+  end
 
   # Wait for cancellation token to be triggered or timeout
   defp wait_for_cancellation_or_timeout(cancel_token, timeout_ms) do
