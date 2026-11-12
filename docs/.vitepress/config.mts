@@ -21,15 +21,16 @@ export default defineConfig({
   // One canonical URL per page. Folder pages (GitBook README.md, rewritten to
   // index.md) live at /guide/queues/, other pages at /guide/connections, and
   // each also answers at the other form, so search engines need the canonical.
-  transformHead({ pageData }) {
+  transformPageData(pageData) {
     const path = pageData.relativePath
       .replace(/(^|\/)index\.md$/, '$1')
       .replace(/\.md$/, '');
     const url = `${hostname}/${path}`;
-    return [
+    pageData.frontmatter.head ??= [];
+    pageData.frontmatter.head.push(
       ['link', { rel: 'canonical', href: url }],
       ['meta', { property: 'og:url', content: url }],
-    ];
+    );
   },
 
   // Content lives in ./gitbook (migrated from the GitBook site).
