@@ -3392,6 +3392,8 @@ defmodule BullMQ.WorkerIntegrationTest do
           end
         )
 
+      assert_receive {:processing, first_job_id, _first_processor_pid}, 5_000
+      assert first_job_id == first_job.id
       assert_receive {:first_completion_callback, callback_pid}, 5_000
 
       pause_task = Task.async(fn -> Worker.pause(worker) end)
