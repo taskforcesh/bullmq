@@ -11,7 +11,10 @@
  * directly. That manipulates Redis connection internals with no portable
  * equivalent, so it is scoped to Redis.
  */
-import { getBlockingRedisClient } from './utils/get-redis-client';
+import {
+  getBlockingRedisClient,
+  getRedisClient,
+} from './utils/get-redis-client';
 import {
   describe,
   beforeEach,
@@ -82,6 +85,25 @@ describe('Jobs getters (redis-only)', () => {
         expect(nextWorkers2).toHaveLength(1);
 
         await worker.close();
+      });
+    });
+  });
+
+  describe('.getOldestJobTimestamp', () => {
+    describe('when a deprecated wait-list marker is present', () => {
+      it('skips it and finds the real oldest waiting job behind it', async () => {
+        await queue.waitUntilReady();
+
+        const oldTimestamp = Date.now() - 60_000;
+        await queue.add('old', {}, { timestamp: oldTimestamp });
+
+        // Queues created with very old BullMQ versions could have a "0:"
+        // marker entry at the tail of the wait list (now superseded by a
+        // dedicated marker key). Simulate that legacy layout directly.
+        const client = await getRedisClient(queue);
+        await client.rpush(queue.toKey('wait'), '0:legacy-marker');
+
+        expect(await queue.getOldestJobTimestamp()).toBe(oldTimestamp);
       });
     });
   });
