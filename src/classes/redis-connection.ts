@@ -44,6 +44,16 @@ const clusterClosingRefCount = Symbol('bullmqClusterClosingRefCount');
 // while bounded enough that wedged workers recover within one or two ticks.
 const DEFAULT_CLUSTER_RECONNECT_TIMEOUT_MS = 30_000;
 
+// Hard cap on disconnect(wait: true) waiting for the client's 'end' event.
+// ioredis only emits 'end' once it gives up retrying; calling `disconnect()`
+// while the client is mid-`reconnecting` just tears down the current socket
+// attempt and immediately schedules another one, so with an infinite (or
+// long) retry strategy against an unreachable Redis, 'end' may never fire.
+// Without this bound, close() (via whenCurrentJobsFinished ->
+// disconnectBlocking -> disconnect) hangs forever instead of completing.
+// See https://github.com/taskforcesh/bullmq/issues/4656.
+const DEFAULT_DISCONNECT_TIMEOUT_MS = 30_000;
+
 interface RedisCapabilities {
   canDoubleTimeout: boolean;
   canBlockFor1Ms: boolean;
@@ -190,7 +200,11 @@ export class RedisConnection extends EventEmitter {
   protected _client: RedisClient;
 
   private readonly opts: RedisOptions;
-  private readonly initializing: Promise<RedisClient>;
+  // Not readonly: reconnect() replaces this with a fresh resolved promise
+  // once a connection that never settled successfully (see its own comment)
+  // comes back up, so the `client` getter stops handing every future caller
+  // the same stale pending/rejected promise.
+  private initializing: Promise<RedisClient>;
 
   private version: string;
   protected packageVersion = packageVersion;
@@ -209,6 +223,7 @@ export class RedisConnection extends EventEmitter {
       skipVersionCheck?: boolean;
       skipWaitingForReady?: boolean;
       clusterReconnectTimeoutMs?: number;
+      disconnectTimeoutMs?: number;
     },
   ) {
     super();
@@ -220,6 +235,7 @@ export class RedisConnection extends EventEmitter {
       skipVersionCheck: false,
       skipWaitingForReady: false,
       clusterReconnectTimeoutMs: DEFAULT_CLUSTER_RECONNECT_TIMEOUT_MS,
+      disconnectTimeoutMs: DEFAULT_DISCONNECT_TIMEOUT_MS,
       ...extraOptions,
     };
 
@@ -426,6 +442,24 @@ export class RedisConnection extends EventEmitter {
       await RedisConnection.waitUntilReady(this._client);
     }
 
+    await this.completeInitialization();
+
+    return this._client;
+  }
+
+  // Everything init() still needs to do once the client is confirmed ready:
+  // register BullMQ's Lua commands and finish Redis version/capability
+  // discovery. Split out from init() so reconnect() can re-run exactly this
+  // part - and only this part - on a client whose original init() call
+  // returned (via waitUntilReady() rejecting, e.g. because Redis was
+  // unreachable) before ever reaching it. Re-running the earlier parts of
+  // init() (client creation, event listener registration) would either be a
+  // no-op or, worse, register duplicate listeners, so this is deliberately
+  // the smallest idempotent slice: loadCommands() only defines a command if
+  // it isn't already defined, and getRedisVersionAndType() is a plain
+  // re-fetch with no side effects of its own.
+  // See https://github.com/taskforcesh/bullmq/issues/4656.
+  private async completeInitialization(): Promise<void> {
     this.loadCommands(this.packageVersion);
 
     if (this._client['status'] !== 'end') {
@@ -476,8 +510,6 @@ export class RedisConnection extends EventEmitter {
 
       this.status = 'ready';
     }
-
-    return this._client;
   }
 
   private patchBlockingClusterClient(): void {
@@ -716,14 +748,98 @@ export class RedisConnection extends EventEmitter {
   }
 
   async disconnect(wait = true): Promise<void> {
+    // If the connection never reached 'ready' (e.g. Redis is unreachable and
+    // the client is stuck in its reconnect loop), `this.client` - which
+    // resolves from `this.initializing` - may never settle. `close()` already
+    // avoids this trap for the main connection by acting on `this._client`
+    // directly when `status === 'initializing'`; do the same here so a
+    // never-connected blocking connection can still be torn down instead of
+    // hanging forever. See https://github.com/taskforcesh/bullmq/issues/4656.
+    if (this.status === 'initializing') {
+      const client = this._client;
+      this.initializing?.catch(() => {});
+
+      // `status === 'initializing'` only means `init()` hasn't resolved yet
+      // - the live client underneath it may already be 'ready' (e.g. still
+      // running its version-check INFO command) or further along than
+      // 'wait'/'connecting'/'reconnecting'. Only a live socket ('ready', an
+      // actual in-flight 'connecting' attempt, or 'connect' for a cluster)
+      // has anything async to wait for: ioredis's disconnect() while
+      // 'wait'/'reconnecting' just cancels the pending retry timer - there
+      // is no open stream yet to close, so it never emits 'end' at all, and
+      // waiting for it here would mean waiting out the full disconnect
+      // timeout for nothing. Only in the live-socket case can an immediate
+      // `reconnect()` right after race the teardown and observe stale
+      // pre-disconnect status, so only that case needs `wait: true` to bound
+      // a real wait for 'end'/'error'.
+      const hasLiveSocket =
+        !!client &&
+        (client.status === 'ready' ||
+          client.status === 'connecting' ||
+          (client.status === 'connect' && isRedisCluster(client)));
+
+      if (!client || !wait || !hasLiveSocket) {
+        client?.disconnect();
+        return;
+      }
+
+      let _resolve, _reject;
+      const disconnecting = new Promise<void>((resolve, reject) => {
+        increaseMaxListeners(client, 2);
+        client.once('end', resolve);
+        client.once('error', reject);
+        _resolve = resolve;
+        _reject = reject;
+      });
+
+      client.disconnect();
+
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          disconnecting,
+          new Promise<void>(resolve => {
+            timeoutHandle = setTimeout(
+              resolve,
+              this.extraOptions.disconnectTimeoutMs ??
+                DEFAULT_DISCONNECT_TIMEOUT_MS,
+            );
+            timeoutHandle.unref?.();
+          }),
+        ]).catch(() => {});
+      } finally {
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
+        decreaseMaxListeners(client, 2);
+        client.removeListener('end', _resolve);
+        client.removeListener('error', _reject);
+      }
+      return;
+    }
+
     const client = await this.client;
     if (client.status !== 'end') {
-      let _resolve, _reject;
+      // A connection that dropped out after being 'ready' and is now stuck
+      // reconnecting (e.g. Redis became unreachable mid-flight) has no live
+      // socket to close: ioredis's disconnect() while 'wait'/'connecting'/
+      // 'reconnecting' just cancels the pending retry timer and never emits
+      // 'end' at all (there is nothing open to close), so waiting for it
+      // here would mean waiting out the full disconnect timeout for
+      // nothing. Only a live socket - 'ready', 'connecting' (an actual
+      // in-flight connection attempt), or 'connect' for a cluster - has
+      // anything async to wait for.
+      // See https://github.com/taskforcesh/bullmq/issues/4656.
+      const hasLiveSocket =
+        client.status === 'ready' ||
+        client.status === 'connecting' ||
+        (client.status === 'connect' && isRedisCluster(client));
 
-      if (!wait) {
+      if (!wait || !hasLiveSocket) {
         return client.disconnect();
       }
 
+      let _resolve, _reject;
       const disconnecting = new Promise<void>((resolve, reject) => {
         increaseMaxListeners(client, 2);
 
@@ -735,9 +851,30 @@ export class RedisConnection extends EventEmitter {
 
       client.disconnect();
 
+      // Belt-and-braces bound: even with a live socket, `disconnect()` can
+      // race an in-progress reconnect attempt and leave `'end'`/`'error'`
+      // unfired (see the linked issue's cluster/reconnect variant). Don't
+      // let that leave this promise - and therefore callers like
+      // Worker.close() - pending forever.
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
       try {
-        await disconnecting;
+        await Promise.race([
+          disconnecting,
+          new Promise<void>(resolve => {
+            timeoutHandle = setTimeout(
+              resolve,
+              this.extraOptions.disconnectTimeoutMs ??
+                DEFAULT_DISCONNECT_TIMEOUT_MS,
+            );
+            // Don't keep the event loop alive solely for this timer.
+            timeoutHandle.unref?.();
+          }),
+        ]);
       } finally {
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
+
         decreaseMaxListeners(client, 2);
 
         client.removeListener('end', _resolve);
@@ -747,21 +884,45 @@ export class RedisConnection extends EventEmitter {
   }
 
   async reconnect(): Promise<void> {
-    const client = await this.client;
+    // `disconnect()` may have torn down a connection that never reached
+    // 'ready' (see its own comment) by acting on `this._client` directly
+    // without ever letting `this.initializing` settle successfully - it may
+    // still be pending (not just about to reject), so plainly `await`ing
+    // `this.client` here could hang forever instead of giving us a client to
+    // reconnect. `this._client` is always the same underlying client that
+    // `this.initializing` is (or was) initializing - `init()` never swaps it
+    // for a different instance after construction - so operating on it
+    // directly is always at least as current and never less safe. Prefer it
+    // whenever it exists so a caller like `pause()`, which disconnects and
+    // then immediately reconnects, isn't stuck awaiting a promise that may
+    // never resolve to a usable client.
+    // See https://github.com/taskforcesh/bullmq/issues/4656.
+    const client: RedisClient = this._client ?? (await this.client);
+
     for (;;) {
       if (
         client.status === 'ready' ||
         (client.status === 'connect' && isRedisCluster(client))
       ) {
+        await this.repairInitializing(client);
         return;
       }
 
       if (client.status === 'wait' || client.status === 'end') {
-        return client.connect();
+        await client.connect();
+        await this.repairInitializing(client);
+        return;
       }
 
       try {
         await RedisConnection.waitUntilReady(client);
+        // `waitUntilReady()` can resolve successfully even though the client
+        // reached a terminal `'end'` state rather than `'ready'` (it treats a
+        // clean close with no prior error as success, not failure - see its
+        // own `handleEnd` logic). Don't assume resolution means ready: loop
+        // back around so the `'wait'/'end'` branch above calls `connect()`
+        // when that's what actually happened.
+        continue;
       } catch (error) {
         if (
           !['end', 'connecting', 'connect', 'reconnecting'].includes(
@@ -772,6 +933,39 @@ export class RedisConnection extends EventEmitter {
         }
       }
     }
+  }
+
+  // After a successful reconnect driven directly off `this._client` (see
+  // `reconnect()`), make sure the public `client` getter - which always
+  // returns `this.initializing` - reflects reality for every future caller,
+  // not just this one call. Without this, a connection that disconnect()
+  // tore down before it ever reached 'ready' would leave `this.initializing`
+  // permanently pending/rejected even after reconnect() brings the live
+  // client back up, so every later `await this.client` (close(), other
+  // commands) would still hang or throw on the stale promise.
+  //
+  // The original init() may itself have returned early - its
+  // waitUntilReady() call can reject (e.g. Redis was unreachable at the
+  // time) before init() ever reaches loadCommands() or version/capability
+  // discovery, in which case `this.version` is still unset. A client in that
+  // state is "ready" at the ioredis level but was never fully initialized by
+  // BullMQ, so publishing it as-is would let callers run Lua commands that
+  // were never defined on it. Detect that case via the unset `version` and
+  // complete the same initialization init() would have done, before
+  // publishing the client as ready.
+  // See https://github.com/taskforcesh/bullmq/issues/4656.
+  private async repairInitializing(client: RedisClient): Promise<void> {
+    if (this.version === undefined) {
+      await this.completeInitialization();
+    }
+
+    if (this.status !== 'closing' && this.status !== 'closed') {
+      this.status = 'ready';
+    }
+    this.initializing = Promise.resolve(client);
+    // Swallow any rejection from the promise we're replacing so it doesn't
+    // surface as an unhandled rejection once nothing awaits it anymore.
+    this.initializing.catch(() => {});
   }
 
   async close(force = false): Promise<void> {
@@ -787,7 +981,22 @@ export class RedisConnection extends EventEmitter {
           await this.initializing;
         }
         if (!this.extraOptions.shared) {
-          if (status == 'initializing' || force) {
+          // `quit()` only resolves promptly when ioredis can actually flush
+          // it: if the live client isn't ready (never connected, or lost the
+          // connection and is stuck reconnecting), `quit()` either goes
+          // through ioredis's offline-queue fast path (only taken when that
+          // queue is otherwise empty) or, if any other command is already
+          // queued ahead of it (e.g. a job fetch the worker issued before
+          // close() was called), it queues behind that command and may never
+          // resolve while the connection stays unreachable. Force-disconnect
+          // in that case instead of risking an unbounded wait.
+          // See https://github.com/taskforcesh/bullmq/issues/4656.
+          const liveStatus = this._client['status'];
+          const isLiveReady =
+            liveStatus === 'ready' ||
+            (liveStatus === 'connect' && isRedisCluster(this._client));
+
+          if (status == 'initializing' || force || !isLiveReady) {
             // If we have not still connected to Redis, we need to disconnect.
             this._client.disconnect();
             // Suppress any rejection from the in-flight init() so it doesn't
