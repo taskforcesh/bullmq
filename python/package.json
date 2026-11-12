@@ -69,6 +69,6 @@
     "minimatch": "11.0.5",
     "picomatch": "4.0.7",
     "tar": "7.5.22",
-    "smol-toml": "1.9.0"
+    "smol-toml": "1.9.1"
   }
 }
