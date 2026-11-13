@@ -82,12 +82,14 @@ function hasPage(outDir: string, path: string): boolean {
 function movedChangelogs(outDir: string): [string, string][] {
   const moved: [string, string][] = [];
   for (const dir of ['', ...builtDirs(outDir)]) {
+    const base = dir ? `/${dir}` : '';
+    if (existsSync(join(outDir, dir, 'changelog.html'))) {
+      moved.push([`${base}/changelog/`, `${base}/changelog`]);
+    }
     const changelogs = join(outDir, dir, 'changelogs');
     if (!existsSync(changelogs)) {
       continue;
     }
-    const base = dir ? `/${dir}` : '';
-    moved.push([`${base}/changelog/`, `${base}/changelog`]);
     for (const name of readdirSync(changelogs)) {
       if (name.endsWith('.html') && name !== 'index.html') {
         const page = name.replace(/\.html$/, '');
