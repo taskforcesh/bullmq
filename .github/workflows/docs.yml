@@ -30,6 +30,10 @@ jobs:
           cache: 'yarn'
       - name: Install dependencies
         run: yarn install --frozen-lockfile
+      - name: Patch TypeDoc for minimatch 11
+        # TypeDoc still requires minimatch 10, but the security resolution pins
+        # minimatch 11. Remove once TypeStrong/typedoc#3150 is fixed.
+        run: node scripts/patch-typedoc-minimatch.js
       - name: Restore frozen API version snapshots
         # The pre-generated TypeDoc JSON for older major versions (v1..v5) lives
         # on the long-lived `docs-api` branch to keep them out of master's tree.
