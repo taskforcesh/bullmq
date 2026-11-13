@@ -261,10 +261,24 @@ function toPlainMarkdown(source: string, srcDir: string, file: string): string {
     .replace(/^[ \t]*\{% code title="([^"]*)"[^%]*%\}[ \t]*$/gm, '`$1`')
     .replace(/^[ \t]*\{% \/?[a-z-]+[^%]*%\}[ \t]*\n/gm, '')
     .replace(
-      /\]\((?!https?:|mailto:|#|\/)([^)\s#]+)(#[^)\s]*)?\)/g,
+      /\]\((?!https?:|mailto:|#|\/)(<[^>]+>|[^)\s#]+)(#[^)\s]*)?\)/g,
       (match, target: string, hash = '') => {
-        const url = absoluteUrl(srcDir, file, target);
-        return url ? `](${url}${hash})` : match;
+        const angleBracketed = target.startsWith('<') && target.endsWith('>');
+        let destination = angleBracketed ? target.slice(1, -1) : target;
+        if (angleBracketed) {
+          const fragmentIndex = destination.indexOf('#');
+          if (fragmentIndex !== -1) {
+            hash = destination.slice(fragmentIndex);
+            destination = destination.slice(0, fragmentIndex);
+          }
+        }
+        const url = absoluteUrl(srcDir, file, destination);
+        if (!url) {
+          return match;
+        }
+        return angleBracketed
+          ? `](<${url}${hash}>)`
+          : `](${url}${hash})`;
       },
     )
     .replace(
