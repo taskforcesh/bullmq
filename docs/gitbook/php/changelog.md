@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/taskforcesh/bullmq/compare/vphp2.1.0...vphp2.1.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **flow:** remove deduplication key that is associated with parent job that is removed (python) (elixir) (php) (rust) (dotnet) ([#5078](https://github.com/taskforcesh/bullmq/issues/5078)) ([2353552](https://github.com/taskforcesh/bullmq/commit/2353552f1e9f55db2bdfa5bdcf604e2cead7972a))
+
 # [2.1.0](https://github.com/taskforcesh/bullmq/compare/vphp2.0.4...vphp2.1.0) (2026-11-04)
 
 
