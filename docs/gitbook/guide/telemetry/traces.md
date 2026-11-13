@@ -54,61 +54,59 @@ BullMQ automatically creates spans for the following operations:
 
 ### Queue Class
 
-| Operation                | Span Name                            | Span Kind | Description                          |
-| ------------------------ | ------------------------------------ | --------- | ------------------------------------ |
-| `add`                    | `{queueName}.add`                    | PRODUCER  | Adding a single job to the queue     |
-| `addBulk`                | `{queueName}.addBulk`                | PRODUCER  | Adding multiple jobs to the queue    |
-| `pause`                  | `{queueName}.pause`                  | INTERNAL  | Pausing the queue                    |
-| `resume`                 | `{queueName}.resume`                 | INTERNAL  | Resuming the queue                   |
-| `close`                  | `{queueName}.close`                  | INTERNAL  | Closing the queue connection         |
-| `rateLimit`              | `{queueName}.rateLimit`              | INTERNAL  | Setting rate limit on the queue      |
-| `removeRepeatable`       | `{queueName}.removeRepeatable`       | INTERNAL  | Removing a repeatable job by options |
-| `removeRepeatableByKey`  | `{queueName}.removeRepeatableByKey`  | INTERNAL  | Removing a repeatable job by key     |
-| `removeDebounceKey`      | `{queueName}.removeDebounceKey`      | INTERNAL  | Removing a debounce key              |
-| `removeDeduplicationKey` | `{queueName}.removeDeduplicationKey` | INTERNAL  | Removing a deduplication key         |
-| `remove`                 | `{queueName}.remove`                 | INTERNAL  | Removing a job from the queue        |
-| `updateJobProgress`      | `{queueName}.updateJobProgress`      | INTERNAL  | Updating job progress                |
-| `drain`                  | `{queueName}.drain`                  | INTERNAL  | Draining the queue                   |
-| `clean`                  | `{queueName}.clean`                  | INTERNAL  | Cleaning jobs from the queue         |
-| `obliterate`             | `{queueName}.obliterate`             | INTERNAL  | Obliterating the queue (all data)    |
-| `retryJobs`              | `{queueName}.retryJobs`              | PRODUCER  | Retrying failed jobs                 |
-| `promoteJobs`            | `{queueName}.promoteJobs`            | INTERNAL  | Promoting delayed jobs               |
-| `trimEvents`             | `{queueName}.trimEvents`             | INTERNAL  | Trimming events from the queue       |
+| Operation                | Span Name                            | Span Kind | Description                       |
+| ------------------------ | ------------------------------------ | --------- | --------------------------------- |
+| `add`                    | `add {queueName}.{jobName}`          | PRODUCER  | Adding a single job to the queue  |
+| `addBulk`                | `addBulk {queueName}`                | PRODUCER  | Adding multiple jobs to the queue |
+| `pause`                  | `pause {queueName}`                  | INTERNAL  | Pausing the queue                 |
+| `resume`                 | `resume {queueName}`                 | INTERNAL  | Resuming the queue                |
+| `close`                  | `close {queueName}`                  | INTERNAL  | Closing the queue connection      |
+| `rateLimit`              | `rateLimit {queueName}`              | INTERNAL  | Setting rate limit on the queue   |
+| `removeDebounceKey`      | `removeDebounceKey {queueName}`      | INTERNAL  | Removing a debounce key           |
+| `removeDeduplicationKey` | `removeDeduplicationKey {queueName}` | INTERNAL  | Removing a deduplication key      |
+| `remove`                 | `remove {queueName}`                 | INTERNAL  | Removing a job from the queue     |
+| `updateJobProgress`      | `updateJobProgress {queueName}`      | INTERNAL  | Updating job progress             |
+| `drain`                  | `drain {queueName}`                  | INTERNAL  | Draining the queue                |
+| `clean`                  | `clean {queueName}`                  | INTERNAL  | Cleaning jobs from the queue      |
+| `obliterate`             | `obliterate {queueName}`             | INTERNAL  | Obliterating the queue (all data) |
+| `retryJobs`              | `retryJobs {queueName}`              | PRODUCER  | Retrying failed jobs              |
+| `promoteJobs`            | `promoteJobs {queueName}`            | INTERNAL  | Promoting delayed jobs            |
+| `trimEvents`             | `trimEvents {queueName}`             | INTERNAL  | Trimming events from the queue    |
 
 ### Worker Class
 
 | Operation                | Span Name                            | Span Kind | Description                            |
 | ------------------------ | ------------------------------------ | --------- | -------------------------------------- |
-| `getNextJob`             | `{queueName}.getNextJob`             | INTERNAL  | Fetching the next job to process       |
-| `rateLimit`              | `{queueName}.rateLimit`              | INTERNAL  | Worker rate limiting                   |
-| `processJob`             | `{queueName}.{jobName}`              | CONSUMER  | Processing a job (main processor span) |
-| `pause`                  | `{queueName}.pause`                  | INTERNAL  | Pausing the worker                     |
-| `resume`                 | `{queueName}.resume`                 | INTERNAL  | Resuming the worker                    |
-| `close`                  | `{queueName}.close`                  | INTERNAL  | Closing the worker                     |
-| `startStalledCheckTimer` | `{queueName}.startStalledCheckTimer` | INTERNAL  | Starting stalled job check timer       |
-| `moveStalledJobsToWait`  | `{queueName}.moveStalledJobsToWait`  | INTERNAL  | Moving stalled jobs back to waiting    |
-| `extendLocks`            | `{queueName}.extendLocks`            | INTERNAL  | Extending locks on active jobs         |
+| `getNextJob`             | `getNextJob {queueName}`             | INTERNAL  | Fetching the next job to process       |
+| `rateLimit`              | `rateLimit {queueName}`              | INTERNAL  | Worker rate limiting                   |
+| `processJob`             | `process {queueName}`                | CONSUMER  | Processing a job (main processor span) |
+| `pause`                  | `pause {queueName}`                  | INTERNAL  | Pausing the worker                     |
+| `resume`                 | `resume {queueName}`                 | INTERNAL  | Resuming the worker                    |
+| `close`                  | `close {queueName}`                  | INTERNAL  | Closing the worker                     |
+| `startStalledCheckTimer` | `startStalledCheckTimer {queueName}` | INTERNAL  | Starting stalled job check timer       |
+| `moveStalledJobsToWait`  | `moveStalledJobsToWait {queueName}`  | INTERNAL  | Moving stalled jobs back to waiting    |
+| `extendLocks`            | `extendLocks {queueName}`            | INTERNAL  | Extending locks on active jobs         |
 
 ### Job Class
 
 | Operation         | Span Name              | Span Kind | Description                                      |
 | ----------------- | ---------------------- | --------- | ------------------------------------------------ |
-| `moveToCompleted` | `{queueName}.complete` | INTERNAL  | Completing a job successfully                    |
-| `moveToFailed`    | `{queueName}.{state}`  | INTERNAL  | Job failure handling (state: fail, delay, retry) |
+| `moveToCompleted` | `complete {queueName}` | INTERNAL  | Completing a job successfully                    |
+| `moveToFailed`    | `{state} {queueName}`  | INTERNAL  | Job failure handling (state: fail, delay, retry) |
 
 ### JobScheduler Class
 
-| Operation | Span Name                        | Span Kind | Description               |
-| --------- | -------------------------------- | --------- | ------------------------- |
-| `add`     | `{queueName}.upsertJobScheduler` | PRODUCER  | Upserting a job scheduler |
+| Operation | Span Name                   | Span Kind | Description               |
+| --------- | --------------------------- | --------- | ------------------------- |
+| `add`     | `add {queueName}.{jobName}` | PRODUCER  | Upserting a job scheduler |
 
 ### FlowProducer Class
 
 | Operation | Span Name             | Span Kind | Description                        |
 | --------- | --------------------- | --------- | ---------------------------------- |
-| `add`     | `{queueName}.addFlow` | PRODUCER  | Adding a flow (tree of jobs)       |
+| `add`     | `addFlow {queueName}` | PRODUCER  | Adding a flow (tree of jobs)       |
 | `addBulk` | `addBulkFlows`        | PRODUCER  | Adding multiple flows              |
-| `addNode` | `{queueName}.addNode` | PRODUCER  | Adding a node in a flow (internal) |
+| `addNode` | `addNode {queueName}` | PRODUCER  | Adding a node in a flow (internal) |
 
 ## Trace Attributes
 
