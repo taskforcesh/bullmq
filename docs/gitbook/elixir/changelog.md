@@ -4,6 +4,7 @@
 ### Bug Fixes
 
 * **flow:** remove deduplication key that is associated with parent job that is removed (python) (elixir) (php) (rust) (dotnet) ([#5078](https://github.com/taskforcesh/bullmq/issues/5078)) ([2353552](https://github.com/taskforcesh/bullmq/commit/2353552f1e9f55db2bdfa5bdcf604e2cead7972a))
+* improve worker pause, job retention and cron scheduling ([#5114](https://github.com/taskforcesh/bullmq/issues/5114)) ([1349e2c](https://github.com/taskforcesh/bullmq/commit/1349e2c112d906a0dc4b9348513bc78628337151))
 
 # [2.4.0](https://github.com/taskforcesh/bullmq/compare/vex2.3.5...vex2.4.0) (2026-11-04)
 
