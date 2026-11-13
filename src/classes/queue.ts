@@ -715,6 +715,48 @@ export class Queue<
   }
 
   /**
+   * Atomically removes several jobs from the queue, as well as all their
+   * dependencies when `removeChildren` is true (the default).
+   *
+   * Jobs that do not exist, that are locked by a worker (or that have a locked
+   * dependency) and the current iteration of a job scheduler are skipped, so
+   * they do not prevent the rest from being removed.
+   *
+   * All the jobs are removed in a single operation, so for very large lists
+   * consider splitting the ids into batches to avoid blocking the database.
+   *
+   * @param jobIds - The ids of the jobs to remove
+   * @param opts - Options to remove the jobs
+   * @returns The ids of the jobs that were actually removed.
+   */
+  async removeJobs(
+    jobIds: string[],
+    { removeChildren = true } = {},
+  ): Promise<string[]> {
+    return this.trace<string[]>(
+      SpanKind.INTERNAL,
+      'removeJobs',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.JobOptions]: JSON.stringify({
+            removeChildren,
+            count: jobIds.length,
+          }),
+        });
+
+        const removed = await this.backend.removeJobs(jobIds, removeChildren);
+
+        for (const jobId of removed) {
+          this.emit('removed', jobId);
+        }
+
+        return removed;
+      },
+    );
+  }
+
+  /**
    * Updates the given job's progress.
    *
    * @param jobId - The id of the job to update
