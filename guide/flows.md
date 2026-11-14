@@ -1,0 +1,765 @@
+# Flows
+
+BullMQ supports parent - child relationships between jobs. The basic idea is that a parent job will not be moved to the wait status (i.e. where it could be picked up by a worker) until all its children jobs have been processed successfully. Apart from that, a parent or a child job are no different from regular jobs.
+
+This functionality enables the creation of flows where jobs are the node of trees of arbitrary depth.
+
+> **Warning:** Flows are added to a queue using the `FlowProducer` class.
+
+In order to create "flows" you must use the [`FlowProducer`](https://docs.bullmq.io/api/classes/v6.FlowProducer.html) class. The [_**`add`**_](https://docs.bullmq.io/api/classes/v6.FlowProducer.html#add) method accepts an object with the following interface:
+
+```typescript
+interface FlowJobBase<T> {
+  name: string;
+  queueName: string;
+  data?: any;
+  prefix?: string;
+  opts?: Omit<T, 'debounce' | 'deduplication' | 'repeat'>;
+  children?: FlowChildJob[];
+}
+
+type FlowChildJob = FlowJobBase<
+  Omit<JobsOptions, 'debounce' | 'deduplication' | 'parent' | 'repeat'>
+>;
+
+type FlowJob = FlowJobBase<JobsOptions>;
+```
+
+So we can add a flow like this one:
+
+**TypeScript**
+
+```typescript
+import { FlowProducer } from 'bullmq';
+
+// A FlowProducer constructor takes an optional "connection"
+// object otherwise it connects to a local redis instance.
+const flowProducer = new FlowProducer();
+
+const flow = await flowProducer.add({
+  name: 'renovate-interior',
+  queueName: 'renovate',
+  children: [
+    { name: 'paint', data: { place: 'ceiling' }, queueName: 'steps' },
+    { name: 'paint', data: { place: 'walls' }, queueName: 'steps' },
+    { name: 'fix', data: { place: 'floor' }, queueName: 'steps' },
+  ],
+});
+```
+
+**Python**
+
+```python
+from bullmq import FlowProducer
+
+# A FlowProducer constructor takes an optional "connection"
+# object otherwise it connects to a local redis instance.
+flowProducer = FlowProducer()
+
+flow = await flowProducer.add({
+    "name": "renovate-interior",
+    "queueName": "renovate",
+    "children": [
+        {"name": "paint", "data": {"place": "ceiling"}, "queueName": "steps"},
+        {"name": "paint", "data": {"place": "walls"}, "queueName": "steps"},
+        {"name": "fix", "data": {"place": "floor"}, "queueName": "steps"},
+    ],
+})
+```
+
+**Elixir**
+
+```elixir
+# The Elixir FlowProducer requires a "connection" option
+# pointing to a started Redis connection.
+{:ok, flow} =
+  BullMQ.FlowProducer.add(
+    %{
+      name: "renovate-interior",
+      queue_name: "renovate",
+      children: [
+        %{name: "paint", data: %{place: "ceiling"}, queue_name: "steps"},
+        %{name: "paint", data: %{place: "walls"}, queue_name: "steps"},
+        %{name: "fix", data: %{place: "floor"}, queue_name: "steps"}
+      ]
+    },
+    connection: :my_redis
+  )
+```
+
+**.NET**
+
+```csharp
+using BullMQ;
+
+// A FlowProducer constructor takes a "Connection" option
+// pointing to your Redis instance.
+var flowProducer = new FlowProducer(new QueueBaseOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+var flow = await flowProducer.AddAsync(new FlowJob
+{
+    Name = "renovate-interior",
+    QueueName = "renovate",
+    Children = new[]
+    {
+        new FlowJob { Name = "paint", Data = new { place = "ceiling" }, QueueName = "steps" },
+        new FlowJob { Name = "paint", Data = new { place = "walls" }, QueueName = "steps" },
+        new FlowJob { Name = "fix", Data = new { place = "floor" }, QueueName = "steps" },
+    },
+});
+```
+
+**Rust**
+
+```rust
+use bullmq::{FlowJob, FlowProducer};
+use serde_json::json;
+
+// FlowProducer::new() connects to a local Redis instance,
+// use FlowProducer::with_options to pass a custom connection.
+let flow_producer = FlowProducer::new().await?;
+
+let flow = flow_producer
+    .add(
+        FlowJob::new("renovate-interior", "renovate", json!({}))?
+            .add_child(FlowJob::new("paint", "steps", json!({ "place": "ceiling" }))?)
+            .add_child(FlowJob::new("paint", "steps", json!({ "place": "walls" }))?)
+            .add_child(FlowJob::new("fix", "steps", json!({ "place": "floor" }))?),
+    )
+    .await?;
+```
+
+The above code will atomically add 4 jobs: one to the "renovate" queue, and 3 to the "steps" queue. When the 3 jobs in the "steps" queue are completed, the parent job in the "renovate" queue will be processed as a regular job.
+
+The above call will return instances for all the jobs added to the queue.
+
+> **Note:** Note that the parent queue does not need to be the same queue as the one used for the children.
+
+> **Warning:** If a jobId option is provided, make sure that it does not contain a colon **:** as this is considered a separator.
+
+> **Warning:** Do not use deduplication options on flow nodes. When a child is deduplicated against an existing job, it may not be attached to its parent, so the parent can become eligible before that requested child work completes. A future breaking release will reject deduplication on every flow node; each child addition must have a known job ID so its dependency can be attached reliably.
+
+When the parent job is processed it is possible to access the results generated by its child jobs. For example, lets assume the following worker for the child jobs:
+
+**TypeScript**
+
+```typescript
+import { Worker } from 'bullmq';
+
+const stepsWorker = new Worker('steps', async job => {
+  await performStep(job.data);
+
+  if (job.name === 'paint') {
+    return 2500;
+  } else if (job.name === 'fix') {
+    return 1750;
+  }
+});
+```
+
+**Python**
+
+```python
+from bullmq import Worker
+
+async def process(job, token):
+    await performStep(job.data)
+
+    if job.name == "paint":
+        return 2500
+    elif job.name == "fix":
+        return 1750
+
+stepsWorker = Worker("steps", process)
+```
+
+**Elixir**
+
+```elixir
+{:ok, steps_worker} =
+  BullMQ.Worker.start_link(
+    queue: "steps",
+    connection: :my_redis,
+    processor: fn job ->
+      perform_step(job.data)
+
+      case job.name do
+        "paint" -> {:ok, 2500}
+        "fix" -> {:ok, 1750}
+        _ -> :ok
+      end
+    end
+  )
+```
+
+**.NET**
+
+```csharp
+using BullMQ;
+
+var stepsWorker = new Worker(
+    "steps",
+    async (job, _) =>
+    {
+        await PerformStep(job.Data);
+
+        return job.Name switch
+        {
+            "paint" => 2500,
+            "fix" => 1750,
+            _ => null,
+        };
+    },
+    new WorkerOptions { Connection = ConnectionOptions.FromString("localhost:6379") });
+```
+
+**Rust**
+
+```rust
+use bullmq::worker::CancellationToken;
+use bullmq::{Job, Worker};
+
+let steps_worker = Worker::new("steps", |job: Job, _token: CancellationToken| async move {
+    perform_step(job.data()).await;
+
+    match job.name() {
+        "paint" => Ok(serde_json::json!(2500)),
+        "fix" => Ok(serde_json::json!(1750)),
+        _ => Ok(serde_json::Value::Null),
+    }
+})
+.await?;
+```
+
+We can implement a parent worker that sums the costs of the children's jobs using the `getChildrenValues` method. This method returns an object with _job keys_ as keys and the _result of that given job_ as a value:
+
+**TypeScript**
+
+```typescript
+import { Worker } from 'bullmq';
+
+const renovateWorker = new Worker('renovate', async job => {
+  const childrenValues = await job.getChildrenValues();
+
+  const totalCosts = Object.values(childrenValues).reduce(
+    (prev, cur) => prev + cur,
+    0,
+  );
+
+  await sendInvoice(totalCosts);
+});
+```
+
+**Python**
+
+```python
+from bullmq import Worker
+
+async def process(job, token):
+    childrenValues = await job.getChildrenValues()
+
+    totalCosts = sum(childrenValues.values())
+
+    await sendInvoice(totalCosts)
+
+renovateWorker = Worker("renovate", process)
+```
+
+**Elixir**
+
+```elixir
+{:ok, renovate_worker} =
+  BullMQ.Worker.start_link(
+    queue: "renovate",
+    connection: :my_redis,
+    processor: fn job ->
+      {:ok, children_values} = BullMQ.Job.get_children_values(job)
+
+      total_costs = children_values |> Map.values() |> Enum.sum()
+
+      send_invoice(total_costs)
+      :ok
+    end
+  )
+```
+
+**.NET**
+
+```csharp
+using System.Text.Json;
+using BullMQ;
+
+var renovateWorker = new Worker(
+    "renovate",
+    async (job, _) =>
+    {
+        var childrenValues = await job.GetChildrenValuesAsync();
+
+        var totalCosts = childrenValues.Values.Sum(value => ((JsonElement)value!).GetDouble());
+
+        await SendInvoice(totalCosts);
+        return null;
+    },
+    new WorkerOptions { Connection = ConnectionOptions.FromString("localhost:6379") });
+```
+
+**Rust**
+
+```rust
+use bullmq::worker::CancellationToken;
+use bullmq::{Job, Worker};
+
+let renovate_worker = Worker::new("renovate", |job: Job, _token: CancellationToken| async move {
+    let children_values = job.get_children_values().await?;
+
+    let total_costs: f64 = children_values.values().filter_map(|value| value.as_f64()).sum();
+
+    send_invoice(total_costs).await;
+    Ok(serde_json::Value::Null)
+})
+.await?;
+```
+
+It is possible to add as deep job hierarchies as needed. See the following example where jobs are depending on each other, allowing serial execution of jobs:
+
+**TypeScript**
+
+```typescript
+import { FlowProducer } from 'bullmq';
+const flowProducer = new FlowProducer();
+
+const queueName = 'assembly-line';
+const chain = await flowProducer.add({
+  name: 'car',
+  data: { step: 'engine' },
+  queueName,
+  children: [
+    {
+      name: 'car',
+      data: { step: 'wheels' },
+      queueName,
+      children: [{ name: 'car', data: { step: 'chassis' }, queueName }],
+    },
+  ],
+});
+```
+
+**Python**
+
+```python
+from bullmq import FlowProducer
+
+flowProducer = FlowProducer()
+
+queueName = "assembly-line"
+chain = await flowProducer.add({
+    "name": "car",
+    "data": {"step": "engine"},
+    "queueName": queueName,
+    "children": [
+        {
+            "name": "car",
+            "data": {"step": "wheels"},
+            "queueName": queueName,
+            "children": [{"name": "car", "data": {"step": "chassis"}, "queueName": queueName}],
+        },
+    ],
+})
+```
+
+**Elixir**
+
+```elixir
+queue_name = "assembly-line"
+
+{:ok, chain} =
+  BullMQ.FlowProducer.add(
+    %{
+      name: "car",
+      data: %{step: "engine"},
+      queue_name: queue_name,
+      children: [
+        %{
+          name: "car",
+          data: %{step: "wheels"},
+          queue_name: queue_name,
+          children: [%{name: "car", data: %{step: "chassis"}, queue_name: queue_name}]
+        }
+      ]
+    },
+    connection: :my_redis
+  )
+```
+
+**.NET**
+
+```csharp
+using BullMQ;
+
+var flowProducer = new FlowProducer(new QueueBaseOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+const string queueName = "assembly-line";
+var chain = await flowProducer.AddAsync(new FlowJob
+{
+    Name = "car",
+    Data = new { step = "engine" },
+    QueueName = queueName,
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = "car",
+            Data = new { step = "wheels" },
+            QueueName = queueName,
+            Children = new[]
+            {
+                new FlowJob { Name = "car", Data = new { step = "chassis" }, QueueName = queueName },
+            },
+        },
+    },
+});
+```
+
+**Rust**
+
+```rust
+use bullmq::{FlowJob, FlowProducer};
+use serde_json::json;
+
+let flow_producer = FlowProducer::new().await?;
+
+let queue_name = "assembly-line";
+let chain = flow_producer
+    .add(
+        FlowJob::new("car", queue_name, json!({ "step": "engine" }))?.add_child(
+            FlowJob::new("car", queue_name, json!({ "step": "wheels" }))?
+                .add_child(FlowJob::new("car", queue_name, json!({ "step": "chassis" }))?),
+        ),
+    )
+    .await?;
+```
+
+In this case one job will be processed after the previous one has been completed.
+
+> **Note:** The order of processing would be: `chassis`, `wheels` and finally `engine`.
+
+## Getters
+
+There are some special getters that can be used in order to get jobs related to a flow. First, we have a method in the `Job` class to get all the dependencies for a given job:
+
+```typescript
+const dependencies = await job.getDependencies();
+```
+
+it will return all the **direct** **dependencies** (i.e. the children of a given job).
+
+Or if you want to get specific types of children:
+
+```typescript
+// cursors are used in pagination
+const { processed, nextProcessedCursor } = await job.getDependencies({
+  processed: {
+    count: 5,
+    cursor: 0,
+  },
+});
+
+const { unprocessed, nextUnprocessedCursor } = await job.getDependencies({
+  unprocessed: {
+    count: 5,
+    cursor: 0,
+  },
+});
+
+const { failed, nextFailedCursor } = await job.getDependencies({
+  failed: {
+    count: 5,
+    cursor: 0,
+  },
+});
+
+const { ignored, nextIgnoredCursor } = await job.getDependencies({
+  ignored: {
+    count: 5,
+    cursor: 0,
+  },
+});
+```
+
+The `Job` class also provides some other methods that we presented above
+
+## Get Dependencies Count
+
+To get all the different counts of children by type:
+
+**TypeScript**
+
+```typescript
+const { failed, ignored, processed, unprocessed } =
+  await job.getDependenciesCount();
+```
+
+**Rust**
+
+```rust
+let bullmq::DependenciesCount {
+    failed,
+    ignored,
+    processed,
+    unprocessed,
+} = job.get_dependencies_count().await?;
+```
+
+Or if you want to be specific:
+
+```typescript
+const { failed } = await job.getDependenciesCount({
+  failed: true,
+});
+
+const { ignored, processed } = await job.getDependenciesCount({
+  ignored: true,
+  processed: true,
+});
+
+const { unprocessed } = await job.getDependenciesCount({
+  unprocessed: true,
+});
+```
+
+## Get Children Values
+
+To get all the values produced by the children of a given job:
+
+**TypeScript**
+
+```typescript
+const values = await job.getChildrenValues();
+```
+
+**Python**
+
+```python
+values = await job.getChildrenValues()
+```
+
+**Elixir**
+
+```elixir
+{:ok, values} = BullMQ.Job.get_children_values(job)
+```
+
+**.NET**
+
+```csharp
+var values = await job.GetChildrenValuesAsync();
+```
+
+**Rust**
+
+```rust
+let values = job.get_children_values().await?;
+```
+
+Also, a new property is available in the `Job` class, _**`parentKey`,**_ with a fully qualified key for the job parent.
+
+Finally, there is also a new state which a job can be in, "waiting-children", for parent jobs that have not yet had their children completed:
+
+**TypeScript**
+
+```typescript
+const state = await job.getState();
+// state will be "waiting-children"
+```
+
+**Python**
+
+```python
+state = await job.getState()
+# state will be "waiting-children"
+```
+
+**Elixir**
+
+```elixir
+{:ok, state} = BullMQ.Queue.get_job_state(job.queue_name, job.id, connection: :my_redis)
+# state will be :waiting_children
+```
+
+**.NET**
+
+```csharp
+var state = await job.GetStateAsync();
+// state will be JobState.WaitingChildren
+```
+
+**Rust**
+
+```rust
+let state = job.get_state().await?;
+// state will be JobState::WaitingChildren
+```
+
+## Provide options
+
+When adding a flow it is also possible to provide an extra object **`queueOptions`** object, in which you can add your specific options for every queue that is used in the flow. These options would affect each one of the jobs that are added to the flow using the `FlowProducer`.
+
+**TypeScript**
+
+```typescript
+import { FlowProducer } from 'bullmq';
+const flowProducer = new FlowProducer();
+
+const queueName = 'assembly-line';
+const chain = await flowProducer.add(
+  {
+    name: 'car',
+    data: { step: 'engine' },
+    queueName,
+    children: [
+      {
+        name: 'car',
+        data: { step: 'wheels' },
+        queueName,
+      },
+    ],
+  },
+  {
+    queuesOptions: {
+      [queueName]: {
+        defaultJobOptions: {
+          removeOnComplete: true,
+        },
+      },
+    },
+  },
+);
+```
+
+**Python**
+
+```python
+from bullmq import FlowProducer
+
+flowProducer = FlowProducer()
+
+queueName = "assembly-line"
+chain = await flowProducer.add(
+    {
+        "name": "car",
+        "data": {"step": "engine"},
+        "queueName": queueName,
+        "children": [
+            {
+                "name": "car",
+                "data": {"step": "wheels"},
+                "queueName": queueName,
+            },
+        ],
+    },
+    {
+        "queuesOptions": {
+            queueName: {
+                "defaultJobOptions": {
+                    "removeOnComplete": True,
+                },
+            },
+        },
+    },
+)
+```
+
+**Rust**
+
+```rust
+use bullmq::types::RemoveOnFinish;
+use bullmq::{FlowJob, FlowOptions, FlowProducer, FlowQueueOptions, JobOptions};
+use serde_json::json;
+
+let flow_producer = FlowProducer::new().await?;
+
+let queue_name = "assembly-line";
+let chain = flow_producer
+    .add_with_opts(
+        FlowJob::new("car", queue_name, json!({ "step": "engine" }))?
+            .add_child(FlowJob::new("car", queue_name, json!({ "step": "wheels" }))?),
+        &FlowOptions::new().queue(
+            queue_name,
+            FlowQueueOptions::new()
+                .default_job_options(JobOptions::new().remove_on_complete(RemoveOnFinish::Bool(true))),
+        ),
+    )
+    .await?;
+```
+
+> **Warning:** Queue options are defined in the context of their instances. You should provide your configurations in the second parameter in order to avoid unexpected behaviors.
+
+## Jobs removal
+
+BullMQ also provides seamless removal functionality for jobs that are part of a flow.
+
+When removing a job that is part of the flow there are several important considerations:
+
+1. If a parent job is removed, all its children will also be removed.
+2. If a child job is removed, its parent dependency to said child is also removed, and if the child was the last child in the dependencies list, the parent job will be completed.
+3. Since a job can be both a parent and a child in a large flow, both 1 and 2 will occur if removing such a job.
+4. If any of the jobs that would be removed happen to be locked, none of the jobs will be removed, and an exception will be thrown.
+
+Apart from the considerations above, removing a job can simply be done by either using the `Job` or the `Queue` class:
+
+**TypeScript**
+
+```typescript
+await job.remove();
+// or
+await queue.remove(job.id);
+```
+
+**Python**
+
+```python
+await job.remove()
+# or
+await queue.remove(job.id)
+```
+
+**Elixir**
+
+```elixir
+BullMQ.Queue.remove_job(job.queue_name, job.id, connection: :my_redis, remove_children: true)
+```
+
+**.NET**
+
+```csharp
+await job.RemoveAsync();
+// or
+await queue.RemoveAsync(job.Id!);
+```
+
+**Rust**
+
+```rust
+queue.remove(job.id()).await?;
+```
+
+**PHP**
+
+```php
+$queue->remove($job->id);
+```
+
+## Read more:
+
+- 📋 [Divide large jobs using flows](https://blog.taskforce.sh/splitting-heavy-jobs-using-bullmq-flows/)
+- 💡 [FlowProducer API Reference](https://docs.bullmq.io/api/classes/v6.FlowProducer.html)
+- 💡 [Job API Reference](https://docs.bullmq.io/api/classes/v6.Job.html)
+- 💡 [Get Children Values API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#getchildrenvalues)
+- 💡 [Get Dependencies API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#getdependencies)
+- 💡 [Get Dependencies Count API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#getdependenciescount)

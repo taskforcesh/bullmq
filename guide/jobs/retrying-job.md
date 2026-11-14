@@ -1,0 +1,279 @@
+# Retrying Jobs
+
+BullMQ provides a `retry` method that allows you to programmatically retry jobs that have already completed or failed. This is different from the automatic retry mechanism (configured via the `attempts` option) - the `retry` method lets you manually move a job back to the waiting queue at any time.
+
+## When to use Job.retry()
+
+The `retry` method is useful in scenarios such as:
+
+- **Manual intervention**: When a job failed due to a temporary external issue that has been resolved
+- **Re-processing completed jobs**: When you need to run a completed job again with the same data
+- **Workflow recovery**: When recovering from system failures or bugs that caused jobs to fail incorrectly
+
+> **Note:** Only jobs in the `completed` or `failed` state can be retried. Active, waiting, or delayed jobs cannot be retried.
+
+## Basic Usage
+
+**TypeScript**
+
+```typescript
+import { Queue, Job } from 'bullmq';
+
+const queue = new Queue('my-queue');
+
+// Get a failed job by ID
+const job = await Job.fromId(queue, 'job-id');
+
+// Retry a failed job (default state is 'failed')
+await job.retry();
+
+// Retry a completed job
+await job.retry('completed');
+```
+
+**Python**
+
+```python
+from bullmq import Queue, Job
+
+queue = Queue('my-queue')
+
+# Get a failed job by ID
+job = await Job.fromId(queue, 'job-id')
+
+# Retry a failed job (default state is 'failed')
+await job.retry()
+
+# Retry a completed job
+await job.retry('completed')
+
+await queue.close()
+```
+
+**Elixir**
+
+```elixir
+alias BullMQ.{Job, Queue}
+
+# Get a failed job by ID
+{:ok, job} = Queue.get_job("my-queue", "job-id", connection: :my_redis)
+
+# Retry a failed job (default state is :failed)
+{:ok, updated_job} = Job.retry(job)
+
+# Retry a completed job
+{:ok, updated_job} = Job.retry(job, :completed)
+```
+
+**.NET**
+
+```csharp
+using BullMQ;
+
+await using var queue = new Queue("my-queue", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+// Get a failed job by ID
+var job = await queue.GetJobAsync("job-id");
+
+// Retry a failed job (default state is "failed")
+await job!.RetryAsync();
+
+// Retry a completed job
+await job.RetryAsync("completed");
+```
+
+**Rust**
+
+```rust
+use bullmq::Queue;
+
+let queue = Queue::new("my-queue").await?;
+
+// Get a failed job by ID
+let mut job = queue.get_job("job-id").await?.unwrap();
+
+// Retry a failed job (default state is "failed")
+job.retry("failed", None).await?;
+
+// Retry a completed job
+job.retry("completed", None).await?;
+```
+
+## Retry Options
+
+The `retry` method accepts options to reset attempt counters. This is useful when you want the retried job to behave as if it's being processed for the first time.
+
+### Reset Attempts Made
+
+The `attemptsMade` counter tracks how many times a job has been processed. Resetting it allows the job to use its full retry allowance again.
+
+**TypeScript**
+
+```typescript
+// Retry and reset the attempts counter
+await job.retry('failed', { resetAttemptsMade: true });
+```
+
+**Python**
+
+```python
+# Retry and reset the attempts counter
+await job.retry('failed', {"resetAttemptsMade": True})
+```
+
+**Elixir**
+
+```elixir
+# Retry and reset the attempts counter
+{:ok, updated_job} = Job.retry(job, :failed, reset_attempts_made: true)
+```
+
+**Rust**
+
+```rust
+use bullmq::types::RetryOptions;
+
+// Retry and reset the attempts counter
+job.retry("failed", Some(RetryOptions {
+    reset_attempts_made: true,
+    ..Default::default()
+})).await?;
+```
+
+### Reset Attempts Started
+
+The `attemptsStarted` counter tracks how many times a job has been moved to the active state. This can be useful for tracking purposes.
+
+**TypeScript**
+
+```typescript
+// Retry and reset both counters
+await job.retry('failed', {
+  resetAttemptsMade: true,
+  resetAttemptsStarted: true,
+});
+```
+
+**Python**
+
+```python
+# Retry and reset both counters
+await job.retry('failed', {
+    "resetAttemptsMade": True,
+    "resetAttemptsStarted": True
+})
+```
+
+**Elixir**
+
+```elixir
+# Retry and reset both counters
+{:ok, updated_job} = Job.retry(job, :failed,
+  reset_attempts_made: true,
+  reset_attempts_started: true
+)
+```
+
+**Rust**
+
+```rust
+use bullmq::types::RetryOptions;
+
+// Retry and reset both counters
+job.retry("failed", Some(RetryOptions {
+    reset_attempts_made: true,
+    reset_attempts_started: true,
+})).await?;
+```
+
+## What happens when you retry
+
+When a job is retried, the following occurs:
+
+1. **Job is moved to waiting queue**: The job is removed from the completed/failed set and added back to the waiting queue
+2. **Properties are cleared**: The following job properties are reset:
+   - `failedReason` / `failed_reason` → `null` / `nil`
+   - `finishedOn` / `finished_on` → `null` / `nil`
+   - `processedOn` / `processed_on` → `null` / `nil`
+   - `returnvalue` / `return_value` → `null` / `nil`
+3. **Events are emitted**: A `waiting` event is emitted when the job is successfully moved
+4. **Parent dependencies restored**: If the job is a child in a flow, its dependency relationship with the parent is restored
+
+> **Warning:** If you retry a job without resetting `attemptsMade`, and the job has already exhausted its retry attempts, it will fail immediately when processed again.
+
+## Error Handling
+
+The `retry` method can fail in the following cases:
+
+| Error Code | Description                             |
+| ---------- | --------------------------------------- |
+| `-1`       | Job does not exist                      |
+| `-3`       | Job was not found in the expected state |
+
+**TypeScript**
+
+```typescript
+try {
+  await job.retry('failed');
+} catch (error) {
+  console.error('Failed to retry job:', error.message);
+}
+```
+
+**Python**
+
+```python
+try:
+    await job.retry('failed')
+except Exception as error:
+    print(f'Failed to retry job: {error}')
+```
+
+**Elixir**
+
+```elixir
+case Job.retry(job, :failed) do
+  {:ok, updated_job} ->
+    IO.puts("Job retried successfully")
+
+  {:error, {:reprocess_failed, -1}} ->
+    IO.puts("Job does not exist")
+
+  {:error, {:reprocess_failed, -3}} ->
+    IO.puts("Job was not in the expected state")
+
+  {:error, reason} ->
+    IO.puts("Failed to retry: #{inspect(reason)}")
+end
+```
+
+**.NET**
+
+```csharp
+try
+{
+    await job.RetryAsync("failed");
+}
+catch (Exception error)
+{
+    Console.Error.WriteLine($"Failed to retry job: {error.Message}");
+}
+```
+
+**Rust**
+
+```rust
+match job.retry("failed", None).await {
+    Ok(()) => println!("Job retried successfully"),
+    Err(err) => eprintln!("Failed to retry job: {err}"),
+}
+```
+
+## Read More
+
+- 💡 [Retry API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#retry)
+- 💡 [Retrying Failing Jobs](https://docs.bullmq.io/guide/retrying-failing-jobs.md) - Automatic retry configuration with backoff strategies
+- 💡 [Stop Retrying Jobs](https://docs.bullmq.io/patterns/stop-retrying-jobs.md) - How to prevent further retries

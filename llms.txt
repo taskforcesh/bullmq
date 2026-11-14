@@ -1,0 +1,224 @@
+# BullMQ
+
+> BullMQ is an open source background job and message queue. It is available natively for TypeScript/JavaScript (Node.js and Bun), Python, Elixir, Rust, .NET and PHP, and runs on Redis (or compatible datastores such as Valkey and Dragonfly) and on PostgreSQL. All SDKs share the same data model, so producers and workers written in different languages can work on the same queues.
+
+This is the index of the BullMQ documentation. Every page is also available as Markdown by appending `.md` to its URL, and [llms-full.txt](https://docs.bullmq.io/llms-full.txt) contains all the pages except the changelogs in a single file.
+
+## Overview
+
+- [What is BullMQ](https://docs.bullmq.io/index.md): General description of BullMQ and its features
+- [Quick Start](https://docs.bullmq.io/quick-start.md): This is a basic guide to get your first queue working.
+- [API Reference](https://docs.bullmq.io/api/)
+
+## Guide
+
+- [Introduction](https://docs.bullmq.io/guide/introduction.md): What BullMQ is and how it works: an open source library for background jobs and message queues on Redis or PostgreSQL, built around the Queue, Worker, QueueEvents and FlowProducer classes.
+- [Connections](https://docs.bullmq.io/guide/connections.md): How to connect BullMQ to Redis, Valkey or Dragonfly: the connection option, reusing connections, and using ioredis, node-redis, Bun's Redis client or Valkey GLIDE.
+- [PostgreSQL backend](https://docs.bullmq.io/guide/postgresql.md)
+- [Queues](https://docs.bullmq.io/guide/queues.md)
+  - [Auto-removal of jobs](https://docs.bullmq.io/guide/queues/auto-removal-of-jobs.md)
+  - [Adding jobs in bulk](https://docs.bullmq.io/guide/queues/adding-bulks.md)
+  - [Working with batches](https://docs.bullmq.io/guide/queues/batches.md)
+  - [Global Concurrency](https://docs.bullmq.io/guide/queues/global-concurrency.md)
+  - [Global Rate Limit](https://docs.bullmq.io/guide/queues/global-rate-limit.md)
+  - [Meta](https://docs.bullmq.io/guide/queues/meta.md)
+  - [Removing Jobs](https://docs.bullmq.io/guide/queues/removing-jobs.md)
+- [Workers](https://docs.bullmq.io/guide/workers.md)
+  - [Auto-removal of jobs](https://docs.bullmq.io/guide/workers/auto-removal-of-jobs.md)
+  - [Concurrency](https://docs.bullmq.io/guide/workers/concurrency.md)
+  - [Graceful shutdown](https://docs.bullmq.io/guide/workers/graceful-shutdown.md)
+  - [Cancelling jobs](https://docs.bullmq.io/guide/workers/cancelling-jobs.md)
+  - [Stalled Jobs](https://docs.bullmq.io/guide/workers/stalled-jobs.md)
+  - [Sandboxed processors](https://docs.bullmq.io/guide/workers/sandboxed-processors.md): Running jobs in isolated processes
+  - [Pausing queues](https://docs.bullmq.io/guide/workers/pausing-queues.md)
+- [Jobs](https://docs.bullmq.io/guide/jobs.md)
+  - [FIFO](https://docs.bullmq.io/guide/jobs/fifo.md): First-In, First-Out
+  - [LIFO](https://docs.bullmq.io/guide/jobs/lifo.md): Last-in, First Out
+  - [Job Ids](https://docs.bullmq.io/guide/jobs/job-ids.md)
+  - [Job Data](https://docs.bullmq.io/guide/jobs/job-data.md)
+  - [Deduplication](https://docs.bullmq.io/guide/jobs/deduplication.md)
+  - [Delayed](https://docs.bullmq.io/guide/jobs/delayed.md)
+  - [Repeatable](https://docs.bullmq.io/guide/jobs/repeatable.md)
+  - [Prioritized](https://docs.bullmq.io/guide/jobs/prioritized.md)
+  - [Removing jobs](https://docs.bullmq.io/guide/jobs/removing-job.md)
+  - [Retrying jobs](https://docs.bullmq.io/guide/jobs/retrying-job.md)
+  - [Stalled](https://docs.bullmq.io/guide/jobs/stalled.md)
+  - [Getters](https://docs.bullmq.io/guide/jobs/getters.md)
+- [Job Schedulers](https://docs.bullmq.io/guide/job-schedulers.md): Job Schedulers replace "repeatable jobs", and are available in v5.16.0 and onwards
+  - [Repeat Strategies](https://docs.bullmq.io/guide/job-schedulers/repeat-strategies.md)
+  - [Repeat options](https://docs.bullmq.io/guide/job-schedulers/repeat-options.md)
+  - [Manage Job Schedulers](https://docs.bullmq.io/guide/job-schedulers/manage-job-schedulers.md)
+- [Flows](https://docs.bullmq.io/guide/flows.md)
+  - [Adding flows in bulk](https://docs.bullmq.io/guide/flows/adding-bulks.md)
+  - [Get Flow Tree](https://docs.bullmq.io/guide/flows/get-flow-tree.md)
+  - [Fail Parent](https://docs.bullmq.io/guide/flows/fail-parent.md): Make parents fail is any of its children fails
+  - [Continue Parent](https://docs.bullmq.io/guide/flows/continue-parent.md): Process parent if any children fails.
+  - [Remove Dependency](https://docs.bullmq.io/guide/flows/remove-dependency.md)
+  - [Ignore Dependency](https://docs.bullmq.io/guide/flows/ignore-dependency.md)
+  - [Remove Child Dependency](https://docs.bullmq.io/guide/flows/remove-child-dependency.md)
+- [Metrics](https://docs.bullmq.io/guide/metrics.md): Built-in Metrics for your queues.
+  - [Prometheus](https://docs.bullmq.io/guide/metrics/prometheus.md): How to use the built-in prometheus exporter
+- [Rate limiting](https://docs.bullmq.io/guide/rate-limiting.md)
+- [Parallelism and Concurrency](https://docs.bullmq.io/guide/parallelism-and-concurrency.md)
+- [Retrying failing jobs](https://docs.bullmq.io/guide/retrying-failing-jobs.md): How to retry failed jobs in BullMQ with the attempts option and fixed, exponential or custom backoff strategies.
+- [Returning job data](https://docs.bullmq.io/guide/returning-job-data.md)
+- [Events](https://docs.bullmq.io/guide/events.md)
+  - [Create Custom Events](https://docs.bullmq.io/guide/events/create-custom-events.md)
+- [Relay](https://docs.bullmq.io/guide/relay.md)
+  - [Getting started](https://docs.bullmq.io/guide/relay/getting-started.md)
+  - [Topics and patterns](https://docs.bullmq.io/guide/relay/topics-and-patterns.md)
+  - [Publishing and subscribing](https://docs.bullmq.io/guide/relay/messages.md)
+  - [Retained messages](https://docs.bullmq.io/guide/relay/retained-messages.md)
+  - [Nodes and failures](https://docs.bullmq.io/guide/relay/nodes-and-failures.md)
+  - [Backends](https://docs.bullmq.io/guide/relay/backends.md)
+  - [Reference](https://docs.bullmq.io/guide/relay/reference.md)
+  - [Relay compared to Kafka](https://docs.bullmq.io/guide/relay/relay-vs-kafka.md)
+  - [Example: Live job progress](https://docs.bullmq.io/guide/relay/examples/live-job-progress.md)
+  - [Example: Real-time notifications](https://docs.bullmq.io/guide/relay/examples/realtime-notifications.md)
+  - [Example: Cache invalidation](https://docs.bullmq.io/guide/relay/examples/cache-invalidation.md)
+  - [Example: Live configuration](https://docs.bullmq.io/guide/relay/examples/live-configuration.md)
+  - [Example: Controlling workers](https://docs.bullmq.io/guide/relay/examples/controlling-workers.md)
+  - [Example: Cancelling jobs on other workers](https://docs.bullmq.io/guide/relay/examples/cancelling-jobs-on-other-workers.md)
+- [Telemetry](https://docs.bullmq.io/guide/telemetry.md): Enabling Telemetry for your BullMQ based applications
+  - [Getting started](https://docs.bullmq.io/guide/telemetry/getting-started.md)
+  - [Traces](https://docs.bullmq.io/guide/telemetry/traces.md)
+  - [Metrics](https://docs.bullmq.io/guide/telemetry/metrics.md)
+  - [Running Jaeger](https://docs.bullmq.io/guide/telemetry/running-jaeger.md)
+  - [Running a simple example](https://docs.bullmq.io/guide/telemetry/running-a-simple-example.md)
+- [QueueScheduler](https://docs.bullmq.io/guide/queuescheduler.md)
+- [Redis™ Compatibility](https://docs.bullmq.io/guide/redis-tm-compatibility.md)
+  - [Dragonfly](https://docs.bullmq.io/guide/redis-tm-compatibility/dragonfly.md)
+- [Redis™ hosting](https://docs.bullmq.io/guide/redis-tm-hosting.md): For BullMQ you are going to need a proper Redis™ hosting solution. In this section we provide instructions on how to use some of the most popular ones.
+  - [AWS MemoryDB](https://docs.bullmq.io/guide/redis-tm-hosting/aws-memorydb.md)
+  - [AWS Elasticache](https://docs.bullmq.io/guide/redis-tm-hosting/aws-elasticache.md)
+- [Architecture](https://docs.bullmq.io/guide/architecture.md): In this page we give an architecture overview on how BullMQ is implemented, from the lifecycle of a job to the backends that store it in Redis™ or PostgreSQL.
+- [NestJs](https://docs.bullmq.io/guide/nestjs.md): How to use BullMQ in a NestJS application with the @nestjs/bullmq module: register queues, write processors (workers), add jobs from your services and listen to queue events.
+  - [Producers](https://docs.bullmq.io/guide/nestjs/producers.md)
+  - [Queue Events Listeners](https://docs.bullmq.io/guide/nestjs/queue-events-listeners.md)
+- [Going to production](https://docs.bullmq.io/guide/going-to-production.md): Checklist for running BullMQ in production: Redis persistence and noeviction, automatic reconnections, error logging, monitoring, graceful shutdown, auto-removal of jobs and protecting job data.
+- [Migrations](https://docs.bullmq.io/guide/migrations/migration-to-newer-versions.md): Tips and hints on how to migrate your current BullMQ version to a newer one.
+  - [Bull to BullMQ](https://docs.bullmq.io/guide/migrations/bull-to-bullmq.md): Tips and hints on how to migrate from Bull package to BullMQ.
+  - [Migrate from v5 to v6](https://docs.bullmq.io/guide/migrations/migrate-from-v5-to-v6.md): Upgrade checklist and breaking-change summary for BullMQ v6.
+- [Troubleshooting](https://docs.bullmq.io/guide/troubleshooting.md)
+
+## Patterns
+
+- [Adding jobs in bulk across different queues](https://docs.bullmq.io/patterns/adding-bulks.md)
+- [Deduplication](https://docs.bullmq.io/patterns/deduplication.md)
+- [Manually processing jobs](https://docs.bullmq.io/patterns/manually-fetching-jobs.md)
+- [Named Processor](https://docs.bullmq.io/patterns/named-processor.md)
+- [Flows](https://docs.bullmq.io/patterns/flows.md)
+- [Idempotent jobs](https://docs.bullmq.io/patterns/idempotent-jobs.md)
+- [Throttle jobs](https://docs.bullmq.io/patterns/throttle-jobs.md)
+- [Manual retrying](https://docs.bullmq.io/patterns/manual-retrying.md)
+- [Process Step Jobs](https://docs.bullmq.io/patterns/process-step-jobs.md)
+- [Failing fast when Redis is down](https://docs.bullmq.io/patterns/failing-fast-when-redis-is-down.md)
+- [Stop retrying jobs](https://docs.bullmq.io/patterns/stop-retrying-jobs.md)
+- [Timeout jobs](https://docs.bullmq.io/patterns/timeout-jobs.md)
+- [Timeout for Sandboxed processors](https://docs.bullmq.io/patterns/timeout-for-sandboxed-processors.md): A pattern for applying time-to-live to sandboxed processors.
+- [Redis Cluster](https://docs.bullmq.io/patterns/redis-cluster.md): Important considerations when using Redis™ Cluster mode.
+
+## BullMQ Pro
+
+- [Introduction](https://docs.bullmq.io/bullmq-pro/introduction.md): The commercial supported version of BullMQ
+- [Install](https://docs.bullmq.io/bullmq-pro/install.md)
+- [Observables](https://docs.bullmq.io/bullmq-pro/observables.md)
+  - [Cancelation](https://docs.bullmq.io/bullmq-pro/observables/cancelation.md)
+- [Groups](https://docs.bullmq.io/bullmq-pro/groups.md)
+  - [Getters](https://docs.bullmq.io/bullmq-pro/groups/getters.md)
+  - [Rate limiting](https://docs.bullmq.io/bullmq-pro/groups/rate-limiting.md)
+  - [Local group rate limit](https://docs.bullmq.io/bullmq-pro/groups/local-group-rate-limit.md): How to rate-limit each group with a different limit per group.
+  - [Concurrency](https://docs.bullmq.io/bullmq-pro/groups/concurrency.md)
+  - [Local group concurrency](https://docs.bullmq.io/bullmq-pro/groups/local-group-concurrency.md)
+  - [Max group size](https://docs.bullmq.io/bullmq-pro/groups/max-group-size.md)
+  - [Pausing groups](https://docs.bullmq.io/bullmq-pro/groups/pausing-groups.md)
+  - [Prioritized intra-groups](https://docs.bullmq.io/bullmq-pro/groups/prioritized.md)
+  - [Sandboxes for groups](https://docs.bullmq.io/bullmq-pro/groups/sandboxes-for-groups.md)
+- [Telemetry](https://docs.bullmq.io/bullmq-pro/telemetry.md)
+- [Batches](https://docs.bullmq.io/bullmq-pro/batches.md): Processing jobs in batches
+- [NestJs](https://docs.bullmq.io/bullmq-pro/nestjs.md): How to use BullMQ Pro in a NestJS application with the @taskforcesh/nestjs-bullmq-pro module: register queues, write processors (workers), add jobs from your services and listen to queue events.
+  - [Producers](https://docs.bullmq.io/bullmq-pro/nestjs/producers.md)
+  - [Queue Events Listeners](https://docs.bullmq.io/bullmq-pro/nestjs/queue-events-listeners.md)
+  - [API Reference](https://nestjs.bullmq.pro/)
+- [API Reference](https://api.bullmq.pro)
+- [New Releases](https://docs.bullmq.io/bullmq-pro/new-releases.md)
+- [Support](https://docs.bullmq.io/bullmq-pro/support.md): Commercial support
+
+## Bull
+
+- [Introduction](https://docs.bullmq.io/bull/introduction.md)
+- [Install](https://docs.bullmq.io/bull/install.md)
+- [Quick Guide](https://docs.bullmq.io/bull/quick-guide.md)
+- [Important Notes](https://docs.bullmq.io/bull/important-notes.md)
+- [Reference](https://github.com/OptimalBits/bull/blob/develop/REFERENCE.md)
+- [Patterns](https://docs.bullmq.io/bull/patterns.md)
+  - [Persistent connections](https://docs.bullmq.io/bull/patterns/persistent-connections.md)
+  - [Message queue](https://docs.bullmq.io/bull/patterns/message-queue.md)
+  - [Returning Job Completions](https://docs.bullmq.io/bull/patterns/returning-job-completions.md)
+  - [Reusing Redis Connections](https://docs.bullmq.io/bull/patterns/reusing-redis-connections.md)
+  - [Redis cluster](https://docs.bullmq.io/bull/patterns/redis-cluster.md)
+  - [Custom backoff strategy](https://docs.bullmq.io/bull/patterns/custom-backoff-strategy.md)
+  - [Debugging](https://docs.bullmq.io/bull/patterns/debugging.md)
+  - [Manually fetching jobs](https://docs.bullmq.io/bull/patterns/manually-fetching-jobs.md)
+
+## Python
+
+- [Introduction](https://docs.bullmq.io/python/introduction.md): BullMQ is available as a native Python package, running on Redis™ or PostgreSQL.
+- [Flow Producer](https://docs.bullmq.io/python/flow-producer.md): FlowProducer docs are maintained in the shared tabbed Flows guide.
+- [Job Scheduler](https://docs.bullmq.io/python/job-scheduler.md): Job scheduler docs are maintained in the shared tabbed scheduler guide.
+- [Lock Manager](https://docs.bullmq.io/python/lock-manager.md): Lock-renewal and cancellation behavior is documented in shared worker sections.
+- [Global Concurrency and Rate Limit](https://docs.bullmq.io/python/global-concurrency-and-rate-limit.md): Global limits docs are maintained in the shared queue guide sections.
+- [Job Cancellation](https://docs.bullmq.io/python/job-cancellation.md): Job cancellation docs are maintained in the shared worker guide section.
+- [Queue Events](https://docs.bullmq.io/python/queue-events.md): Queue events docs are maintained in the shared events guide section.
+
+## Rust
+
+- [Introduction](https://docs.bullmq.io/rust/introduction.md): BullMQ is available as a native Rust crate with full async/await support.
+- [API Reference](https://docs.rs/bullmq-official)
+
+## Elixir
+
+- [Introduction](https://docs.bullmq.io/elixir/introduction.md): BullMQ for Elixir - Full-featured job queue with OTP design.
+- [API Reference](https://hexdocs.pm/bullmq)
+
+## PHP
+
+- [Introduction](https://docs.bullmq.io/php/introduction.md): BullMQ PHP client for adding jobs to queues.
+
+## .Net
+
+- [Introduction](https://docs.bullmq.io/dotnet/introduction.md): BullMQ is available as a native .NET package, running on Redis™ or PostgreSQL.
+
+## Related
+
+- [API reference](https://docs.bullmq.io/api/): TypeScript API of every major version of BullMQ.
+- [GitHub repository](https://github.com/taskforcesh/bullmq): Source code and issue tracker.
+- [bullmq.io](https://bullmq.io): Website with articles, benchmarks and news.
+- [Taskforce.sh](https://taskforce.sh): Dashboard for monitoring and managing BullMQ queues, made by the BullMQ team.
+
+## Optional
+
+- [BullMQ changelog](https://docs.bullmq.io/changelog.md)
+- [BullMQ changelog v5](https://docs.bullmq.io/changelogs/changelog-v5.md)
+- [BullMQ changelog v4](https://docs.bullmq.io/changelogs/changelog-v4.md)
+- [BullMQ changelog v3](https://docs.bullmq.io/changelogs/changelog-v3.md)
+- [BullMQ changelog v2](https://docs.bullmq.io/changelogs/changelog-v2.md)
+- [BullMQ changelog v1](https://docs.bullmq.io/changelogs/changelog-v1.md)
+- [BullMQ Pro NestJS changelog](https://docs.bullmq.io/bullmq-pro/nestjs/changelog.md)
+- [BullMQ Pro changelog](https://docs.bullmq.io/bullmq-pro/changelog.md)
+- [BullMQ Pro changelog v6](https://docs.bullmq.io/bullmq-pro/changelogs/changelog-v6.md)
+- [BullMQ Pro changelog v5](https://docs.bullmq.io/bullmq-pro/changelogs/changelog-v5.md)
+- [BullMQ Pro changelog v4](https://docs.bullmq.io/bullmq-pro/changelogs/changelog-v4.md)
+- [BullMQ Pro changelog v3](https://docs.bullmq.io/bullmq-pro/changelogs/changelog-v3.md)
+- [BullMQ Pro changelog v2](https://docs.bullmq.io/bullmq-pro/changelogs/changelog-v2.md)
+- [BullMQ Pro changelog v1](https://docs.bullmq.io/bullmq-pro/changelogs/changelog-v1.md)
+- [Python changelog](https://docs.bullmq.io/python/changelog.md)
+- [Python changelog v2](https://docs.bullmq.io/python/changelogs/changelog-v2.md)
+- [Python changelog v1](https://docs.bullmq.io/python/changelogs/changelog-v1.md)
+- [Python changelog v0](https://docs.bullmq.io/python/changelogs/changelog-v0.md)
+- [Rust changelog](https://docs.bullmq.io/rust/changelog.md)
+- [Elixir changelog](https://docs.bullmq.io/elixir/changelog.md)
+- [Elixir changelog v1](https://docs.bullmq.io/elixir/changelogs/changelog-v1.md)
+- [PHP changelog](https://docs.bullmq.io/php/changelog.md)
+- [PHP changelog v1](https://docs.bullmq.io/php/changelogs/changelog-v1.md)
+- [.Net changelog](https://docs.bullmq.io/dotnet/changelog.md)

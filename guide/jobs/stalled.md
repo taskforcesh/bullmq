@@ -1,0 +1,33 @@
+# Stalled
+
+> **Danger:** From BullMQ 2.0 and onwards, the `QueueScheduler` is not needed anymore. For manually fetching jobs check this [pattern](https://docs.bullmq.io/patterns/manually-fetching-jobs#checking-for-stalled-jobs)
+
+When a job is in an active state (i.e. it is being processed by a worker), it needs to continuously update the queue to notify that the worker is still working on the job. This mechanism prevents a worker that crashes or enters an endless loop from keeping a job in an active state forever.
+
+When a worker is not able to notify the queue that it is still working on a given job, that job is moved back to the waiting list, or to the failed set. We then say that the job has stalled and the queue will emit the 'stalled' event.
+
+> **Note:** There is not a 'stalled' state, only a 'stalled' event emitted when a job is automatically moved from _active_ to _waiting_ state.
+
+If a job stalls more than a predefined limit (see the [`maxStalledCount` option](https://docs.bullmq.io/api/interfaces/v6.WorkerOptions.html#maxstalledcount)), the job will be failed permanently with the error "_job stalled more than allowable limit_". The default is 1, as stalled jobs should be a rare occurrence, but you can increase this number if needed.
+
+In order to avoid stalled jobs, make sure that your worker does not keep the Node.js event loop too busy. The default max stalled check duration is 30 seconds, so as long as you do not perform CPU operations exceeding that value you should not get stalled jobs.
+
+Another way to reduce the chance of stalled jobs is using so-called "sandboxed" processors. In this case, the workers will spawn new separate Node.js processes, running separately from the main process.
+
+`main.ts`
+```typescript
+import { Worker } from 'bullmq';
+
+const worker = new Worker('Paint', painter);
+```
+
+`painter.ts`
+```typescript
+export default = (job) => {
+    // Paint something
+}
+```
+
+## Read more:
+
+* 💡 [Queue Scheduler API Reference](https://docs.bullmq.io/api/classes/v1.QueueScheduler.html)

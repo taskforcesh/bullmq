@@ -1,0 +1,80 @@
+# Job Ids
+
+All jobs in BullMQ need to have a unique job id. This id is used to construct a key to store the data in Redis, and as a pointer to the job as it is moved between the different states it can be in during its lifetime.
+
+By default, job ids are generated automatically as an increasing counter, however it is also possible to specify a _custom id_.
+
+> **Note:** The uniqueness requirement is scoped by queue, i.e. you can have the same job id in different queues without any issues. The counter for automatically generated ids is also scoped by queue.
+
+The main reason to be able to specify a custom id is in cases when you want to avoid duplicated jobs. Since ids must be unique, if you add a job with an existing id then that job will just be ignored and not added to the queue at all.
+
+> **Danger:** Jobs that are removed from the queue (either manually, or when using settings such as `removeOnComplete`/`removeOnFailed`) will **not** be considered as duplicates, meaning that you can add the same job id many times over as long as the previous job has already been removed from the queue.
+
+In order to specify a custom job id, use the `jobId` option when adding jobs to the queue:
+
+**TypeScript**
+
+```typescript
+await myQueue.add(
+  'wall',
+  { color: 'pink' },
+  {
+    jobId: customJobId,
+  },
+);
+```
+
+**Python**
+
+```python
+await queue.add(
+    'wall',
+    {'color': 'pink'},
+    {
+        'jobId': custom_job_id,
+    },
+)
+```
+
+**Elixir**
+
+```elixir
+BullMQ.Queue.add("Paint", "wall", %{color: "pink"},
+  connection: :my_redis,
+  job_id: custom_job_id
+)
+```
+
+**.NET**
+
+```csharp
+await queue.AddAsync("wall", new { color = "pink" }, new JobsOptions
+{
+    JobId = customJobId,
+});
+```
+
+**Rust**
+
+```rust
+queue
+    .add("wall", serde_json::json!({ "color": "pink" }))
+    .job_id(custom_job_id)
+    .await?;
+```
+
+**PHP**
+
+```php
+$queue->add('wall', ['color' => 'pink'], [
+    'jobId' => $customJobId,
+]);
+```
+
+> **Danger:** Custom job ids must not contain the **:** separator as it will be translated in 2 different values, since we are also following Redis naming convention. So if you need to add a separator, use a different value, for example **-**, **\_**.
+
+> **Danger:** Custom job ids must not be strings that consist only of digits (for example `"123"`), as these collide with the format used for automatically generated ids. An `Error: Custom Id cannot be integers` will be thrown when adding such a job. If you need to use a numeric business identifier, add a non-digit prefix such as `"job-123"` or `"#123"`.
+
+## Read more:
+
+- 💡 [Duplicated Event Reference](https://docs.bullmq.io/api/interfaces/v6.QueueEventsListener.html#duplicated)

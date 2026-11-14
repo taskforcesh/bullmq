@@ -1,0 +1,417 @@
+
+# Connections
+
+To connect BullMQ to Redis™, pass a `connection` option with the host and port of your server, or an existing client, to every `Queue`, `Worker`, `QueueEvents` and `FlowProducer` you create. The default Redis endpoint is `localhost` on port 6379. A `Worker` requires a `connection` option, so pass `connection: {}` to use these defaults.
+
+In order to start working with a Queue, a connection to a datastore is necessary. By default BullMQ uses Redis™ (or a compatible server such as Valkey or Dragonfly), and this page describes how to configure those connections. If you are using PostgreSQL instead, see [PostgreSQL backend](https://docs.bullmq.io/guide/postgresql.md#connection-options).
+
+By default, BullMQ creates Redis connections with [ioredis](https://github.com/luin/ioredis), and the options you pass to BullMQ are passed to the ioredis constructor. If you do not provide any options, it will default to port 6379 and localhost.
+
+BullMQ can also use other Redis clients through its Redis client adapter interface. The package includes adapters for ioredis, node-redis, Bun's built-in Redis client and Valkey GLIDE. You can also provide your own adapter by implementing the `IRedisClient` interface.
+
+Every class will consume at least one Redis connection, but it is also possible to reuse connections in some situations. For example, the _Queue_ and _Worker_ classes can accept an existing adapted Redis client. Classes that need blocking Redis commands, such as _Worker_ and _QueueEvents_, will create duplicated connections internally, so the client or adapter must support `duplicate()`.
+
+Some examples:
+
+**TypeScript**
+
+```typescript
+import { Queue, Worker } from 'bullmq';
+
+// Create a new connection in every instance
+const myQueue = new Queue('myqueue', {
+  connection: {
+    host: 'myredis.taskforce.run',
+    port: 32856,
+  },
+});
+
+const myWorker = new Worker('myqueue', async job => {}, {
+  connection: {
+    host: 'myredis.taskforce.run',
+    port: 32856,
+  },
+});
+```
+
+**Python**
+
+```python
+from bullmq import Queue, Worker
+
+# Create a new connection in every instance
+my_queue = Queue("myqueue", {
+    "connection": {
+        "host": "myredis.taskforce.run",
+        "port": 32856,
+    },
+})
+
+async def process(job, token):
+    pass
+
+my_worker = Worker("myqueue", process, {
+    "connection": {
+        "host": "myredis.taskforce.run",
+        "port": 32856,
+    },
+})
+```
+
+**Elixir**
+
+```elixir
+# Start a named connection pool and reference it by name
+{:ok, _pid} =
+  BullMQ.RedisConnection.start_link(
+    name: :my_redis,
+    host: "myredis.taskforce.run",
+    port: 32856
+  )
+
+{:ok, _queue} =
+  BullMQ.Queue.start_link(name: :my_queue, queue: "myqueue", connection: :my_redis)
+
+{:ok, _worker} =
+  BullMQ.Worker.start_link(
+    queue: "myqueue",
+    connection: :my_redis,
+    processor: fn _job -> :ok end
+  )
+```
+
+**.NET**
+
+```csharp
+using BullMQ;
+
+// Create a new connection in every instance
+var myQueue = new Queue("myqueue", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("myredis.taskforce.run:32856"),
+});
+
+var myWorker = new Worker("myqueue", async (job, cancellationToken) => null, new WorkerOptions
+{
+    Connection = ConnectionOptions.FromString("myredis.taskforce.run:32856"),
+});
+```
+
+**Rust**
+
+```rust
+use bullmq::options::RedisConnectionOptions;
+use bullmq::{Job, Queue, QueueOptions, Worker, WorkerOptions};
+
+// Create a new connection in every instance
+let my_queue = Queue::with_options(
+    "myqueue",
+    QueueOptions::new().connection(
+        RedisConnectionOptions::new()
+            .host("myredis.taskforce.run")
+            .port(32856),
+    ),
+)
+.await?;
+
+let my_worker = Worker::with_options(
+    "myqueue",
+    |_job: Job, _token| async move { Ok(serde_json::Value::Null) },
+    WorkerOptions::new().connection(
+        RedisConnectionOptions::new()
+            .host("myredis.taskforce.run")
+            .port(32856),
+    ),
+)
+.await?;
+```
+
+**PHP**
+
+```php
+<?php
+use BullMQ\Queue;
+
+// Create a new connection in every instance
+$myQueue = new Queue('myqueue', [
+    'connection' => [
+        'host' => 'myredis.taskforce.run',
+        'port' => 32856,
+    ],
+]);
+```
+
+### Reusing an ioredis connection
+
+```typescript
+import { Queue } from 'bullmq';
+import IORedis from 'ioredis';
+
+const connection = new IORedis();
+
+// Reuse the ioredis instance in 2 different producers
+const myFirstQueue = new Queue('myFirstQueue', { connection });
+const mySecondQueue = new Queue('mySecondQueue', { connection });
+```
+
+```typescript
+import { Worker } from 'bullmq';
+import IORedis from 'ioredis';
+
+const connection = new IORedis({ maxRetriesPerRequest: null });
+
+// Reuse the ioredis instance in 2 different consumers
+const myFirstWorker = new Worker('myFirstWorker', async job => {}, {
+  connection,
+});
+const mySecondWorker = new Worker('mySecondWorker', async job => {}, {
+  connection,
+});
+```
+
+Note that in the third example, even though the ioredis instance is being reused, the worker will create a duplicated connection that it needs internally to make blocking connections. Consult the [ioredis](https://github.com/luin/ioredis/blob/master/API.md) documentation to learn how to properly create an instance of `IORedis`.
+
+> **Note:** For backwards compatibility, BullMQ continues to accept a raw `IORedis` instance via the `connection` option even though internally it now relies on the `IRedisClient` adapter interface. To bridge the two, the instance is wrapped in a transparent proxy that exposes `IRedisClient`: it adds `runCommand` for Lua script dispatch and structured-options forms of `hset`, `set`, `zrange`, `zrevrange`, `xadd`, `xread`, `xtrim`, and `scan` (the native ioredis varargs forms keep working). `pipeline()` and `multi()` return augmented transactions, and `duplicate()` returns another wrapped proxy rather than the raw duplicated client. Every other property — events, options, ioredis-specific methods — is forwarded straight to your underlying instance, which is never mutated.
+
+### Using node-redis
+
+BullMQ does not create node-redis clients directly. Create the raw client in your application and wrap it with `createNodeRedisClient` before passing it to BullMQ.
+
+> **Note:** When using BullMQ's node-redis adapter, install `redis` v5 or newer. BullMQ declares `redis >= 5.0.0` as a peer dependency for this adapter.
+
+```typescript
+import { Queue, Worker, createNodeRedisClient } from 'bullmq';
+import { createClient } from 'redis';
+
+const rawClient = createClient({
+  url: 'redis://localhost:6379',
+});
+
+const connection = createNodeRedisClient(rawClient);
+
+const myQueue = new Queue('myqueue', { connection });
+const myWorker = new Worker('myqueue', async job => {}, { connection });
+```
+
+### Using Bun's Redis client
+
+Bun has a built-in Redis client. Wrap it with `createBunRedisClient` before passing it to BullMQ.
+
+```typescript
+import { RedisClient } from 'bun';
+import { Queue, Worker, createBunRedisClient } from 'bullmq';
+
+const rawClient = new RedisClient('redis://localhost:6379');
+const connection = createBunRedisClient(rawClient);
+
+const myQueue = new Queue('myqueue', { connection });
+const myWorker = new Worker('myqueue', async job => {}, { connection });
+```
+
+BullMQ does not instantiate Bun's client for you. Create the raw Bun client in your application and wrap it with `createBunRedisClient`.
+
+When you share a single wrapped connection across many Queues and Workers, close it through the wrapper returned by `createBunRedisClient` (for example `connection.disconnect()` or `await connection.quit()`) once every Queue/Worker has been closed. Do **not** call `close()` on the raw Bun `RedisClient` directly: the wrapper cannot flag that shutdown as intentional, so in-flight commands reject with `ConnectionClosedError` and the wrapper attempts to reconnect. Closing through the wrapper drains those commands cleanly, just like `quit()` does with ioredis.
+
+```typescript
+// Graceful shutdown
+await myWorker.close();
+await myQueue.close();
+connection.disconnect(); // or: await connection.quit();
+```
+
+> **Note:** The `RedisClient` class is provided by Bun runtime. Run this code in Bun (`bun run ...`), not plain Node.js.
+
+### Using Valkey Glide
+
+Valkey Glide has a different API than ioredis/node-redis. Wrap the Glide client with `createValkeyGlideClient` before passing it to BullMQ.
+
+```typescript
+import { GlideClusterClient } from '@valkey/valkey-glide';
+import { Queue, Worker, createValkeyGlideClient } from 'bullmq';
+
+const rawClient = await GlideClusterClient.createClient({
+  addresses: [{ host: 'localhost', port: 6379 }],
+});
+
+const connection = createValkeyGlideClient(rawClient);
+
+const myQueue = new Queue('myqueue', { connection });
+const myWorker = new Worker('myqueue', async job => {}, { connection });
+```
+
+### Creating clients globally
+
+If you want BullMQ to create a non-ioredis client whenever it needs a new Redis connection, set `RedisConnection.clientFactory` during application startup. The factory receives the merged connection options and must return an `IRedisClient`.
+
+```typescript
+import { Queue, RedisConnection, createNodeRedisClient } from 'bullmq';
+import { createClient } from 'redis';
+
+RedisConnection.clientFactory = opts => {
+  const rawClient = createClient({
+    socket: {
+      host: opts.host,
+      port: opts.port,
+    },
+    username: opts.username,
+    password: opts.password,
+    database: opts.db,
+  });
+
+  return createNodeRedisClient(rawClient);
+};
+
+const myQueue = new Queue('myqueue', {
+  connection: {
+    host: 'myredis.taskforce.run',
+    port: 32856,
+  },
+});
+```
+
+You can do the same with Bun's Redis client:
+
+```typescript
+import { RedisClient } from 'bun';
+import { Queue, RedisConnection, createBunRedisClient } from 'bullmq';
+
+RedisConnection.clientFactory = opts => {
+  const host = opts?.host ?? 'localhost';
+  const port = opts?.port ?? 6379;
+  const rawClient = new RedisClient(`redis://${host}:${port}`);
+
+  return createBunRedisClient(rawClient);
+};
+
+const myQueue = new Queue('myqueue', {
+  connection: {
+    host: 'myredis.taskforce.run',
+    port: 32856,
+  },
+});
+```
+
+### Custom Redis clients
+
+Any Redis client can be used if it is adapted to BullMQ's `IRedisClient` interface. The adapter is responsible for exposing the Redis commands BullMQ uses, connection lifecycle methods, events, `duplicate()`, Lua script registration through `defineCommand()`, and pipelines or transactions through `multi()` and `pipeline()`.
+
+For most applications, prefer one of the built-in adapters:
+
+- `createIORedisClient` for ioredis `Redis` and `Cluster` instances.
+- `createNodeRedisClient` for node-redis clients.
+- `createBunRedisClient` for Bun's built-in Redis client.
+- `createValkeyGlideClient` for Valkey Glide clients.
+
+#### `maxRetriesPerRequest`
+
+This setting tells the ioredis client how many times to try a command that fails before throwing an error. So even though Redis is not reachable or offline, the command will be retried until this situation changes or the maximum number of attempts is reached.
+
+This guarantees that the workers will keep processing forever as long as there is a working connection. If you create an ioredis client manually, BullMQ will throw an exception if this setting is not set to null when it is passed into worker instances. When using another Redis client through an adapter, configure that client's retry and reconnect behavior according to its own documentation so that worker connections can keep retrying.
+
+### The queue backend
+
+While the `IRedisClient` adapter described above abstracts the low-level _driver_ (ioredis, node-redis, Bun), the high-level classes (`Queue`, `Worker`, `FlowProducer`, `QueueEvents`, …) sit one level higher: they are **datastore-agnostic** and talk to a _backend_ that implements the [`IQueueBackend`](https://docs.bullmq.io/api) contract. The backend owns the connection(s) and implements every queue operation ("add job", "move to active", "extend lock", the blocking "wait for next job", …).
+
+The default backend is the Redis one (`RedisQueueBackend`), so you normally never interact with this layer directly — you just pass a `connection` as shown throughout this page and BullMQ wires up the Redis backend for you.
+
+#### Accessing the current backend (and backend-specific clients)
+
+The high-level classes no longer expose a `client` getter. `getBackend()` returns
+the **actual backend in use** (Redis, PostgreSQL, or a custom backend). With the
+default Redis backend, you can still reach the raw Redis client when needed:
+
+```typescript
+import { Queue, RedisClient } from 'bullmq';
+
+const queue = new Queue('myqueue', {
+  connection: { host: 'localhost', port: 6379 },
+});
+
+// By default BullMQ uses the Redis backend, so getBackend() exposes
+// Redis-specific escape hatches.
+const client: RedisClient = await queue.getBackend().client;
+
+await client.set('some-key', 'some-value');
+```
+
+The Redis backend also exposes other Redis-specific details, such as `redisVersion`,
+`databaseType` and the underlying `connection`. For a `Worker`,
+`getBackend().blockingClient` returns the dedicated blocking connection's client used
+by the blocking _wait-for-job_ primitive.
+
+> **Warning:** Prefer the high-level `Queue`/`Worker`/`FlowProducer` API whenever possible.
+> Anything backend-specific you reach through `getBackend()` is outside the
+> datastore-agnostic contract and may differ between backends.
+
+#### Providing a custom backend
+
+All high-level classes depend only on the `IQueueBackend` interface and receive a
+**backend factory** that builds it. By default this factory is `createRedisBackend`,
+but you can inject your own as the last constructor argument to back BullMQ with a
+different datastore or with a mock in tests:
+
+When passing a backend factory, supply an options object with a `connection`
+accepted by that factory. Options can only be omitted for the default Redis
+backend, without an explicit factory or custom backend/connection type arguments.
+
+```typescript
+import { Queue, BackendFactory } from 'bullmq';
+
+const myBackendFactory: BackendFactory = (name, opts, options) => {
+  // return an object implementing IQueueBackend
+};
+
+const queue = new Queue('myqueue', { connection: {} }, myBackendFactory);
+```
+
+The classes are generic over the backend type, so `getBackend()` returns the concrete
+type produced by whatever factory you provide (the default being
+`RedisQueueBackend`). Give a custom factory the type
+`BackendFactory<MyBackend, MyConnectionOptions>` so its connection options are
+checked too.
+
+To specify job types with a custom backend, either list every type argument
+(the backend and connection types come after the job types) or bind the backend with
+`withBackend` and write only the job types:
+
+```typescript
+import { withBackend } from 'bullmq';
+import { createMyBackend } from './my-backend';
+
+const { Queue, Worker } = withBackend(createMyBackend);
+const queue = new Queue<MyData, MyResult>('myqueue', opts);
+const worker = new Worker<MyData, MyResult>('myqueue', processor, opts);
+```
+
+The returned constructors extend the regular classes and use `createMyBackend`
+automatically. See [Typed jobs and event results](https://docs.bullmq.io/guide/postgresql.md#typed-jobs-and-event-results)
+for why this is needed and for the explicit type-argument form.
+
+> **Warning:** Building a production-grade backend is substantial work: you must implement the full
+> `IQueueBackend` contract with correct atomicity, locking, timing and event semantics.
+> Use the adapter-conformance and full BullMQ test suites to validate behavior before
+> considering a backend production-ready.
+
+#### Built-in PostgreSQL backend
+
+BullMQ ships with a ready-made **PostgreSQL backend** (`createPostgresBackend`) that runs the full `Queue` / `Worker` / `QueueEvents` / `FlowProducer` API on PostgreSQL instead of Redis. See the dedicated [PostgreSQL backend](https://docs.bullmq.io/guide/postgresql.md) page for requirements, connection options, schema and migrations.
+
+### Queue
+
+Also note that simple Queue instance used for managing the queue such as adding jobs, pausing, using getters, etc. usually has different requirements from the worker.
+
+For example, say that you are adding jobs to a queue as the result of a call to an HTTP endpoint - producer service. The caller of this endpoint cannot wait forever if the connection to Redis happens to be down when this call is made. Therefore the `maxRetriesPerRequest` setting should either be left at its default (which currently is 20) or set it to another value, maybe 1 so that the user gets an error quickly and can retry later.
+
+On the other hand, if you are adding jobs inside a Worker processor, this process is expected to happen in the background - consumer service. In this case you can share the same connection.
+
+For more details, refer to the [persistent connections](https://docs.bullmq.io/bull/patterns/persistent-connections) page.
+
+> **Danger:** When using ioredis connections, be careful not to use the "keyPrefix" option in [ioredis](https://redis.github.io/ioredis/interfaces/CommonRedisOptions.html#keyPrefix) as this option is not compatible with BullMQ, which provides its own key prefixing mechanism by using [prefix](https://docs.bullmq.io/api/interfaces/v6.QueueOptions.html#prefix) option.
+
+If you can afford many connections, by all means just use them. Redis connections have quite low overhead, so you should not need to care about reusing connections unless your service provider imposes hard limitations.
+
+> **Danger:** Make sure that your redis instance has the setting
+> 
+> `maxmemory-policy=noeviction`
+> 
+> in order to avoid automatic removal of keys which would cause unexpected errors in BullMQ

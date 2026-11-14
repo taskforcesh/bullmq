@@ -1,0 +1,132 @@
+## [2.4.1](https://github.com/taskforcesh/bullmq/compare/vex2.4.0...vex2.4.1) (2026-11-12)
+
+### Bug Fixes
+
+* **flow:** remove deduplication key that is associated with parent job that is removed (python) (elixir) (php) (rust) (dotnet) ([#5078](https://github.com/taskforcesh/bullmq/issues/5078)) ([2353552](https://github.com/taskforcesh/bullmq/commit/2353552f1e9f55db2bdfa5bdcf604e2cead7972a))
+* improve worker pause, job retention and cron scheduling ([#5114](https://github.com/taskforcesh/bullmq/issues/5114)) ([1349e2c](https://github.com/taskforcesh/bullmq/commit/1349e2c112d906a0dc4b9348513bc78628337151))
+
+# [2.4.0](https://github.com/taskforcesh/bullmq/compare/vex2.3.5...vex2.4.0) (2026-11-04)
+
+### Features
+
+* **deduplication:** support schedule option (python) (elixir) (php) (rust) (dotnet) ([#5048](https://github.com/taskforcesh/bullmq/issues/5048)) ([31b151d](https://github.com/taskforcesh/bullmq/commit/31b151d3236183e3707f178a1b4c79b83f607bdf))
+
+## [2.3.5](https://github.com/taskforcesh/bullmq/compare/vex2.3.4...vex2.3.5) (2026-10-30)
+
+### Bug Fixes
+
+* **scripts:** pass the queue key prefix to extendLocks, drain and promote [elixir] fixes [#5038](https://github.com/taskforcesh/bullmq/issues/5038) ([#5041](https://github.com/taskforcesh/bullmq/issues/5041)) ([5971d9e](https://github.com/taskforcesh/bullmq/commit/5971d9ebdc6e92aec538ea4f8a05aeb99963e6a6))
+
+## [2.3.4](https://github.com/taskforcesh/bullmq/compare/vex2.3.3...vex2.3.4) (2026-10-28)
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
+## [2.3.3](https://github.com/taskforcesh/bullmq/compare/vex2.3.2...vex2.3.3) (2026-10-23)
+
+### Bug Fixes
+
+* **connection:** warn when redis version lower than 6.2 and throw when lower than 5.0 [elixir] ([#4924](https://github.com/taskforcesh/bullmq/issues/4924)) ([af637d4](https://github.com/taskforcesh/bullmq/commit/af637d4931f382828678f4a07686a36c957dc827))
+
+## [2.3.2](https://github.com/taskforcesh/bullmq/compare/vex2.3.1...vex2.3.2) (2026-10-20)
+
+### Performance Improvements
+
+* **deduplication:** use LPOS for keepLastIfActive membership check (python)(elixir)(php)(rust) ([#4956](https://github.com/taskforcesh/bullmq/issues/4956)) ([8796b66](https://github.com/taskforcesh/bullmq/commit/8796b66653baa58b8ecf261d7d7595cc8b72e020)), closes [#4613](https://github.com/taskforcesh/bullmq/issues/4613)
+
+## [2.3.1](https://github.com/taskforcesh/bullmq/compare/vex2.3.0...vex2.3.1) (2026-10-14)
+
+### Bug Fixes
+
+* **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) (python)(elixir)(php)(rust)(dotnet) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
+
+# [2.3.0](https://github.com/taskforcesh/bullmq/compare/vex2.2.3...vex2.3.0) (2026-10-08)
+
+### Features
+
+* **connection:** allow injecting redis username [elixir] ([#4854](https://github.com/taskforcesh/bullmq/issues/4854)) ([4bb572c](https://github.com/taskforcesh/bullmq/commit/4bb572c67018e60fd0c82dfb9754f075ea934da6))
+
+## [2.2.3](https://github.com/taskforcesh/bullmq/compare/vex2.2.2...vex2.2.3) (2026-09-18)
+
+### Bug Fixes
+
+* **deduplication:** remove deduplication key if job key does not longer exist (python) (elixir) (php) (rust) (dotnet) ([#4768](https://github.com/taskforcesh/bullmq/issues/4768)) ([75bb3a0](https://github.com/taskforcesh/bullmq/commit/75bb3a059ff214b419553822d41d3e8eaff7e888))
+
+## [2.2.2](https://github.com/taskforcesh/bullmq/compare/vex2.2.1...vex2.2.2) (2026-08-27)
+
+### Bug Fixes
+
+* **worker:** coerce worker name to string before backend calls [elixir] ([#4643](https://github.com/taskforcesh/bullmq/issues/4643)) ([61a7cc5](https://github.com/taskforcesh/bullmq/commit/61a7cc570a14c1164a74ca5fbf93547595f69820))
+
+## [2.2.1](https://github.com/taskforcesh/bullmq/compare/vex2.2.0...vex2.2.1) (2026-08-27)
+
+### Bug Fixes
+
+* **postgres:** resolve priv SQL dir at runtime for Mix releases ([#4636](https://github.com/taskforcesh/bullmq/issues/4636)) ([9d737e9](https://github.com/taskforcesh/bullmq/commit/9d737e9d0e467eeacf6f6a43f3f806fa2873ee1b))
+
+# [2.2.0](https://github.com/taskforcesh/bullmq/compare/vex2.1.3...vex2.2.0) (2026-08-26)
+
+### Features
+
+* **postgres:** forward :ssl option to Postgrex connection ([#4631](https://github.com/taskforcesh/bullmq/issues/4631)) (elixir) ([bb569b8](https://github.com/taskforcesh/bullmq/commit/bb569b824154028c4d76aba86c0cfb0986928f3d))
+
+## [2.1.3](https://github.com/taskforcesh/bullmq/compare/vex2.1.2...vex2.1.3) (2026-08-25)
+
+### Performance Improvements
+
+* **queue:** do not affect rate limit when processing deferred failures (python) (elixir) (rust) (dotnet) ([#4607](https://github.com/taskforcesh/bullmq/issues/4607)) ([ec4be04](https://github.com/taskforcesh/bullmq/commit/ec4be04c04725f5e341920ddef98adf7874a41d5))
+
+## [2.1.2](https://github.com/taskforcesh/bullmq/compare/vex2.1.1...vex2.1.2) (2026-08-15)
+
+### Bug Fixes
+
+* **queue-events:** ignore late queue event task replies during close ([#4572](https://github.com/taskforcesh/bullmq/issues/4572)) [elixir] ([d464a51](https://github.com/taskforcesh/bullmq/commit/d464a51781177cc7ec23b011355f1df54385dab0))
+
+## [2.1.1](https://github.com/taskforcesh/bullmq/compare/vex2.1.0...vex2.1.1) (2026-08-15)
+
+### Performance Improvements
+
+* check script existence before loading [rust] [elixir] ([#4563](https://github.com/taskforcesh/bullmq/issues/4563)) ([6df4589](https://github.com/taskforcesh/bullmq/commit/6df4589805aca2144eed9a9f24d4a9f52dcbbb7b))
+
+# [2.1.0](https://github.com/taskforcesh/bullmq/compare/vex2.0.3...vex2.1.0) (2026-08-12)
+
+### Features
+
+* **queue:** support getCountsPerPriority method [elixir] [dotnet] ([#4535](https://github.com/taskforcesh/bullmq/issues/4535)) ([2f5ea2c](https://github.com/taskforcesh/bullmq/commit/2f5ea2c1648e526b1a689b581a7952fb5ee13610))
+
+## [2.0.3](https://github.com/taskforcesh/bullmq/compare/vex2.0.2...vex2.0.3) (2026-08-02)
+
+### Bug Fixes
+
+* **worker:** fail jobs with deferred failure in task-based worker path [elixir] ([#4458](https://github.com/taskforcesh/bullmq/issues/4458)) ([740985a](https://github.com/taskforcesh/bullmq/commit/740985ae2f67a9144e7787f89955bf8c7f9500e0))
+
+## [2.0.2](https://github.com/taskforcesh/bullmq/compare/vex2.0.1...vex2.0.2) (2026-07-31)
+
+### Bug Fixes
+
+* **postgres:** drop redundant bullmq_ prefix from schema objects ([#4436](https://github.com/taskforcesh/bullmq/issues/4436)) (elixir) (python) (node) ([067a73f](https://github.com/taskforcesh/bullmq/commit/067a73f3666a493c36c03ec2cca8228ae149f043))
+
+## [2.0.1](https://github.com/taskforcesh/bullmq/compare/vex2.0.0...vex2.0.1) (2026-07-31)
+
+### Bug Fixes
+
+* add missing sql files to release packages (elixir) (python) ([#4413](https://github.com/taskforcesh/bullmq/issues/4413)) ([a138230](https://github.com/taskforcesh/bullmq/commit/a1382307c1d0b8b185e16443daad6f221067f55d))
+
+# [2.0.0](https://github.com/taskforcesh/bullmq/compare/vex1.3.7...vex2.0.0) (2026-07-30)
+
+### Features
+
+* release BullMQ v2 with pluggable queue backends (php) (python) (elixir) ([e1f86ef](https://github.com/taskforcesh/bullmq/commit/e1f86effc5bddda5b70d890866d9a490555e41ff))
+* Introduce the IQueueBackend abstraction, Redis and PostgreSQL backends, and the accompanying v2 updates across the supported language clients.
+
+### BREAKING CHANGES
+
+* High-level classes no longer expose Redis internals. The optional Connection constructor parameter is replaced by an optional BackendFactory. Queue#client, Queue#redisVersion, Queue#databaseType, Worker#blockingClient, and FlowProducer#client are removed. Access the raw Redis client through the RedisQueueBackend returned by getBackend(). Worker#waitUntilReady() now resolves to void instead of the Redis client.
+* The deprecated debounce option and Job#debounceId property are removed. Use deduplication and Job#deduplicationId instead.
+* The deprecated debounced event is removed. Listen for the deduplicated event instead.
+* Job#discard() is removed from the API. Use UnrecoverableError instead.
+* The legacy nextSchedulerJobId property is removed from Job and JobJson.
+* The paused job state is removed from JobType and from the default Queue#getJobCounts() result. Jobs in a paused queue are represented as waiting.
+* The public Redis implementation exports Scripts, createScripts, JobJsonRaw, and RedisJobOptions are removed. Use the backend APIs instead.

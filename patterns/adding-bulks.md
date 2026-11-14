@@ -1,0 +1,32 @@
+# Adding jobs in bulk across different queues
+
+Sometimes it is necessary to atomically add jobs to different queues in bulk. For example, there could be a requirement that all the jobs must be created or none of them. Also, adding jobs in bulk can be faster, since it reduces the number of roundtrips to Redis:
+
+You may be think of [`queue.addBulk`](https://docs.bullmq.io/api/classes/v6.Queue.html#addbulk), but this method only adds jobs to a single queue. Another option is [`flowProducer.addBulk`](https://docs.bullmq.io/api/classes/v6.FlowProducer.html#addbulk), so let's see an example:
+
+```typescript
+import { FlowProducer } from 'bullmq';
+
+const flow = new FlowProducer({ connection });
+
+const trees = await flow.addBulk([
+  {
+    name: 'job-1',
+    queueName: 'queueName-1',
+    data: {}
+  },
+  {
+    name: 'job-2',
+    queueName: 'queueName-2',
+    data: {}
+  },
+]);
+```
+
+It is possible to add individual jobs without children.
+
+This call can only succeed or fail, and all or none of the jobs will be added.
+
+## Read more:
+
+- 💡 [Add Bulk API Reference](https://docs.bullmq.io/api/classes/v6.FlowProducer.html#addbulk)

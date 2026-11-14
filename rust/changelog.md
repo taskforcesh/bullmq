@@ -1,0 +1,200 @@
+## [1.5.1](https://github.com/taskforcesh/bullmq/compare/vrs1.5.0...vrs1.5.1) (2026-11-12)
+
+### Bug Fixes
+
+* **flow:** remove deduplication key that is associated with parent job that is removed (python) (elixir) (php) (rust) (dotnet) ([#5078](https://github.com/taskforcesh/bullmq/issues/5078)) ([2353552](https://github.com/taskforcesh/bullmq/commit/2353552f1e9f55db2bdfa5bdcf604e2cead7972a))
+
+# [1.5.0](https://github.com/taskforcesh/bullmq/compare/vrs1.4.4...vrs1.5.0) (2026-11-04)
+
+### Features
+
+* **deduplication:** support schedule option (python) (elixir) (php) (rust) (dotnet) ([#5048](https://github.com/taskforcesh/bullmq/issues/5048)) ([31b151d](https://github.com/taskforcesh/bullmq/commit/31b151d3236183e3707f178a1b4c79b83f607bdf))
+
+## [1.4.4](https://github.com/taskforcesh/bullmq/compare/vrs1.4.3...vrs1.4.4) (2026-10-28)
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
+## [1.4.3](https://github.com/taskforcesh/bullmq/compare/vrs1.4.2...vrs1.4.3) (2026-10-23)
+
+### Bug Fixes
+
+* **deps:** allow compatible crate versions [rust] ([#4993](https://github.com/taskforcesh/bullmq/issues/4993)) ([8d2c99e](https://github.com/taskforcesh/bullmq/commit/8d2c99ea90a30f3453c7f34c933175a2fe6915d7))
+
+## [1.4.2](https://github.com/taskforcesh/bullmq/compare/vrs1.4.1...vrs1.4.2) (2026-10-20)
+
+### Performance Improvements
+
+* **deduplication:** use LPOS for keepLastIfActive membership check (python)(elixir)(php)(rust) ([#4956](https://github.com/taskforcesh/bullmq/issues/4956)) ([8796b66](https://github.com/taskforcesh/bullmq/commit/8796b66653baa58b8ecf261d7d7595cc8b72e020)), closes [#4613](https://github.com/taskforcesh/bullmq/issues/4613)
+
+## [1.4.1](https://github.com/taskforcesh/bullmq/compare/vrs1.4.0...vrs1.4.1) (2026-10-19)
+
+### Bug Fixes
+
+* **deps:** update security patches [rust] [security] ([#4942](https://github.com/taskforcesh/bullmq/issues/4942)) ([6a4dd90](https://github.com/taskforcesh/bullmq/commit/6a4dd90cae2bc62c7524f015bb56384e12173f1e))
+
+# [1.4.0](https://github.com/taskforcesh/bullmq/compare/vrs1.3.6...vrs1.4.0) (2026-10-17)
+
+### Bug Fixes
+
+* **deps:** update crate serde_json to v1.0.152 [rust] ([#4932](https://github.com/taskforcesh/bullmq/issues/4932)) ([03655d4](https://github.com/taskforcesh/bullmq/commit/03655d4b8aa77682df93dd70bd20c60c5769c894))
+* **deps:** update crate serde_json to v1.0.153 [rust] ([#4941](https://github.com/taskforcesh/bullmq/issues/4941)) ([84e3424](https://github.com/taskforcesh/bullmq/commit/84e3424779ba3ea3e064e5ee5aa47130ff0b2b27))
+
+### Features
+
+* **connection:** add Redis Cluster support [rust] ([#4946](https://github.com/taskforcesh/bullmq/issues/4946)) ([3a88748](https://github.com/taskforcesh/bullmq/commit/3a8874863bf6d524ff3170f056bcda0acea4a1cc))
+
+## [1.3.6](https://github.com/taskforcesh/bullmq/compare/vrs1.3.5...vrs1.3.6) (2026-10-14)
+
+### Bug Fixes
+
+* **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) (python)(elixir)(php)(rust)(dotnet) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
+
+## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vrs1.3.4...vrs1.3.5) (2026-10-08)
+
+### Bug Fixes
+
+* **deps:** update security patches [rust] [security] ([#4893](https://github.com/taskforcesh/bullmq/issues/4893)) ([0e07ef6](https://github.com/taskforcesh/bullmq/commit/0e07ef6cc1597b5bc080458d89a7333b4a5e9331))
+
+## [1.3.4](https://github.com/taskforcesh/bullmq/compare/vrs1.3.3...vrs1.3.4) (2026-10-04)
+
+### Bug Fixes
+
+* **connection:** use connection manager to recover from disconnections [rust] ([#4806](https://github.com/taskforcesh/bullmq/issues/4806)) fixes [#4742](https://github.com/taskforcesh/bullmq/issues/4742) ([16992c8](https://github.com/taskforcesh/bullmq/commit/16992c8ff1c02ce58b2be9aa41783bb0928a369e))
+
+## [1.3.3](https://github.com/taskforcesh/bullmq/compare/vrs1.3.2...vrs1.3.3) (2026-09-26)
+
+### Bug Fixes
+
+* **deps:** update crate redis to v1.7.1 [rust] ([#4827](https://github.com/taskforcesh/bullmq/issues/4827)) ([b0e0f7e](https://github.com/taskforcesh/bullmq/commit/b0e0f7eab706af91c77d6f53799d1366067ae309))
+
+## [1.3.2](https://github.com/taskforcesh/bullmq/compare/vrs1.3.1...vrs1.3.2) (2026-09-25)
+
+### Bug Fixes
+
+* **connection:** disable timeout option [rust] ([#4805](https://github.com/taskforcesh/bullmq/issues/4805)) fixes [#4743](https://github.com/taskforcesh/bullmq/issues/4743) ([604e627](https://github.com/taskforcesh/bullmq/commit/604e6272a1984917e6c598bfcf86d492474c6232))
+
+## [1.3.1](https://github.com/taskforcesh/bullmq/compare/vrs1.3.0...vrs1.3.1) (2026-09-24)
+
+### Bug Fixes
+
+* **deps:** update crate thiserror to v2.0.21 [rust] ([#4817](https://github.com/taskforcesh/bullmq/issues/4817)) ([58f8c4c](https://github.com/taskforcesh/bullmq/commit/58f8c4c41dfd8a842095c898665cc9da076a38c4))
+
+# [1.3.0](https://github.com/taskforcesh/bullmq/compare/vrs1.2.10...vrs1.3.0) (2026-09-22)
+
+### Features
+
+* **queue:** support get_dependencies method [rust] ([#4717](https://github.com/taskforcesh/bullmq/issues/4717)) ([64133c2](https://github.com/taskforcesh/bullmq/commit/64133c2d719eb6a992cd6247fb87328d52048ecd))
+
+## [1.2.10](https://github.com/taskforcesh/bullmq/compare/vrs1.2.9...vrs1.2.10) (2026-09-18)
+
+### Bug Fixes
+
+* **deduplication:** remove deduplication key if job key does not longer exist (python) (elixir) (php) (rust) (dotnet) ([#4768](https://github.com/taskforcesh/bullmq/issues/4768)) ([75bb3a0](https://github.com/taskforcesh/bullmq/commit/75bb3a059ff214b419553822d41d3e8eaff7e888))
+
+## [1.2.9](https://github.com/taskforcesh/bullmq/compare/vrs1.2.8...vrs1.2.9) (2026-09-10)
+
+### Bug Fixes
+
+* **deps:** update crate uuid to v1.26.1 [rust] ([#4712](https://github.com/taskforcesh/bullmq/issues/4712)) ([201747a](https://github.com/taskforcesh/bullmq/commit/201747a6e32a31a1ec83e6821f862e16442ac886))
+* **deps:** update rust crate redis to v1.7.0 [rust] ([#4690](https://github.com/taskforcesh/bullmq/issues/4690)) ([8bc6d02](https://github.com/taskforcesh/bullmq/commit/8bc6d02f857cde517204dcc289998902717f8ea9))
+
+## [1.2.8](https://github.com/taskforcesh/bullmq/compare/vrs1.2.7...vrs1.2.8) (2026-08-30)
+
+### Bug Fixes
+
+* **deps:** upgrade msgpackr to 2.1.0 and uuid to 1.26.0 (rust) ([#4621](https://github.com/taskforcesh/bullmq/issues/4621)) ([74987e9](https://github.com/taskforcesh/bullmq/commit/74987e914f22e7647662406861e2ad3101b883d4))
+
+## [1.2.7](https://github.com/taskforcesh/bullmq/compare/vrs1.2.6...vrs1.2.7) (2026-08-25)
+
+### Performance Improvements
+
+* **queue:** do not affect rate limit when processing deferred failures (python) (elixir) (rust) (dotnet) ([#4607](https://github.com/taskforcesh/bullmq/issues/4607)) ([ec4be04](https://github.com/taskforcesh/bullmq/commit/ec4be04c04725f5e341920ddef98adf7874a41d5))
+
+## [1.2.6](https://github.com/taskforcesh/bullmq/compare/vrs1.2.5...vrs1.2.6) (2026-08-23)
+
+### Bug Fixes
+
+* **deps:** update rust crate uuid to v1.25.0 [rust] ([#4610](https://github.com/taskforcesh/bullmq/issues/4610)) ([b875ca8](https://github.com/taskforcesh/bullmq/commit/b875ca8b36be10774253be0767b76cdf56f97e71))
+
+## [1.2.5](https://github.com/taskforcesh/bullmq/compare/vrs1.2.4...vrs1.2.5) (2026-08-15)
+
+### Performance Improvements
+
+* check script existence before loading [rust] [elixir] ([#4563](https://github.com/taskforcesh/bullmq/issues/4563)) ([6df4589](https://github.com/taskforcesh/bullmq/commit/6df4589805aca2144eed9a9f24d4a9f52dcbbb7b))
+
+## [1.2.4](https://github.com/taskforcesh/bullmq/compare/vrs1.2.3...vrs1.2.4) (2026-08-13)
+
+### Bug Fixes
+
+* **deps:** upgrade futures to v0.3.34 [rust] ([#4552](https://github.com/taskforcesh/bullmq/issues/4552)) ([beab7b5](https://github.com/taskforcesh/bullmq/commit/beab7b54fb0d441808f1549fc399482b320bfe43))
+
+## [1.2.3](https://github.com/taskforcesh/bullmq/compare/vrs1.2.2...vrs1.2.3) (2026-08-07)
+
+### Bug Fixes
+
+* **worker:** resolve worker delay in picking up new jobs [rust] fixes [#4512](https://github.com/taskforcesh/bullmq/issues/4512)  ([#4523](https://github.com/taskforcesh/bullmq/issues/4523)) ([94d3286](https://github.com/taskforcesh/bullmq/commit/94d32867f9b4f439cd1fc57f9f8c3543dd913e42))
+
+## [1.2.2](https://github.com/taskforcesh/bullmq/compare/vrs1.2.1...vrs1.2.2) (2026-08-01)
+
+### Bug Fixes
+
+* **deps:** update security patches [security] [rust] ([#4404](https://github.com/taskforcesh/bullmq/issues/4404)) ([956e2d4](https://github.com/taskforcesh/bullmq/commit/956e2d4b1cefd5b1e4da98d69013a2fa866e8d75))
+
+# [1.2.1](https://github.com/taskforcesh/bullmq/compare/vrs1.2.0...vrs1.2.1) (2026-07-30)
+
+### Bug Fixes
+
+* **deps:** pin dependencies [rust] ([#4402](https://github.com/taskforcesh/bullmq/issues/4402)) ([eb956b0](https://github.com/taskforcesh/bullmq/commit/eb956b07fde2ab3d43b41325a06a6b103610e3e3))
+* **deps:** update dependency redis [security] ([#4369](https://github.com/taskforcesh/bullmq/issues/4369)) ([2a120df](https://github.com/taskforcesh/bullmq/commit/2a120dfea7324d7af67ad505c78f48571c74402b))
+
+# [1.2.0](https://github.com/taskforcesh/bullmq/compare/vrs1.1.1...vrs1.2.0) (2026-07-25)
+
+### Features
+
+* **connection:** add support for Redis TLS certs option ([#4334](https://github.com/taskforcesh/bullmq/issues/4334)) fixes [#4333](https://github.com/taskforcesh/bullmq/issues/4333) [rust] ([4085792](https://github.com/taskforcesh/bullmq/commit/4085792106fd3d381ec7980a8ae3c65788dd2d70))
+
+# [1.1.0](https://github.com/taskforcesh/bullmq/compare/vrs1.0.1...vrs1.1.0) (2026-07-15)
+
+### Features
+
+* idiomatic builder-based ergonomics across the public API [rust] ([#4288](https://github.com/taskforcesh/bullmq/issues/4288)) ([bbf0844](https://github.com/taskforcesh/bullmq/commit/bbf0844a250d08d6bfafacb43360f26a57cb9c87))
+
+## [1.0.1](https://github.com/taskforcesh/bullmq/compare/vrs1.0.0...vrs1.0.1) (2026-07-14)
+
+### Performance Improvements
+
+* **worker:** do fetch next job in same finished roundtrip [rust] ([#4277](https://github.com/taskforcesh/bullmq/issues/4277)) ([677e259](https://github.com/taskforcesh/bullmq/commit/677e2590a04040ea21a0107d6bdcf5a33cf6b5e9))
+
+# 1.0.0 (2026-07-12)
+
+### Features
+
+* add job schedulers and release Lua script sync [rust] ([#4207](https://github.com/taskforcesh/bullmq/issues/4207)) ([cb6b801](https://github.com/taskforcesh/bullmq/commit/cb6b801515daac083150bd4d9cb497479997fecd))
+* add QueueEvents, queue/worker getters, and missing options [rust] ([#4229](https://github.com/taskforcesh/bullmq/issues/4229)) ([60ae049](https://github.com/taskforcesh/bullmq/commit/60ae0492a3200f8496976a3b51609e7e54eafd1b))
+* expand Queue/Job/Worker API parity with Node.js BullMQ [rust] ([#4219](https://github.com/taskforcesh/bullmq/issues/4219)) ([eb9ae1d](https://github.com/taskforcesh/bullmq/commit/eb9ae1de0ea7468be66cb2c77921b8bb76e86abb))
+* initial implementation of rust support ([#4200](https://github.com/taskforcesh/bullmq/issues/4200)) ([38798cc](https://github.com/taskforcesh/bullmq/commit/38798cc212e450f6369da3714c20eeced5a523a9))
+* **queue:** add, addBulk, pause, resume, drain, obliterate, clean, retryJobs, promoteJobs
+* **worker:** concurrent processing, stalled job detection, lock renewal, pause/resume
+* **job:** progress tracking, logging, retry, state queries, manual move operations
+* **backoff strategies:** fixed, exponential, custom (async callback)
+* dynamic concurrency control
+* cancellationToken for cooperative job cancellation
+* full compatibility with Node.js/Python BullMQ queues (same Lua scripts)
+* **queue:** rate_limit, set_global_rate_limit, remove_global_rate_limit
+* **queue:** set_global_concurrency, remove_global_concurrency
+* **queue:** upsert_job_scheduler, get_job_scheduler(s), remove_job_scheduler
+* job deduplication support and remove_deduplication_key
+* worker handling for RateLimited/NextTimestamp fetch results
+* **scheduler:** cron scheduler support via croner and chrono-tz
+* **flow producer:** add, add_bulk, add_with_opts (per-queue default job options), get_flow
+* **flows:** failParentOnFailure, removeDependencyOnFailure, ignoreDependencyOnFailure, continueParentOnFailure
+* **queue getters:** get_jobs, get_ranges, get_waiting/active/delayed/completed/failed/prioritized/waiting_children
+* **queue counts:** count, get_job_counts_by_types, get_job_count_by_types, get_counts_per_priority, per-state count getters
+* **Queue:** get_rate_limit_ttl, get_global_concurrency, get_global_rate_limit, get_deduplication_job_id
+* **queue:** get_metrics (time-series), get_dependencies_count, get_children_values
+* **job:** clear_logs, discard, is_waiting_children, get_ignored_children_failures, get_dependencies, move_to_waiting_children
+* **worker:** metrics option (time-series collection), rate limiting
+* **connections:** typed options (host/port/username/password/db) and TLS (`rediss://`) support
