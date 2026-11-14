@@ -406,9 +406,19 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   /**
    * Interrupts the in-flight blocking wait by disconnecting the dedicated
    * blocking connection. No-op if there is none.
+   *
+   * When `opts.closing` is set, the blocking-cluster re-dial is disabled before
+   * the cut, so an in-flight `bzpopmin` failing on the emptied node pool cannot
+   * reconnect the client that is being closed (see #4912).
    */
-  async disconnectBlocking(wait = true): Promise<void> {
+  async disconnectBlocking(
+    wait = true,
+    opts: { closing?: boolean } = {},
+  ): Promise<void> {
     if (this.blockingConnection) {
+      if (opts.closing) {
+        this.blockingConnection.disableBlockingClusterReconnect();
+      }
       await this.blockingConnection.disconnect(wait);
     }
   }
