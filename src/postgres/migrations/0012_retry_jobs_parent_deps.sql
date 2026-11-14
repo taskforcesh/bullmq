@@ -175,3 +175,70 @@ BEGIN
   RETURN v_moved;
 END;
 $$;
+
+-- remove_child_dependency deleted the dependency row and updated the child
+-- before pg_advisory_xact_lock on the parent. retry_jobs takes that parent
+-- lock (after the child's own bullmq:parent key) before it updates the child
+-- row, so the two orders deadlock: removal holds the child row and waits for
+-- the parent lock, retry holds the parent lock and waits for the child row.
+--
+-- move_to_failed takes the child's own key, then the child row, then the
+-- parent key inside handle_child_failure. Locking only the parent key before
+-- the child row would deadlock with that path. Take the child's own key, then
+-- the parent key, and only then change dependency or job rows — the same
+-- order retry_jobs uses.
+
+CREATE OR REPLACE FUNCTION remove_child_dependency(
+  p_queue text, p_id text, p_parent_key text, p_now bigint
+) RETURNS integer
+LANGUAGE plpgsql
+SET search_path FROM CURRENT
+AS $$
+DECLARE
+  v_pq        text;
+  v_pid       text;
+  v_deleted   integer;
+  v_remaining integer;
+BEGIN
+  SELECT parent_queue, parent_id INTO v_pq, v_pid
+    FROM job WHERE queue = p_queue AND id = p_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'bullmq: missing job %', p_id
+      USING ERRCODE = 'BM001', DETAIL = '-1';
+  END IF;
+  IF v_pq IS NULL OR v_pid IS NULL THEN
+    RETURN 1; -- no relationship
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM job WHERE queue = v_pq AND id = v_pid
+  ) THEN
+    RAISE EXCEPTION 'bullmq: missing parent %', p_parent_key
+      USING ERRCODE = 'BM001', DETAIL = '-5';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(
+    hashtext('bullmq:parent:' || p_queue || ':' || p_id));
+  PERFORM pg_advisory_xact_lock(
+    hashtext('bullmq:parent:' || v_pq || ':' || v_pid));
+
+  DELETE FROM job_dependency
+   WHERE parent_queue = v_pq AND parent_id = v_pid
+     AND child_key = p_queue || ':' || p_id;
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+  IF v_deleted = 0 THEN
+    RETURN 1;
+  END IF;
+
+  -- Detach the child and release the parent if it has no more pending deps.
+  UPDATE job
+     SET parent_queue = NULL, parent_id = NULL, parent_key = NULL
+   WHERE queue = p_queue AND id = p_id;
+  UPDATE job SET pending_deps = GREATEST(pending_deps - 1, 0)
+   WHERE queue = v_pq AND id = v_pid
+  RETURNING pending_deps INTO v_remaining;
+  IF v_remaining = 0 THEN
+    PERFORM move_parent_to_wait(v_pq, v_pid, p_now);
+  END IF;
+  RETURN 0;
+END;
+$$;

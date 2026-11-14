@@ -278,6 +278,15 @@ describe('PostgreSQL retryJobs flow dependencies', () => {
     return (rows[0].blockers ?? []).map(Number);
   }
 
+  async function tupleLocks(pid: number): Promise<number> {
+    const { rows } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_locks
+        WHERE pid = $1 AND locktype = 'tuple'`,
+      [pid],
+    );
+    return rows[0].n;
+  }
+
   it('does not deadlock when retried parents are children on the other queue', async () => {
     const q1 = `cross-a-${randomUUID()}`;
     const q2 = `cross-b-${randomUUID()}`;
@@ -624,6 +633,178 @@ describe('PostgreSQL retryJobs flow dependencies', () => {
       blocker.release();
       fail.release();
       retry.release();
+    }
+  });
+
+  it('does not deadlock when remove_child_dependency runs during retry_jobs', async () => {
+    const queue = `rmdep-${randomUUID()}`;
+    const blocker = await pool.connect();
+    const retry = await pool.connect();
+    const removal = await pool.connect();
+    let retrying: Promise<{ error?: Error; n?: number }> | undefined;
+    let removing: Promise<{ error?: Error; n?: number }> | undefined;
+    try {
+      await withSchema(blocker);
+      await withSchema(retry);
+      await withSchema(removal);
+      // S is a completed child of G, so retry locks G after P. Hold G and
+      // retry waits there already holding P, before it updates any row.
+      // remove_child_dependency used to update C's row before that parent
+      // lock. Releasing G then deadlocks: retry waits for the child row,
+      // removal waits for the parent advisory lock.
+      await blocker.query(
+        `INSERT INTO job (
+           queue, id, seq, name, state, data, opts, added_at_ms,
+           finished_at_ms, pending_deps, parent_queue, parent_id
+         ) VALUES
+           ($1, 'G', 1, 'g', 'waiting-children', '{}', '{}', 1, NULL, 1, NULL, NULL),
+           ($1, 'P', 2, 'p', 'active', '{}', '{}', 1, NULL, 0, $1, 'G'),
+           ($1, 'C', 3, 'c', 'completed', '{}', '{}', 1, 20, 0, $1, 'P'),
+           ($1, 'S', 4, 's', 'completed', '{}', '{}', 1, 21, 0, $1, 'G')`,
+        [queue],
+      );
+      await blocker.query(
+        `INSERT INTO job_dependency (
+           parent_queue, parent_id, child_queue, child_id, child_key, status
+         ) VALUES
+           ($1, 'G', $1, 'P', $1 || ':P', 'pending'),
+           ($1, 'G', $1, 'S', $1 || ':S', 'processed'),
+           ($1, 'P', $1, 'C', $1 || ':C', 'processed')`,
+        [queue],
+      );
+
+      const blockerPid = (
+        await blocker.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+      ).rows[0].pid;
+      const retryPid = (
+        await retry.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+      ).rows[0].pid;
+      const removePid = (
+        await removal.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+      ).rows[0].pid;
+
+      await blocker.query('BEGIN');
+      await blocker.query(
+        `SELECT pg_advisory_xact_lock(hashtext('bullmq:parent:' || $1 || ':G'))`,
+        [queue],
+      );
+
+      let retrySettled: { error?: Error; n?: number } | undefined;
+      retrying = retry
+        .query(`SELECT retry_jobs($1, 'completed', NULL, NULL) AS n`, [queue])
+        .then(
+          result => {
+            retrySettled = { n: Number(result.rows[0].n) };
+            return retrySettled;
+          },
+          (error: Error) => {
+            retrySettled = { error };
+            return retrySettled;
+          },
+        );
+      await vi.waitFor(async () => {
+        if (retrySettled?.error) {
+          throw retrySettled.error;
+        }
+        if (retrySettled) {
+          throw new Error(
+            'retry_jobs finished without waiting for the grandparent',
+          );
+        }
+        expect(await advisoryGranted(retryPid, queue, 'P')).toBe(true);
+        expect(await advisoryWaitingOn(retryPid, queue, 'G')).toBe(true);
+        expect(await blockingPids(retryPid)).toContain(blockerPid);
+        expect(await tupleLocks(retryPid)).toBe(0);
+      });
+
+      let removeSettled: { error?: Error; n?: number } | undefined;
+      removing = removal
+        .query(
+          `SELECT remove_child_dependency($1, 'C', $1 || ':P', 100) AS n`,
+          [queue],
+        )
+        .then(
+          result => {
+            removeSettled = { n: Number(result.rows[0].n) };
+            return removeSettled;
+          },
+          (error: Error) => {
+            removeSettled = { error };
+            return removeSettled;
+          },
+        );
+      await vi.waitFor(async () => {
+        if (removeSettled?.error) {
+          throw removeSettled.error;
+        }
+        if (removeSettled) {
+          throw new Error(
+            'remove_child_dependency finished without waiting for retry_jobs',
+          );
+        }
+        // Removal is waiting on retry. Granted row locks are not listed in
+        // pg_locks, so the deadlock after the grandparent is released is what
+        // shows that removal locked the child row first.
+        expect(await blockingPids(removePid)).toContain(retryPid);
+        expect(await tupleLocks(retryPid)).toBe(0);
+      });
+
+      await blocker.query('COMMIT');
+      const retried = await retrying;
+      const removed = await removing;
+      if (retried.error) {
+        throw retried.error;
+      }
+      if (removed.error) {
+        throw removed.error;
+      }
+      expect(retried.n).toBe(2);
+      expect(removed.n).toBe(0);
+
+      const { rows } = await blocker.query<{
+        id: string;
+        state: string;
+        pending_deps: number;
+        parent_id: string | null;
+      }>(
+        `SELECT id, state, pending_deps::int AS pending_deps, parent_id
+           FROM job WHERE queue = $1 ORDER BY id`,
+        [queue],
+      );
+      expect(rows).toEqual([
+        { id: 'C', state: 'waiting', pending_deps: 0, parent_id: null },
+        {
+          id: 'G',
+          state: 'waiting-children',
+          pending_deps: 2,
+          parent_id: null,
+        },
+        { id: 'P', state: 'active', pending_deps: 0, parent_id: 'G' },
+        { id: 'S', state: 'waiting', pending_deps: 0, parent_id: 'G' },
+      ]);
+
+      const { rows: deps } = await blocker.query<{
+        parent_id: string;
+        child_id: string;
+        status: string;
+      }>(
+        `SELECT parent_id, child_id, status::text AS status
+           FROM job_dependency
+          WHERE parent_queue = $1
+          ORDER BY parent_id, child_id`,
+        [queue],
+      );
+      expect(deps).toEqual([
+        { parent_id: 'G', child_id: 'P', status: 'pending' },
+        { parent_id: 'G', child_id: 'S', status: 'pending' },
+      ]);
+    } finally {
+      await blocker.query('ROLLBACK');
+      await retrying;
+      await removing;
+      blocker.release();
+      retry.release();
+      removal.release();
     }
   });
 
