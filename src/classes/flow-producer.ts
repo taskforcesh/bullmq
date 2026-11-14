@@ -367,7 +367,10 @@ export class FlowProducer<
           }
 
           const [err, jobId] = result;
-          if (!err && typeof jobId === 'string') {
+          if (err) {
+            throw err;
+          }
+          if (typeof jobId === 'string') {
             jobsTrees[index].job.id = jobId;
           }
         }
