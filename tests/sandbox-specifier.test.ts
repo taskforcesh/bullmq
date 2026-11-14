@@ -3,9 +3,11 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { toSandboxImportSpecifier } from '../src/classes/sandbox-specifier';
 
+const onWindows = process.platform === 'win32';
+
 describe('toSandboxImportSpecifier', () => {
   describe('absolute filesystem paths', () => {
-    it('converts a Windows drive path to a file URL', () => {
+    it.runIf(onWindows)('converts a Windows drive path to a file URL', () => {
       expect(toSandboxImportSpecifier('D:\\proj\\worker.js')).toBe(
         'file:///D:/proj/worker.js',
       );
@@ -17,31 +19,52 @@ describe('toSandboxImportSpecifier', () => {
       );
     });
 
-    it('encodes characters the way pathToFileURL does on Windows', () => {
-      expect(toSandboxImportSpecifier('C:\\foo bar\\baz.js')).toBe(
-        'file:///C:/foo%20bar/baz.js',
-      );
-      expect(toSandboxImportSpecifier('C:\\foo#bar\\baz.js')).toBe(
-        'file:///C:/foo%23bar/baz.js',
-      );
-      expect(toSandboxImportSpecifier('C:\\foo%20bar\\baz.js')).toBe(
-        'file:///C:/foo%2520bar/baz.js',
-      );
-    });
+    it.runIf(onWindows)(
+      'encodes characters the way pathToFileURL does on Windows',
+      () => {
+        expect(toSandboxImportSpecifier('C:\\foo bar\\baz.js')).toBe(
+          'file:///C:/foo%20bar/baz.js',
+        );
+        expect(toSandboxImportSpecifier('C:\\foo#bar\\baz.js')).toBe(
+          'file:///C:/foo%23bar/baz.js',
+        );
+        expect(toSandboxImportSpecifier('C:\\foo%20bar\\baz.js')).toBe(
+          'file:///C:/foo%2520bar/baz.js',
+        );
+      },
+    );
 
-    it('converts a UNC path to a file URL', () => {
+    it.runIf(onWindows)('converts a UNC path to a file URL', () => {
       expect(toSandboxImportSpecifier('\\\\server\\share\\worker.js')).toBe(
         'file://server/share/worker.js',
       );
     });
 
-    it('converts a POSIX absolute path with pathToFileURL', () => {
+    it.skipIf(onWindows)(
+      'leaves Windows drive and UNC paths unchanged off Windows',
+      () => {
+        expect(toSandboxImportSpecifier('D:\\proj\\worker.js')).toBe(
+          'D:\\proj\\worker.js',
+        );
+        expect(toSandboxImportSpecifier('D:/proj/worker.js')).toBe(
+          'D:/proj/worker.js',
+        );
+        expect(toSandboxImportSpecifier('d:\\proj\\worker.js')).toBe(
+          'd:\\proj\\worker.js',
+        );
+        expect(toSandboxImportSpecifier('\\\\server\\share\\worker.js')).toBe(
+          '\\\\server\\share\\worker.js',
+        );
+      },
+    );
+
+    it('converts an absolute path with pathToFileURL', () => {
       const processorFile = path.resolve(
         __dirname,
         'fixtures/fixture_processor_simple.js',
       );
 
-      expect(path.posix.isAbsolute(processorFile)).toBe(true);
+      expect(path.isAbsolute(processorFile)).toBe(true);
       expect(toSandboxImportSpecifier(processorFile)).toBe(
         pathToFileURL(processorFile).href,
       );
