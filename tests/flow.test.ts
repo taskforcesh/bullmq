@@ -7,6 +7,7 @@ import {
   afterAll,
   it,
   expect,
+  vi,
 } from 'vitest';
 
 import { randomUUID } from '../src/utils';
@@ -6753,6 +6754,27 @@ describe('flows', () => {
       expect(validJob).toBeDefined();
       expect(invalidJob).toBeUndefined();
 
+      await flow.close();
+    });
+
+    it('should throw instead of silently swallowing a pipeline error from addBulk', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      await flow.waitUntilReady();
+
+      const pipelineError = new Error('READONLY You can\'t write against a read only replica.');
+      vi.spyOn(flow.getBackend(), 'addFlow').mockResolvedValueOnce([
+        [pipelineError, 0],
+        [pipelineError, 0],
+      ]);
+
+      await expect(
+        flow.addBulk([
+          { name: 'job-a', data: {}, queueName },
+          { name: 'job-b', data: {}, queueName },
+        ]),
+      ).rejects.toThrow('READONLY');
+
+      vi.restoreAllMocks();
       await flow.close();
     });
   });
