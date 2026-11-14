@@ -7,4 +7,5 @@ export type RepeatableOptions = {
   pattern?: string;
   every?: number;
   offset?: number;
+  count?: number;
 };

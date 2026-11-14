@@ -258,6 +258,7 @@ export class JobScheduler<
                 every,
                 limit,
                 offset: newOffset,
+                count: repeatOpts.count,
               },
               mergedOpts,
               producerId,

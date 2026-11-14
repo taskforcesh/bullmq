@@ -3463,6 +3463,27 @@ describe('Job Scheduler', () => {
     await worker.close();
   });
 
+  it('should seed the iteration count when count is provided', async () => {
+    await queue.upsertJobScheduler('test', { every: 1000, count: 100 });
+    const scheduler = await queue.getJobScheduler('test');
+    expect(scheduler!.iterationCount).toBe(101);
+  });
+
+  it('should seed the iteration count after removing the scheduler', async () => {
+    await queue.upsertJobScheduler('test', { every: 1000, count: 100 });
+    await queue.removeJobScheduler('test');
+    await queue.upsertJobScheduler('test', { every: 1000, count: 300 });
+    const scheduler = await queue.getJobScheduler('test');
+    expect(scheduler!.iterationCount).toBe(301);
+  });
+
+  it('should not reset the iteration count when re-upserting', async () => {
+    await queue.upsertJobScheduler('test', { every: 1000, count: 100 });
+    await queue.upsertJobScheduler('test', { every: 1000, count: 100 });
+    const scheduler = await queue.getJobScheduler('test');
+    expect(scheduler!.iterationCount).toBe(101);
+  });
+
   it('should schedule next "every" repeatable job after promote', async function () {
     const date = new Date('2017-02-07 9:24:00');
     clock.setSystemTime(date);
