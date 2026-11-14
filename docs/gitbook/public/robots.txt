@@ -1,0 +1,11 @@
+# robots.txt for docs.bullmq.io
+
+# For AI assistants and agents (https://llmstxt.org):
+# https://docs.bullmq.io/llms.txt
+# https://docs.bullmq.io/llms-full.txt
+# Every page is also available as Markdown by appending .md to its URL.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://docs.bullmq.io/sitemap.xml

@@ -4,7 +4,7 @@ Job producers add jobs to queues. Producers are typically application services (
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { QueuePro } from 'taskforcesh/bullmq-pro';
+import { QueuePro } from '@taskforcesh/bullmq-pro';
 import { InjectQueue } from '@taskforcesh/nestjs-bullmq-pro';
 
 @Injectable()
@@ -31,7 +31,7 @@ To add flows, first inject the flow producer into the service as follows:
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { FlowProducerPro } from 'taskforcesh/bullmq-pro';
+import { FlowProducerPro } from '@taskforcesh/bullmq-pro';
 import { InjectFlowProducer } from '@taskforcesh/nestjs-bullmq-pro';
 
 @Injectable()
