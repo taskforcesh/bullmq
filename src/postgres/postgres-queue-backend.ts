@@ -1332,6 +1332,22 @@ export class PostgresQueueBackend
     return rows[0].n;
   }
 
+  async removeJobs(
+    jobIds: string[],
+    removeChildren: boolean,
+  ): Promise<string[]> {
+    if (jobIds.length === 0) {
+      return [];
+    }
+
+    const { rows } = await this.run<{ id: string }>('remove_jobs', [
+      this.queueName,
+      jobIds,
+      removeChildren,
+    ]);
+    return rows.map(row => row.id);
+  }
+
   async removeUnprocessedChildren(jobId: string): Promise<void> {
     await this.run('remove_unprocessed_children', [this.queueName, jobId]);
   }

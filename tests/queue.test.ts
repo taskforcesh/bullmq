@@ -91,6 +91,151 @@ describe('queues', () => {
     });
   });
 
+  describe('when removing multiple jobs', () => {
+    it('removes all the given jobs and returns their ids', async () => {
+      const jobs = await queue.addBulk([
+        { name: 'a', data: { n: 1 } },
+        { name: 'b', data: { n: 2 } },
+        { name: 'c', data: { n: 3 } },
+      ]);
+
+      const removed = await queue.removeJobs([jobs[0].id!, jobs[2].id!]);
+
+      expect(removed).toEqual([jobs[0].id, jobs[2].id]);
+      expect(await queue.getJob(jobs[0].id!)).toBeUndefined();
+      expect(await queue.getJob(jobs[1].id!)).toBeDefined();
+      expect(await queue.getJob(jobs[2].id!)).toBeUndefined();
+      expect(await queue.getWaitingCount()).toBe(1);
+    });
+
+    it('removes jobs in any state', async () => {
+      const waiting = await queue.add('waiting', {});
+      const delayed = await queue.add('delayed', {}, { delay: 60000 });
+      const prioritized = await queue.add('prioritized', {}, { priority: 2 });
+
+      const removed = await queue.removeJobs([
+        waiting.id!,
+        delayed.id!,
+        prioritized.id!,
+      ]);
+
+      expect(removed).toEqual([waiting.id, delayed.id, prioritized.id]);
+      expect(
+        await queue.getJobCounts('waiting', 'delayed', 'prioritized'),
+      ).toEqual({ waiting: 0, delayed: 0, prioritized: 0 });
+    });
+
+    it('ignores ids that do not exist and duplicated ids', async () => {
+      const job = await queue.add('a', {});
+
+      const removed = await queue.removeJobs(['missing', job.id!, job.id!]);
+
+      expect(removed).toEqual([job.id]);
+    });
+
+    it('returns an empty list when no ids are given', async () => {
+      await queue.add('a', {});
+
+      expect(await queue.removeJobs([])).toEqual([]);
+      expect(await queue.getWaitingCount()).toBe(1);
+    });
+
+    it('emits a removed event for every removed job', async () => {
+      const jobs = await queue.addBulk([
+        { name: 'a', data: {} },
+        { name: 'b', data: {} },
+      ]);
+      const events: string[] = [];
+      queue.on('removed', (jobId: string) => events.push(jobId));
+
+      await queue.removeJobs([jobs[0].id!, jobs[1].id!, 'missing']);
+
+      expect(events).toEqual([jobs[0].id, jobs[1].id]);
+    });
+
+    it('skips locked jobs without aborting the rest', async () => {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await processing;
+        },
+        { connection, prefix },
+      );
+      let release!: () => void;
+      const processing = new Promise<void>(resolve => (release = resolve));
+      const started = new Promise<void>(resolve =>
+        worker.on('active', () => resolve()),
+      );
+
+      try {
+        const active = await queue.add('active', {});
+        await started;
+        const waiting = await queue.add('waiting', {});
+
+        const removed = await queue.removeJobs([active.id!, waiting.id!]);
+
+        expect(removed).toEqual([waiting.id]);
+        expect(await queue.getJob(active.id!)).toBeDefined();
+        expect(await queue.getJob(waiting.id!)).toBeUndefined();
+      } finally {
+        release();
+        await worker.close();
+      }
+    });
+
+    it('skips the current iteration of a job scheduler', async () => {
+      await queue.upsertJobScheduler('scheduler', { every: 60000 });
+      const [schedulerJob] = await queue.getJobs(['waiting', 'delayed']);
+      const job = await queue.add('a', {});
+
+      const removed = await queue.removeJobs([schedulerJob.id!, job.id!]);
+
+      expect(removed).toEqual([job.id]);
+      expect(await queue.getJob(schedulerJob.id!)).toBeDefined();
+    });
+
+    describe('when jobs have children', () => {
+      let flowProducer: FlowProducer;
+
+      beforeEach(async () => {
+        flowProducer = new FlowProducer({ connection, prefix });
+      });
+
+      afterEach(async () => {
+        await flowProducer.close();
+      });
+
+      it('removes the children by default', async () => {
+        const { job: parent, children } = await flowProducer.add({
+          name: 'parent',
+          queueName,
+          children: [{ name: 'child', queueName, data: {} }],
+        });
+
+        const removed = await queue.removeJobs([parent.id!]);
+
+        expect(removed).toEqual([parent.id]);
+        expect(await queue.getJob(children![0].job.id!)).toBeUndefined();
+      });
+
+      it('keeps the children when removeChildren is false', async () => {
+        const { job: parent, children } = await flowProducer.add({
+          name: 'parent',
+          queueName,
+          children: [{ name: 'child', queueName, data: {} }],
+        });
+
+        const removed = await queue.removeJobs([parent.id!], {
+          removeChildren: false,
+        });
+
+        expect(removed).toEqual([parent.id]);
+        expect(await queue.getJob(parent.id!)).toBeUndefined();
+        expect(await queue.getJob(children![0].job.id!)).toBeDefined();
+      });
+    });
+  });
+
   it('should return the queue version', async () => {
     const queue = new Queue(queueName, { connection });
     const version = await queue.getVersion();

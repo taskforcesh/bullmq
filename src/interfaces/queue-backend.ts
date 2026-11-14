@@ -489,6 +489,13 @@ export interface IQueueBackend {
   remove(jobId: string, removeChildren: boolean): Promise<number>;
 
   /**
+   * Atomically removes several jobs (and optionally their children). Jobs that
+   * do not exist, are locked or belong to a job scheduler are skipped.
+   * @returns The ids of the jobs that were removed.
+   */
+  removeJobs(jobIds: string[], removeChildren: boolean): Promise<string[]>;
+
+  /**
    * Removes all unprocessed children of a job.
    */
   removeUnprocessedChildren(jobId: string): Promise<void>;
