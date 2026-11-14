@@ -1329,6 +1329,37 @@ describe('workers', () => {
       }
     });
 
+    it('keeps the blocking connection when a busy event loop delays reading the reply', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      const reconnectBlocking = sandbox.spy(backend, 'reconnectBlocking');
+
+      // BZPOPMIN answers after 0.5s and the watchdog is due at 1.5s, but the
+      // loop is stuck in an I/O callback until 2.5s. Node then runs due timers
+      // before it reads sockets, so the watchdog fires with the reply unread.
+      const other = createTestConnection();
+      const wait = backend.waitForJob(0.5);
+      await other.get('unused');
+      const start = Date.now();
+      while (Date.now() - start < 2500) {
+        // block the event loop
+      }
+
+      try {
+        expect(await wait).toBe(null);
+        expect(reconnectBlocking.called).toBe(false);
+      } finally {
+        await worker.close();
+        await other.quit();
+      }
+    });
+
     it('does not disconnect a reconnecting blocking client (#4585)', async () => {
       const worker = new Worker(queueName, NoopProc, {
         autorun: false,
