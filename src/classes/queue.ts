@@ -491,7 +491,8 @@ export class Queue<
       NameType
     >(
       jobSchedulerId,
-      repeatOpts,
+      // The iteration count is managed internally by the worker
+      { ...repeatOpts, count: undefined },
       jobTemplate?.name ?? jobSchedulerId,
       jobTemplate?.data ?? <DataType>{},
       { ...this.jobsOpts, ...jobTemplate?.opts },

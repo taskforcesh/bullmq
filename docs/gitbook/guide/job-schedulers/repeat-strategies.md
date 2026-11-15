@@ -425,14 +425,20 @@ let worker = Worker::with_options(
 
 It is possible to define a different strategy to schedule repeatable jobs. The idea is that the repeat strategy, based on a pattern and the latest job's milliseconds, return the next desired timestamp. Although not used in the following example, you could have different behaviours on your repeat strategies based on the current job's name if you want to. However note that **only** **one** repeatStrategy can be defined for a given queue.
 
+The strategy receives the scheduler's repeat options, which also include a read-only `count` with the number of iterations already produced. It is managed internally and is only defined when the worker picks up a job to schedule the next iteration, before that job's processor runs; it cannot be set through `upsertJobScheduler`.
+
 For example we can create a custom one for [RRULE](https://jkbrzt.github.io/rrule/) like this:
 
 ```typescript
-import { Queue, Worker } from 'bullmq';
+import { JobSchedulerRepeatOptions, Queue, Worker } from 'bullmq';
 import { rrulestr } from 'rrule';
 
 const settings = {
-  repeatStrategy: (millis: number, opts: RepeatOptions, _jobName: string) => {
+  repeatStrategy: (
+    millis: number,
+    opts: JobSchedulerRepeatOptions,
+    _jobName: string,
+  ) => {
     const currentDate =
       opts.startDate && new Date(opts.startDate) > new Date(millis)
         ? new Date(opts.startDate)

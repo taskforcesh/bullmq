@@ -563,52 +563,57 @@ describe('workers', () => {
   // (they spy on the blocking client's `bzpopmin`) and live in
   // `worker.redis.test.ts`.
 
-  it('does not process a job that is being processed when a new queue starts', async () => {
-    // TODO: Move timeout to test options: { timeout: 12000 }
-    let err;
+  it(
+    'does not process a job that is being processed when a new queue starts',
+    { timeout: 12000 },
+    async () => {
+      let err;
 
-    const worker = new Worker(
-      queueName,
-      async job => {
-        expect(job.data.foo).toBe('bar');
+      const worker = new Worker(
+        queueName,
+        async job => {
+          expect(job.data.foo).toBe('bar');
 
-        if (addedJob.id !== job.id) {
-          err = new Error('Processed job id does not match that of added job');
-        }
-        await delay(500);
-      },
-      { connection, prefix },
-    );
+          if (addedJob.id !== job.id) {
+            err = new Error(
+              'Processed job id does not match that of added job',
+            );
+          }
+          await delay(500);
+        },
+        { connection, prefix },
+      );
 
-    await worker.waitUntilReady();
+      await worker.waitUntilReady();
 
-    const addedJob = await queue.add('test', { foo: 'bar' });
+      const addedJob = await queue.add('test', { foo: 'bar' });
 
-    const anotherWorker = new Worker(
-      queueName,
-      async () => {
-        err = new Error(
-          'The second queue should not have received a job to process',
-        );
-      },
-      { connection, prefix },
-    );
+      const anotherWorker = new Worker(
+        queueName,
+        async () => {
+          err = new Error(
+            'The second queue should not have received a job to process',
+          );
+        },
+        { connection, prefix },
+      );
 
-    await anotherWorker.waitUntilReady();
+      await anotherWorker.waitUntilReady();
 
-    await new Promise<void>(resolve => {
-      worker.on('completed', async () => {
-        resolve();
+      await new Promise<void>(resolve => {
+        worker.on('completed', async () => {
+          resolve();
+        });
       });
-    });
 
-    await worker.close();
-    await anotherWorker.close();
+      await worker.close();
+      await anotherWorker.close();
 
-    if (err) {
-      throw err;
-    }
-  });
+      if (err) {
+        throw err;
+      }
+    },
+  );
 
   it('process a job that throws an exception', async () => {
     const jobError = new Error('Job Failed');

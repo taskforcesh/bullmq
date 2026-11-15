@@ -1,3 +1,10 @@
+## [7.50.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.50.0...v7.50.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **flow:** pass right base prefix reference when removing parent dependency ([#561](https://github.com/taskforcesh/bullmq-pro/issues/561)) ([54b45cf](https://github.com/taskforcesh/bullmq-pro/commit/54b45cfa946e5d7cfc62286f371924f267c8a4ac))
+
 # [7.50.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.49.0...v7.50.0) (2026-10-27)
 
 

@@ -13,11 +13,11 @@ import {
 import * as sinon from 'sinon';
 import { rrulestr } from 'rrule';
 import { Job, Queue, QueueEvents, getNextMillis, Worker } from '../src/classes';
-import { JobsOptions, JobSchedulerJobOptions } from '../src/types';
+import { JobSchedulerJobOptions } from '../src/types';
 import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
-import { IRedisClient } from '../src/interfaces';
+import { IRedisClient, JobSchedulerRepeatOptions } from '../src/interfaces';
 
 const moment = require('moment');
 
@@ -1190,7 +1190,7 @@ describe('Job Scheduler', () => {
     it('should repeat every 2 seconds', async () => {
       // TODO: Move timeout to test options: { timeout: 15000 }
       const settings = {
-        repeatStrategy: (millis, opts) => {
+        repeatStrategy: (millis: number, opts) => {
           const currentDate =
             opts.startDate && new Date(opts.startDate) > new Date(millis)
               ? new Date(opts.startDate)
@@ -1255,6 +1255,57 @@ describe('Job Scheduler', () => {
       await currentQueue.close();
       await worker.close();
       delayStub.restore();
+    });
+
+    it('should expose the internal iteration count to the strategy', async () => {
+      const counts: (number | undefined)[] = [];
+      const settings = {
+        repeatStrategy: (millis: number, opts: JobSchedulerRepeatOptions) => {
+          counts.push(opts.count);
+          return getNextMillis(millis, opts);
+        },
+      };
+      const currentQueue = new Queue(queueName, {
+        connection,
+        prefix,
+        settings,
+      });
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          clock.tick(ONE_SECOND + 100);
+        },
+        { connection, prefix, settings },
+      );
+      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+
+      clock.setSystemTime(new Date('2017-02-07 9:24:00'));
+
+      // A count provided by the caller is ignored
+      await currentQueue.upsertJobScheduler('test', {
+        pattern: '* * * * * *',
+        count: 10,
+      } as any);
+
+      clock.tick(ONE_SECOND + 100);
+
+      let completed = 0;
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', () => {
+          if (++completed == 3) {
+            resolve();
+          }
+        });
+      });
+
+      await completing;
+      await currentQueue.close();
+      await worker.close();
+      delayStub.restore();
+
+      expect(counts[0]).toBeUndefined();
+      expect(counts.slice(1, 4)).toEqual([1, 2, 3]);
     });
 
     describe('when differentiating strategy by job name', () => {
@@ -1378,7 +1429,7 @@ describe('Job Scheduler', () => {
           'rrule',
           {
             pattern: '*/2 * * * * *',
-            startDate: new Date('2017-02-07 9:24:05'),
+            startDate: new Date('2017-02-07T15:24:05.000Z'),
           },
           {
             name: 'standard',

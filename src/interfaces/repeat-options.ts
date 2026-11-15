@@ -44,11 +44,6 @@ export interface RepeatOptions {
   immediately?: boolean;
 
   /**
-   * The start value for the repeat iteration count.
-   */
-  count?: number;
-
-  /**
    * Offset in milliseconds to affect the next iteration time
    * */
   offset?: number;
@@ -69,4 +64,16 @@ export interface RepeatOptions {
    * @see {@link https://en.wikipedia.org/wiki/List_of_tz_database_time_zones}
    */
   tz?: string;
+}
+
+/**
+ * Repeat options as stored in the options of jobs produced by a job scheduler.
+ * In addition to the public {@link RepeatOptions}, they carry the iteration
+ * count, which is managed internally and cannot be set by users.
+ */
+export interface JobSchedulerRepeatOptions extends RepeatOptions {
+  /**
+   * Internal property that holds the current repeat iteration count.
+   */
+  count?: number;
 }

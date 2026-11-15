@@ -358,24 +358,25 @@ Scheduled jobs are processed by workers like any other job. The worker must be r
 
 ## Node.js Interoperability
 
-There are two compatibility differences between Elixir and Node.js cron parsing:
+Elixir and Node.js cron parsing share the same seconds field support, but differ
+in Sunday numbering:
 
 ### 1. Seconds Field
 
 | Format                 | Elixir           | Node.js            |
 | ---------------------- | ---------------- | ------------------ |
 | 5-field (standard)     | ✅ `"0 9 * * *"` | ✅ `"0 9 * * *"`   |
-| 6-field (with seconds) | ❌ Not supported | ✅ `"0 0 9 * * *"` |
+| 6-field (with seconds) | ✅ `"0 0 9 * * *"` | ✅ `"0 0 9 * * *"` |
 
-Node.js `cron-parser` supports an optional seconds field at the **beginning**:
+Both Elixir and Node.js `cron-parser` support an optional seconds field at the
+**beginning**:
 
 ```
 second minute hour day month weekday
    0      0     9   *   *     *
 ```
 
-Elixir's `crontab` uses standard 5-field format only. **6-field expressions
-created in Node.js will fail to parse in Elixir.**
+6-field expressions created in Node.js are parsed the same way in Elixir.
 
 ### 2. Sunday Numbering
 
@@ -387,7 +388,7 @@ created in Node.js will fail to parse in Elixir.**
 ### Compatible Expressions
 
 ```elixir
-# These 5-field expressions work identically in both:
+# These expressions work identically in both:
 "* * * * *"      # Every minute
 "*/5 * * * *"    # Every 5 minutes
 "0 * * * *"      # Every hour
@@ -397,6 +398,8 @@ created in Node.js will fail to parse in Elixir.**
 "0 9 * * 6"      # Saturday at 9 AM ✅
 "0 9 * * 7"      # Sunday at 9 AM ✅ (works in both!)
 "0 0 * * 6,7"    # Weekend ✅
+"0 0 9 * * *"    # Every day at 9:00:00 AM (6-field with seconds) ✅
+"30 0 9 * * *"   # Every day at 9:00:30 AM (6-field with seconds) ✅
 %{every: 60_000} # Interval-based (always compatible)
 ```
 
@@ -404,16 +407,13 @@ created in Node.js will fail to parse in Elixir.**
 
 ```elixir
 # These will NOT work in Elixir:
-"0 0 9 * * *"    # ❌ 6-field with seconds (Node.js only)
-"30 0 9 * * *"   # ❌ 6-field with seconds (Node.js only)
 "0 9 * * 0"      # ❌ Sunday=0 (Node.js only, fails in Elixir)
 ```
 
 ### Recommendations
 
-1. **Use 5-field cron expressions** (no seconds) for cross-platform compatibility
-2. **Use `7` for Sunday** instead of `0`
-3. **Use interval-based schedulers** (`every`) when sub-minute precision is needed:
+1. **Use `7` for Sunday** instead of `0`
+2. **Use interval-based schedulers** (`every`) when sub-minute precision is needed:
    ```elixir
    %{every: 30_000}  # Every 30 seconds - works everywhere
    ```

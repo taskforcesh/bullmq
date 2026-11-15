@@ -1,3 +1,22 @@
+## [3.6.1](https://github.com/taskforcesh/bullmq/compare/vpy3.6.0...vpy3.6.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **flow:** remove deduplication key that is associated with parent job that is removed (python) (elixir) (php) (rust) (dotnet) ([#5078](https://github.com/taskforcesh/bullmq/issues/5078)) ([2353552](https://github.com/taskforcesh/bullmq/commit/2353552f1e9f55db2bdfa5bdcf604e2cead7972a))
+
+# [3.6.0](https://github.com/taskforcesh/bullmq/compare/vpy3.5.0...vpy3.6.0) (2026-11-11)
+
+
+### Bug Fixes
+
+* **deps:** upgrade redis to v8.1.0 and msgpack to v1.2.4 [python] ([#4921](https://github.com/taskforcesh/bullmq/issues/4921)) ([5970020](https://github.com/taskforcesh/bullmq/commit/5970020a858601585e58ac603516f48e0313fa06))
+
+
+### Features
+
+* **queue:** support getMetrics method [python] ([#5024](https://github.com/taskforcesh/bullmq/issues/5024)) ([2c630c4](https://github.com/taskforcesh/bullmq/commit/2c630c4a95b41a65a5ed01271b66df47a8881c01))
+
 # [3.5.0](https://github.com/taskforcesh/bullmq/compare/vpy3.4.6...vpy3.5.0) (2026-11-04)
 
 

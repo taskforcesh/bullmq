@@ -1,3 +1,32 @@
+## [6.7.6](https://github.com/taskforcesh/bullmq/compare/v6.7.5...v6.7.6) (2026-11-12)
+
+
+### Bug Fixes
+
+* **flow:** remove deduplication key that is associated with parent job that is removed (python) (elixir) (php) (rust) (dotnet) ([#5078](https://github.com/taskforcesh/bullmq/issues/5078)) ([2353552](https://github.com/taskforcesh/bullmq/commit/2353552f1e9f55db2bdfa5bdcf604e2cead7972a))
+
+## [6.7.5](https://github.com/taskforcesh/bullmq/compare/v6.7.4...v6.7.5) (2026-11-11)
+
+
+### Bug Fixes
+
+* **schedulers:** remove unused count option property that must be internal ([#5109](https://github.com/taskforcesh/bullmq/issues/5109)) ([09b4832](https://github.com/taskforcesh/bullmq/commit/09b48329afc70adac2cf437adaf1c448ad5538ef))
+* **telemetry:** record original job errors on the processing span ([#4915](https://github.com/taskforcesh/bullmq/issues/4915)) ([cf91c88](https://github.com/taskforcesh/bullmq/commit/cf91c887f6a0a7d383c74345f78127764161157a))
+
+## [6.7.4](https://github.com/taskforcesh/bullmq/compare/v6.7.3...v6.7.4) (2026-11-11)
+
+
+### Bug Fixes
+
+* **postgres:** count waiting jobs while the queue is paused ([#5095](https://github.com/taskforcesh/bullmq/issues/5095)) fixes [#5083](https://github.com/taskforcesh/bullmq/issues/5083) ([5228077](https://github.com/taskforcesh/bullmq/commit/52280774cf3413d10a8c970fd7dc93be6a509fea))
+
+## [6.7.3](https://github.com/taskforcesh/bullmq/compare/v6.7.2...v6.7.3) (2026-11-10)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cron-parser to v5.10.4 ([#5098](https://github.com/taskforcesh/bullmq/issues/5098)) ([6b7fd10](https://github.com/taskforcesh/bullmq/commit/6b7fd10ce096d7b7b402c6996ff832df1ce38a96))
+
 ## [6.7.2](https://github.com/taskforcesh/bullmq/compare/v6.7.1...v6.7.2) (2026-11-07)
 
 
