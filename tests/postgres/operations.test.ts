@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
-import { createPostgresBackend, IQueueBackend, JobJson } from '../../src';
+import {
+  createPostgresBackend,
+  IQueueBackend,
+  JobJson,
+  Queue,
+} from '../../src';
 import { getPostgresUrl } from './utils/postgres-url';
 
 /**
@@ -1448,6 +1453,116 @@ describe('PostgreSQL backend operations', () => {
         expect(await backend.getDeduplicationJobId(dedupId)).toBe('c1');
       } finally {
         await backend.close();
+      }
+    });
+  });
+
+  describe('cleanJobsByState by job name', () => {
+    it('filters wait, delayed, prioritized, and completed jobs by name and respects limit', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const ts = Date.now() - 1000;
+
+        // 5 non-matching wait jobs ahead of 3 target wait jobs
+        for (let i = 0; i < 5; i++) {
+          await backend.addJob(
+            makeJob({ name: 'other', timestamp: ts }),
+            `other-${i}`,
+          );
+        }
+        for (let i = 0; i < 3; i++) {
+          await backend.addJob(
+            makeJob({ name: 'target', timestamp: ts }),
+            `target-${i}`,
+          );
+        }
+
+        // Delayed and prioritized jobs
+        await backend.addJob(
+          makeJob({
+            name: 'target',
+            opts: { attempts: 1, delay: 60000 },
+            timestamp: ts,
+          }),
+          'delayed-target',
+        );
+        await backend.addJob(
+          makeJob({
+            name: 'other',
+            opts: { attempts: 1, delay: 60000 },
+            timestamp: ts,
+          }),
+          'delayed-other',
+        );
+        await backend.addJob(
+          makeJob({
+            name: 'target',
+            opts: { attempts: 1, priority: 5 },
+            timestamp: ts,
+          }),
+          'prio-target',
+        );
+        await backend.addJob(
+          makeJob({
+            name: 'other',
+            opts: { attempts: 1, priority: 5 },
+            timestamp: ts,
+          }),
+          'prio-other',
+        );
+
+        // Wait: limit=2 cleans 2 oldest target jobs despite 5 'other' jobs ahead
+        const cleanedWait = await backend.cleanJobsByState(
+          'wait',
+          Date.now(),
+          2,
+          'target',
+        );
+        expect(cleanedWait).toEqual(['target-0', 'target-1']);
+        expect(await backend.getJobData('target-2')).toBeTruthy();
+        expect(await backend.getJobData('other-0')).toBeTruthy();
+
+        const cleanedDelayed = await backend.cleanJobsByState(
+          'delayed',
+          Date.now(),
+          0,
+          'target',
+        );
+        expect(cleanedDelayed).toEqual(['delayed-target']);
+        expect(await backend.getJobData('delayed-other')).toBeTruthy();
+
+        const cleanedPrio = await backend.cleanJobsByState(
+          'prioritized',
+          Date.now(),
+          0,
+          'target',
+        );
+        expect(cleanedPrio).toEqual(['prio-target']);
+        expect(await backend.getJobData('prio-other')).toBeTruthy();
+      } finally {
+        await backend.close();
+      }
+    });
+
+    it('handles quotes in job names safely and works through Queue.clean', async () => {
+      const queue = new Queue(
+        `pg-clean-${randomUUID()}`,
+        { connection: { connectionString: url, schema, migrate: true } },
+        createPostgresBackend,
+      );
+      try {
+        await queue.waitUntilReady();
+        const quotedName = `O'Reilly "special"`;
+        await queue.add(quotedName, { a: 1 });
+        await queue.add('keep-me', { a: 2 });
+
+        const cleaned = await queue.clean(0, 0, 'wait', quotedName);
+        expect(cleaned).toHaveLength(1);
+        const remaining = await queue.getWaiting();
+        expect(remaining.map(j => j.name)).toEqual(['keep-me']);
+      } finally {
+        await queue.close();
       }
     });
   });

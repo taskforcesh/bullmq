@@ -1826,10 +1826,11 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     state: string,
     timestamp: number,
     limit = 0,
+    name?: string,
   ): Promise<string[]> {
     const client = await this.queue.client;
 
-    return this.execCommand(client, 'cleanJobsInSet', [
+    const args: (string | number)[] = [
       this.queue.toKey(state),
       this.queue.toKey('events'),
       this.queue.toKey('repeat'),
@@ -1837,7 +1838,12 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       timestamp,
       limit,
       state,
-    ]);
+    ];
+    if (name !== undefined) {
+      args.push(name);
+    }
+
+    return this.execCommand(client, 'cleanJobsInSet', args);
   }
 
   getJobSchedulerArgs(id: string): string[] {

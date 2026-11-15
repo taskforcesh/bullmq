@@ -1133,12 +1133,14 @@ export class PostgresQueueBackend
     state: string,
     timestamp: number,
     limit = 0,
+    name?: string,
   ): Promise<string[]> {
     const { rows } = await this.run<{ id: string }>('clean', [
       this.queueName,
       state,
       timestamp,
       limit,
+      name ?? null,
     ]);
     return rows.map(r => r.id);
   }

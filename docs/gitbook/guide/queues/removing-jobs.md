@@ -206,6 +206,14 @@ const deletedJobIds = await queue.clean(
   1000, // max number of jobs to clean
   'paused',
 );
+
+// Optionally pass a job name as the 4th argument to clean only matching jobs
+const deletedPaintJobIds = await queue.clean(
+  60000,
+  1000,
+  'completed',
+  'paint-wall',
+);
 ```
 
 {% endtab %}

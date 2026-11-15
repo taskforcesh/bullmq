@@ -10,6 +10,7 @@
     ARGV[2]  timestamp
     ARGV[3]  limit the number of jobs to be removed. 0 is unlimited
     ARGV[4]  set name, can be any of 'wait', 'active', 'paused', 'delayed', 'completed', or 'failed'
+    ARGV[5]  optional job name filter
 ]]
 local rcall = redis.call
 local repeatKey = KEYS[3]
@@ -17,13 +18,14 @@ local rangeStart = 0
 local rangeEnd = -1
 
 local limit = tonumber(ARGV[3])
+local jobName = ARGV[5]
 
--- If we're only deleting _n_ items, avoid retrieving all items
--- for faster performance
+-- If we're only deleting _n_ items without a name filter, avoid retrieving
+-- all items for faster performance.
 --
 -- Start from the tail of the list, since that's where oldest elements
 -- are generally added for FIFO lists
-if limit > 0 then
+if limit > 0 and jobName == nil then
   rangeStart = -1 - limit + 1
   rangeEnd = -1
 end
@@ -35,23 +37,23 @@ end
 local result
 if ARGV[4] == "active" then
   result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], false --[[ hasFinished ]],
-                      repeatKey)
+                      repeatKey, limit, jobName)
 elseif ARGV[4] == "delayed" then
   rangeEnd = "+inf"
   result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
-                    {"processedOn", "timestamp"}, false  --[[ hasFinished ]], repeatKey)
+                    {"processedOn", "timestamp"}, false  --[[ hasFinished ]], repeatKey, jobName)
 elseif ARGV[4] == "prioritized" then
   rangeEnd = "+inf"
   result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
-                    {"timestamp"}, false  --[[ hasFinished ]], repeatKey)
+                    {"timestamp"}, false  --[[ hasFinished ]], repeatKey, jobName)
 elseif ARGV[4] == "wait" or ARGV[4] == "paused" then
   result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], true --[[ hasFinished ]],
-                      repeatKey)
+                      repeatKey, limit, jobName)
 else
   rangeEnd = ARGV[2]
   -- No need to pass repeat key as in that moment job won't be related to a job scheduler
   result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
-                    {"finishedOn"}, true  --[[ hasFinished ]])
+                    {"finishedOn"}, true  --[[ hasFinished ]], nil, jobName)
 end
 
 rcall("XADD", KEYS[2], "*", "event", "cleaned", "count", result[2])
