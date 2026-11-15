@@ -14,9 +14,18 @@ const SITE_ORIGIN = 'https://docs.bullmq.io';
 const REPOSITORY_FILES =
   'https://raw.githubusercontent.com/taskforcesh/bullmq/master/docs/gitbook';
 
-const SUMMARY = `> BullMQ is an open source background job and message queue. It is available natively for TypeScript/JavaScript (Node.js and Bun), Python, Elixir, Rust, .NET and PHP, and runs on Redis (or compatible datastores such as Valkey and Dragonfly) and on PostgreSQL. All SDKs share the same data model, so producers and workers written in different languages can work on the same queues.
-
-This is the index of the BullMQ documentation. Every page is also available as Markdown by appending \`.md\` to its URL, and [llms-full.txt](${SITE_ORIGIN}/llms-full.txt) contains all the pages except the changelogs in a single file.`;
+const SUMMARY = [
+  '> BullMQ is an open source background job and message queue. It is ' +
+    'available natively for TypeScript/JavaScript (Node.js and Bun), ' +
+    'Python, Elixir, Rust, .NET and PHP, and runs on Redis (or compatible ' +
+    'datastores such as Valkey and Dragonfly) and on PostgreSQL. All SDKs ' +
+    'share the same data model, so producers and workers written in ' +
+    'different languages can work on the same queues.',
+  'This is the index of the BullMQ documentation. Every page is also ' +
+    'available as Markdown by appending `.md` to its URL, and ' +
+    `[llms-full.txt](${SITE_ORIGIN}/llms-full.txt) contains all the pages ` +
+    'except the changelogs in a single file.',
+].join('\n\n');
 
 const RELATED = `## Related
 
@@ -109,9 +118,9 @@ export function writeLlmsFiles(
 }
 
 /**
- * URL of the Markdown copy of a page: "/guide/connections" ->
- * "/guide/connections.md", "/guide/queues/" -> "/guide/queues.md" and
- * "/" -> "/index.md".
+ * URL of the Markdown copy of a page: "/guide/connections" -\>
+ * "/guide/connections.md", "/guide/queues/" -\> "/guide/queues.md" and
+ * "/" -\> "/index.md".
  */
 export function markdownPath(path: string): string {
   if (path === '/') {
@@ -160,7 +169,7 @@ function markdownFiles(srcDir: string, dir = ''): string[] {
   return files;
 }
 
-/** "guide/queues/README.md" -> "/guide/queues/" */
+/** "guide/queues/README.md" -\> "/guide/queues/" */
 function pagePath(file: string): string {
   return `/${file}`.replace(/\/README\.md$/, '/').replace(/\.md$/, '');
 }
@@ -187,7 +196,7 @@ function readPage(srcDir: string, file: string): Page {
 
 /**
  * The description of a page, either on one line or as a YAML block scalar
- * ("description: >-" followed by indented lines), which is how GitBook
+ * ("description: \>-" followed by indented lines), which is how GitBook
  * writes the long ones.
  */
 function frontmatterDescription(frontmatter: string): string | undefined {
@@ -276,9 +285,7 @@ function toPlainMarkdown(source: string, srcDir: string, file: string): string {
         if (!url) {
           return match;
         }
-        return angleBracketed
-          ? `](<${url}${hash}>)`
-          : `](${url}${hash})`;
+        return angleBracketed ? `](<${url}${hash}>)` : `](${url}${hash})`;
       },
     )
     .replace(
