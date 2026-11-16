@@ -100,7 +100,7 @@ worker.on('completed', job => {
 });
 
 worker.on('failed', (job, err) => {
-  console.log(`${job.id} has failed with ${err.message}`);
+  console.log(`${job?.id} has failed with ${err.message}`);
 });
 ```
 
