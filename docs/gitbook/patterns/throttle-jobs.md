@@ -24,7 +24,7 @@ worker.on('completed', (job: Job, returnvalue: any) => {
   console.log('worker done painting', new Date());
 });
 
-worker.on('failed', (job: Job, error: Error) => {
+worker.on('failed', (job: Job | undefined, error: Error) => {
   console.error('worker fail painting', job, error, new Date());
 });
 
