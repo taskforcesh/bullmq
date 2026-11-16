@@ -219,6 +219,30 @@ describe('scriptLoader', () => {
       });
     });
 
+    it.skipIf(path.sep !== '\\')(
+      'preserves ordinary Windows includes in a directory with literal brackets',
+      async () => {
+        const fixtures = path.join(__dirname, 'fixtures/scripts');
+        const directory = path.join(fixtures, '[literal]');
+        const filename = path.join(directory, 'plain.lua');
+
+        for (const [reference, includeDirectory] of [
+          ['plain.lua', directory],
+          [filename, directory],
+          ['[literal]/plain.lua', fixtures],
+        ]) {
+          const script = await loader.parseScript(
+            'parent.lua',
+            `--- @include "${reference}"`,
+            includeDirectory,
+          );
+          expect(script.includes.map(include => include.path)).toEqual([
+            filename,
+          ]);
+        }
+      },
+    );
+
     it('supports path mapping', async () => {
       const includePath = __dirname + '/fixtures/scripts/include';
       loader.addPathMapping('includes', './fixtures/scripts/includes');

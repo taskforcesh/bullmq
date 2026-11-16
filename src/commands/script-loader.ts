@@ -252,7 +252,11 @@ export class ScriptLoader {
       let includePaths: string[];
 
       if (hasFilenamePattern(includeFilename)) {
-        const filesMatched = await getFilenamesByPattern(includeFilename);
+        const includePattern =
+          path.sep === '\\'
+            ? includeFilename.split(path.sep).join('/')
+            : includeFilename;
+        const filesMatched = await getFilenamesByPattern(includePattern);
         includePaths = filesMatched.map((x: string) => path.resolve(x));
       } else {
         includePaths = [includeFilename];
