@@ -9,7 +9,7 @@ const SKIPPED_DIRS = new Set(['api', 'assets', 'images']);
 
 /**
  * Pages that had another URL on the GitBook site and still get visits from
- * search engines and links elsewhere. Old path -> current path.
+ * search engines and links elsewhere. Old path -\> current path.
  */
 const MOVED_PAGES: Record<string, string> = {
   '/readme-1': '/',
@@ -21,7 +21,7 @@ const MOVED_PAGES: Record<string, string> = {
 
 /**
  * Writes a redirect page for every URL of the GitBook site that has no page
- * in this build, and returns the redirects as "from -> to" for logging:
+ * in this build, and returns the redirects as "from -\> to" for logging:
  *
  * - Pages that moved (MOVED_PAGES).
  * - Changelogs of previous major versions, which GitBook served under
@@ -68,7 +68,7 @@ export function writeRedirects(
   return written;
 }
 
-/** "/guide/queues/" or "/guide/connections" -> is there a built page? */
+/** "/guide/queues/" or "/guide/connections" -\> is there a built page? */
 function hasPage(outDir: string, path: string): boolean {
   return path.endsWith('/')
     ? existsSync(join(outDir, path, 'index.html'))
@@ -141,7 +141,7 @@ function* sidebarLinks(items: DefaultTheme.SidebarItem[]): Generator<string> {
   }
 }
 
-/** "/guide/migrations/v1" -> ["guide", "guide/migrations"] */
+/** "/guide/migrations/v1" -\> ["guide", "guide/migrations"] */
 function parentDirs(link: string): string[] {
   const parts = link
     .replace(/^\/|\/$/g, '')
