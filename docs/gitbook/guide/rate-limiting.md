@@ -19,6 +19,14 @@ Jobs that get rate limited will actually stay in the waiting state.
 
 {% hint style="danger" %}
 From BullMQ 2.0 and onwards, the `QueueScheduler` is not needed anymore.
+
+If you are using BullMQ 1.x, you also need a `QueueScheduler` for the queue:
+
+```typescript
+import { QueueScheduler } from 'bullmq';
+
+const scheduler = new QueueScheduler('painter');
+```
 {% endhint %}
 
 {% hint style="info" %}
