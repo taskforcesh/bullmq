@@ -1,8 +1,4 @@
-import {
-  getRedisVersion,
-  getDatabaseType,
-  getRedisClient,
-} from './utils/get-redis-client';
+import { getRedisClient } from './utils/get-redis-client';
 import { after, times } from './utils/lodash';
 import {
   describe,
@@ -28,7 +24,7 @@ import {
 } from '../src/classes';
 import { MinimalJob, IRedisClient } from '../src/interfaces';
 import { JobsOptions, KeepJobs } from '../src/types';
-import { delay, isRedisVersionLowerThan, randomUUID } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
 
@@ -1520,7 +1516,7 @@ describe('workers', () => {
       });
 
       describe('when drainDelay is lower than minimumBlockTimeout', () => {
-        it('returns drainDelay', async () => {
+        it('returns minimumBlockTimeout', async () => {
           const worker = new Worker(queueName, NoopProc, {
             connection,
             drainDelay: 0.00001,
@@ -1529,17 +1525,7 @@ describe('workers', () => {
           });
           await worker.waitUntilReady();
 
-          if (
-            isRedisVersionLowerThan(
-              getRedisVersion(worker),
-              '7.0.8',
-              getDatabaseType(worker),
-            )
-          ) {
-            expect(worker['getBlockTimeout'](0)).toBe(0.002);
-          } else {
-            expect(worker['getBlockTimeout'](0)).toBe(0.001);
-          }
+          expect(worker['getBlockTimeout'](0)).toBe(worker.minimumBlockTimeout);
           await worker.close();
         });
       });
@@ -1571,21 +1557,9 @@ describe('workers', () => {
           });
           await worker.waitUntilReady();
 
-          if (
-            isRedisVersionLowerThan(
-              getRedisVersion(worker),
-              '7.0.8',
-              getDatabaseType(worker),
-            )
-          ) {
-            expect(worker['getBlockTimeout'](Date.now() + 100)).toBeGreaterThan(
-              0.002,
-            );
-          } else {
-            expect(worker['getBlockTimeout'](Date.now() + 100)).toBeGreaterThan(
-              0.001,
-            );
-          }
+          expect(worker['getBlockTimeout'](Date.now() + 100)).toBeGreaterThan(
+            worker.minimumBlockTimeout,
+          );
 
           await worker.close();
         });
