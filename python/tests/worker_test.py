@@ -15,6 +15,8 @@ import asyncio
 import unittest
 import time
 import os
+import sys
+import textwrap
 
 queueName = ""
 prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
@@ -1521,6 +1523,76 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         await worker.close()
         await queue.close()
+
+    async def assert_asyncio_run_returns_while_waiting(self, call: str):
+        """Run `call` on a worker with an active job in a child process and
+        return from `asyncio.run()` while it still waits, so that the call and
+        its helper task get canceled together. A child process is used because
+        a regression blocks the whole event loop, which no in-loop timeout can
+        interrupt."""
+        script = textwrap.dedent(f"""
+            import asyncio
+            from bullmq import Worker
+
+            async def process(job, token):
+                return None
+
+            async def main():
+                worker = Worker("repro", process, {{"autorun": False}})
+                # Stand-in for a job that is still running, so the call has to wait.
+                worker.processing.add(asyncio.ensure_future(asyncio.sleep(3600)))
+                asyncio.ensure_future({call})
+                await asyncio.sleep(0.1)
+
+            asyncio.run(main())
+        """)
+        package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        child = await asyncio.create_subprocess_exec(sys.executable, "-c", script, cwd=package_root)
+        try:
+            returncode = await asyncio.wait_for(child.wait(), timeout=10)
+        except asyncio.TimeoutError:
+            self.fail(f"asyncio.run() did not return while {call} was waiting")
+        finally:
+            if child.returncode is None:
+                child.kill()
+                await child.wait()
+        self.assertEqual(returncode, 0)
+
+    async def test_close_returns_when_teardown_is_canceled(self):
+        """Test that close() stops waiting once its teardown task is canceled,
+        as asyncio.run() does on exit, instead of spinning with the event loop
+        blocked."""
+        await self.assert_asyncio_run_returns_while_waiting("worker.close()")
+
+    async def test_pause_returns_when_wait_is_canceled(self):
+        """Test that pause() stops waiting once its wait for in-flight jobs is
+        canceled, as asyncio.run() does on exit, instead of spinning with the
+        event loop blocked."""
+        await self.assert_asyncio_run_returns_while_waiting("worker.pause()")
+
+    async def test_pause_emits_paused_when_canceled_as_last_job_finishes(self):
+        """Test that pause() still emits 'paused' when its task is canceled in the
+        same loop iteration in which the last in-flight job finishes."""
+        async def process(job: Job, token: str):
+            return None
+
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+        paused = []
+        worker.on("paused", lambda: paused.append(True))
+        job_task = asyncio.get_running_loop().create_future()
+        worker.processing.add(job_task)
+
+        pause_task = asyncio.ensure_future(worker.pause())
+        await asyncio.sleep(0.01)  # give pause() time to reach asyncio.wait(self.processing, ...)
+        job_task.add_done_callback(lambda _: pause_task.cancel())
+        job_task.set_result(None)
+
+        with self.assertRaises(asyncio.CancelledError):
+            await pause_task
+
+        self.assertEqual(paused, [True])
+
+        await worker.close()
 
     async def test_external_run_cancellation_propagates(self):
         """Test that cancelling the run() task from outside (not via pause/close)
