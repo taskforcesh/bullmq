@@ -8,6 +8,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const blockingPollInterval = time.Second
+
 // MoveToActive atomically moves the next job to the active list and locks it.
 // The result carries a nil Job when none is available; Wait is then how long
 // to wait before the next attempt (rate limit or next delayed job).
@@ -175,32 +177,46 @@ func (b *RedisBackend) WaitForJob(ctx context.Context, timeout time.Duration) er
 		timeout = time.Millisecond
 	}
 	marker := b.keys.Marker()
+	deadline := time.Now().Add(timeout)
 
-	var err error
-	if b.blockingOwned {
-		// BZPOPMIN is issued through Do so that sub-second timeouts are
-		// preserved; the typed helper in go-redis rounds them up to a full
-		// second. The dedicated client's read timeout outlasts the block while
-		// still guarding against a dead socket.
-		err = b.blocking.Do(ctx, "bzpopmin", marker, timeout.Seconds()).Err()
-	} else {
-		// A caller-supplied client we could not clone has its own read
-		// timeout, which raw commands would be subject to. The typed command
-		// carries the blocking timeout so go-redis extends the read deadline,
-		// but only supports whole seconds; shorter waits just sleep.
-		whole := timeout.Truncate(time.Second)
-		if whole < time.Second {
-			if !sleepCtx(ctx, timeout) {
-				return ctx.Err()
-			}
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		wait := time.Until(deadline)
+		if wait <= 0 {
 			return nil
 		}
-		err = b.blocking.BZPopMin(ctx, whole, marker).Err()
+		if wait > blockingPollInterval {
+			wait = blockingPollInterval
+		}
+
+		var err error
+		if b.blockingOwned {
+			// BZPOPMIN is issued through Do so that sub-second timeouts are
+			// preserved; the typed helper in go-redis rounds them up to a full
+			// second. The dedicated client's read timeout outlasts the block while
+			// still guarding against a dead socket.
+			err = b.blocking.Do(ctx, "bzpopmin", marker, wait.Seconds()).Err()
+		} else {
+			// A caller-supplied client we could not clone has its own read
+			// timeout, which raw commands would be subject to. The typed command
+			// carries the blocking timeout so go-redis extends the read deadline,
+			// but only supports whole seconds; shorter waits just sleep.
+			whole := wait.Truncate(time.Second)
+			if whole < time.Second {
+				if !sleepCtx(ctx, wait) {
+					return ctx.Err()
+				}
+				return nil
+			}
+			err = b.blocking.BZPopMin(ctx, whole, marker).Err()
+		}
+		if err == redis.Nil {
+			continue
+		}
+		return err
 	}
-	if err == redis.Nil {
-		return nil
-	}
-	return err
 }
 
 // SignalWork adds the base marker that WaitForJob blocks on.
