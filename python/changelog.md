@@ -1,3 +1,9 @@
+## [3.6.2](https://github.com/taskforcesh/bullmq/compare/vpy3.6.1...vpy3.6.2) (2026-11-17)
+
+### Bug Fixes
+
+* **worker:** stop spinning on a canceled helper task in close() and pause() [python] ([#5054](https://github.com/taskforcesh/bullmq/issues/5054)) fixes [#5053](https://github.com/taskforcesh/bullmq/issues/5053) ([9ea047f](https://github.com/taskforcesh/bullmq/commit/9ea047fd43cc530eef73a04ccab0d8519f20cbb9))
+
 ## [3.6.1](https://github.com/taskforcesh/bullmq/compare/vpy3.6.0...vpy3.6.1) (2026-11-12)
 
 ### Bug Fixes
