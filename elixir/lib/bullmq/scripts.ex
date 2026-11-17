@@ -1110,17 +1110,9 @@ defmodule BullMQ.Scripts do
   defp normalize_keep_jobs(true), do: %{"count" => 0}
   defp normalize_keep_jobs(false), do: %{"count" => -1}
   defp normalize_keep_jobs(n) when is_integer(n), do: %{"count" => n}
-  defp normalize_keep_jobs(%{count: n}), do: %{"count" => n}
-  defp normalize_keep_jobs(%{"count" => _} = m), do: m
-  defp normalize_keep_jobs(%{age: n}), do: %{"age" => n}
-  defp normalize_keep_jobs(%{"age" => _} = m), do: m
-  defp normalize_keep_jobs(%{limit: n}), do: %{"limit" => n}
-  defp normalize_keep_jobs(%{"limit" => _} = m), do: m
 
-  # Handle maps with multiple keys (age + count, age + limit, etc.)
+  # Maps can combine age, count and limit, with atom or string keys.
   defp normalize_keep_jobs(m) when is_map(m) do
-    # Convert atom keys to string keys and keep the map as-is
-    # This handles cases like %{age: 1000, limit: 5}
     for {k, v} <- m, into: %{} do
       key = if is_atom(k), do: Atom.to_string(k), else: k
       {key, v}
@@ -2173,13 +2165,13 @@ defmodule BullMQ.Scripts do
       |> maybe_add_opt("bo", get_backoff_opts(job_opts), nil)
       |> maybe_add_opt("lifo", Map.get(job_opts, :lifo) || Map.get(job_opts, "lifo"), nil)
       |> maybe_add_opt(
-        "ro",
-        Map.get(job_opts, :remove_on_complete) || Map.get(job_opts, "removeOnComplete"),
+        "removeOnComplete",
+        first_opt(job_opts, [:remove_on_complete, "removeOnComplete"]),
         nil
       )
       |> maybe_add_opt(
-        "rof",
-        Map.get(job_opts, :remove_on_fail) || Map.get(job_opts, "removeOnFail"),
+        "removeOnFail",
+        first_opt(job_opts, [:remove_on_fail, "removeOnFail"]),
         nil
       )
       |> maybe_add_opt(
@@ -2210,6 +2202,20 @@ defmodule BullMQ.Scripts do
   defp maybe_add_opt(map, _key, nil, _default), do: map
   defp maybe_add_opt(map, _key, value, default) when value == default, do: map
   defp maybe_add_opt(map, key, value, _default), do: Map.put(map, key, value)
+
+  # Returns the first non-nil value among `keys`, keeping explicit `false`.
+  defp first_opt(opts, keys) do
+    Enum.find_value(keys, fn key ->
+      case Map.get(opts, key) do
+        nil -> nil
+        value -> {:found, value}
+      end
+    end)
+    |> case do
+      {:found, value} -> value
+      nil -> nil
+    end
+  end
 
   defp get_backoff_opts(opts) do
     backoff = Map.get(opts, :backoff) || Map.get(opts, "backoff")

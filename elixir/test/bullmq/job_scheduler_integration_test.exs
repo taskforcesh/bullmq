@@ -860,6 +860,34 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       result = JobScheduler.calculate_next_millis(%{limit: 5}, 0)
       assert result == nil
     end
+
+    test "pattern with six fields treats the first one as seconds" do
+      # 2026-01-05 08:00:00 UTC, a Monday
+      now = 1_767_600_000_000
+      result = JobScheduler.calculate_next_millis(%{pattern: "30 0 9 * * 1-5"}, now)
+
+      assert DateTime.from_unix!(result, :millisecond) == ~U[2026-01-05 09:00:30.000Z]
+    end
+
+    test "pattern is evaluated in the given time zone" do
+      previous = Calendar.get_time_zone_database()
+      Calendar.put_time_zone_database(BullMQ.FixedOffsetTimeZoneDatabase)
+      on_exit(fn -> Calendar.put_time_zone_database(previous) end)
+
+      # 2026-01-05 08:00:00 UTC is 10:00 in Etc/GMT-2 (UTC+2)
+      now = 1_767_600_000_000
+      result = JobScheduler.calculate_next_millis(%{pattern: "0 9 * * *", tz: "Etc/GMT-2"}, now)
+
+      # 09:00 at UTC+2 on the next day is 07:00 UTC
+      assert DateTime.from_unix!(result, :millisecond) == ~U[2026-01-06 07:00:00.000Z]
+    end
+
+    test "pattern falls back to UTC when no time zone database is configured" do
+      now = 1_767_600_000_000
+      result = JobScheduler.calculate_next_millis(%{pattern: "0 9 * * *", tz: "Etc/GMT-2"}, now)
+
+      assert DateTime.from_unix!(result, :millisecond) == ~U[2026-01-05 09:00:00.000Z]
+    end
   end
 
   # ---------------------------------------------------------------------------
