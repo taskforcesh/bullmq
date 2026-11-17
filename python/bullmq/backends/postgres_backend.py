@@ -582,8 +582,9 @@ class PostgresBackend(Backend):
         return None
 
     async def cleanJobsInSet(self, set: str, grace: int = 0, limit: int = 0) -> list:
-        timestamp = _now_ms() - grace
-        result = await self._run("clean", [self.queue_name, set, timestamp, limit])
+        now = _now_ms()
+        timestamp = now - grace
+        result = await self._run("clean", [self.queue_name, set, timestamp, limit, now])
         return [str(m["id"]) for m in result.maps()]
 
     async def obliterate(self, count: int, force: bool = False) -> Any:

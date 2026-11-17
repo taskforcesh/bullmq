@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION clean(
-  p_queue text, p_type text, p_ts bigint, p_limit integer
+  p_queue text, p_type text, p_ts bigint, p_limit integer, p_now bigint
 ) RETURNS SETOF text
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
@@ -26,8 +26,8 @@ BEGIN
   ELSIF p_type = 'active' THEN
     v_where := format(
       'state = ''active'' AND COALESCE(finished_at_ms, processed_at_ms, added_at_ms) <= %s '
-      || 'AND (lock_token IS NULL OR locked_until_ms <= %s)',
-      p_ts, (extract(epoch FROM clock_timestamp()) * 1000)::bigint
+      || 'AND (lock_token IS NULL OR lock_token = ''0'' OR locked_until_ms <= %L)',
+      p_ts, p_now
     );
   ELSE
     RETURN;
@@ -93,4 +93,15 @@ BEGIN
 
   RETURN QUERY SELECT unnest(v_ids);
 END;
+$$;
+
+-- Older clients only send the age cutoff, not the current client time. Keep
+-- their token-bearing jobs until stalled recovery instead of guessing expiry.
+CREATE OR REPLACE FUNCTION clean(
+  p_queue text, p_type text, p_ts bigint, p_limit integer
+) RETURNS SETOF text
+LANGUAGE sql
+SET search_path FROM CURRENT
+AS $$
+  SELECT * FROM clean(p_queue, p_type, p_ts, p_limit, NULL::bigint);
 $$;

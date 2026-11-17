@@ -345,8 +345,9 @@ public sealed class PostgresBackend : IQueueBackend
 
     public async Task<IReadOnlyList<string>> CleanJobsInSetAsync(string set, long grace, int limit)
     {
-        var timestamp = NowMs() - grace;
-        var result = await RunAsync("clean", new object?[] { Name, set, timestamp, limit }).ConfigureAwait(false);
+        var now = NowMs();
+        var timestamp = now - grace;
+        var result = await RunAsync("clean", new object?[] { Name, set, timestamp, limit, now }).ConfigureAwait(false);
         return result.Maps().Select(m => Str(m.GetValueOrDefault("id"))!).ToList();
     }
 
