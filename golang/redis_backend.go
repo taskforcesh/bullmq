@@ -120,6 +120,12 @@ func isTransientRedisError(err error) bool {
 			return true
 		}
 	}
+	for cause := err; cause != nil; cause = errors.Unwrap(cause) {
+		switch cause.Error() {
+		case "redis: connection pool timeout", "redis: connection pool exhausted":
+			return true
+		}
+	}
 	return false
 }
 
