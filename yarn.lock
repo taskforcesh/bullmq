@@ -2503,10 +2503,10 @@ create-require@^1.1.0:
   resolved "https://registry.yarnpkg.com/create-require/-/create-require-1.1.1.tgz#c1d7e8f1e5f6cfc9ff65f9cd352d37348756c333"
   integrity sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==
 
-cron-parser@5.10.4:
-  version "5.10.4"
-  resolved "https://registry.yarnpkg.com/cron-parser/-/cron-parser-5.10.4.tgz#c40ca0276aba37258303eca2482b5813f43995f4"
-  integrity sha512-TagNqYzoV/C7Ty7VAQjrQg+57WsEOuQEUh0tWT5Dc+l/GOuoAdWVIzFU0CqYdQswqdjUalrdmOvaMtQhErYZTA==
+cron-parser@5.10.5:
+  version "5.10.5"
+  resolved "https://registry.yarnpkg.com/cron-parser/-/cron-parser-5.10.5.tgz#3f9b47360d8f67ac188a81e0f8ea145510991335"
+  integrity sha512-zxFew0gkBdb9HudAqeNLIZ2Phczw8oQDGDMYc1HUYvAaxZqhML2gZyUwVqaOs23YKDWXRRvd/nNo0ycGdXt80A==
   dependencies:
     luxon "^3.7.2"
 
