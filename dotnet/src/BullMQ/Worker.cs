@@ -23,6 +23,7 @@ public sealed class Worker : IAsyncDisposable
 {
     private readonly Lazy<Task<IQueueBackend>> _backend;
     private readonly Processor _processor;
+    private readonly Func<IQueueBackend, IQueueBackend>? _decorateBackend;
 
     // Cancels the processor's abort signal (force close only).
     private readonly CancellationTokenSource _abortCts = new();
@@ -35,6 +36,7 @@ public sealed class Worker : IAsyncDisposable
     private volatile bool _closing;
     private volatile bool _forceClosing;
     private volatile bool _drained;
+    private long _limitUntil; // unix ms at which the last reported rate limit lifts (0 = none)
     private Task? _running;
     private LockManager? _lockManager;
     private Task? _stalledChecker;
@@ -73,8 +75,19 @@ public sealed class Worker : IAsyncDisposable
     public event Action<IReadOnlyList<string>>? LocksRenewed;
 
     public Worker(string name, Processor processor, WorkerOptions opts)
+        : this(name, processor, opts, decorateBackend: null)
+    {
+    }
+
+    /// <summary>Test hook: <paramref name="decorateBackend"/> wraps the backend the worker creates.</summary>
+    internal Worker(
+        string name,
+        Processor processor,
+        WorkerOptions opts,
+        Func<IQueueBackend, IQueueBackend>? decorateBackend)
     {
         Name = name;
+        _decorateBackend = decorateBackend;
         _processor = processor ?? throw new ArgumentNullException(nameof(processor));
         Opts = opts ?? throw new ArgumentNullException(nameof(opts));
 
@@ -104,6 +117,11 @@ public sealed class Worker : IAsyncDisposable
         var backend = await BackendBuilder
             .CreateAsync(Name, Opts, Opts.LockDuration, Opts.Name, withBlockingConnection: true)
             .ConfigureAwait(false);
+        if (_decorateBackend is not null)
+        {
+            backend = _decorateBackend(backend);
+        }
+
         await backend.WaitUntilReadyAsync().ConfigureAwait(false);
 
         var lockRenewTime = Opts.LockRenewTime ?? Opts.LockDuration / 2;
@@ -153,8 +171,8 @@ public sealed class Worker : IAsyncDisposable
     /// The main fetch loop. A semaphore bounds in-flight processing to
     /// <see cref="WorkerOptions.Concurrency"/>: each free slot triggers a fetch,
     /// jobs are processed fire-and-forget (releasing their slot on completion),
-    /// and an idle worker blocks on the backend's wait primitive instead of
-    /// busy-polling.
+    /// an idle worker blocks on the backend's wait primitive instead of
+    /// busy-polling, and a rate-limited worker sleeps until the limit lifts.
     /// </summary>
     private async Task MainLoopAsync(IQueueBackend backend)
     {
@@ -193,6 +211,10 @@ public sealed class Worker : IAsyncDisposable
                 continue;
             }
 
+            _limitUntil = next.RateLimitDelay > 0
+                ? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + next.RateLimitDelay
+                : 0;
+
             if (next.Job is not null)
             {
                 _drained = false;
@@ -214,7 +236,14 @@ public sealed class Worker : IAsyncDisposable
                 }
 
                 _slots!.Release();
-                await WaitForJobAsync(backend, next.DelayUntil).ConfigureAwait(false);
+                if (_limitUntil > 0)
+                {
+                    await WaitForRateLimitAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    await WaitForJobAsync(backend, next.DelayUntil).ConfigureAwait(false);
+                }
             }
         }
 
@@ -318,6 +347,26 @@ public sealed class Worker : IAsyncDisposable
         {
             _lockManager?.UntrackJob(job.Id!);
         }
+    }
+
+    /// <summary>
+    /// Sleeps until the rate limit lifts. Blocking on the backend's wait primitive
+    /// instead would wake on every added job and re-fetch only to hit the limit
+    /// again. The sleep is capped by <see cref="WorkerOptions.MaximumRateLimitDelay"/>
+    /// so due delayed jobs keep being promoted, and is interrupted by close.
+    /// </summary>
+    private async Task WaitForRateLimitAsync()
+    {
+        var remaining = _limitUntil - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        if (remaining > 0)
+        {
+            var maxDelay = Math.Max(Opts.MaximumRateLimitDelay, 1);
+            await SafeDelayAsync((int)Math.Min(remaining, maxDelay)).ConfigureAwait(false);
+        }
+
+        // Like the reference worker: the next fetch goes straight to moveToActive.
+        _drained = false;
+        _limitUntil = 0;
     }
 
     /// <summary>Blocks on the backend's wait primitive until a job may be available.</summary>
