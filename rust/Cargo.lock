@@ -887,9 +887,9 @@ checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "redis"
-version = "1.8.1"
+version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db7f3d75b5a3301746bff39a767bf4c5c42506b08513527308b3875bfb64a031"
+checksum = "4bef8fa589dd53a8a379a7856de1365d0a1be50c6b8aebb5c01c1ec441a2c509"
 dependencies = [
  "arc-swap",
  "arcstr",
