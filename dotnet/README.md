@@ -84,6 +84,7 @@ var pg = new PostgresOptions
 {
     ConnectionString = "Host=localhost;Database=bullmq;Username=postgres;Password=postgres",
     // Schema = "bullmq", // optional, this is the default
+    // PoolSize = 20,     // optional, max pooled query connections
 };
 
 await using var queue = new Queue("emails", new QueueOptions { Postgres = pg });
@@ -92,6 +93,12 @@ await queue.AddAsync("welcome", new { to = "user@example.com" });
 await using var worker = new Worker("emails", async (job, ct) => "sent",
     new WorkerOptions { Postgres = pg, Concurrency = 5 });
 ```
+
+Queries run on a connection pool shared by every queue, worker and `QueueEvents` in
+the process that uses the same connection string and schema. Size it with
+`PoolSize` (default 20) or `Maximum Pool Size` in the connection string; each
+worker and `QueueEvents` also keeps one dedicated `LISTEN` connection outside the
+pool, so size the server's `max_connections` accordingly.
 
 ## Deduplication
 
