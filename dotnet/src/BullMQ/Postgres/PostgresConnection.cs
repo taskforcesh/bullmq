@@ -52,6 +52,18 @@ public sealed class PostgresConnection : IAsyncDisposable
     private const int MigrationAdvisoryLockKey = 0x42554C4C;
     private const int MinimumPostgresMajor = 13;
 
+    /// <summary>
+    /// BullMQ major version of the shared PostgreSQL schema this port implements
+    /// (Node.js <c>BULLMQ_MAJOR_VERSION</c>, not this package's own version). It is
+    /// recorded as <c>min_client_version</c> for every migration applied here and
+    /// a schema requiring a newer major is refused.
+    /// </summary>
+    internal const int BullMQMajorVersion = 6;
+
+    // Ledger used by .NET releases before it was aligned with the other runtimes'
+    // `migration` table; its rows are adopted so those schemas are not re-migrated.
+    internal const string LegacyLedgerTable = "bullmq_migration";
+
     public const string JobsChannel = "bullmq_jobs";
 
     public const string EventsChannel = "bullmq_events";
@@ -293,12 +305,26 @@ public sealed class PostgresConnection : IAsyncDisposable
         }
     }
 
-    private async Task RunMigrationsAsync(NpgsqlConnection conn)
+    private Task RunMigrationsAsync(NpgsqlConnection conn) =>
+        RunMigrationsAsync(conn, Schema, _skipVersionCheck);
+
+    /// <summary>
+    /// Brings <paramref name="schema"/> up to the latest bundled migration and
+    /// returns the resulting schema version. Mirrors the Node.js
+    /// <c>runMigrations</c>: one transaction (all pending migrations and their
+    /// ledger rows commit together, or nothing does), serialized per schema by
+    /// a transaction-scoped advisory lock, recorded in the shared
+    /// <c>migration</c> ledger that every runtime reads.
+    /// </summary>
+    /// <exception cref="SchemaVersionMismatchException">
+    /// The schema requires a newer BullMQ major than <see cref="BullMQMajorVersion"/>.
+    /// </exception>
+    internal static async Task<int> RunMigrationsAsync(NpgsqlConnection conn, string schema, bool skipVersionCheck)
     {
-        var quoted = QuoteSchemaName(Schema);
+        var quoted = QuoteSchemaName(schema);
         await using var tx = await conn.BeginTransactionAsync().ConfigureAwait(false);
 
-        if (!_skipVersionCheck)
+        if (!skipVersionCheck)
         {
             await using var versionCmd = new NpgsqlCommand("SELECT current_setting('server_version_num')", conn, tx);
             var serverNum = int.Parse((string)(await versionCmd.ExecuteScalarAsync().ConfigureAwait(false))!);
@@ -314,43 +340,122 @@ public sealed class PostgresConnection : IAsyncDisposable
         await using (var lockCmd = new NpgsqlCommand("SELECT pg_advisory_xact_lock($1, hashtext($2))", conn, tx))
         {
             lockCmd.Parameters.Add(new NpgsqlParameter { Value = MigrationAdvisoryLockKey });
-            lockCmd.Parameters.Add(new NpgsqlParameter { Value = Schema });
+            lockCmd.Parameters.Add(new NpgsqlParameter { Value = schema });
             await lockCmd.ExecuteNonQueryAsync().ConfigureAwait(false);
         }
 
         await ExecuteRawAsync(conn, tx, $"CREATE SCHEMA IF NOT EXISTS {quoted}").ConfigureAwait(false);
         await ExecuteRawAsync(conn, tx, $"SET LOCAL search_path TO {quoted}").ConfigureAwait(false);
-        await ExecuteRawAsync(
-            conn, tx,
-            "CREATE TABLE IF NOT EXISTS bullmq_migration (" +
-            "version integer PRIMARY KEY, name text NOT NULL, " +
-            "applied_at timestamptz NOT NULL DEFAULT now())").ConfigureAwait(false);
+        await EnsureLedgerTableAsync(conn, tx).ConfigureAwait(false);
+        var hasLegacyLedger = await AdoptLegacyLedgerAsync(conn, tx, quoted).ConfigureAwait(false);
 
-        int current;
-        await using (var maxCmd = new NpgsqlCommand(
-            "SELECT COALESCE(MAX(version), 0)::int FROM bullmq_migration", conn, tx))
+        var current = await ExecuteScalarIntAsync(
+            conn, tx, "SELECT COALESCE(MAX(version), 0)::int FROM migration").ConfigureAwait(false);
+        var minimumClientVersion = await ExecuteScalarIntAsync(
+            conn, tx,
+            "SELECT COALESCE(MAX(min_client_version), $1)::int FROM migration",
+            BullMQMajorVersion).ConfigureAwait(false);
+        if (minimumClientVersion > BullMQMajorVersion)
         {
-            current = (int)(await maxCmd.ExecuteScalarAsync().ConfigureAwait(false))!;
+            throw new SchemaVersionMismatchException(minimumClientVersion, BullMQMajorVersion);
         }
 
+        var version = current;
         foreach (var file in SqlLoader.MigrationFiles())
         {
-            var version = SqlLoader.NameToVersion(file);
-            if (version <= current)
+            var fileVersion = SqlLoader.NameToVersion(file);
+            if (fileVersion <= current)
             {
                 continue;
             }
 
             await ExecuteRawAsync(conn, tx, SqlLoader.LoadMigration(file)).ConfigureAwait(false);
             await using var insert = new NpgsqlCommand(
-                "INSERT INTO bullmq_migration (version, name) VALUES ($1, $2)", conn, tx);
-            insert.Parameters.Add(new NpgsqlParameter { Value = version });
+                "INSERT INTO migration (version, name, min_client_version) VALUES ($1, $2, $3)", conn, tx);
+            insert.Parameters.Add(new NpgsqlParameter { Value = fileVersion });
             insert.Parameters.Add(new NpgsqlParameter { Value = file });
+            insert.Parameters.Add(new NpgsqlParameter { Value = BullMQMajorVersion });
             await insert.ExecuteNonQueryAsync().ConfigureAwait(false);
-            current = version;
+            if (hasLegacyLedger)
+            {
+                await using var mirror = new NpgsqlCommand(
+                    $"INSERT INTO {LegacyLedgerTable} (version, name) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING",
+                    conn, tx);
+                mirror.Parameters.Add(new NpgsqlParameter { Value = fileVersion });
+                mirror.Parameters.Add(new NpgsqlParameter { Value = file });
+                await mirror.ExecuteNonQueryAsync().ConfigureAwait(false);
+            }
+
+            version = Math.Max(version, fileVersion);
         }
 
         await tx.CommitAsync().ConfigureAwait(false);
+        return version;
+    }
+
+    // Same DDL as the Node.js/Python/Elixir migrators, including their upgrade of
+    // a ledger created before `min_client_version` existed.
+    private static async Task EnsureLedgerTableAsync(NpgsqlConnection conn, NpgsqlTransaction tx)
+    {
+        await ExecuteRawAsync(
+            conn, tx,
+            "CREATE TABLE IF NOT EXISTS migration (" +
+            "version integer PRIMARY KEY, name text NOT NULL, " +
+            "min_client_version integer NOT NULL, " +
+            "applied_at timestamptz NOT NULL DEFAULT now())").ConfigureAwait(false);
+        await ExecuteRawAsync(
+            conn, tx,
+            "ALTER TABLE migration ADD COLUMN IF NOT EXISTS min_client_version integer").ConfigureAwait(false);
+        await using (var backfill = new NpgsqlCommand(
+            "UPDATE migration SET min_client_version = $1 WHERE min_client_version IS NULL", conn, tx))
+        {
+            backfill.Parameters.Add(new NpgsqlParameter { Value = BullMQMajorVersion });
+            await backfill.ExecuteNonQueryAsync().ConfigureAwait(false);
+        }
+
+        await ExecuteRawAsync(
+            conn, tx,
+            "ALTER TABLE migration ALTER COLUMN min_client_version SET NOT NULL").ConfigureAwait(false);
+    }
+
+    // Copies the rows of a legacy .NET `bullmq_migration` ledger into `migration`
+    // so the migrations it records are not re-applied, and returns whether that
+    // ledger exists. Every recorded version was committed together with its
+    // migration's DDL, so the union is accurate even while older .NET instances
+    // keep using the legacy table during a rolling upgrade. The legacy table is
+    // never dropped implicitly: older .NET instances still read it (newly applied
+    // migrations are mirrored into it so they don't re-apply them), and it can be
+    // dropped manually once every instance is upgraded.
+    private static async Task<bool> AdoptLegacyLedgerAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string quotedSchema)
+    {
+        await using (var exists = new NpgsqlCommand("SELECT to_regclass($1) IS NOT NULL", conn, tx))
+        {
+            exists.Parameters.Add(new NpgsqlParameter { Value = $"{quotedSchema}.{LegacyLedgerTable}" });
+            if (!(bool)(await exists.ExecuteScalarAsync().ConfigureAwait(false))!)
+            {
+                return false;
+            }
+        }
+
+        await using var adopt = new NpgsqlCommand(
+            "INSERT INTO migration (version, name, min_client_version, applied_at) " +
+            $"SELECT version, name, $1, applied_at FROM {LegacyLedgerTable} " +
+            "ON CONFLICT (version) DO NOTHING", conn, tx);
+        adopt.Parameters.Add(new NpgsqlParameter { Value = BullMQMajorVersion });
+        await adopt.ExecuteNonQueryAsync().ConfigureAwait(false);
+        return true;
+    }
+
+    private static async Task<int> ExecuteScalarIntAsync(
+        NpgsqlConnection conn, NpgsqlTransaction tx, string sql, params object[] parameters)
+    {
+        await using var cmd = new NpgsqlCommand(sql, conn, tx);
+        foreach (var value in parameters)
+        {
+            cmd.Parameters.Add(new NpgsqlParameter { Value = value });
+        }
+
+        return (int)(await cmd.ExecuteScalarAsync().ConfigureAwait(false))!;
     }
 
     private static async Task ExecuteRawAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string sql)

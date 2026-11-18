@@ -32,6 +32,30 @@ public sealed class DelayedException : BullMQException
     public DelayedException(string message = DefaultMessage) : base(message) { }
 }
 
+/// <summary>
+/// Thrown when the PostgreSQL schema requires a newer BullMQ major version than
+/// this client implements, i.e. it was migrated by a newer BullMQ release whose
+/// structures this client may not understand. Upgrade BullMQ; schema downgrades
+/// are not supported. Mirrors the Node.js <c>SchemaVersionMismatchError</c>.
+/// </summary>
+public sealed class SchemaVersionMismatchException : BullMQException
+{
+    public SchemaVersionMismatchException(int minimumClientVersion, int clientVersion)
+        : base(
+            $"BullMQ: the PostgreSQL schema requires BullMQ major version {minimumClientVersion} " +
+            $"or newer, but this client is major version {clientVersion}. Upgrade BullMQ to use this schema.")
+    {
+        MinimumClientVersion = minimumClientVersion;
+        ClientVersion = clientVersion;
+    }
+
+    /// <summary>The minimum BullMQ major version recorded in the schema's migration ledger.</summary>
+    public int MinimumClientVersion { get; }
+
+    /// <summary>The BullMQ major version (of the shared schema) this client implements.</summary>
+    public int ClientVersion { get; }
+}
+
 /// <summary>Maps script error codes to the corresponding exception.</summary>
 internal static class FinishedErrors
 {
