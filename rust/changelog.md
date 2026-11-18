@@ -1,3 +1,9 @@
+## [1.5.2](https://github.com/taskforcesh/bullmq/compare/vrs1.5.1...vrs1.5.2) (2026-11-18)
+
+### Bug Fixes
+
+* **deps:** update crate redis to v1.8.2 [rust] ([#5151](https://github.com/taskforcesh/bullmq/issues/5151)) ([c7004d6](https://github.com/taskforcesh/bullmq/commit/c7004d65be47aadc89e037f0d93f2d17ae58f52b))
+
 ## [1.5.1](https://github.com/taskforcesh/bullmq/compare/vrs1.5.0...vrs1.5.1) (2026-11-12)
 
 ### Bug Fixes
