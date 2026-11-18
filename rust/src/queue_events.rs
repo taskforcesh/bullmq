@@ -130,13 +130,14 @@ pub enum QueueEvent {
         /// The debounce id.
         debounce_id: String,
     },
-    /// A job was not added because a job with the same deduplication id exists.
+    /// A job was deduplicated (ignored or replaced) because another job has the
+    /// same deduplication id.
     Deduplicated {
-        /// The job id that was attempted.
+        /// The id of the job that remains in the queue.
         job_id: String,
         /// The deduplication id.
         deduplication_id: String,
-        /// The id of the existing job that caused the deduplication, if any.
+        /// The id of the job that was deduplicated (ignored or replaced), if any.
         deduplicated_job_id: Option<String>,
     },
     /// A job was scheduled with a delay.
