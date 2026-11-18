@@ -6,6 +6,7 @@ import asyncio
 import os
 import unittest
 from asyncio import Future
+from unittest.mock import patch
 from uuid import uuid4
 
 import redis.asyncio as redis
@@ -173,6 +174,60 @@ class TestQueueEvents(unittest.IsolatedAsyncioTestCase):
             args = await asyncio.wait_for(received, timeout=5)
             self.assertEqual(args.get("foo"), "bar")
             self.assertEqual(args.get("n"), "7")
+        finally:
+            await producer.close()
+            await events.close()
+
+    async def test_keeps_consuming_after_a_read_error(self):
+        """A failed read is reported through `error` and retried from
+        the last id seen, so an event published while the connection
+        was down is still delivered."""
+        queue_name = f"__test_qe_retry__{uuid4().hex}"
+        events = QueueEvents(
+            queue_name,
+            {"prefix": prefix, "lastEventId": "0", "autorun": False},
+        )
+        producer = QueueEventsProducer(queue_name, {"prefix": prefix})
+        real_xread = events.client.xread
+        reads = 0
+
+        async def xread_failing_once(*args, **kwargs):
+            nonlocal reads
+            reads += 1
+            if reads == 2:
+                # Published while the read is failing: only a consumer
+                # that resumes from the last id it saw delivers it.
+                await producer.publishEvent(
+                    {"eventName": "custom-thing", "n": "2"}
+                )
+                raise redis.ConnectionError("connection lost")
+            return await real_xread(*args, **kwargs)
+
+        events.client.xread = xread_failing_once
+        try:
+            seen = []
+            errors = []
+            second: Future = asyncio.get_running_loop().create_future()
+
+            def on_custom(args, event_id):
+                seen.append(args.get("n"))
+                if args.get("n") == "2" and not second.done():
+                    second.set_result(None)
+
+            events.on("custom-thing", on_custom)
+            events.on("error", errors.append)
+
+            await producer.publishEvent(
+                {"eventName": "custom-thing", "n": "1"}
+            )
+            with patch("bullmq.queue_events.retry_delay", 0.01):
+                asyncio.create_task(events.run())
+                await asyncio.wait_for(second, timeout=5)
+
+            self.assertEqual(seen, ["1", "2"])
+            self.assertEqual(len(errors), 1)
+            self.assertIsInstance(errors[0], redis.ConnectionError)
+            self.assertTrue(events.running)
         finally:
             await producer.close()
             await events.close()
