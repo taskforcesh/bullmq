@@ -23,12 +23,16 @@ public sealed class Worker : IAsyncDisposable
 {
     private readonly Lazy<Task<IQueueBackend>> _backend;
     private readonly Processor _processor;
+    private readonly Func<IQueueBackend, IQueueBackend>? _decorateBackend;
 
     // Cancels the processor's abort signal (force close only).
     private readonly CancellationTokenSource _abortCts = new();
 
     // Interrupts the fetcher's waits (any close).
     private readonly CancellationTokenSource _closeCts = new();
+
+    // Guards raising Drained once when several slots see an empty queue.
+    private readonly object _drainedLock = new();
 
     private SemaphoreSlim? _slots;
     private long _tokenCounter;
@@ -73,8 +77,19 @@ public sealed class Worker : IAsyncDisposable
     public event Action<IReadOnlyList<string>>? LocksRenewed;
 
     public Worker(string name, Processor processor, WorkerOptions opts)
+        : this(name, processor, opts, decorateBackend: null)
+    {
+    }
+
+    /// <summary>Test hook: <paramref name="decorateBackend"/> wraps the backend the worker creates.</summary>
+    internal Worker(
+        string name,
+        Processor processor,
+        WorkerOptions opts,
+        Func<IQueueBackend, IQueueBackend>? decorateBackend)
     {
         Name = name;
+        _decorateBackend = decorateBackend;
         _processor = processor ?? throw new ArgumentNullException(nameof(processor));
         Opts = opts ?? throw new ArgumentNullException(nameof(opts));
 
@@ -104,6 +119,11 @@ public sealed class Worker : IAsyncDisposable
         var backend = await BackendBuilder
             .CreateAsync(Name, Opts, Opts.LockDuration, Opts.Name, withBlockingConnection: true)
             .ConfigureAwait(false);
+        if (_decorateBackend is not null)
+        {
+            backend = _decorateBackend(backend);
+        }
+
         await backend.WaitUntilReadyAsync().ConfigureAwait(false);
 
         var lockRenewTime = Opts.LockRenewTime ?? Opts.LockDuration / 2;
@@ -152,7 +172,8 @@ public sealed class Worker : IAsyncDisposable
     /// <summary>
     /// The main fetch loop. A semaphore bounds in-flight processing to
     /// <see cref="WorkerOptions.Concurrency"/>: each free slot triggers a fetch,
-    /// jobs are processed fire-and-forget (releasing their slot on completion),
+    /// jobs are processed fire-and-forget (each slot keeps processing the next
+    /// job returned by the finish call and is released when none is returned),
     /// and an idle worker blocks on the backend's wait primitive instead of
     /// busy-polling.
     /// </summary>
@@ -207,12 +228,7 @@ public sealed class Worker : IAsyncDisposable
             }
             else
             {
-                if (!_drained)
-                {
-                    _drained = true;
-                    Drained?.Invoke();
-                }
-
+                MarkDrained();
                 _slots!.Release();
                 await WaitForJobAsync(backend, next.DelayUntil).ConfigureAwait(false);
             }
@@ -232,12 +248,70 @@ public sealed class Worker : IAsyncDisposable
     {
         try
         {
-            await ProcessJob(backend, job, token).ConfigureAwait(false);
+            Job? current = job;
+            while (current is not null)
+            {
+                var next = await ProcessJob(backend, current, token).ConfigureAwait(false);
+                current = await NextJobFromDataAsync(backend, next, token).ConfigureAwait(false);
+            }
         }
         finally
         {
             _slots!.Release();
         }
+    }
+
+    /// <summary>
+    /// Turns the next-job tuple returned by a fetch-next finish into the job this
+    /// slot processes next (reusing the slot's token), or null to free the slot.
+    /// </summary>
+    private async Task<Job?> NextJobFromDataAsync(IQueueBackend backend, NextJobData? next, string token)
+    {
+        if (next is not { } data)
+        {
+            return null;
+        }
+
+        if (data.Job is null)
+        {
+            MarkDrained();
+            return null;
+        }
+
+        _drained = false;
+
+        // The job is already active under this worker's token. On force close do
+        // not start it: like the jobs interrupted by the close, it is left active
+        // and recovered as stalled once its lock expires.
+        if (_forceClosing)
+        {
+            return null;
+        }
+
+        var job = Job.FromJson(backend, Name, data.Job, data.JobId);
+        job.Token = token;
+        if (!string.IsNullOrEmpty(job.RepeatJobKey))
+        {
+            await ScheduleNextIterationAsync(backend, job).ConfigureAwait(false);
+        }
+
+        return job;
+    }
+
+    private void MarkDrained()
+    {
+        // Slots finishing concurrently may all see an empty queue; raise once.
+        lock (_drainedLock)
+        {
+            if (_drained)
+            {
+                return;
+            }
+
+            _drained = true;
+        }
+
+        Drained?.Invoke();
     }
 
     /// <summary>
@@ -270,15 +344,21 @@ public sealed class Worker : IAsyncDisposable
         }
     }
 
-    private async Task ProcessJob(IQueueBackend backend, Job job, string token)
+    /// <summary>
+    /// Processes a job and finishes it. Unless the worker is closing, the finish
+    /// call also fetches the next job, which is returned so the caller can
+    /// process it in the same slot.
+    /// </summary>
+    private async Task<NextJobData?> ProcessJob(IQueueBackend backend, Job job, string token)
     {
         var ts = job.ProcessedOn ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         _lockManager?.TrackJob(job.Id!, token, ts);
         Active?.Invoke(job);
+        NextJobData? next = null;
         try
         {
             var result = await _processor(job, _abortCts.Token).ConfigureAwait(false);
-            await job.MoveToCompletedAsync(result, token, fetchNext: false).ConfigureAwait(false);
+            next = await job.MoveToCompletedAsync(result, token, fetchNext: !_closing).ConfigureAwait(false);
             Completed?.Invoke(job, result);
         }
         catch (OperationCanceledException) when (_forceClosing)
@@ -298,7 +378,7 @@ public sealed class Worker : IAsyncDisposable
         {
             try
             {
-                await job.MoveToFailedAsync(ex, token, fetchNext: false).ConfigureAwait(false);
+                next = await job.MoveToFailedAsync(ex, token, fetchNext: !_closing).ConfigureAwait(false);
             }
             catch (Exception moveError)
             {
@@ -311,6 +391,8 @@ public sealed class Worker : IAsyncDisposable
         {
             _lockManager?.UntrackJob(job.Id!);
         }
+
+        return next;
     }
 
     /// <summary>Blocks on the backend's wait primitive until a job may be available.</summary>
