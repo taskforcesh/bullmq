@@ -433,6 +433,84 @@ public abstract class QueueWorkerTestsBase
     }
 
     [Fact]
+    public async Task Worker_JobStalledMoreThanMaxStalledCount_FailsWithoutProcessing()
+    {
+        const string deferredReason = "job stalled more than allowable limit";
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        var active = new TaskCompletionSource<Job>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // The first worker takes the job and is then force closed, leaving the job
+        // active with a lock that expires after LockDuration (a crashed worker).
+        var stallingOptions = NewWorkerOptions();
+        stallingOptions.LockDuration = 1000;
+        stallingOptions.SkipStalledCheck = true;
+        var stallingWorker = new Worker(
+            name,
+            async (job, ct) =>
+            {
+                active.TrySetResult(job);
+                await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
+                return null;
+            },
+            stallingOptions);
+
+        var recoveringOptions = NewWorkerOptions();
+        recoveringOptions.MaxStalledCount = 0;
+        recoveringOptions.StalledInterval = 100;
+        var processed = 0;
+        var recoveringWorker = new Worker(
+            name,
+            (_, _) =>
+            {
+                Interlocked.Increment(ref processed);
+                return Task.FromResult<object?>("done");
+            },
+            recoveringOptions);
+
+        var stalled = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var failed = new TaskCompletionSource<(Job? job, Exception error)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        recoveringWorker.Stalled += jobId => stalled.TrySetResult(jobId);
+        recoveringWorker.Failed += (job, error) => failed.TrySetResult((job, error));
+
+        try
+        {
+            // Attempts > 1: a deferred failure is unrecoverable, so it is not retried.
+            var added = await queue.AddAsync("job", new { x = 1 }, new JobsOptions { Attempts = 3 });
+            _ = stallingWorker.RunAsync();
+
+            var activeJob = await WaitForAsync(active.Task, TimeSpan.FromSeconds(15));
+            Assert.Equal(added.Id, activeJob.Id);
+            await stallingWorker.CloseAsync(force: true);
+            Assert.Equal(JobState.Active, await added.GetStateAsync());
+
+            _ = recoveringWorker.RunAsync();
+
+            var (failedJob, error) = await WaitForAsync(failed.Task, TimeSpan.FromSeconds(15));
+            Assert.Equal(added.Id, await WaitForAsync(stalled.Task, TimeSpan.FromSeconds(1)));
+            Assert.Equal(added.Id, failedJob!.Id);
+            Assert.IsType<UnrecoverableException>(error);
+            Assert.Equal(deferredReason, error.Message);
+            Assert.Equal(0, Volatile.Read(ref processed));
+
+            Assert.Equal(JobState.Failed, await added.GetStateAsync());
+            var stored = await queue.GetJobAsync(added.Id!);
+            Assert.NotNull(stored);
+            Assert.Equal(deferredReason, stored!.FailedReason);
+            Assert.Equal(1, stored.StalledCounter);
+            Assert.Equal(1, stored.AttemptsMade);
+            Assert.Equal(2, stored.AttemptsStarted);
+        }
+        finally
+        {
+            await stallingWorker.CloseAsync(force: true);
+            await recoveringWorker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
     public async Task Worker_ManualMoveToDelayed_ThrowDelayedException_DoesNotFailJob()
     {
         var name = UniqueName();
