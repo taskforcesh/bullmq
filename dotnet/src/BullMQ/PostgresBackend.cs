@@ -263,12 +263,14 @@ public sealed class PostgresBackend : IQueueBackend
         long delay,
         string token = "0",
         bool fetchNext = false,
-        bool skipAttempt = false)
+        bool skipAttempt = false,
+        string? failedReason = null,
+        string? stackTraceJson = null)
     {
         var processAt = timestamp + delay;
         await RunAsync(
             "move_to_delayed",
-            new object?[] { Name, jobId, string.IsNullOrEmpty(token) ? "0" : token, processAt, delay, skipAttempt, null, null },
+            new object?[] { Name, jobId, string.IsNullOrEmpty(token) ? "0" : token, processAt, delay, skipAttempt, failedReason, stackTraceJson },
             op: "moveToDelayed", jobId: jobId, state: "active").ConfigureAwait(false);
 
         if (fetchNext && token != "0" && !string.IsNullOrEmpty(token))
@@ -287,11 +289,12 @@ public sealed class PostgresBackend : IQueueBackend
         return row is not null && ToInt(row.GetValueOrDefault("code")) == 1;
     }
 
-    public async Task RetryJobAsync(string jobId, bool lifo, string token = "0")
+    public async Task RetryJobAsync(
+        string jobId, bool lifo, string token = "0", string? failedReason = null, string? stackTraceJson = null)
     {
         await RunAsync(
             "retry_job",
-            new object?[] { Name, jobId, token ?? string.Empty, lifo, null, null },
+            new object?[] { Name, jobId, token ?? string.Empty, lifo, failedReason, stackTraceJson },
             op: "retryJob", jobId: jobId, state: "active").ConfigureAwait(false);
     }
 

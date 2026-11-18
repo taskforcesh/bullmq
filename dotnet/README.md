@@ -93,6 +93,47 @@ await using var worker = new Worker("emails", async (job, ct) => "sent",
     new WorkerOptions { Postgres = pg, Concurrency = 5 });
 ```
 
+## Retrying failed jobs
+
+Set `Attempts` to retry a job whose processor throws, and optionally a `Backoff`
+to wait between attempts. Without `Backoff`, a failed job is retried
+immediately. Behaviour is the same on Redis and PostgreSQL.
+
+```csharp
+await queue.AddAsync("send", new { to = "user@example.com" }, new JobsOptions
+{
+    Attempts = 5,
+    // Waits 1s, 2s, 4s, 8s. Jitter (0 to 1) randomizes each delay down to
+    // delay * (1 - jitter).
+    Backoff = new BackoffOptions { Type = "exponential", Delay = 1000, Jitter = 0.5 },
+});
+```
+
+- **fixed:** waits `Delay` ms before every retry.
+- **exponential:** waits `2^(attemptsMade - 1) * Delay` ms.
+- **Custom types:** set `WorkerOptions.BackoffStrategy` to compute the delay for
+  any other `Type`. Return `0` to retry immediately or `-1` to fail the job
+  without further retries. An unknown type without a strategy is an error.
+
+```csharp
+var options = new WorkerOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+    BackoffStrategy = (attemptsMade, type, error, job) =>
+        Task.FromResult(type == "linear" ? attemptsMade * 1000L : -1L),
+};
+```
+
+Throw `UnrecoverableException` to fail a job immediately, skipping its
+remaining attempts. `WorkerOptions.MaxStartedAttempts` limits how many times a
+job can be started, which also counts starts that stalled. The worker raises
+`Failed` for every failed attempt, including attempts that are retried. Each
+failure updates the job's `FailedReason` and appends to its `StackTrace`.
+
+Custom `IQueueBackend` implementations must accept the optional `failedReason`
+and `stackTraceJson` parameters of `MoveToDelayedAsync` and `RetryJobAsync`,
+and persist them on the job when a retry is scheduled.
+
 ## Deduplication
 
 Set `JobsOptions.Deduplication` to suppress jobs with the same identifier.

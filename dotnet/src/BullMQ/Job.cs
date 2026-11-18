@@ -273,28 +273,88 @@ public class Job
     }
 
     /// <summary>
-    /// Moves the job to the failed state, optionally fetching the next job to
-    /// process. Retries are handled by the shared scripts based on the job's
-    /// attempts/backoff configuration.
+    /// Moves the job to the failed state, or retries it when it has attempts
+    /// left: after its backoff delay (moving it to delayed) or immediately
+    /// (moving it back to wait). An <see cref="UnrecoverableException"/> is never
+    /// retried. The failed reason and stack trace are persisted in every case.
     /// </summary>
+    /// <param name="error">The error thrown by the processor.</param>
+    /// <param name="token">The worker token that holds the job's lock.</param>
+    /// <param name="fetchNext">When true, fetches the next job to process.</param>
+    /// <param name="backoffStrategy">Computes the delay for custom backoff types.</param>
+    /// <param name="maxStartedAttempts">
+    /// When positive, a job started at least this many times is not retried.
+    /// </param>
     public async Task<NextJobData?> MoveToFailedAsync(
-        Exception error, string token, bool fetchNext = true)
+        Exception error,
+        string token,
+        bool fetchNext = true,
+        BackoffStrategy? backoffStrategy = null,
+        int? maxStartedAttempts = null)
     {
         var message = error.Message;
         FailedReason = message;
-        StackTrace.Add(error.StackTrace ?? string.Empty);
 
-        var result = await _backend
-            .MoveToFailedAsync(this, message, Opts.RemoveOnFail, token, fetchNext)
+        var (shouldRetry, retryDelay) = await ShouldRetryJobAsync(error, backoffStrategy, maxStartedAttempts)
             .ConfigureAwait(false);
 
-        if (result.FinishedOn > 0)
+        StackTrace.Add(error.ToString());
+        var stackTraceJson = JsonUtil.Serialize(StackTrace);
+
+        NextJobData? next = null;
+        if (!shouldRetry)
         {
-            FinishedOn = result.FinishedOn;
+            var result = await _backend
+                .MoveToFailedAsync(this, message, Opts.RemoveOnFail, token, fetchNext, stackTraceJson)
+                .ConfigureAwait(false);
+
+            if (result.FinishedOn > 0)
+            {
+                FinishedOn = result.FinishedOn;
+            }
+
+            next = result.Next;
+        }
+        else if (retryDelay > 0)
+        {
+            next = await _backend
+                .MoveToDelayedAsync(
+                    Id!,
+                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    retryDelay,
+                    token,
+                    fetchNext,
+                    skipAttempt: false,
+                    failedReason: message,
+                    stackTraceJson: stackTraceJson)
+                .ConfigureAwait(false);
+            Delay = retryDelay;
+        }
+        else
+        {
+            await _backend
+                .RetryJobAsync(Id!, Opts.Lifo ?? false, token, message, stackTraceJson)
+                .ConfigureAwait(false);
         }
 
         AttemptsMade += 1;
-        return result.Next;
+        return next;
+    }
+
+    private async Task<(bool Retry, long Delay)> ShouldRetryJobAsync(
+        Exception error, BackoffStrategy? backoffStrategy, int? maxStartedAttempts)
+    {
+        var reachedMaxStartedAttempts = maxStartedAttempts is > 0 && maxStartedAttempts <= AttemptsStarted;
+        if (AttemptsMade + 1 >= Attempts || error is UnrecoverableException || reachedMaxStartedAttempts)
+        {
+            return (false, 0);
+        }
+
+        var delay = await Backoffs
+            .CalculateAsync(Opts.Backoff, AttemptsMade + 1, error, this, backoffStrategy)
+            .ConfigureAwait(false);
+
+        return delay == -1 ? (false, 0) : (true, delay ?? 0);
     }
 
     // -- Internal serialization helpers used by the backend --
@@ -369,6 +429,12 @@ public class Job
             if (backoff.TryGetProperty("delay", out var bd) && bd.TryGetInt64(out var bdv))
             {
                 bo.Delay = bdv;
+            }
+
+            if (backoff.TryGetProperty("jitter", out var bj) && bj.TryGetDouble(out var bjv) &&
+                bjv >= 0 && bjv <= 1)
+            {
+                bo.Jitter = bjv;
             }
 
             opts.Backoff = bo;

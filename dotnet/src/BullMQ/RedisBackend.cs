@@ -464,6 +464,11 @@ public sealed class RedisBackend : IQueueBackend
             packedOpts,
         };
 
+        if (stackTraceJson is not null)
+        {
+            args.Add(PackFieldsToUpdate(value, stackTraceJson));
+        }
+
         var result = await _connection
             .EvalAsync("moveToFinished", keyList.ToArray(), args.ToArray())
             .ConfigureAwait(false);
@@ -486,7 +491,9 @@ public sealed class RedisBackend : IQueueBackend
         long delay,
         string token = "0",
         bool fetchNext = false,
-        bool skipAttempt = false)
+        bool skipAttempt = false,
+        string? failedReason = null,
+        string? stackTraceJson = null)
     {
         var keys = MapKeys("marker", "active", "prioritized", "delayed");
         var keyList = new List<RedisKey>(keys)
@@ -508,7 +515,7 @@ public sealed class RedisBackend : IQueueBackend
             token,
             delay,
             skipAttempt ? "1" : "0",
-            string.Empty, // fieldsToUpdate placeholder
+            PackFieldsToUpdate(failedReason, stackTraceJson),
             fetchNext ? "1" : "0",
         };
 
@@ -578,7 +585,8 @@ public sealed class RedisBackend : IQueueBackend
         return false;
     }
 
-    public async Task RetryJobAsync(string jobId, bool lifo, string token = "0")
+    public async Task RetryJobAsync(
+        string jobId, bool lifo, string token = "0", string? failedReason = null, string? stackTraceJson = null)
     {
         var keys = MapKeys("active", "wait", "paused");
         var keyList = new List<RedisKey>(keys)
@@ -594,10 +602,35 @@ public sealed class RedisBackend : IQueueBackend
         };
 
         var pushCmd = lifo ? "RPUSH" : "LPUSH";
-        var args = new RedisValue[] { _keys[""], NowMs(), pushCmd, jobId, token };
+        var args = new RedisValue[]
+        {
+            _keys[""], NowMs(), pushCmd, jobId, token, PackFieldsToUpdate(failedReason, stackTraceJson),
+        };
 
         var result = await _connection.EvalAsync("retryJob", keyList.ToArray(), args).ConfigureAwait(false);
         ThrowIfNegative(result, jobId, "retryJob", "active");
+    }
+
+    /// <summary>
+    /// Packs the optional job fields written by the scripts' <c>updateJobFields</c>
+    /// helper as a msgpack flat <c>[field, value, ...]</c> array (empty when none).
+    /// </summary>
+    private static RedisValue PackFieldsToUpdate(string? failedReason, string? stackTraceJson)
+    {
+        var fields = new List<object?>(4);
+        if (failedReason is not null)
+        {
+            fields.Add("failedReason");
+            fields.Add(failedReason);
+        }
+
+        if (stackTraceJson is not null)
+        {
+            fields.Add("stacktrace");
+            fields.Add(stackTraceJson);
+        }
+
+        return fields.Count == 0 ? RedisValue.EmptyString : (RedisValue)MsgPack.Encode(fields);
     }
 
     public async Task ReprocessJobAsync(

@@ -89,7 +89,10 @@ public interface IQueueBackend : IAsyncDisposable
     Task<MoveToFinishedResult> MoveToCompletedAsync(
         Job job, string returnValueJson, object? removeOnComplete, string token, bool fetchNext);
 
-    /// <summary>Moves an active job to failed and optionally fetches the next job.</summary>
+    /// <summary>
+    /// Moves an active job to failed and optionally fetches the next job.
+    /// <paramref name="stackTraceJson"/> (a JSON array) is persisted when provided.
+    /// </summary>
     Task<MoveToFinishedResult> MoveToFailedAsync(
         Job job, string failedReason, object? removeOnFail, string token, bool fetchNext,
         string? stackTraceJson = null);
@@ -97,7 +100,9 @@ public interface IQueueBackend : IAsyncDisposable
     /// <summary>
     /// Moves a job to the delayed state, scheduling it after <paramref name="delay"/> ms.
     /// Set <paramref name="skipAttempt"/> to true for manual-delay control flow
-    /// where delaying must not consume an attempt.
+    /// where delaying must not consume an attempt. When retrying a failed job,
+    /// <paramref name="failedReason"/> and <paramref name="stackTraceJson"/> (a
+    /// JSON array) are persisted on the job in the same atomic step.
     /// </summary>
     Task<NextJobData?> MoveToDelayedAsync(
         string jobId,
@@ -105,13 +110,20 @@ public interface IQueueBackend : IAsyncDisposable
         long delay,
         string token = "0",
         bool fetchNext = false,
-        bool skipAttempt = false);
+        bool skipAttempt = false,
+        string? failedReason = null,
+        string? stackTraceJson = null);
 
     /// <summary>Moves a parent job to the waiting-children state. Returns true if moved.</summary>
     Task<bool> MoveToWaitingChildrenAsync(string jobId, string token, string? childKey = null);
 
-    /// <summary>Retries a failed/active job immediately by pushing it back to wait.</summary>
-    Task RetryJobAsync(string jobId, bool lifo, string token = "0");
+    /// <summary>
+    /// Retries a failed/active job immediately by pushing it back to wait,
+    /// persisting <paramref name="failedReason"/> and <paramref name="stackTraceJson"/>
+    /// (a JSON array) when provided.
+    /// </summary>
+    Task RetryJobAsync(
+        string jobId, bool lifo, string token = "0", string? failedReason = null, string? stackTraceJson = null);
 
     /// <summary>Reprocesses a finished (failed/completed) job, moving it back to wait.</summary>
     Task ReprocessJobAsync(Job job, string state, bool resetAttemptsMade = false, bool resetAttemptsStarted = false);

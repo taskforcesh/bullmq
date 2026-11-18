@@ -54,7 +54,10 @@ public sealed class Worker : IAsyncDisposable
     /// <summary>Raised when a job completes successfully.</summary>
     public event Action<Job, object?>? Completed;
 
-    /// <summary>Raised when a job fails.</summary>
+    /// <summary>
+    /// Raised each time a job attempt fails, including attempts that are
+    /// retried afterwards.
+    /// </summary>
     public event Action<Job?, Exception>? Failed;
 
     /// <summary>Raised when the worker drains the waiting list.</summary>
@@ -89,6 +92,14 @@ public sealed class Worker : IAsyncDisposable
                 nameof(opts),
                 opts.Concurrency,
                 "WorkerOptions.Concurrency must be greater than 0.");
+        }
+
+        if (opts.MaxStartedAttempts < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(opts),
+                opts.MaxStartedAttempts,
+                "WorkerOptions.MaxStartedAttempts must be greater or equal than 0.");
         }
 
         _backend = new Lazy<Task<IQueueBackend>>(InitBackendAsync);
@@ -277,6 +288,11 @@ public sealed class Worker : IAsyncDisposable
         Active?.Invoke(job);
         try
         {
+            if (Opts.MaxStartedAttempts is int maxStarted && maxStarted > 0 && maxStarted < job.AttemptsStarted)
+            {
+                throw new UnrecoverableException("job started more than allowable limit");
+            }
+
             var result = await _processor(job, _abortCts.Token).ConfigureAwait(false);
             await job.MoveToCompletedAsync(result, token, fetchNext: false).ConfigureAwait(false);
             Completed?.Invoke(job, result);
@@ -298,7 +314,8 @@ public sealed class Worker : IAsyncDisposable
         {
             try
             {
-                await job.MoveToFailedAsync(ex, token, fetchNext: false).ConfigureAwait(false);
+                await job.MoveToFailedAsync(
+                    ex, token, fetchNext: false, Opts.BackoffStrategy, Opts.MaxStartedAttempts).ConfigureAwait(false);
             }
             catch (Exception moveError)
             {

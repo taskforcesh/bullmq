@@ -55,11 +55,17 @@ internal static class OptsCodec
 
         if (opts.Backoff is { } backoff)
         {
-            map["backoff"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            var backoffMap = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["type"] = backoff.Type,
                 ["delay"] = backoff.Delay,
             };
+            if (backoff.Jitter is { } jitter)
+            {
+                backoffMap["jitter"] = jitter;
+            }
+
+            map["backoff"] = backoffMap;
         }
 
         if (opts.Lifo is { } lifo && lifo)
