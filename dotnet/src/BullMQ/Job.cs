@@ -385,7 +385,64 @@ public class Job
             opts.KeepLogs = klv;
         }
 
+        if (root.TryGetProperty("removeOnComplete", out var roc))
+        {
+            opts.RemoveOnComplete = ParseRemoveOn(roc);
+        }
+
+        if (root.TryGetProperty("removeOnFail", out var rof))
+        {
+            opts.RemoveOnFail = ParseRemoveOn(rof);
+        }
+
         return opts;
+    }
+
+    /// <summary>
+    /// Reads a stored <c>removeOnComplete</c>/<c>removeOnFail</c> value in any
+    /// of the forms the BullMQ runtimes write: a boolean, a number (keep the
+    /// last N) or a <c>{count, age, limit}</c> object. Returns null for an
+    /// unrecognized value so the worker default (or keep-all) applies.
+    /// </summary>
+    private static object? ParseRemoveOn(JsonElement value)
+    {
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.True:
+                return true;
+            case JsonValueKind.False:
+                return false;
+            case JsonValueKind.Number:
+                return ReadInt(value);
+            case JsonValueKind.Object:
+                return new KeepJobs
+                {
+                    Count = value.TryGetProperty("count", out var count) ? ReadInt(count) : null,
+                    Age = value.TryGetProperty("age", out var age) ? ReadInt(age) : null,
+                    Limit = value.TryGetProperty("limit", out var limit) ? ReadInt(limit) : null,
+                };
+            default:
+                return null;
+        }
+    }
+
+    // Rounds fractional values up so a lenient writer never causes more jobs to
+    // be removed than requested.
+    private static int? ReadInt(JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Number)
+        {
+            return null;
+        }
+
+        if (value.TryGetInt32(out var i))
+        {
+            return i;
+        }
+
+        return value.TryGetDouble(out var d) && double.IsFinite(d)
+            ? (int)Math.Clamp(Math.Ceiling(d), int.MinValue, int.MaxValue)
+            : null;
     }
 
     private static RepeatOptions? ParseRepeat(string optsJson)

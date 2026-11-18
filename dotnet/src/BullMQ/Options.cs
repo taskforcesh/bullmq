@@ -96,6 +96,22 @@ public sealed class WorkerOptions : QueueBaseOptions
 
     /// <summary>Disable periodic lock renewal.</summary>
     public bool SkipLockRenewal { get; set; }
+
+    /// <summary>
+    /// Default retention policy for jobs this worker completes. Applies only to
+    /// jobs that do not set <see cref="JobsOptions.RemoveOnComplete"/>; the
+    /// job's own setting (including <c>false</c>) always wins. When neither is
+    /// set, completed jobs are kept. <c>Count = 0</c> keeps none.
+    /// </summary>
+    public KeepJobs? RemoveOnComplete { get; set; }
+
+    /// <summary>
+    /// Default retention policy for jobs this worker fails. Applies only to
+    /// jobs that do not set <see cref="JobsOptions.RemoveOnFail"/>; the job's
+    /// own setting (including <c>false</c>) always wins. When neither is set,
+    /// failed jobs are kept. <c>Count = 0</c> keeps none.
+    /// </summary>
+    public KeepJobs? RemoveOnFail { get; set; }
 }
 
 /// <summary>Options for a <see cref="QueueEvents"/> listener.</summary>
@@ -152,12 +168,16 @@ public sealed class JobsOptions
     public long? Timestamp { get; set; }
 
     /// <summary>
-    /// Remove the job when it completes: <c>true</c> to remove, a number to keep
-    /// that many, or a <see cref="KeepJobs"/> policy.
+    /// Remove the job when it completes: <c>true</c> to remove, <c>false</c> to
+    /// keep, a number to keep that many, or a <see cref="KeepJobs"/> policy.
+    /// Overrides <see cref="WorkerOptions.RemoveOnComplete"/>.
     /// </summary>
     public object? RemoveOnComplete { get; set; }
 
-    /// <summary>Remove the job when it fails. Same shape as <see cref="RemoveOnComplete"/>.</summary>
+    /// <summary>
+    /// Remove the job when it fails. Same shape as <see cref="RemoveOnComplete"/>.
+    /// Overrides <see cref="WorkerOptions.RemoveOnFail"/>.
+    /// </summary>
     public object? RemoveOnFail { get; set; }
 
     /// <summary>Maximum number of log entries to keep for the job (0 = unlimited).</summary>
@@ -197,4 +217,10 @@ public sealed class KeepJobs
 
     /// <summary>Maximum age in seconds of jobs to keep.</summary>
     public int? Age { get; set; }
+
+    /// <summary>
+    /// Maximum number of aged jobs removed per finished job (Redis only;
+    /// defaults to 1000). Ignored by the PostgreSQL backend.
+    /// </summary>
+    public int? Limit { get; set; }
 }
