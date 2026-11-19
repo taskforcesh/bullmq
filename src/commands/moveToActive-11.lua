@@ -44,12 +44,15 @@ local delayedKey = KEYS[7]
 local opts = cmsgpack.unpack(ARGV[3])
 
 -- Includes
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/getQueueMetadata"
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/moveJobFromPrioritizedToActive"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
+
+allowWritesOnOOM(KEYS[1])
 
 local isPausedOrMaxed, rateLimitMax, rateLimitDuration =
     getQueueMetadata(KEYS[9], activeKey, waitKey)

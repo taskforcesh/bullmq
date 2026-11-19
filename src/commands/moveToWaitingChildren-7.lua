@@ -37,7 +37,10 @@ local timestamp = ARGV[3]
 local jobId = ARGV[4]
 
 --- Includes
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/removeLock"
+
+allowWritesOnOOM(KEYS[1])
 
 local function removeJobFromActive(activeKey, stalledKey, jobKey, jobId,
     token)

@@ -13,6 +13,12 @@
     "1" if lock extended successfully.
 ]]
 local rcall = redis.call
+
+-- Includes
+--- @include "includes/allowWritesOnOOM"
+
+allowWritesOnOOM(KEYS[1])
+
 if rcall("GET", KEYS[1]) == ARGV[1] then
   --   if rcall("SET", KEYS[1], ARGV[1], "PX", ARGV[2], "XX") then
   if rcall("SET", KEYS[1], ARGV[1], "PX", ARGV[2]) then

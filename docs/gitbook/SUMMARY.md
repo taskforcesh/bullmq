@@ -96,6 +96,7 @@
   - [Producers](guide/nestjs/producers.md)
   - [Queue Events Listeners](guide/nestjs/queue-events-listeners.md)
 - [Going to production](guide/going-to-production.md)
+  - [Redis™ out of memory](guide/redis-out-of-memory.md)
 - [Migrations](guide/migrations/migration-to-newer-versions.md)
   - [Bull to BullMQ](guide/migrations/bull-to-bullmq.md)
   - [Migrate from v5 to v6](guide/migrations/migrate-from-v5-to-v6.md)
