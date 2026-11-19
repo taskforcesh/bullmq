@@ -98,6 +98,21 @@ public sealed class WorkerOptions : QueueBaseOptions
     public bool SkipLockRenewal { get; set; }
 
     /// <summary>
+    /// Computes the retry delay for jobs whose <see cref="BackoffOptions.Type"/>
+    /// is not a built-in strategy. A job with an unknown backoff type cannot be
+    /// retried unless this is set.
+    /// </summary>
+    public BackoffStrategy? BackoffStrategy { get; set; }
+
+    /// <summary>
+    /// Maximum number of times a job can be started (picked up by a worker),
+    /// whether it then completes, fails or stalls. A job started more times is
+    /// failed with an <see cref="UnrecoverableException"/>, and a failed job that
+    /// has reached this limit is not retried. <c>null</c> or <c>0</c> disables it.
+    /// </summary>
+    public int? MaxStartedAttempts { get; set; }
+
+    /// <summary>
     /// Default retention policy for jobs this worker completes. Applies only to
     /// jobs that do not set <see cref="JobsOptions.RemoveOnComplete"/>; the
     /// job's own setting (including <c>false</c>) always wins. When neither is
@@ -133,11 +148,34 @@ public sealed class QueueEventsOptions : QueueBaseOptions
 /// <summary>Backoff configuration for retrying failed jobs.</summary>
 public sealed class BackoffOptions
 {
-    /// <summary>Strategy type (e.g. <c>"fixed"</c>, <c>"exponential"</c>).</summary>
+    private double? _jitter;
+
+    /// <summary>
+    /// Strategy type: <c>"fixed"</c>, <c>"exponential"</c>, or a custom type
+    /// handled by <see cref="WorkerOptions.BackoffStrategy"/>.
+    /// </summary>
     public string Type { get; set; } = "fixed";
 
     /// <summary>Base delay in milliseconds.</summary>
     public long Delay { get; set; }
+
+    /// <summary>
+    /// Fraction (0 to 1) of the computed delay to randomize, so the actual delay
+    /// is between <c>delay * (1 - jitter)</c> and <c>delay</c>. Defaults to 0.
+    /// </summary>
+    public double? Jitter
+    {
+        get => _jitter;
+        set
+        {
+            if (value is { } v && !(v >= 0 && v <= 1))
+            {
+                throw new ArgumentOutOfRangeException(nameof(Jitter), value, "Jitter should be between 0 and 1");
+            }
+
+            _jitter = value;
+        }
+    }
 }
 
 /// <summary>Options that control how a single job is added and processed.</summary>
@@ -155,10 +193,16 @@ public sealed class JobsOptions
     /// <summary>Job priority (1 = highest). 0 (or null) means no priority.</summary>
     public int? Priority { get; set; }
 
-    /// <summary>Number of total attempts to run the job until it completes.</summary>
+    /// <summary>
+    /// Number of total attempts to run the job until it completes. A failed job
+    /// is retried by the worker until it has been attempted this many times.
+    /// </summary>
     public int? Attempts { get; set; }
 
-    /// <summary>Backoff setting for automatic retries.</summary>
+    /// <summary>
+    /// Backoff setting for automatic retries. Without a backoff, failed jobs are
+    /// retried immediately.
+    /// </summary>
     public BackoffOptions? Backoff { get; set; }
 
     /// <summary>When true the job is added to the right of the wait list (LIFO).</summary>
