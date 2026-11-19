@@ -84,6 +84,7 @@ var pg = new PostgresOptions
 {
     ConnectionString = "Host=localhost;Database=bullmq;Username=postgres;Password=postgres",
     // Schema = "bullmq", // optional, this is the default
+    // PoolSize = 20,     // optional, max pooled query connections
 };
 
 await using var queue = new Queue("emails", new QueueOptions { Postgres = pg });
@@ -133,6 +134,12 @@ failure updates the job's `FailedReason` and appends to its `StackTrace`.
 Custom `IQueueBackend` implementations must accept the optional `failedReason`
 and `stackTraceJson` parameters of `MoveToDelayedAsync` and `RetryJobAsync`,
 and persist them on the job when a retry is scheduled.
+
+Queries run on a connection pool shared by every queue, worker and `QueueEvents` in
+the process that uses the same connection string and schema. Size it with
+`PoolSize` (default 20) or `Maximum Pool Size` in the connection string; each
+worker and `QueueEvents` also keeps one dedicated `LISTEN` connection outside the
+pool, so size the server's `max_connections` accordingly.
 
 ## Deduplication
 
