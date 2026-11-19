@@ -171,10 +171,10 @@ public sealed class PostgresMigrationTests
             // Adopted rows keep the legacy applied_at (they were not re-applied).
             Assert.Equal(legacy, after.Take(seededVersion).Select(r => (r.Version, r.Name, r.AppliedAt)));
             // The legacy ledger is kept for older .NET instances: its rows are
-            // untouched and the newly applied migrations are mirrored into it.
+            // untouched and it gains the newly applied shared-ledger rows.
             var legacyAfter = await ReadLegacyLedgerAsync(schema);
             Assert.Equal(legacy, legacyAfter.Take(seededVersion));
-            Assert.Equal(after.Select(r => (r.Version, r.Name)), legacyAfter.Select(r => (r.Item1, r.Item2)));
+            Assert.Equal(after.Select(r => (r.Version, r.Name, r.AppliedAt)), legacyAfter);
 
             // Re-running after the adoption is a no-op.
             await using (var conn = await OpenAsync())
@@ -216,6 +216,49 @@ public sealed class PostgresMigrationTests
             Assert.Equal(
                 ReadNodeMigrations(),
                 (await ReadLedgerAsync(schema)).Select(r => new NodeMigration(r.Version, r.Name, r.MinClientVersion)));
+        }
+        finally
+        {
+            await DropSchemaAsync(schema);
+        }
+    }
+
+    [Fact]
+    public async Task LegacyDotnetLedger_IsReconciledWhenTheSharedLedgerIsAhead()
+    {
+        // An upgraded .NET instance adopted a legacy schema at version 2, then
+        // another runtime advanced the shared ledger to the latest version. This
+        // run has nothing pending but must still bring the legacy ledger up to
+        // date, or older .NET instances would re-apply migrations 3..latest.
+        var schema = NewSchema();
+        try
+        {
+            await SeedAsync(
+                schema,
+                NodeLedgerDdl,
+                "INSERT INTO migration (version, name, min_client_version) VALUES ($1, $2, 6)",
+                LatestVersion);
+            await ExecuteAsync(
+                $"UPDATE \"{schema}\".migration " +
+                "SET applied_at = timestamptz '2026-01-01 00:00:00+00' + version * interval '1 hour'");
+            await ExecuteAsync(
+                $"CREATE TABLE \"{schema}\".{LegacyDotnetLedgerDdl["CREATE TABLE ".Length..]}; " +
+                $"INSERT INTO \"{schema}\".bullmq_migration (version, name, applied_at) " +
+                $"SELECT version, name, applied_at FROM \"{schema}\".migration WHERE version <= 2");
+            var shared = await ReadLedgerAsync(schema);
+
+            for (var run = 0; run < 2; run++)
+            {
+                await using (var conn = await OpenAsync())
+                {
+                    Assert.Equal(LatestVersion, await PostgresConnection.RunMigrationsAsync(conn, schema, false));
+                }
+
+                Assert.Equal(shared, await ReadLedgerAsync(schema));
+                Assert.Equal(
+                    shared.Select(r => (r.Version, r.Name, r.AppliedAt)),
+                    await ReadLegacyLedgerAsync(schema));
+            }
         }
         finally
         {

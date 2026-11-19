@@ -376,17 +376,12 @@ public sealed class PostgresConnection : IAsyncDisposable
             insert.Parameters.Add(new NpgsqlParameter { Value = file });
             insert.Parameters.Add(new NpgsqlParameter { Value = BullMQMajorVersion });
             await insert.ExecuteNonQueryAsync().ConfigureAwait(false);
-            if (hasLegacyLedger)
-            {
-                await using var mirror = new NpgsqlCommand(
-                    $"INSERT INTO {LegacyLedgerTable} (version, name) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING",
-                    conn, tx);
-                mirror.Parameters.Add(new NpgsqlParameter { Value = fileVersion });
-                mirror.Parameters.Add(new NpgsqlParameter { Value = file });
-                await mirror.ExecuteNonQueryAsync().ConfigureAwait(false);
-            }
-
             version = Math.Max(version, fileVersion);
+        }
+
+        if (hasLegacyLedger)
+        {
+            await ReconcileLegacyLedgerAsync(conn, tx).ConfigureAwait(false);
         }
 
         await tx.CommitAsync().ConfigureAwait(false);
@@ -423,9 +418,9 @@ public sealed class PostgresConnection : IAsyncDisposable
     // ledger exists. Every recorded version was committed together with its
     // migration's DDL, so the union is accurate even while older .NET instances
     // keep using the legacy table during a rolling upgrade. The legacy table is
-    // never dropped implicitly: older .NET instances still read it (newly applied
-    // migrations are mirrored into it so they don't re-apply them), and it can be
-    // dropped manually once every instance is upgraded.
+    // never dropped implicitly: older .NET instances still read it (see
+    // ReconcileLegacyLedgerAsync), and it can be dropped manually once every
+    // instance is upgraded.
     private static async Task<bool> AdoptLegacyLedgerAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string quotedSchema)
     {
         await using (var exists = new NpgsqlCommand("SELECT to_regclass($1) IS NOT NULL", conn, tx))
@@ -445,6 +440,17 @@ public sealed class PostgresConnection : IAsyncDisposable
         await adopt.ExecuteNonQueryAsync().ConfigureAwait(false);
         return true;
     }
+
+    // Brings the legacy ledger up to date with every `migration` row it lacks
+    // (keeping version, name and applied_at), so older .NET instances that still
+    // read it don't re-apply migrations recorded only in the shared ledger, e.g.
+    // ones applied by this run or by another runtime.
+    private static Task ReconcileLegacyLedgerAsync(NpgsqlConnection conn, NpgsqlTransaction tx) =>
+        ExecuteRawAsync(
+            conn, tx,
+            $"INSERT INTO {LegacyLedgerTable} (version, name, applied_at) " +
+            "SELECT version, name, applied_at FROM migration " +
+            "ON CONFLICT (version) DO NOTHING");
 
     private static async Task<int> ExecuteScalarIntAsync(
         NpgsqlConnection conn, NpgsqlTransaction tx, string sql, params object[] parameters)
