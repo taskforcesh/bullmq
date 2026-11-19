@@ -397,7 +397,7 @@ public sealed class Worker : IAsyncDisposable
     private async Task<NextJobData?> ProcessJob(IQueueBackend backend, Job job, string token)
     {
         var ts = job.ProcessedOn ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        _lockManager?.TrackJob(job.Id!, token, ts);
+        var registrationGeneration = _lockManager?.TrackJob(job.Id!, token, ts) ?? 0;
         Active?.Invoke(job);
         NextJobData? next = null;
         try
@@ -451,7 +451,7 @@ public sealed class Worker : IAsyncDisposable
         }
         finally
         {
-            _lockManager?.UntrackJob(job.Id!, token);
+            _lockManager?.UntrackJob(job.Id!, token, registrationGeneration);
         }
 
         return next;

@@ -21,6 +21,7 @@ internal sealed class LockManager
     private readonly Action<IReadOnlyList<string>> _onRenewed;
 
     private readonly ConcurrentDictionary<string, TrackedJob> _tracked = new(StringComparer.Ordinal);
+    private long _generation;
     private CancellationTokenSource? _cts;
     private Task? _loop;
     private volatile bool _closed;
@@ -54,27 +55,30 @@ internal sealed class LockManager
     }
 
     /// <summary>Registers a job for lock renewal, replacing any earlier attempt's registration.</summary>
-    public void TrackJob(string jobId, string token, long ts)
+    public long TrackJob(string jobId, string token, long ts)
     {
         if (_closed || string.IsNullOrEmpty(jobId))
         {
-            return;
+            return 0;
         }
 
-        _tracked[jobId] = new TrackedJob(token, ts == 0 ? NowMs() : ts);
+        var generation = Interlocked.Increment(ref _generation);
+        _tracked[jobId] = new TrackedJob(token, ts == 0 ? NowMs() : ts, generation);
+        return generation;
     }
 
     /// <summary>
     /// Stops renewing the lock for the given job, but only while it is still
-    /// registered with <paramref name="token"/>. A newer attempt of the same job
-    /// (e.g. an immediate retry already running on another slot) keeps its
-    /// registration.
+    /// registered with <paramref name="token"/> and <paramref name="generation"/>.
+    /// A newer attempt of the same job keeps its registration even when it reuses
+    /// the same token.
     /// </summary>
-    public void UntrackJob(string jobId, string token)
+    public void UntrackJob(string jobId, string token, long generation)
     {
         // Renewals replace the entry (new Ts), so retry the exact-value removal
-        // until it succeeds or the job is no longer tracked with this token.
-        while (_tracked.TryGetValue(jobId, out var tracked) && tracked.Token == token)
+        // until it succeeds or the registration has changed.
+        while (_tracked.TryGetValue(jobId, out var tracked) &&
+            tracked.Token == token && tracked.Generation == generation)
         {
             if (_tracked.TryRemove(new KeyValuePair<string, TrackedJob>(jobId, tracked)))
             {
@@ -135,7 +139,7 @@ internal sealed class LockManager
 
             var now = NowMs();
             var threshold = _lockRenewTime / 2.0;
-            var toExtend = new List<string>();
+            var toExtend = new List<KeyValuePair<string, TrackedJob>>();
 
             foreach (var jobId in _tracked.Keys)
             {
@@ -149,7 +153,7 @@ internal sealed class LockManager
                 if (tracked.Ts + threshold < now &&
                     _tracked.TryUpdate(jobId, tracked with { Ts = now }, tracked))
                 {
-                    toExtend.Add(jobId);
+                    toExtend.Add(new KeyValuePair<string, TrackedJob>(jobId, tracked with { Ts = now }));
                 }
             }
 
@@ -160,23 +164,10 @@ internal sealed class LockManager
         }
     }
 
-    private async Task ExtendLocksAsync(IReadOnlyList<string> jobIds)
+    private async Task ExtendLocksAsync(IReadOnlyList<KeyValuePair<string, TrackedJob>> registrations)
     {
-        var tokens = new List<string>(jobIds.Count);
-        var ids = new List<string>(jobIds.Count);
-        foreach (var jobId in jobIds)
-        {
-            if (_tracked.TryGetValue(jobId, out var tracked))
-            {
-                ids.Add(jobId);
-                tokens.Add(tracked.Token);
-            }
-        }
-
-        if (ids.Count == 0)
-        {
-            return;
-        }
+        var ids = registrations.Select(registration => registration.Key).ToList();
+        var tokens = registrations.Select(registration => registration.Value.Token).ToList();
 
         try
         {
@@ -188,7 +179,7 @@ internal sealed class LockManager
                     var index = ids.IndexOf(jobId);
                     if (index >= 0)
                     {
-                        UntrackJob(jobId, tokens[index]);
+                        UntrackJob(jobId, tokens[index], registrations[index].Value.Generation);
                     }
                 }
 
@@ -209,5 +200,5 @@ internal sealed class LockManager
 
     private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-    private readonly record struct TrackedJob(string Token, long Ts);
+    private readonly record struct TrackedJob(string Token, long Ts, long Generation);
 }
