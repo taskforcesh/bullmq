@@ -396,6 +396,63 @@ public sealed class PostgresMigrationTests
         }
     }
 
+    [Fact]
+    public async Task CachedCompatibilityCheck_DoesNotBlockAnotherSchema()
+    {
+        var blockedSchema = NewSchema();
+        var otherSchema = NewSchema();
+        var blockedOptions = new PostgresOptions
+        {
+            ConnectionString = ConnectionString,
+            Schema = blockedSchema,
+            PoolSize = 1,
+        };
+        var otherOptions = new PostgresOptions { ConnectionString = ConnectionString, Schema = otherSchema };
+        try
+        {
+            await using (var warm = new PostgresConnection(blockedOptions))
+            {
+                await warm.WaitUntilReadyAsync();
+            }
+
+            await using (var warm = new PostgresConnection(otherOptions))
+            {
+                await warm.WaitUntilReadyAsync();
+            }
+
+            var heldConnection = new PostgresConnection(blockedOptions);
+            var cachedConnection = new PostgresConnection(blockedOptions);
+            var otherConnection = new PostgresConnection(otherOptions);
+            try
+            {
+                await heldConnection.WaitUntilReadyAsync();
+                var heldQuery = heldConnection.RunAsync("SELECT pg_sleep(2)", Array.Empty<object?>());
+                await Task.Delay(100);
+                Assert.False(heldQuery.IsCompleted);
+
+                var cachedCheck = cachedConnection.WaitUntilReadyAsync();
+                await Task.Delay(100);
+                Assert.False(cachedCheck.IsCompleted);
+
+                var otherCheck = otherConnection.WaitUntilReadyAsync();
+                var otherCheckIsPrompt = await Task.WhenAny(otherCheck, Task.Delay(TimeSpan.FromSeconds(1))) == otherCheck;
+                await Task.WhenAll(heldQuery, cachedCheck, otherCheck);
+                Assert.True(otherCheckIsPrompt, "A cached check for another schema waited on the busy pool.");
+            }
+            finally
+            {
+                await heldConnection.DisposeAsync();
+                await cachedConnection.DisposeAsync();
+                await otherConnection.DisposeAsync();
+            }
+        }
+        finally
+        {
+            await DropSchemaAsync(blockedSchema);
+            await DropSchemaAsync(otherSchema);
+        }
+    }
+
     // ============================================================
     // Helpers
     // ============================================================

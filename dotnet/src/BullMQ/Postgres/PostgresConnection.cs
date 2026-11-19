@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Text.RegularExpressions;
 using Npgsql;
@@ -267,22 +268,23 @@ public sealed class PostgresConnection : IAsyncDisposable
     // cache and, under concurrency (e.g. many queues/workers/tests starting at
     // once), trigger a catalog-reload storm across every other connection —
     // turning startup into tens of seconds.
-    private static readonly SemaphoreSlim s_migrateLock = new(1, 1);
-    private static readonly HashSet<string> s_migrated = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> s_migrateLocks = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, byte> s_migrated = new(StringComparer.Ordinal);
 
     private async Task EnsureMigratedOnceAsync()
     {
-        await s_migrateLock.WaitAsync().ConfigureAwait(false);
+        var migrateLock = s_migrateLocks.GetOrAdd(_connectionString, static _ => new SemaphoreSlim(1, 1));
+        await migrateLock.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (s_migrated.Contains(_connectionString))
+            if (s_migrated.ContainsKey(_connectionString))
             {
                 if (await IsMigratedSchemaUsableAsync().ConfigureAwait(false))
                 {
                     return;
                 }
 
-                s_migrated.Remove(_connectionString);
+                s_migrated.TryRemove(_connectionString, out _);
             }
 
             try
@@ -302,11 +304,11 @@ public sealed class PostgresConnection : IAsyncDisposable
                 ClearQueriesIfUnused();
             }
 
-            s_migrated.Add(_connectionString);
+            s_migrated.TryAdd(_connectionString, 0);
         }
         finally
         {
-            s_migrateLock.Release();
+            migrateLock.Release();
         }
     }
 
@@ -319,15 +321,22 @@ public sealed class PostgresConnection : IAsyncDisposable
     // schema is migrated again.
     private async Task<bool> IsMigratedSchemaUsableAsync()
     {
-        await using var conn = await OpenWithRetryAsync(_dataSources.Queries).ConfigureAwait(false);
         try
         {
-            await AssertClientCompatibleAsync(conn, null, QuoteSchemaName(Schema)).ConfigureAwait(false);
-            return true;
+            await using var conn = await OpenWithRetryAsync(_dataSources.Queries).ConfigureAwait(false);
+            try
+            {
+                await AssertClientCompatibleAsync(conn, null, QuoteSchemaName(Schema)).ConfigureAwait(false);
+                return true;
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedTable)
+            {
+                return false;
+            }
         }
-        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedTable)
+        finally
         {
-            return false;
+            ClearQueriesIfUnused();
         }
     }
 
