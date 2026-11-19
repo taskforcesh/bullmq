@@ -1,8 +1,8 @@
 import { IRedisClient } from './redis-client';
 
 export interface BaseOptions {
-  skipVersionCheck?: boolean;
-  url?: string;
+  skipVersionCheck?: boolean | undefined;
+  url?: string | undefined;
 }
 
 export interface RedisOptions extends BaseOptions {
