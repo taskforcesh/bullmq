@@ -1,3 +1,11 @@
+## [1.3.2](https://github.com/taskforcesh/bullmq/compare/vnet1.3.1...vnet1.3.2) (2026-11-19)
+
+### Bug Fixes
+
+* **postgres:** don't report a claimable job while the queue is maxed (python)(elixir)(dotnet) ([#5163](https://github.com/taskforcesh/bullmq/issues/5163)) ([42745d5](https://github.com/taskforcesh/bullmq/commit/42745d5e29fae50bf5f255bf2285cde903c2497a))
+* **worker:** fail jobs with a deferred failure instead of processing them [dotnet] ([#5157](https://github.com/taskforcesh/bullmq/issues/5157)) ([1877758](https://github.com/taskforcesh/bullmq/commit/187775816ea03e8f7144049b313029a0472d4f1e))
+* **worker:** wait out the rate limit instead of polling for jobs [dotnet] ([#5158](https://github.com/taskforcesh/bullmq/issues/5158)) ([7f2ac2b](https://github.com/taskforcesh/bullmq/commit/7f2ac2b3b0b662c0aa91721c6e74fa965ce62ac2))
+
 ## [1.3.1](https://github.com/taskforcesh/bullmq/compare/vnet1.3.0...vnet1.3.1) (2026-11-12)
 
 ### Bug Fixes
