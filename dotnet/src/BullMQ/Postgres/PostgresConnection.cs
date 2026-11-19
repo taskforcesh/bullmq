@@ -319,7 +319,7 @@ public sealed class PostgresConnection : IAsyncDisposable
     // schema is migrated again.
     private async Task<bool> IsMigratedSchemaUsableAsync()
     {
-        await using var conn = await OpenWithRetryAsync().ConfigureAwait(false);
+        await using var conn = await OpenWithRetryAsync(_dataSources.Queries).ConfigureAwait(false);
         try
         {
             await AssertClientCompatibleAsync(conn, null, QuoteSchemaName(Schema)).ConfigureAwait(false);
