@@ -385,8 +385,76 @@ public class Job
             opts.KeepLogs = klv;
         }
 
+        if (root.TryGetProperty("removeOnComplete", out var roc))
+        {
+            opts.RemoveOnComplete = ParseRemoveOn(roc);
+        }
+
+        if (root.TryGetProperty("removeOnFail", out var rof))
+        {
+            opts.RemoveOnFail = ParseRemoveOn(rof);
+        }
+
         return opts;
     }
+
+    /// <summary>
+    /// Reads a stored <c>removeOnComplete</c>/<c>removeOnFail</c> value in any
+    /// of the forms the BullMQ runtimes write: a boolean, a number (keep the
+    /// last N) or a <c>{count, age, limit}</c> object. Returns null for an
+    /// unrecognized value so the worker default (or keep-all) applies.
+    /// </summary>
+    private static object? ParseRemoveOn(JsonElement value)
+    {
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.True:
+                return true;
+            case JsonValueKind.False:
+                return false;
+            case JsonValueKind.Number:
+                return ReadCount(value);
+            case JsonValueKind.Object:
+                return new KeepJobs
+                {
+                    Count = value.TryGetProperty("count", out var count) ? ReadCount(count) : null,
+                    Age = value.TryGetProperty("age", out var age) ? ReadAge(age) : null,
+                    Limit = value.TryGetProperty("limit", out var limit) ? ReadCount(limit) : null,
+                };
+            default:
+                return null;
+        }
+    }
+
+    // Fractions round away from zero so a value never crosses into a different
+    // meaning: a positive count stays >= 1 (0 means remove) and a negative count
+    // (keep all) stays negative, e.g. 0.5 -> 1 and -0.5 -> -1.
+    private static int? ReadCount(JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Number)
+        {
+            return null;
+        }
+
+        if (value.TryGetInt32(out var i))
+        {
+            return i;
+        }
+
+        if (!value.TryGetDouble(out var d) || !double.IsFinite(d))
+        {
+            return null;
+        }
+
+        var rounded = d < 0 ? Math.Floor(d) : Math.Ceiling(d);
+        return (int)Math.Clamp(rounded, int.MinValue, int.MaxValue);
+    }
+
+    // Fractional ages round up (a longer window keeps more). A negative age is
+    // ignored, as the PostgreSQL backend does; on Redis it would evict every
+    // finished job, including the current one.
+    private static int? ReadAge(JsonElement value) =>
+        ReadCount(value) is { } age && age >= 0 ? age : null;
 
     private static RepeatOptions? ParseRepeat(string optsJson)
     {

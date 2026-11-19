@@ -28,6 +28,8 @@ public sealed class PostgresBackend : IQueueBackend
     private readonly bool _ownsConnection;
     private readonly int _lockDuration;
     private readonly string? _workerName;
+    private readonly KeepJobs? _removeOnComplete;
+    private readonly KeepJobs? _removeOnFail;
     private Task? _closing;
 
     // Armed by WaitForJobAsync and cancelled when this backend finishes a job
@@ -43,21 +45,39 @@ public sealed class PostgresBackend : IQueueBackend
         PostgresConnection connection,
         bool ownsConnection,
         int lockDuration = 0,
-        string? workerName = null)
+        string? workerName = null,
+        KeepJobs? removeOnComplete = null,
+        KeepJobs? removeOnFail = null)
     {
         Name = name;
         _connection = connection;
         _ownsConnection = ownsConnection;
         _lockDuration = lockDuration;
         _workerName = workerName;
+        _removeOnComplete = removeOnComplete;
+        _removeOnFail = removeOnFail;
     }
 
     /// <summary>Creates a PostgreSQL backend from the given options.</summary>
     public static PostgresBackend Create(
-        string name, PostgresOptions options, int lockDuration = 0, string? workerName = null)
+        string name, PostgresOptions options, int lockDuration = 0, string? workerName = null) =>
+        Create(name, options, lockDuration, workerName, removeOnComplete: null, removeOnFail: null);
+
+    /// <summary>
+    /// Creates a worker's PostgreSQL backend, with the worker's default
+    /// retention for jobs that do not define their own.
+    /// </summary>
+    internal static PostgresBackend Create(
+        string name,
+        PostgresOptions options,
+        int lockDuration,
+        string? workerName,
+        KeepJobs? removeOnComplete,
+        KeepJobs? removeOnFail)
     {
         var connection = new PostgresConnection(options);
-        return new PostgresBackend(name, connection, ownsConnection: true, lockDuration, workerName);
+        return new PostgresBackend(
+            name, connection, ownsConnection: true, lockDuration, workerName, removeOnComplete, removeOnFail);
     }
 
     // ============================================================
@@ -233,7 +253,7 @@ public sealed class PostgresBackend : IQueueBackend
     private async Task<MoveToFinishedResult> MoveToFinishedAsync(
         Job job, string target, string value, string? stackTraceJson, object? shouldRemove, string token, bool fetchNext)
     {
-        var (removeAll, keepAge, keepCount) = NormalizeKeep(shouldRemove);
+        var (removeAll, keepAge, keepCount) = NormalizeKeep(shouldRemove ?? (target == "completed" ? _removeOnComplete : _removeOnFail));
         var finishedOn = NowMs();
         var completed = target == "completed";
 

@@ -163,6 +163,38 @@ Adding deduplication management extends `IQueueBackend` with winner lookup,
 unconditional deletion and conditional owner deletion; custom backend
 implementations must supply these operations.
 
+## Removing finished jobs
+
+By default completed and failed jobs are kept. Set `JobsOptions.RemoveOnComplete`
+/ `RemoveOnFail` to `true` (remove), `false` (keep), a number (keep the latest
+N) or a `KeepJobs` policy (`Age` in seconds and/or `Count`):
+
+```csharp
+await queue.AddAsync("report", data, new JobsOptions
+{
+    RemoveOnComplete = true,
+    RemoveOnFail = new KeepJobs { Age = 24 * 3600, Count = 5000 },
+});
+```
+
+A worker can set defaults for jobs that don't define their own. The job's
+setting, including `false`, always takes precedence over the worker's:
+
+```csharp
+await using var worker = new Worker("reports", processor, new WorkerOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+    RemoveOnComplete = new KeepJobs { Count = 1000 },
+    RemoveOnFail = new KeepJobs { Age = 7 * 24 * 3600 },
+});
+```
+
+Retention is applied when a job finishes, so aged jobs are only evicted when a
+later job of the same kind finishes. Options written by the other BullMQ
+runtimes (boolean, number or `{count, age, limit}` object) are honored the same
+way. `KeepJobs.Limit` caps how many aged jobs one eviction removes and only
+applies to Redis.
+
 ## Development
 
 The shared Lua scripts live at the repository root under `rawScripts/` and are
