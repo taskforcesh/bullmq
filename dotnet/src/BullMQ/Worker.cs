@@ -277,6 +277,13 @@ public sealed class Worker : IAsyncDisposable
         Active?.Invoke(job);
         try
         {
+            // A deferred failure (e.g. the job stalled more than MaxStalledCount
+            // times) means the job must fail without running the processor.
+            if (!string.IsNullOrEmpty(job.DeferredFailure))
+            {
+                throw new UnrecoverableException(job.DeferredFailure);
+            }
+
             var result = await _processor(job, _abortCts.Token).ConfigureAwait(false);
             await job.MoveToCompletedAsync(result, token, fetchNext: false).ConfigureAwait(false);
             Completed?.Invoke(job, result);
