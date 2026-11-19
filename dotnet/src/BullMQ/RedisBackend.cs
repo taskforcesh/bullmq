@@ -29,6 +29,8 @@ public sealed class RedisBackend : IQueueBackend
 
     private readonly int _lockDuration;
     private readonly string? _workerName;
+    private readonly KeepJobs? _removeOnComplete;
+    private readonly KeepJobs? _removeOnFail;
 
     private Task? _closing;
 
@@ -45,7 +47,9 @@ public sealed class RedisBackend : IQueueBackend
         bool ownsConnection,
         RedisConnection? blocking = null,
         int lockDuration = 0,
-        string? workerName = null)
+        string? workerName = null,
+        KeepJobs? removeOnComplete = null,
+        KeepJobs? removeOnFail = null)
     {
         Name = name;
         Prefix = prefix;
@@ -54,11 +58,18 @@ public sealed class RedisBackend : IQueueBackend
         _ownsConnection = ownsConnection;
         _lockDuration = lockDuration;
         _workerName = workerName;
+        _removeOnComplete = removeOnComplete;
+        _removeOnFail = removeOnFail;
         _queueKeys = new QueueKeys(prefix);
         _keys = _queueKeys.GetKeys(name);
     }
 
-    /// <summary>Creates a Redis backend, establishing a connection from the options.</summary>
+    /// <summary>
+    /// Creates a Redis backend, establishing a connection from the options.
+    /// When <paramref name="options"/> is a <see cref="WorkerOptions"/>, its
+    /// <c>RemoveOnComplete</c>/<c>RemoveOnFail</c> are used as defaults for jobs
+    /// that do not define their own.
+    /// </summary>
     public static async Task<RedisBackend> CreateAsync(
         string name,
         QueueBaseOptions options,
@@ -71,7 +82,10 @@ public sealed class RedisBackend : IQueueBackend
         var blocking = withBlockingConnection
             ? await RedisConnection.CreateAsync(options.Connection, blocking: true).ConfigureAwait(false)
             : null;
-        return new RedisBackend(name, connection, options.Prefix, ownsConnection, blocking, lockDuration, workerName);
+        var worker = options as WorkerOptions;
+        return new RedisBackend(
+            name, connection, options.Prefix, ownsConnection, blocking, lockDuration, workerName,
+            worker?.RemoveOnComplete, worker?.RemoveOnFail);
     }
 
     // ============================================================
@@ -440,7 +454,7 @@ public sealed class RedisBackend : IQueueBackend
         {
             ["token"] = token,
             ["name"] = _workerName,
-            ["keepJobs"] = GetKeepJobs(shouldRemove),
+            ["keepJobs"] = GetKeepJobs(shouldRemove ?? (target == "completed" ? _removeOnComplete : _removeOnFail)),
             ["limiter"] = null,
             ["lockDuration"] = _lockDuration,
             ["attempts"] = job.Attempts,
@@ -1281,6 +1295,11 @@ public sealed class RedisBackend : IQueueBackend
         if (keep.Age is { } age)
         {
             map["age"] = age;
+        }
+
+        if (keep.Limit is { } limit)
+        {
+            map["limit"] = limit;
         }
 
         return map;
