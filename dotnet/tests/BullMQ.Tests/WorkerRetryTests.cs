@@ -503,6 +503,76 @@ public abstract class WorkerRetryTestsBase
         Assert.Throws<ArgumentOutOfRangeException>(
             () => new Worker(UniqueName(), (_, _) => Task.FromResult<object?>(null), options));
     }
+
+    [Fact]
+    public async Task ImmediateRetry_OnAnotherSlot_KeepsItsLockRenewed()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        var retryStarted = NewTcs<bool>();
+        var completed = NewTcs<Job>();
+        var calls = 0;
+        var completions = 0;
+        var stalled = 0;
+        var blockedFailedHandler = 0;
+
+        var options = NewWorkerOptions();
+        options.Concurrency = 2;
+        options.LockDuration = 1000;
+        options.StalledInterval = 300;
+
+        var worker = new Worker(name, async (_, ct) =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+            {
+                throw new InvalidOperationException("first attempt fails");
+            }
+
+            retryStarted.TrySetResult(true);
+            await Task.Delay(2500, ct).ConfigureAwait(false);
+            return "ok";
+        }, options);
+
+        // Hold attempt 1 in its Failed handler until the retry is running on the
+        // other slot, so attempt 1's lock cleanup runs after the retry's tracking.
+        worker.Failed += (_, _) =>
+        {
+            if (Interlocked.Exchange(ref blockedFailedHandler, 1) == 0)
+            {
+                retryStarted.Task.Wait(TimeSpan.FromSeconds(10));
+            }
+        };
+        worker.Completed += (job, _) =>
+        {
+            Interlocked.Increment(ref completions);
+            completed.TrySetResult(job);
+        };
+        worker.Stalled += _ => Interlocked.Increment(ref stalled);
+
+        try
+        {
+            var added = await queue.AddAsync("job", new { x = 1 }, new JobsOptions { Attempts = 2 });
+            _ = worker.RunAsync();
+
+            var finished = await Task.WhenAny(completed.Task, Task.Delay(TimeSpan.FromSeconds(15)));
+
+            // Give a wrongly stalled copy time to be picked up again.
+            await Task.Delay(1000);
+
+            Assert.Equal(0, stalled);
+            Assert.True(finished == completed.Task, "the job did not complete");
+            Assert.Equal(added.Id, (await completed.Task).Id);
+            Assert.Equal(2, calls);
+            Assert.Equal(1, completions);
+            Assert.Equal(JobState.Completed, await added.GetStateAsync());
+            Assert.Equal(2, (await queue.GetJobAsync(added.Id!))!.AttemptsMade);
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
 }
 
 /// <summary>Runs the worker retry suite against the Redis backend.</summary>

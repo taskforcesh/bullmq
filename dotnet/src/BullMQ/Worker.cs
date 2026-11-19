@@ -362,7 +362,7 @@ public sealed class Worker : IAsyncDisposable
         }
         finally
         {
-            _lockManager?.UntrackJob(job.Id!);
+            _lockManager?.UntrackJob(job.Id!, token);
         }
     }
 

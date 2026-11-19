@@ -53,7 +53,7 @@ internal sealed class LockManager
         _loop = RenewalLoopAsync(_cts.Token);
     }
 
-    /// <summary>Registers a job for lock renewal.</summary>
+    /// <summary>Registers a job for lock renewal, replacing any earlier attempt's registration.</summary>
     public void TrackJob(string jobId, string token, long ts)
     {
         if (_closed || string.IsNullOrEmpty(jobId))
@@ -64,8 +64,24 @@ internal sealed class LockManager
         _tracked[jobId] = new TrackedJob(token, ts == 0 ? NowMs() : ts);
     }
 
-    /// <summary>Stops renewing the lock for the given job.</summary>
-    public void UntrackJob(string jobId) => _tracked.TryRemove(jobId, out _);
+    /// <summary>
+    /// Stops renewing the lock for the given job, but only while it is still
+    /// registered with <paramref name="token"/>. A newer attempt of the same job
+    /// (e.g. an immediate retry already running on another slot) keeps its
+    /// registration.
+    /// </summary>
+    public void UntrackJob(string jobId, string token)
+    {
+        // Renewals replace the entry (new Ts), so retry the exact-value removal
+        // until it succeeds or the job is no longer tracked with this token.
+        while (_tracked.TryGetValue(jobId, out var tracked) && tracked.Token == token)
+        {
+            if (_tracked.TryRemove(new KeyValuePair<string, TrackedJob>(jobId, tracked)))
+            {
+                return;
+            }
+        }
+    }
 
     public int ActiveJobCount => _tracked.Count;
 
@@ -128,9 +144,11 @@ internal sealed class LockManager
                     continue;
                 }
 
-                if (tracked.Ts + threshold < now)
+                // Compare-and-swap: a plain write could overwrite a newer
+                // attempt's registration or restore an untracked one.
+                if (tracked.Ts + threshold < now &&
+                    _tracked.TryUpdate(jobId, tracked with { Ts = now }, tracked))
                 {
-                    _tracked[jobId] = tracked with { Ts = now };
                     toExtend.Add(jobId);
                 }
             }
@@ -167,7 +185,11 @@ internal sealed class LockManager
             {
                 foreach (var jobId in failed)
                 {
-                    UntrackJob(jobId);
+                    var index = ids.IndexOf(jobId);
+                    if (index >= 0)
+                    {
+                        UntrackJob(jobId, tokens[index]);
+                    }
                 }
 
                 _onRenewalFailed(failed);
