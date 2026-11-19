@@ -1,3 +1,10 @@
+## [3.6.3](https://github.com/taskforcesh/bullmq/compare/vpy3.6.2...vpy3.6.3) (2026-11-19)
+
+
+### Bug Fixes
+
+* **postgres:** don't report a claimable job while the queue is maxed (python)(elixir)(dotnet) ([#5163](https://github.com/taskforcesh/bullmq/issues/5163)) ([42745d5](https://github.com/taskforcesh/bullmq/commit/42745d5e29fae50bf5f255bf2285cde903c2497a))
+
 ## [3.6.2](https://github.com/taskforcesh/bullmq/compare/vpy3.6.1...vpy3.6.2) (2026-11-17)
 
 
