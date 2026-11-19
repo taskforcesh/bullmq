@@ -675,12 +675,14 @@ public abstract class QueueWorkerTestsBase
             _ = worker.RunAsync();
             await WaitForAsync(completed.Task, TimeSpan.FromSeconds(15));
 
-            // The fetch after the first job hits the limit; from then on the
-            // worker sleeps the window out without fetching again.
-            await WaitUntilAsync(
-                () => calls.Count(nameof(IQueueBackend.MoveToActiveAsync)) >= 2, TimeSpan.FromSeconds(5));
+            // The fetch after the first job (made by its fetch-next completion)
+            // hits the limit; from then on the worker sleeps the window out
+            // without fetching again.
+            int Fetches() => calls.Count(nameof(IQueueBackend.MoveToActiveAsync))
+                + calls.Count(nameof(IQueueBackend.MoveToCompletedAsync) + BackendCallCounter.FetchNext);
+            await WaitUntilAsync(() => Fetches() >= 2, TimeSpan.FromSeconds(5));
             await Task.Delay(500);
-            Assert.Equal(2, calls.Count(nameof(IQueueBackend.MoveToActiveAsync)));
+            Assert.Equal(2, Fetches());
 
             var clock = Stopwatch.StartNew();
             await worker.CloseAsync();
@@ -760,6 +762,532 @@ public abstract class QueueWorkerTestsBase
             }
 
             await Task.Delay(20);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_Concurrency_ChainsFetches_FinishesEachJobOnce()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        const int total = 200;
+        const int concurrency = 8;
+        var active = new ConcurrentDictionary<string, int>();
+        var completed = new ConcurrentDictionary<string, int>();
+        var failed = new ConcurrentDictionary<string, int>();
+        int finished = 0, inFlight = 0, maxInFlight = 0, drained = 0;
+        var allDone = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var calls = new BackendCallCounter();
+        var options = NewWorkerOptions();
+        options.Concurrency = concurrency;
+        var worker = new Worker(
+            name,
+            async (job, _) =>
+            {
+                InterlockedMax(ref maxInFlight, Interlocked.Increment(ref inFlight));
+                try
+                {
+                    await Task.Yield();
+                    if (job.Name == "fail")
+                    {
+                        throw new InvalidOperationException("boom");
+                    }
+
+                    return null;
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref inFlight);
+                }
+            },
+            options,
+            calls.Wrap);
+        worker.Active += job => Increment(active, job.Id!);
+        worker.Completed += (job, _) => Finish(completed, job.Id!);
+        worker.Failed += (job, _) => Finish(failed, job!.Id!);
+        worker.Drained += () => Interlocked.Increment(ref drained);
+
+        void Finish(ConcurrentDictionary<string, int> into, string id)
+        {
+            Increment(into, id);
+            if (Interlocked.Increment(ref finished) == total)
+            {
+                allDone.TrySetResult(true);
+            }
+        }
+
+        try
+        {
+            var added = await queue.AddBulkAsync(Enumerable.Range(0, total).Select(i =>
+                (i % 4 == 0 ? "fail" : "ok", (object?)new { index = i }, (JobsOptions?)new JobsOptions { Attempts = 1 })));
+            var failIds = added.Where(j => j.Name == "fail").Select(j => j.Id!).OrderBy(id => id).ToList();
+            var okIds = added.Where(j => j.Name == "ok").Select(j => j.Id!).OrderBy(id => id).ToList();
+
+            _ = worker.RunAsync();
+            await WaitForAsync(allDone.Task, TimeSpan.FromSeconds(60));
+            await worker.CloseAsync();
+
+            Assert.Equal(added.Select(j => j.Id!).OrderBy(id => id), active.Keys.OrderBy(id => id));
+            Assert.All(active.Values, n => Assert.Equal(1, n));
+            Assert.Equal(okIds, completed.Keys.OrderBy(id => id));
+            Assert.All(completed.Values, n => Assert.Equal(1, n));
+            Assert.Equal(failIds, failed.Keys.OrderBy(id => id));
+            Assert.All(failed.Values, n => Assert.Equal(1, n));
+            Assert.True(drained >= 1, "drained should be raised once the queue empties");
+            Assert.InRange(maxInFlight, 1, concurrency);
+
+            Assert.Equal(okIds.Count, await queue.GetCompletedCountAsync());
+            Assert.Equal(failIds.Count, await queue.GetFailedCountAsync());
+            Assert.Equal(0, await queue.GetActiveCountAsync());
+            Assert.Equal(0, await queue.GetWaitingCountAsync());
+
+            // Every finish asked for the next job, so most jobs were fetched by
+            // the finishing call rather than by a separate MoveToActive.
+            Assert.Equal(okIds.Count, calls.Count(nameof(IQueueBackend.MoveToCompletedAsync) + BackendCallCounter.FetchNext));
+            Assert.Equal(failIds.Count, calls.Count(nameof(IQueueBackend.MoveToFailedAsync) + BackendCallCounter.FetchNext));
+            Assert.True(
+                calls.Count(nameof(IQueueBackend.MoveToActiveAsync)) < total / 4,
+                $"expected chained fetches, got {calls.Count(nameof(IQueueBackend.MoveToActiveAsync))} MoveToActive calls for {total} jobs");
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_ChainedJob_KeepsItsLockRenewed()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        var calls = new BackendCallCounter();
+        var options = NewWorkerOptions();
+        options.LockDuration = 1000;
+        options.StalledInterval = 300;
+        var fetchesWhenChained = -1;
+        var stalled = new ConcurrentQueue<string>();
+        var failed = new ConcurrentQueue<Exception>();
+        var completed = 0;
+        var bothDone = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var worker = new Worker(
+            name,
+            async (job, _) =>
+            {
+                if (job.Name == "slow")
+                {
+                    fetchesWhenChained = calls.Count(nameof(IQueueBackend.MoveToActiveAsync));
+
+                    // Outlive the lock several times: it must be renewed.
+                    await Task.Delay(2500);
+                }
+
+                return null;
+            },
+            options,
+            calls.Wrap);
+        worker.Stalled += stalled.Enqueue;
+        worker.Failed += (_, err) => failed.Enqueue(err);
+        worker.Completed += (_, _) =>
+        {
+            if (Interlocked.Increment(ref completed) == 2)
+            {
+                bothDone.TrySetResult(true);
+            }
+        };
+
+        try
+        {
+            await queue.AddBulkAsync(new (string, object?, JobsOptions?)[] { ("fast", null, null), ("slow", null, null) });
+            _ = worker.RunAsync();
+            await WaitForAsync(bothDone.Task, TimeSpan.FromSeconds(20));
+
+            // "slow" was fetched by the completion of "fast", not by MoveToActive.
+            Assert.Equal(1, fetchesWhenChained);
+            Assert.Empty(stalled);
+            Assert.Empty(failed);
+            Assert.Equal(2, await queue.GetCompletedCountAsync());
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_ChainedSchedulerJob_SchedulesNextIteration()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        var calls = new BackendCallCounter();
+        var options = NewWorkerOptions();
+        var fetchesWhenChained = -1;
+        var blockerActive = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseBlocker = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tickDone = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var worker = new Worker(
+            name,
+            async (job, _) =>
+            {
+                if (job.Name == "blocker")
+                {
+                    blockerActive.TrySetResult(true);
+                    await releaseBlocker.Task;
+                }
+                else
+                {
+                    fetchesWhenChained = calls.Count(nameof(IQueueBackend.MoveToActiveAsync));
+                }
+
+                return null;
+            },
+            options,
+            calls.Wrap);
+        worker.Completed += (job, _) =>
+        {
+            if (job.Name == "tick")
+            {
+                tickDone.TrySetResult(true);
+            }
+        };
+
+        try
+        {
+            await queue.AddAsync("blocker", null);
+            _ = worker.RunAsync();
+            await WaitForAsync(blockerActive.Task, TimeSpan.FromSeconds(15));
+
+            // While the only slot is busy, the scheduler's first job becomes ready,
+            // so it is fetched by the blocker's completion.
+            await queue.UpsertJobSchedulerAsync(
+                "chained-ticker",
+                new RepeatOptions { Every = 60000, Immediately = true },
+                new JobSchedulerTemplate { Name = "tick" });
+            Assert.Equal(0, await queue.GetDelayedCountAsync());
+
+            releaseBlocker.SetResult(true);
+            await WaitForAsync(tickDone.Task, TimeSpan.FromSeconds(15));
+
+            Assert.Equal(1, fetchesWhenChained);
+            Assert.Equal(1, await queue.GetDelayedCountAsync());
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_Close_WhileChaining_StopsPromptlyWithoutLosingJobs()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        const int total = 1000;
+        var completed = new ConcurrentDictionary<string, int>();
+        var failed = new ConcurrentQueue<Exception>();
+        int processed = 0, completedTotal = 0;
+        var enough = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allDone = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnCompleted(Job job, object? _)
+        {
+            Increment(completed, job.Id!);
+            if (Interlocked.Increment(ref completedTotal) == total)
+            {
+                allDone.TrySetResult(true);
+            }
+        }
+
+        var calls = new BackendCallCounter();
+        var options = NewWorkerOptions();
+        options.Concurrency = 4;
+        var worker = new Worker(
+            name,
+            async (_, ct) =>
+            {
+                await Task.Delay(1, ct);
+                if (Interlocked.Increment(ref processed) == 50)
+                {
+                    enough.TrySetResult(true);
+                }
+
+                return null;
+            },
+            options,
+            calls.Wrap);
+        worker.Completed += OnCompleted;
+        worker.Failed += (_, err) => failed.Enqueue(err);
+
+        var options2 = NewWorkerOptions();
+        options2.Concurrency = 8;
+        var worker2 = new Worker(name, (_, _) => Task.FromResult<object?>(null), options2);
+        worker2.Completed += OnCompleted;
+        worker2.Failed += (_, err) => failed.Enqueue(err);
+
+        try
+        {
+            await queue.AddBulkAsync(Enumerable.Range(0, total).Select(i => ("job", (object?)new { i }, (JobsOptions?)null)));
+            _ = worker.RunAsync();
+            await WaitForAsync(enough.Task, TimeSpan.FromSeconds(30));
+
+            var sw = Stopwatch.StartNew();
+            await worker.CloseAsync();
+            sw.Stop();
+            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(5), $"close took {sw.Elapsed}");
+
+            var processedAtClose = Volatile.Read(ref processed);
+            var completedAtClose = completed.Count;
+            await Task.Delay(200);
+            Assert.Equal(processedAtClose, Volatile.Read(ref processed));
+            Assert.Equal(processedAtClose, completedAtClose);
+            Assert.True(
+                calls.Count(nameof(IQueueBackend.MoveToActiveAsync)) < completedAtClose,
+                $"expected chained fetches, got {calls.Count(nameof(IQueueBackend.MoveToActiveAsync))} MoveToActive calls for {completedAtClose} jobs");
+
+            // Nothing is left active (or failed) by the close: the rest is waiting.
+            Assert.Equal(0, await queue.GetActiveCountAsync());
+            Assert.Equal(0, await queue.GetFailedCountAsync());
+            Assert.Equal(completedAtClose, await queue.GetCompletedCountAsync());
+            Assert.Equal(total - completedAtClose, await queue.GetWaitingCountAsync());
+
+            _ = worker2.RunAsync();
+            await WaitForAsync(allDone.Task, TimeSpan.FromSeconds(60));
+
+            Assert.Equal(total, completed.Count);
+            Assert.All(completed.Values, n => Assert.Equal(1, n));
+            Assert.Empty(failed);
+            Assert.Equal(total, await queue.GetCompletedCountAsync());
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await worker2.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_ForceClose_WhileChaining_StopsPromptlyWithoutFailingJobs()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        const int total = 1000;
+        const int concurrency = 4;
+        var processed = 0;
+        var enough = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var options = NewWorkerOptions();
+        options.Concurrency = concurrency;
+        var worker = new Worker(
+            name,
+            async (_, ct) =>
+            {
+                await Task.Delay(1, ct);
+                if (Interlocked.Increment(ref processed) == 50)
+                {
+                    enough.TrySetResult(true);
+                }
+
+                return null;
+            },
+            options);
+
+        try
+        {
+            await queue.AddBulkAsync(Enumerable.Range(0, total).Select(i => ("job", (object?)new { i }, (JobsOptions?)null)));
+            _ = worker.RunAsync();
+            await WaitForAsync(enough.Task, TimeSpan.FromSeconds(30));
+
+            var sw = Stopwatch.StartNew();
+            await worker.CloseAsync(force: true);
+            sw.Stop();
+            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(5), $"force close took {sw.Elapsed}");
+
+            // In-flight slots wind down right after the close returns and do not
+            // keep chaining.
+            await Task.Delay(300);
+            var settled = Volatile.Read(ref processed);
+            await Task.Delay(300);
+            Assert.Equal(settled, Volatile.Read(ref processed));
+
+            // Jobs interrupted by the force close (at most one per slot) stay
+            // active to be recovered as stalled; none is failed or lost.
+            var counts = await queue.GetJobCountsAsync("waiting", "active", "completed", "failed");
+            Assert.Equal(0, counts["failed"]);
+            Assert.InRange(counts["active"], 0, concurrency);
+            Assert.Equal(total, counts["waiting"] + counts["active"] + counts["completed"]);
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_ForceClose_DuringChainedSchedulerUpdate_DoesNotStartTheJob()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        var gate = new BackendCallGate(nameof(IQueueBackend.IsJobSchedulerAsync));
+        var activated = new ConcurrentQueue<string>();
+        var started = new ConcurrentQueue<string>();
+        var blockerActive = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseBlocker = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var worker = new Worker(
+            name,
+            async (job, _) =>
+            {
+                started.Enqueue(job.Name);
+                if (job.Name == "blocker")
+                {
+                    blockerActive.TrySetResult(true);
+                    await releaseBlocker.Task;
+                }
+
+                return null;
+            },
+            NewWorkerOptions(),
+            gate.Wrap);
+        worker.Active += job => activated.Enqueue(job.Name);
+
+        try
+        {
+            await queue.AddAsync("blocker", null);
+            _ = worker.RunAsync();
+            await WaitForAsync(blockerActive.Task, TimeSpan.FromSeconds(15));
+
+            // Queued behind the blocker, so the blocker's completion fetches it.
+            var tick = await queue.UpsertJobSchedulerAsync(
+                "racing-ticker",
+                new RepeatOptions { Every = 60000, Immediately = true },
+                new JobSchedulerTemplate { Name = "tick" });
+            releaseBlocker.SetResult(true);
+
+            // The slot now holds the fetched job and awaits its scheduler update:
+            // force close right there.
+            await WaitForAsync(gate.Entered, TimeSpan.FromSeconds(15));
+            var closing = worker.CloseAsync(force: true);
+            gate.Release();
+            await closing;
+            await Task.Delay(300);
+
+            Assert.Equal(new[] { "blocker" }, activated);
+            Assert.Equal(new[] { "blocker" }, started);
+
+            // Left active, to be recovered as stalled.
+            Assert.Equal(JobState.Active, await queue.GetJobStateAsync(tick!.Id!));
+        }
+        finally
+        {
+            gate.Release();
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_GracefulClose_WithBacklog_DoesNotRaiseDrained()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        const int total = 20;
+        const int concurrency = 2;
+        int running = 0, drained = 0;
+        var allRunning = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var options = NewWorkerOptions();
+        options.Concurrency = concurrency;
+        var worker = new Worker(
+            name,
+            async (_, _) =>
+            {
+                if (Interlocked.Increment(ref running) == concurrency)
+                {
+                    allRunning.TrySetResult(true);
+                }
+
+                await release.Task;
+                return null;
+            },
+            options);
+        worker.Drained += () => Interlocked.Increment(ref drained);
+
+        try
+        {
+            await queue.AddBulkAsync(Enumerable.Range(0, total).Select(i => ("job", (object?)new { i }, (JobsOptions?)null)));
+            _ = worker.RunAsync();
+            await WaitForAsync(allRunning.Task, TimeSpan.FromSeconds(15));
+
+            // The in-flight jobs finish after the close started, so without
+            // fetching the next job: that says nothing about the backlog.
+            var closing = worker.CloseAsync();
+            release.SetResult(true);
+            await closing;
+
+            Assert.Equal(0, drained);
+            Assert.Equal(concurrency, await queue.GetCompletedCountAsync());
+            Assert.Equal(total - concurrency, await queue.GetWaitingCountAsync());
+        }
+        finally
+        {
+            release.TrySetResult(true);
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_RateLimited_ChainedFinish_SleepsInsteadOfRefetching()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        await SetGlobalRateLimitAsync(queue, max: 2, duration: 1500);
+
+        var calls = new BackendCallCounter();
+        var completedAt = new ConcurrentQueue<long>();
+        var worker = new Worker(name, (_, _) => Task.FromResult<object?>(null), NewWorkerOptions(), calls.Wrap);
+        worker.Completed += (_, _) => completedAt.Enqueue(Environment.TickCount64);
+
+        try
+        {
+            await queue.AddBulkAsync(Enumerable.Range(0, 3).Select(i => ("job", (object?)new { i }, (JobsOptions?)null)));
+            _ = worker.RunAsync();
+
+            // The first job is fetched by MoveToActive and the second by its
+            // completion; the second's completion then hits the limit.
+            await WaitUntilAsync(() => completedAt.Count >= 2, TimeSpan.FromSeconds(10));
+            await Task.Delay(500);
+            Assert.Equal(1, calls.Count(nameof(IQueueBackend.MoveToActiveAsync)));
+
+            await WaitUntilAsync(() => completedAt.Count >= 3, TimeSpan.FromSeconds(10));
+            var completions = completedAt.ToArray();
+            Assert.True(
+                completions[2] - completions[0] >= 1000,
+                $"third job completed {completions[2] - completions[0]} ms after the first");
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    private static void Increment(ConcurrentDictionary<string, int> counts, string key) =>
+        counts.AddOrUpdate(key, 1, (_, n) => n + 1);
+
+    private static void InterlockedMax(ref int target, int value)
+    {
+        int current;
+        while (value > (current = Volatile.Read(ref target))
+               && Interlocked.CompareExchange(ref target, value, current) != current)
+        {
         }
     }
 }
