@@ -119,7 +119,7 @@ public sealed class PostgresConnection : IAsyncDisposable
     // loads the database type catalog once per data source instead of once per
     // instance. Data sources live for the process (like Npgsql's own
     // per-connection-string pools); when the last user closes, the pool's idle
-    // physical connections are closed.
+    // physical connections are closed (see also ClearQueriesIfUnused).
     private sealed class SharedDataSources
     {
         public SharedDataSources(string queryConnectionString, string listenConnectionString)
@@ -166,6 +166,22 @@ public sealed class PostgresConnection : IAsyncDisposable
                 // Closes the idle pooled connections; any still running a query
                 // are closed when returned, so this never waits on or interrupts
                 // an in-flight command.
+                _dataSources.Queries.Clear();
+            }
+        }
+    }
+
+    // Runs after every return to the query pool. A call that was waiting for a
+    // pool slot, or retrying an open, when the last user closed can open a fresh
+    // connection after that close's Clear, and would then park it in the pool as
+    // an idle session nobody owns; clear again if no user is left. Checked under
+    // the lock, so a data source re-acquired in the meantime is left alone.
+    private void ClearQueriesIfUnused()
+    {
+        lock (s_dataSources)
+        {
+            if (_dataSources.Users == 0)
+            {
                 _dataSources.Queries.Clear();
             }
         }
@@ -252,15 +268,23 @@ public sealed class PostgresConnection : IAsyncDisposable
                 return;
             }
 
-            await using var conn = await OpenWithRetryAsync(_dataSources.Queries).ConfigureAwait(false);
-            await RunMigrationsAsync(conn).ConfigureAwait(false);
+            try
+            {
+                await using var conn = await OpenWithRetryAsync(_dataSources.Queries).ConfigureAwait(false);
+                await RunMigrationsAsync(conn).ConfigureAwait(false);
 
-            // The migrations create custom types (e.g. the job-state enum). Npgsql
-            // caches the database type catalog per data source on its first
-            // connect (before those types existed), so reload it once now so
-            // every pooled connection resolves the new types (and reads the
-            // unmapped enum columns as strings).
-            await conn.ReloadTypesAsync().ConfigureAwait(false);
+                // The migrations create custom types (e.g. the job-state enum).
+                // Npgsql caches the database type catalog per data source on its
+                // first connect (before those types existed), so reload it once
+                // now so every pooled connection resolves the new types (and
+                // reads the unmapped enum columns as strings).
+                await conn.ReloadTypesAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                ClearQueriesIfUnused();
+            }
+
             s_migrated.Add(_connectionString);
         }
         finally
@@ -352,6 +376,20 @@ public sealed class PostgresConnection : IAsyncDisposable
             throw new ObjectDisposedException(nameof(PostgresConnection));
         }
 
+        try
+        {
+            return await ExecutePooledAsync(sql, parameters).ConfigureAwait(false);
+        }
+        finally
+        {
+            // On success, failure and after open retries alike, any connection
+            // rented by the call is back in the pool by now.
+            ClearQueriesIfUnused();
+        }
+    }
+
+    private async Task<PgResult> ExecutePooledAsync(string sql, IReadOnlyList<object?> parameters)
+    {
         // Every call rents its own pooled connection, so the concurrent
         // operations of a queue/worker run in parallel. Any pooled session can
         // serve any call: BullMQ commands are single statements that leave no

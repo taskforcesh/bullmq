@@ -262,4 +262,97 @@ public sealed class PostgresConnectionPoolTests
             await connection.DisposeAsync();
         }
     }
+
+    // Occupies every slot of the pool with a sleep, then starts one more call,
+    // which is left parked waiting for a slot. All calls are tagged with marker.
+    private static async Task<(Task[] Blockers, Task Waiter)> SaturatePoolAsync(
+        PostgresConnection connection, NpgsqlConnection monitor, string marker, int size)
+    {
+        await connection.WaitUntilReadyAsync();
+        var blockers = Enumerable.Range(0, size).Select(_ => (Task)connection.RunAsync(
+            $"SELECT pg_sleep(0.5) /* {marker} */", Array.Empty<object?>())).ToArray();
+        await WaitUntilAsync(async () => await CountSessionsAsync(monitor, marker, activeOnly: true) == size);
+
+        var waiter = connection.RunAsync($"SELECT 1 /* {marker} */", Array.Empty<object?>());
+        await Task.Delay(100);
+        Assert.False(waiter.IsCompleted);
+        return (blockers, waiter);
+    }
+
+    [Fact]
+    public async Task Close_WhileACallWaitsForAPoolSlot_LeavesNoIdlePooledSession()
+    {
+        // A pool size no other test uses, so this connection is the pool's only user.
+        const int size = 5;
+        var connection = new PostgresConnection(Options(poolSize: size));
+        var marker = Marker();
+        await using var monitor = new NpgsqlConnection(ConnectionString);
+        await monitor.OpenAsync();
+        try
+        {
+            var (blockers, waiter) = await SaturatePoolAsync(connection, monitor, marker, size);
+
+            var sw = Stopwatch.StartNew();
+            await connection.CloseAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(0.3), $"close took {sw.Elapsed}");
+
+            // The cleared blockers' connections are discarded on return, so the
+            // waiter opens a fresh one and returns it after the close-time clear.
+            await Task.WhenAll(blockers);
+            await waiter;
+
+            await WaitUntilAsync(async () => await CountSessionsAsync(monitor, marker, activeOnly: false) == 0);
+            Assert.Equal(0, await CountSessionsAsync(monitor, marker, activeOnly: false));
+        }
+        finally
+        {
+            await connection.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StragglerReturn_AfterThePoolIsReacquired_LeavesTheNewUsersPoolAlone()
+    {
+        // A pool size no other test uses, so these connections are the pool's only users.
+        const int size = 7;
+        var first = new PostgresConnection(Options(poolSize: size));
+        PostgresConnection? second = null;
+        var marker = Marker();
+        await using var monitor = new NpgsqlConnection(ConnectionString);
+        await monitor.OpenAsync();
+        try
+        {
+            var (blockers, waiter) = await SaturatePoolAsync(first, monitor, marker, size);
+            await first.CloseAsync();
+            second = new PostgresConnection(Options(poolSize: size));
+
+            await Task.WhenAll(blockers);
+            await waiter;
+
+            // The waiter's connection now belongs to the second user's pool.
+            await Task.Delay(300);
+            Assert.Equal(1, await CountSessionsAsync(monitor, marker, activeOnly: false));
+
+            await second.CloseAsync();
+            await WaitUntilAsync(async () => await CountSessionsAsync(monitor, marker, activeOnly: false) == 0);
+            Assert.Equal(0, await CountSessionsAsync(monitor, marker, activeOnly: false));
+        }
+        finally
+        {
+            await first.DisposeAsync();
+            if (second is not null)
+            {
+                await second.DisposeAsync();
+            }
+        }
+    }
+
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!await condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(50);
+        }
+    }
 }
