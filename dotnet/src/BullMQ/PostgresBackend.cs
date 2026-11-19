@@ -798,7 +798,7 @@ public sealed class PostgresBackend : IQueueBackend
             return new MarkerResult(Name, 0);
         }
 
-        var baseMs = Math.Max((long)Math.Round(blockTimeoutSeconds * 1000), 1);
+        var blockMs = Math.Max((long)Math.Round(blockTimeoutSeconds * 1000), 1);
         var dueIn = await NextDelayMsAsync().ConfigureAwait(false);
         if (dueIn is { } d)
         {
@@ -806,11 +806,12 @@ public sealed class PostgresBackend : IQueueBackend
             {
                 return new MarkerResult(Name, 0);
             }
-
-            baseMs = Math.Min(d, baseMs);
         }
 
-        var deadline = DateTime.UtcNow.AddMilliseconds(baseMs);
+        var blockDeadline = DateTime.UtcNow.AddMilliseconds(blockMs);
+        var deadline = dueIn is { } delay
+            ? Min(blockDeadline, DateTime.UtcNow.AddMilliseconds(Math.Min(delay, blockMs)))
+            : blockDeadline;
         while (true)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -866,8 +867,22 @@ public sealed class PostgresBackend : IQueueBackend
             {
                 return new MarkerResult(Name, 0);
             }
+
+            // A notification may have scheduled a delayed job while we were
+            // blocked, so refresh its deadline before waiting again.
+            dueIn = await NextDelayMsAsync().ConfigureAwait(false);
+            if (dueIn is { } nextDelay && nextDelay <= 0)
+            {
+                return new MarkerResult(Name, 0);
+            }
+
+            deadline = dueIn is { } next
+                ? Min(blockDeadline, DateTime.UtcNow.AddMilliseconds(Math.Min(next, blockMs)))
+                : blockDeadline;
         }
     }
+
+    private static DateTime Min(DateTime left, DateTime right) => left <= right ? left : right;
 
     // Never disposed: SignalSlotFreed may cancel a source that has just been
     // replaced, and a source without timers holds no unmanaged resources.

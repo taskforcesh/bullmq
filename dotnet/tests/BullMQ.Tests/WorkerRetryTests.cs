@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using BullMQ;
 using BullMQ.Postgres;
 using Xunit;
@@ -646,4 +647,73 @@ public sealed class PostgresWorkerRetryTests : WorkerRetryTestsBase
 
     protected override WorkerOptions NewWorkerOptions() =>
         new() { Postgres = new PostgresOptions { ConnectionString = ConnectionString }, Autorun = false };
+
+    [Fact]
+    public async Task DelayedRetry_WakesWaitingConcurrencySlot()
+    {
+        var name = $"dotnet-retry-{Guid.NewGuid():N}";
+        await using var queue = new Queue(name, NewQueueOptions());
+        var waitingAfterStart = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var retryStarted = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completed = new TaskCompletionSource<Job>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var clock = Stopwatch.StartNew();
+        long retryScheduledAt = 0;
+        var attempts = 0;
+
+        var options = NewWorkerOptions();
+        options.Concurrency = 2;
+        options.DrainDelay = 5;
+
+        var worker = new Worker(name, async (_, ct) =>
+        {
+            if (Interlocked.Increment(ref attempts) == 1)
+            {
+                await waitingAfterStart.Task.WaitAsync(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+                await Task.Delay(200, ct).ConfigureAwait(false);
+                throw new InvalidOperationException("retry after a short delay");
+            }
+
+            retryStarted.TrySetResult(clock.ElapsedMilliseconds);
+            return "ok";
+        }, options);
+        worker.Drained += () =>
+        {
+            if (Volatile.Read(ref attempts) > 0)
+            {
+                waitingAfterStart.TrySetResult();
+            }
+        };
+        worker.Failed += (job, _) =>
+        {
+            if (job?.AttemptsMade == 1)
+            {
+                Interlocked.Exchange(ref retryScheduledAt, clock.ElapsedMilliseconds);
+                retryStarted.Task.Wait(TimeSpan.FromSeconds(4));
+            }
+        };
+        worker.Completed += (job, _) => completed.TrySetResult(job);
+
+        try
+        {
+            await worker.WaitUntilReadyAsync();
+            _ = worker.RunAsync();
+            await Task.Delay(200);
+
+            var added = await queue.AddAsync("job", new { x = 1 }, new JobsOptions
+            {
+                Attempts = 2,
+                Backoff = new BackoffOptions { Type = "fixed", Delay = 150 },
+            });
+
+            var retryAt = await retryStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.InRange(retryAt - Interlocked.Read(ref retryScheduledAt), 0, 2000);
+            Assert.Equal(added.Id, (await completed.Task.WaitAsync(TimeSpan.FromSeconds(3))).Id);
+            Assert.Equal(2, attempts);
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
 }
