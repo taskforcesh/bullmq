@@ -107,6 +107,27 @@ public abstract class RemoveOnFinishTestsBase
     }
 
     [Fact]
+    public async Task JobRemoveOnCompleteNegativeFraction_KeepsJobs()
+    {
+        await RunAsync(async (queue, process) =>
+        {
+            // Shapes another runtime may store: a negative count means keep all.
+            // The raw map stands in for an object KeepJobs (int) cannot express.
+            var earlier = await queue.AddAsync("job", new { i = 1 });
+            var number = await queue.AddAsync("job", new { i = 2 }, new JobsOptions { RemoveOnComplete = -0.5 });
+            var map = await queue.AddAsync("job", new { i = 3 }, new JobsOptions
+            {
+                RemoveOnComplete = new Dictionary<string, object?> { ["count"] = -0.5 },
+            });
+            await process(3);
+
+            Assert.Equal(
+                new[] { earlier.Id!, number.Id!, map.Id! }.OrderBy(x => x),
+                await CompletedIdsAsync(queue));
+        });
+    }
+
+    [Fact]
     public async Task JobRemoveOnFailTrue_RemovesFailedJob()
     {
         await RunAsync(
@@ -369,12 +390,34 @@ public sealed class RemoveOnFinishParsingTests
         Assert.Equal(0, opts.RemoveOnFail);
     }
 
-    [Fact]
-    public void FractionalNumbers_RoundUp()
+    [Theory]
+    [InlineData("2.5", 3)]
+    [InlineData("0.5", 1)]
+    [InlineData("-0.5", -1)]
+    [InlineData("-1", -1)]
+    [InlineData("-1.5", -2)]
+    public void FractionalCounts_RoundAwayFromZero(string number, int expected)
     {
-        var opts = Parse("""{"removeOnComplete":2.5,"removeOnFail":{"age":0.5}}""");
-        Assert.Equal(3, opts.RemoveOnComplete);
-        Assert.Equal(1, Assert.IsType<KeepJobs>(opts.RemoveOnFail).Age);
+        var opts = Parse($$$"""{"removeOnComplete":{{{number}}},"removeOnFail":{"count":{{{number}}},"limit":{{{number}}}}}""");
+
+        Assert.Equal(expected, opts.RemoveOnComplete);
+        var keep = Assert.IsType<KeepJobs>(opts.RemoveOnFail);
+        Assert.Equal(expected, keep.Count);
+        Assert.Equal(expected, keep.Limit);
+    }
+
+    [Theory]
+    [InlineData("0.5", 1)]
+    [InlineData("0", 0)]
+    [InlineData("-0.5", null)]
+    [InlineData("-1", null)]
+    public void Age_RoundsUp_AndNegativeIsIgnored(string number, int? expected)
+    {
+        var keep = Assert.IsType<KeepJobs>(
+            Parse($$$"""{"removeOnComplete":{"age":{{{number}}},"count":10}}""").RemoveOnComplete);
+
+        Assert.Equal(expected, keep.Age);
+        Assert.Equal(10, keep.Count);
     }
 
     [Fact]

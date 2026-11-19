@@ -413,22 +413,23 @@ public class Job
             case JsonValueKind.False:
                 return false;
             case JsonValueKind.Number:
-                return ReadInt(value);
+                return ReadCount(value);
             case JsonValueKind.Object:
                 return new KeepJobs
                 {
-                    Count = value.TryGetProperty("count", out var count) ? ReadInt(count) : null,
-                    Age = value.TryGetProperty("age", out var age) ? ReadInt(age) : null,
-                    Limit = value.TryGetProperty("limit", out var limit) ? ReadInt(limit) : null,
+                    Count = value.TryGetProperty("count", out var count) ? ReadCount(count) : null,
+                    Age = value.TryGetProperty("age", out var age) ? ReadAge(age) : null,
+                    Limit = value.TryGetProperty("limit", out var limit) ? ReadCount(limit) : null,
                 };
             default:
                 return null;
         }
     }
 
-    // Rounds fractional values up so a lenient writer never causes more jobs to
-    // be removed than requested.
-    private static int? ReadInt(JsonElement value)
+    // Fractions round away from zero so a value never crosses into a different
+    // meaning: a positive count stays >= 1 (0 means remove) and a negative count
+    // (keep all) stays negative, e.g. 0.5 -> 1 and -0.5 -> -1.
+    private static int? ReadCount(JsonElement value)
     {
         if (value.ValueKind != JsonValueKind.Number)
         {
@@ -440,10 +441,20 @@ public class Job
             return i;
         }
 
-        return value.TryGetDouble(out var d) && double.IsFinite(d)
-            ? (int)Math.Clamp(Math.Ceiling(d), int.MinValue, int.MaxValue)
-            : null;
+        if (!value.TryGetDouble(out var d) || !double.IsFinite(d))
+        {
+            return null;
+        }
+
+        var rounded = d < 0 ? Math.Floor(d) : Math.Ceiling(d);
+        return (int)Math.Clamp(rounded, int.MinValue, int.MaxValue);
     }
+
+    // Fractional ages round up (a longer window keeps more). A negative age is
+    // ignored, as the PostgreSQL backend does; on Redis it would evict every
+    // finished job, including the current one.
+    private static int? ReadAge(JsonElement value) =>
+        ReadCount(value) is { } age && age >= 0 ? age : null;
 
     private static RepeatOptions? ParseRepeat(string optsJson)
     {
