@@ -320,6 +320,52 @@ public abstract class WorkerRetryTestsBase
     }
 
     [Fact]
+    public async Task CustomBackoffStrategy_ReturningOversizedDelay_KeepsJobDelayed()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        var failed = NewTcs<Job>();
+        var processed = 0;
+
+        var options = NewWorkerOptions();
+        options.BackoffStrategy = (_, _, _, _) => Task.FromResult(long.MaxValue);
+
+        var worker = new Worker(name, (_, _) =>
+        {
+            Interlocked.Increment(ref processed);
+            throw new InvalidOperationException("retry much later");
+        }, options);
+        worker.Failed += (job, _) => failed.TrySetResult(job!);
+
+        try
+        {
+            var added = await queue.AddAsync("job", new { x = 1 }, new JobsOptions
+            {
+                Attempts = 3,
+                Backoff = new BackoffOptions { Type = "custom" },
+            });
+            _ = worker.RunAsync();
+
+            await WaitForAsync(failed.Task);
+
+            // An overflowed deadline would make the retry due at once; give the
+            // worker time to (wrongly) pick it up again.
+            await Task.Delay(1500);
+
+            Assert.Equal(1, Volatile.Read(ref processed));
+            Assert.Equal(JobState.Delayed, await added.GetStateAsync());
+            var stored = await queue.GetJobAsync(added.Id!);
+            Assert.Equal(1, stored!.AttemptsMade);
+            Assert.Equal("retry much later", stored.FailedReason);
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
     public async Task DelayedRetry_PersistsFailedReasonAndStacktrace()
     {
         var name = UniqueName();

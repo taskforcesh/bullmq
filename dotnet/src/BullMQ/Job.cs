@@ -317,10 +317,14 @@ public class Job
         }
         else if (retryDelay > 0)
         {
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            // Saturated or custom delays (e.g. long.MaxValue) must not overflow the
+            // backend's `timestamp + delay` and wrap into an already-due deadline.
+            retryDelay = Math.Min(retryDelay, long.MaxValue - now);
             next = await _backend
                 .MoveToDelayedAsync(
                     Id!,
-                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    now,
                     retryDelay,
                     token,
                     fetchNext,
