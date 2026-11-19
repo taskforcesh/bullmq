@@ -134,6 +134,8 @@ Queries run on a connection pool shared by every queue, worker and `QueueEvents`
 
 Read more about how this backend works in the [PostgreSQL backend](https://docs.bullmq.io/guide/postgresql.md) section of the guide.
 
+Migrations are recorded in the schema's `migration` ledger, shared with the other BullMQ SDKs, so a schema initialized by any of them can be used from .NET and vice versa. A schema that requires a newer BullMQ major version is refused with a `SchemaVersionMismatchException`. Schemas migrated by earlier .NET releases, which used a `bullmq_migration` ledger, are adopted automatically on first use. The legacy table is kept up to date for older .NET instances and can be dropped once every instance has been upgraded.
+
 ## Interoperability
 
 Queues created with the .NET package are fully interoperable with the other BullMQ SDKs ([Node.js](https://docs.bullmq.io/quick-start.md), [Python](https://docs.bullmq.io/python/introduction.md), [Elixir](https://docs.bullmq.io/elixir/introduction.md), [Rust](https://docs.bullmq.io/rust/introduction.md) and [PHP](https://docs.bullmq.io/php/introduction.md)) as long as they use the same backend and prefix (Redis) or schema (PostgreSQL).
