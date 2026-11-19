@@ -1,9 +1,14 @@
 ## [1.3.7](https://github.com/taskforcesh/bullmq/compare/vnet1.3.6...vnet1.3.7) (2026-11-19)
 
-
 ### Bug Fixes
 
 * **postgres:** share the migration ledger with the other runtimes [dotnet] ([#5162](https://github.com/taskforcesh/bullmq/issues/5162)) ([04071ca](https://github.com/taskforcesh/bullmq/commit/04071cad240dc706e8fcb8d44e53dd8d835557ec))
+
+## [1.3.4](https://github.com/taskforcesh/bullmq/compare/vnet1.3.3...vnet1.3.4) (2026-11-19)
+
+### Bug Fixes
+
+* **worker:** honor removeOnComplete and removeOnFail [dotnet] ([#5159](https://github.com/taskforcesh/bullmq/issues/5159)) ([5a94286](https://github.com/taskforcesh/bullmq/commit/5a942867bc94d74dc3daeccdd1d216d0ed2c6b67))
 
 ## [1.3.3](https://github.com/taskforcesh/bullmq/compare/vnet1.3.2...vnet1.3.3) (2026-11-19)
 
