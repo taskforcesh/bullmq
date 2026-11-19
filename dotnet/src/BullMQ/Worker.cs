@@ -39,6 +39,7 @@ public sealed class Worker : IAsyncDisposable
     private volatile bool _closing;
     private volatile bool _forceClosing;
     private volatile bool _drained;
+    private long _limitUntil; // unix ms at which the last reported rate limit lifts (0 = none)
     private Task? _running;
     private LockManager? _lockManager;
     private Task? _stalledChecker;
@@ -174,8 +175,8 @@ public sealed class Worker : IAsyncDisposable
     /// <see cref="WorkerOptions.Concurrency"/>: each free slot triggers a fetch,
     /// jobs are processed fire-and-forget (each slot keeps processing the next
     /// job returned by the finish call and is released when none is returned),
-    /// and an idle worker blocks on the backend's wait primitive instead of
-    /// busy-polling.
+    /// an idle worker blocks on the backend's wait primitive instead of
+    /// busy-polling, and a rate-limited worker sleeps until the limit lifts.
     /// </summary>
     private async Task MainLoopAsync(IQueueBackend backend)
     {
@@ -214,6 +215,10 @@ public sealed class Worker : IAsyncDisposable
                 continue;
             }
 
+            _limitUntil = next.RateLimitDelay > 0
+                ? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + next.RateLimitDelay
+                : 0;
+
             if (next.Job is not null)
             {
                 _drained = false;
@@ -230,7 +235,14 @@ public sealed class Worker : IAsyncDisposable
             {
                 MarkDrained();
                 _slots!.Release();
-                await WaitForJobAsync(backend, next.DelayUntil).ConfigureAwait(false);
+                if (_limitUntil > 0)
+                {
+                    await WaitForRateLimitAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    await WaitForJobAsync(backend, next.DelayUntil).ConfigureAwait(false);
+                }
             }
         }
 
@@ -357,6 +369,13 @@ public sealed class Worker : IAsyncDisposable
         NextJobData? next = null;
         try
         {
+            // A deferred failure (e.g. the job stalled more than MaxStalledCount
+            // times) means the job must fail without running the processor.
+            if (!string.IsNullOrEmpty(job.DeferredFailure))
+            {
+                throw new UnrecoverableException(job.DeferredFailure);
+            }
+
             var result = await _processor(job, _abortCts.Token).ConfigureAwait(false);
             next = await job.MoveToCompletedAsync(result, token, fetchNext: !_closing).ConfigureAwait(false);
             Completed?.Invoke(job, result);
@@ -393,6 +412,26 @@ public sealed class Worker : IAsyncDisposable
         }
 
         return next;
+    }
+
+    /// <summary>
+    /// Sleeps until the rate limit lifts. Blocking on the backend's wait primitive
+    /// instead would wake on every added job and re-fetch only to hit the limit
+    /// again. The sleep is capped by <see cref="WorkerOptions.MaximumRateLimitDelay"/>
+    /// so due delayed jobs keep being promoted, and is interrupted by close.
+    /// </summary>
+    private async Task WaitForRateLimitAsync()
+    {
+        var remaining = _limitUntil - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        if (remaining > 0)
+        {
+            var maxDelay = Math.Max(Opts.MaximumRateLimitDelay, 1);
+            await SafeDelayAsync((int)Math.Min(remaining, maxDelay)).ConfigureAwait(false);
+        }
+
+        // Like the reference worker: the next fetch goes straight to moveToActive.
+        _drained = false;
+        _limitUntil = 0;
     }
 
     /// <summary>Blocks on the backend's wait primitive until a job may be available.</summary>

@@ -999,7 +999,7 @@ pub struct ParentOptions {
 /// Options for the KeepJobs policy when serialized to Redis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedisKeepJobs {
-    /// Maximum age in milliseconds.
+    /// Maximum age in seconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub age: Option<u64>,
     /// Maximum count of jobs to keep.
