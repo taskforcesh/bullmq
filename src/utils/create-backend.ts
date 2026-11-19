@@ -21,15 +21,31 @@ import { isRedisInstance } from './index';
 const duplicateClient = (
   client: IRedisClient | RedisConnectionClient,
   connectionName?: string,
+  ioredisOverrides?: Record<string, unknown>,
 ): IRedisClient | RedisConnectionClient => {
   if (isIRedisClient(client) || typeof client.defineCommand === 'function') {
+    const overrides = {
+      ...(connectionName ? { connectionName } : {}),
+      ...ioredisOverrides,
+    };
     return (
       isIRedisClient(client) ? client : createIORedisClient(client as any)
-    ).duplicate(connectionName ? { connectionName } : undefined);
+    ).duplicate(Object.keys(overrides).length ? overrides : undefined);
   }
   return client.duplicate(
     connectionName ? { name: connectionName } : undefined,
   );
+};
+
+/**
+ * Options forced on connections that run blocking commands (`BZPOPMIN`,
+ * `XREAD BLOCK`). ioredis applies `commandTimeout` to blocking commands too,
+ * so a value shorter than the block timeout makes every idle wait fail with
+ * "Command timed out" (#2619). Stuck blocking commands are already handled by
+ * the watchdogs in `RedisQueueBackend.waitForJob` and `readEvents`.
+ */
+const blockingConnectionOverrides: { commandTimeout: number | undefined } = {
+  commandTimeout: undefined,
 };
 
 /**
@@ -49,8 +65,12 @@ const createBlockingConnection = (
 
   return new RedisConnection(
     isRedisInstance(opts.connection)
-      ? duplicateClient(opts.connection, connectionName)
-      : { ...opts.connection, connectionName },
+      ? duplicateClient(
+          opts.connection,
+          connectionName,
+          blockingConnectionOverrides,
+        )
+      : { ...opts.connection, connectionName, ...blockingConnectionOverrides },
     {
       shared: false,
       blocking: true,
@@ -75,10 +95,11 @@ export const createRedisBackend: BackendFactory<RedisQueueBackend> = (
   { blocking = false, withBlockingConnection = false } = {},
 ) => {
   // A blocking consumer must not block the caller's shared Redis client.
-  const mainConnectionOpts =
-    blocking && isRedisInstance(opts.connection)
-      ? duplicateClient(opts.connection)
-      : opts.connection;
+  const mainConnectionOpts = !blocking
+    ? opts.connection
+    : isRedisInstance(opts.connection)
+      ? duplicateClient(opts.connection, undefined, blockingConnectionOverrides)
+      : { ...opts.connection, ...blockingConnectionOverrides };
 
   const connection = new RedisConnection(mainConnectionOpts, {
     shared: !blocking && isRedisInstance(opts.connection),
