@@ -59,7 +59,10 @@ public sealed class Worker : IAsyncDisposable
     /// <summary>Raised when a job completes successfully.</summary>
     public event Action<Job, object?>? Completed;
 
-    /// <summary>Raised when a job fails.</summary>
+    /// <summary>
+    /// Raised each time a job attempt fails, including attempts that are
+    /// retried afterwards.
+    /// </summary>
     public event Action<Job?, Exception>? Failed;
 
     /// <summary>Raised when the worker drains the waiting list.</summary>
@@ -105,6 +108,14 @@ public sealed class Worker : IAsyncDisposable
                 nameof(opts),
                 opts.Concurrency,
                 "WorkerOptions.Concurrency must be greater than 0.");
+        }
+
+        if (opts.MaxStartedAttempts < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(opts),
+                opts.MaxStartedAttempts,
+                "WorkerOptions.MaxStartedAttempts must be greater or equal than 0.");
         }
 
         _backend = new Lazy<Task<IQueueBackend>>(InitBackendAsync);
@@ -386,7 +397,7 @@ public sealed class Worker : IAsyncDisposable
     private async Task<NextJobData?> ProcessJob(IQueueBackend backend, Job job, string token)
     {
         var ts = job.ProcessedOn ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        _lockManager?.TrackJob(job.Id!, token, ts);
+        var registrationGeneration = _lockManager?.TrackJob(job.Id!, token, ts) ?? 0;
         Active?.Invoke(job);
         NextJobData? next = null;
         try
@@ -396,6 +407,11 @@ public sealed class Worker : IAsyncDisposable
             if (!string.IsNullOrEmpty(job.DeferredFailure))
             {
                 throw new UnrecoverableException(job.DeferredFailure);
+            }
+
+            if (Opts.MaxStartedAttempts is int maxStarted && maxStarted > 0 && maxStarted < job.AttemptsStarted)
+            {
+                throw new UnrecoverableException("job started more than allowable limit");
             }
 
             var result = await _processor(job, _abortCts.Token).ConfigureAwait(false);
@@ -422,7 +438,8 @@ public sealed class Worker : IAsyncDisposable
             try
             {
                 var fetchNext = !_closing;
-                var finished = await job.MoveToFailedAsync(ex, token, fetchNext).ConfigureAwait(false);
+                var finished = await job.MoveToFailedAsync(
+                    ex, token, fetchNext, Opts.BackoffStrategy, Opts.MaxStartedAttempts).ConfigureAwait(false);
                 next = fetchNext ? finished : null;
             }
             catch (Exception moveError)
@@ -434,7 +451,7 @@ public sealed class Worker : IAsyncDisposable
         }
         finally
         {
-            _lockManager?.UntrackJob(job.Id!);
+            _lockManager?.UntrackJob(job.Id!, token, registrationGeneration);
         }
 
         return next;
