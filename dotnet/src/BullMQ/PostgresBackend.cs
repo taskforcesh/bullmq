@@ -30,6 +30,10 @@ public sealed class PostgresBackend : IQueueBackend
     private readonly string? _workerName;
     private Task? _closing;
 
+    // Armed by WaitForJobAsync and cancelled when this backend finishes a job
+    // without claiming the next one (see SignalSlotFreed).
+    private CancellationTokenSource? _slotFreed;
+
     public string Name { get; }
 
     public string Schema => _connection.Schema;
@@ -244,6 +248,11 @@ public sealed class PostgresBackend : IQueueBackend
             var result = await RunAsync(command, parameters, op: "moveToFinished", jobId: job.Id, state: "active")
                 .ConfigureAwait(false);
             var next = await NextJobResultAsync(result, null, now).ConfigureAwait(false);
+            if (next.Job is null)
+            {
+                SignalSlotFreed();
+            }
+
             return new MoveToFinishedResult { Next = next, FinishedOn = finishedOn };
         }
 
@@ -254,6 +263,7 @@ public sealed class PostgresBackend : IQueueBackend
 
         await RunAsync(noFetchCommand, noFetchParams, op: "moveToFinished", jobId: job.Id, state: "active")
             .ConfigureAwait(false);
+        SignalSlotFreed();
         return new MoveToFinishedResult { Next = NextJobData.Empty, FinishedOn = finishedOn };
     }
 
@@ -779,6 +789,10 @@ public sealed class PostgresBackend : IQueueBackend
     {
         var listen = await _connection.EnsureJobChannelAsync().ConfigureAwait(false);
 
+        // Armed before the first probe: a slot this backend frees from now on
+        // cuts the wait short, and one freed earlier is seen by the probe.
+        var slotFreed = ArmSlotFreed();
+
         if (await HasWaitingJobAsync().ConfigureAwait(false))
         {
             return new MarkerResult(Name, 0);
@@ -823,6 +837,9 @@ public sealed class PostgresBackend : IQueueBackend
             // until something actually changes. A NOTIFY for another queue on
             // the shared channel wakes us too; the has_waiting_job probe then
             // simply finds nothing and we wait out the rest of the deadline.
+            // This backend finishing a job also wakes us (SignalSlotFreed), so a
+            // worker parked on a queue at its global concurrency limit claims the
+            // next job as soon as one of its own jobs frees a slot.
             //
             // Re-acquire the LISTEN connection every iteration: a failed wait
             // tears it down (ResetJobChannelAsync), and EnsureJobChannelAsync
@@ -830,10 +847,19 @@ public sealed class PostgresBackend : IQueueBackend
             // spinning on a disposed handle. Any NOTIFY missed during a reconnect
             // is still caught by the has_waiting_job probe below (or on timeout).
             listen = await _connection.EnsureJobChannelAsync().ConfigureAwait(false);
-            await _connection.WaitForNotificationAsync(listen, remaining, cancellationToken).ConfigureAwait(false);
+            using (var wake = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, slotFreed.Token))
+            {
+                await _connection.WaitForNotificationAsync(listen, remaining, wake.Token).ConfigureAwait(false);
+            }
+
             if (cancellationToken.IsCancellationRequested)
             {
                 return null;
+            }
+
+            if (slotFreed.IsCancellationRequested)
+            {
+                slotFreed = ArmSlotFreed();
             }
 
             if (await HasWaitingJobAsync().ConfigureAwait(false))
@@ -842,6 +868,23 @@ public sealed class PostgresBackend : IQueueBackend
             }
         }
     }
+
+    // Never disposed: SignalSlotFreed may cancel a source that has just been
+    // replaced, and a source without timers holds no unmanaged resources.
+    private CancellationTokenSource ArmSlotFreed()
+    {
+        var slotFreed = new CancellationTokenSource();
+        Volatile.Write(ref _slotFreed, slotFreed);
+        return slotFreed;
+    }
+
+    /// <summary>
+    /// Wakes this backend's in-flight <see cref="WaitForJobAsync"/> after it
+    /// finished a job without claiming the next one. That frees a global
+    /// concurrency slot, which (as in Redis's moveToFinished) is not announced
+    /// to waiting workers, and the worker does not fetch the next job inline.
+    /// </summary>
+    private void SignalSlotFreed() => _ = Volatile.Read(ref _slotFreed)?.CancelAsync();
 
     private async Task<bool> HasWaitingJobAsync()
     {

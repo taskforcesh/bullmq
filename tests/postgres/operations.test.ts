@@ -1112,6 +1112,40 @@ describe('PostgreSQL backend operations', () => {
     }
   });
 
+  it('waitForJob blocks while the queue is at its global concurrency limit', async () => {
+    const backend = newBackend();
+    try {
+      await backend.waitUntilReady();
+      await backend.setQueueMeta({ concurrency: 1 });
+      const token = randomUUID();
+      const first = await backend.addJob(makeJob({ name: 'first' }), '');
+      await backend.addJob(makeJob({ name: 'second' }), '');
+
+      const [claimed] = await backend.moveToActive(token);
+      expect((claimed as JobJson).id).toBe(first);
+      const [none] = await backend.moveToActive(token);
+      expect(none).toBeNull();
+
+      // A job is waiting but none can be claimed: no early wake-up.
+      const start = Date.now();
+      expect(await backend.waitForJob(0.5)).toBeNull();
+      expect(Date.now() - start).toBeGreaterThanOrEqual(450);
+
+      await backend.moveToCompleted(
+        { id: first } as any,
+        1,
+        false,
+        token,
+        false,
+      );
+
+      // A slot is free again, so the waiting job is reported right away.
+      expect(await backend.waitForJob(5)).toMatchObject({ score: 0 });
+    } finally {
+      await backend.close();
+    }
+  });
+
   it('routes a delayed job to the delayed state and promotes it when due', async () => {
     const backend = newBackend();
     try {
