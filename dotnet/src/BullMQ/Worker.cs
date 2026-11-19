@@ -197,6 +197,14 @@ public sealed class Worker : IAsyncDisposable
                 break;
             }
 
+            // A chained finish hit the rate limit: sleep it out instead of fetching.
+            if (Volatile.Read(ref _limitUntil) > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
+            {
+                _slots!.Release();
+                await WaitForRateLimitAsync().ConfigureAwait(false);
+                continue;
+            }
+
             var token = $"{Id}:{Interlocked.Increment(ref _tokenCounter)}";
             NextJobData next;
             try
@@ -260,8 +268,12 @@ public sealed class Worker : IAsyncDisposable
     {
         try
         {
+            // A force close can land at any await, e.g. while the next job's
+            // scheduler iteration is being added: never start a job after it, but
+            // leave it active to be recovered as stalled. A graceful close still
+            // processes an already-fetched job.
             Job? current = job;
-            while (current is not null)
+            while (current is not null && !_forceClosing)
             {
                 var next = await ProcessJob(backend, current, token).ConfigureAwait(false);
                 current = await NextJobFromDataAsync(backend, next, token).ConfigureAwait(false);
@@ -276,6 +288,7 @@ public sealed class Worker : IAsyncDisposable
     /// <summary>
     /// Turns the next-job tuple returned by a fetch-next finish into the job this
     /// slot processes next (reusing the slot's token), or null to free the slot.
+    /// <paramref name="next"/> is null when fetch-next was not requested.
     /// </summary>
     private async Task<Job?> NextJobFromDataAsync(IQueueBackend backend, NextJobData? next, string token)
     {
@@ -286,15 +299,22 @@ public sealed class Worker : IAsyncDisposable
 
         if (data.Job is null)
         {
+            if (data.RateLimitDelay > 0)
+            {
+                // Makes the main loop sleep the limit out instead of refetching.
+                Volatile.Write(
+                    ref _limitUntil,
+                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + data.RateLimitDelay);
+            }
+
             MarkDrained();
             return null;
         }
 
         _drained = false;
 
-        // The job is already active under this worker's token. On force close do
-        // not start it: like the jobs interrupted by the close, it is left active
-        // and recovered as stalled once its lock expires.
+        // Skip the scheduler update for a job that will not be started (see
+        // RunJobAsync).
         if (_forceClosing)
         {
             return null;
@@ -359,7 +379,9 @@ public sealed class Worker : IAsyncDisposable
     /// <summary>
     /// Processes a job and finishes it. Unless the worker is closing, the finish
     /// call also fetches the next job, which is returned so the caller can
-    /// process it in the same slot.
+    /// process it in the same slot. Returns null when fetch-next was not
+    /// requested: the backends then report an empty next job, which says nothing
+    /// about the waiting queue and must not be taken as drained.
     /// </summary>
     private async Task<NextJobData?> ProcessJob(IQueueBackend backend, Job job, string token)
     {
@@ -377,7 +399,9 @@ public sealed class Worker : IAsyncDisposable
             }
 
             var result = await _processor(job, _abortCts.Token).ConfigureAwait(false);
-            next = await job.MoveToCompletedAsync(result, token, fetchNext: !_closing).ConfigureAwait(false);
+            var fetchNext = !_closing;
+            var finished = await job.MoveToCompletedAsync(result, token, fetchNext).ConfigureAwait(false);
+            next = fetchNext ? finished : null;
             Completed?.Invoke(job, result);
         }
         catch (OperationCanceledException) when (_forceClosing)
@@ -397,7 +421,9 @@ public sealed class Worker : IAsyncDisposable
         {
             try
             {
-                next = await job.MoveToFailedAsync(ex, token, fetchNext: !_closing).ConfigureAwait(false);
+                var fetchNext = !_closing;
+                var finished = await job.MoveToFailedAsync(ex, token, fetchNext).ConfigureAwait(false);
+                next = fetchNext ? finished : null;
             }
             catch (Exception moveError)
             {

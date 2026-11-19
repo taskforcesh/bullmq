@@ -675,12 +675,14 @@ public abstract class QueueWorkerTestsBase
             _ = worker.RunAsync();
             await WaitForAsync(completed.Task, TimeSpan.FromSeconds(15));
 
-            // The fetch after the first job hits the limit; from then on the
-            // worker sleeps the window out without fetching again.
-            await WaitUntilAsync(
-                () => calls.Count(nameof(IQueueBackend.MoveToActiveAsync)) >= 2, TimeSpan.FromSeconds(5));
+            // The fetch after the first job (made by its fetch-next completion)
+            // hits the limit; from then on the worker sleeps the window out
+            // without fetching again.
+            int Fetches() => calls.Count(nameof(IQueueBackend.MoveToActiveAsync))
+                + calls.Count(nameof(IQueueBackend.MoveToCompletedAsync) + BackendCallCounter.FetchNext);
+            await WaitUntilAsync(() => Fetches() >= 2, TimeSpan.FromSeconds(5));
             await Task.Delay(500);
-            Assert.Equal(2, calls.Count(nameof(IQueueBackend.MoveToActiveAsync)));
+            Assert.Equal(2, Fetches());
 
             var clock = Stopwatch.StartNew();
             await worker.CloseAsync();
@@ -1118,6 +1120,157 @@ public abstract class QueueWorkerTestsBase
             Assert.Equal(0, counts["failed"]);
             Assert.InRange(counts["active"], 0, concurrency);
             Assert.Equal(total, counts["waiting"] + counts["active"] + counts["completed"]);
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_ForceClose_DuringChainedSchedulerUpdate_DoesNotStartTheJob()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        var gate = new BackendCallGate(nameof(IQueueBackend.IsJobSchedulerAsync));
+        var activated = new ConcurrentQueue<string>();
+        var started = new ConcurrentQueue<string>();
+        var blockerActive = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseBlocker = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var worker = new Worker(
+            name,
+            async (job, _) =>
+            {
+                started.Enqueue(job.Name);
+                if (job.Name == "blocker")
+                {
+                    blockerActive.TrySetResult(true);
+                    await releaseBlocker.Task;
+                }
+
+                return null;
+            },
+            NewWorkerOptions(),
+            gate.Wrap);
+        worker.Active += job => activated.Enqueue(job.Name);
+
+        try
+        {
+            await queue.AddAsync("blocker", null);
+            _ = worker.RunAsync();
+            await WaitForAsync(blockerActive.Task, TimeSpan.FromSeconds(15));
+
+            // Queued behind the blocker, so the blocker's completion fetches it.
+            var tick = await queue.UpsertJobSchedulerAsync(
+                "racing-ticker",
+                new RepeatOptions { Every = 60000, Immediately = true },
+                new JobSchedulerTemplate { Name = "tick" });
+            releaseBlocker.SetResult(true);
+
+            // The slot now holds the fetched job and awaits its scheduler update:
+            // force close right there.
+            await WaitForAsync(gate.Entered, TimeSpan.FromSeconds(15));
+            var closing = worker.CloseAsync(force: true);
+            gate.Release();
+            await closing;
+            await Task.Delay(300);
+
+            Assert.Equal(new[] { "blocker" }, activated);
+            Assert.Equal(new[] { "blocker" }, started);
+
+            // Left active, to be recovered as stalled.
+            Assert.Equal(JobState.Active, await queue.GetJobStateAsync(tick!.Id!));
+        }
+        finally
+        {
+            gate.Release();
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_GracefulClose_WithBacklog_DoesNotRaiseDrained()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        const int total = 20;
+        const int concurrency = 2;
+        int running = 0, drained = 0;
+        var allRunning = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var options = NewWorkerOptions();
+        options.Concurrency = concurrency;
+        var worker = new Worker(
+            name,
+            async (_, _) =>
+            {
+                if (Interlocked.Increment(ref running) == concurrency)
+                {
+                    allRunning.TrySetResult(true);
+                }
+
+                await release.Task;
+                return null;
+            },
+            options);
+        worker.Drained += () => Interlocked.Increment(ref drained);
+
+        try
+        {
+            await queue.AddBulkAsync(Enumerable.Range(0, total).Select(i => ("job", (object?)new { i }, (JobsOptions?)null)));
+            _ = worker.RunAsync();
+            await WaitForAsync(allRunning.Task, TimeSpan.FromSeconds(15));
+
+            // The in-flight jobs finish after the close started, so without
+            // fetching the next job: that says nothing about the backlog.
+            var closing = worker.CloseAsync();
+            release.SetResult(true);
+            await closing;
+
+            Assert.Equal(0, drained);
+            Assert.Equal(concurrency, await queue.GetCompletedCountAsync());
+            Assert.Equal(total - concurrency, await queue.GetWaitingCountAsync());
+        }
+        finally
+        {
+            release.TrySetResult(true);
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_RateLimited_ChainedFinish_SleepsInsteadOfRefetching()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        await SetGlobalRateLimitAsync(queue, max: 2, duration: 1500);
+
+        var calls = new BackendCallCounter();
+        var completedAt = new ConcurrentQueue<long>();
+        var worker = new Worker(name, (_, _) => Task.FromResult<object?>(null), NewWorkerOptions(), calls.Wrap);
+        worker.Completed += (_, _) => completedAt.Enqueue(Environment.TickCount64);
+
+        try
+        {
+            await queue.AddBulkAsync(Enumerable.Range(0, 3).Select(i => ("job", (object?)new { i }, (JobsOptions?)null)));
+            _ = worker.RunAsync();
+
+            // The first job is fetched by MoveToActive and the second by its
+            // completion; the second's completion then hits the limit.
+            await WaitUntilAsync(() => completedAt.Count >= 2, TimeSpan.FromSeconds(10));
+            await Task.Delay(500);
+            Assert.Equal(1, calls.Count(nameof(IQueueBackend.MoveToActiveAsync)));
+
+            await WaitUntilAsync(() => completedAt.Count >= 3, TimeSpan.FromSeconds(10));
+            var completions = completedAt.ToArray();
+            Assert.True(
+                completions[2] - completions[0] >= 1000,
+                $"third job completed {completions[2] - completions[0]} ms after the first");
         }
         finally
         {
