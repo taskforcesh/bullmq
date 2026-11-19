@@ -136,6 +136,11 @@ internal static class OptsCodec
             map["age"] = age;
         }
 
+        if (keep.Limit is { } limit)
+        {
+            map["limit"] = limit;
+        }
+
         return map;
     }
 
