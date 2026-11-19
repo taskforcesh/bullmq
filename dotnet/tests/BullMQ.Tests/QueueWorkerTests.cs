@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using BullMQ;
 using BullMQ.Postgres;
 using Xunit;
@@ -598,6 +600,166 @@ public abstract class QueueWorkerTestsBase
         {
             await worker.CloseAsync(force: true);
             await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_RateLimited_SleepsInsteadOfRefetchingWhileJobsAreAdded()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        await SetGlobalRateLimitAsync(queue, max: 1, duration: 1000);
+
+        var calls = new BackendCallCounter();
+        var completedAt = new ConcurrentQueue<long>();
+        var worker = new Worker(name, (_, _) => Task.FromResult<object?>(null), NewWorkerOptions(), calls.Wrap);
+        worker.Completed += (_, _) => completedAt.Enqueue(Environment.TickCount64);
+
+        try
+        {
+            await queue.AddAsync("job", new { i = 0 });
+            await worker.WaitUntilReadyAsync();
+            var clock = Stopwatch.StartNew();
+            _ = worker.RunAsync();
+
+            // Every add wakes a worker blocked on the marker (Redis) / jobs
+            // channel (PostgreSQL), so keep adding jobs for the whole test.
+            var added = 1;
+            while (clock.ElapsedMilliseconds < 3000)
+            {
+                await queue.AddAsync("job", new { i = added++ });
+                await Task.Delay(20);
+            }
+
+            var fetches = calls.Count(nameof(IQueueBackend.MoveToActiveAsync));
+            var completions = completedAt.ToArray();
+
+            // One job per 1000 ms window over ~3 s, without the worker stalling.
+            Assert.InRange(completions.Length, 2, 4);
+            for (var i = 1; i < completions.Length; i++)
+            {
+                Assert.True(
+                    completions[i] - completions[i - 1] >= 900,
+                    $"jobs completed {completions[i] - completions[i - 1]} ms apart");
+            }
+
+            // About two fetches per window (one claims the job, one hits the
+            // limit), instead of one per added job.
+            Assert.True(
+                fetches <= 20,
+                $"{fetches} moveToActive calls to process {completions.Length} jobs while {added} were added");
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_RateLimited_CloseInterruptsTheRateLimitWait()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        await SetGlobalRateLimitAsync(queue, max: 1, duration: 20000);
+
+        var calls = new BackendCallCounter();
+        var completed = new TaskCompletionSource<Job>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var worker = new Worker(name, (_, _) => Task.FromResult<object?>(null), NewWorkerOptions(), calls.Wrap);
+        worker.Completed += (job, _) => completed.TrySetResult(job);
+
+        try
+        {
+            await queue.AddAsync("job", new { i = 1 });
+            var second = await queue.AddAsync("job", new { i = 2 });
+            _ = worker.RunAsync();
+            await WaitForAsync(completed.Task, TimeSpan.FromSeconds(15));
+
+            // The fetch after the first job hits the limit; from then on the
+            // worker sleeps the window out without fetching again.
+            await WaitUntilAsync(
+                () => calls.Count(nameof(IQueueBackend.MoveToActiveAsync)) >= 2, TimeSpan.FromSeconds(5));
+            await Task.Delay(500);
+            Assert.Equal(2, calls.Count(nameof(IQueueBackend.MoveToActiveAsync)));
+
+            var clock = Stopwatch.StartNew();
+            await worker.CloseAsync();
+            Assert.True(clock.ElapsedMilliseconds < 3000, $"close took {clock.ElapsedMilliseconds} ms");
+            Assert.Equal(JobState.Waiting, await second.GetStateAsync());
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_RateLimited_MaximumRateLimitDelayKeepsPromotingDelayedJobs()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        await SetGlobalRateLimitAsync(queue, max: 1, duration: 20000);
+
+        var calls = new BackendCallCounter();
+        var completed = new TaskCompletionSource<Job>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var options = NewWorkerOptions();
+        options.MaximumRateLimitDelay = 200;
+        var worker = new Worker(name, (_, _) => Task.FromResult<object?>(null), options, calls.Wrap);
+        worker.Completed += (job, _) => completed.TrySetResult(job);
+
+        try
+        {
+            await queue.AddAsync("job", new { i = 1 });
+            var delayed = await queue.AddAsync("delayed", new { i = 2 }, new JobsOptions { Delay = 500 });
+            _ = worker.RunAsync();
+            await WaitForAsync(completed.Task, TimeSpan.FromSeconds(15));
+
+            // The 20 s window is slept out in 200 ms steps, and each re-fetch
+            // promotes due delayed jobs (which stay waiting: still rate limited).
+            await WaitUntilAsync(
+                async () => await delayed.GetStateAsync() == JobState.Waiting, TimeSpan.FromSeconds(5));
+
+            await Task.Delay(1000);
+            Assert.Equal(JobState.Waiting, await delayed.GetStateAsync());
+            Assert.InRange(calls.Count(nameof(IQueueBackend.MoveToActiveAsync)), 4, 30);
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    /// <summary>
+    /// Sets a queue-level rate limit the way the reference
+    /// <c>queue.setGlobalRateLimit</c> stores it: the queue meta <c>max</c> and
+    /// <c>duration</c> fields.
+    /// </summary>
+    private static async Task SetGlobalRateLimitAsync(Queue queue, int max, int duration)
+    {
+        var backend = await queue.GetBackendAsync();
+        await backend.SetQueueMetaAsync(new Dictionary<string, object>
+        {
+            ["max"] = max,
+            ["duration"] = duration,
+        });
+    }
+
+    private static Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout) =>
+        WaitUntilAsync(() => Task.FromResult(condition()), timeout);
+
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (!await condition())
+        {
+            if (DateTime.UtcNow > deadline)
+            {
+                throw new TimeoutException("Timed out waiting for the expected condition.");
+            }
+
+            await Task.Delay(20);
         }
     }
 }

@@ -73,6 +73,12 @@ public sealed class WorkerOptions : QueueBaseOptions
     /// <summary>Seconds the worker blocks waiting for a job before looping. Defaults to 5.</summary>
     public int DrainDelay { get; set; } = 5;
 
+    /// <summary>
+    /// Maximum time (ms) the worker sleeps while the queue is rate limited before
+    /// fetching again, so delayed jobs keep being promoted. Defaults to 30000.
+    /// </summary>
+    public int MaximumRateLimitDelay { get; set; } = 30000;
+
     /// <summary>Optional human-readable worker name (used for observability).</summary>
     public string? Name { get; set; }
 
