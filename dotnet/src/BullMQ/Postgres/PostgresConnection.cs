@@ -277,7 +277,12 @@ public sealed class PostgresConnection : IAsyncDisposable
         {
             if (s_migrated.Contains(_connectionString))
             {
-                return;
+                if (await IsMigratedSchemaUsableAsync().ConfigureAwait(false))
+                {
+                    return;
+                }
+
+                s_migrated.Remove(_connectionString);
             }
 
             try
@@ -307,6 +312,37 @@ public sealed class PostgresConnection : IAsyncDisposable
 
     private Task RunMigrationsAsync(NpgsqlConnection conn) =>
         RunMigrationsAsync(conn, Schema, _skipVersionCheck);
+
+    // Runs for each new instance whose schema this process already migrated,
+    // since another runtime may have changed it since: throws when the ledger now
+    // requires a newer major, and returns false when the ledger is gone so the
+    // schema is migrated again.
+    private async Task<bool> IsMigratedSchemaUsableAsync()
+    {
+        await using var conn = await OpenWithRetryAsync().ConfigureAwait(false);
+        try
+        {
+            await AssertClientCompatibleAsync(conn, null, QuoteSchemaName(Schema)).ConfigureAwait(false);
+            return true;
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedTable)
+        {
+            return false;
+        }
+    }
+
+    private static async Task AssertClientCompatibleAsync(
+        NpgsqlConnection conn, NpgsqlTransaction? tx, string quotedSchema)
+    {
+        var minimumClientVersion = await ExecuteScalarIntAsync(
+            conn, tx,
+            $"SELECT COALESCE(MAX(min_client_version), $1)::int FROM {quotedSchema}.migration",
+            BullMQMajorVersion).ConfigureAwait(false);
+        if (minimumClientVersion > BullMQMajorVersion)
+        {
+            throw new SchemaVersionMismatchException(minimumClientVersion, BullMQMajorVersion);
+        }
+    }
 
     /// <summary>
     /// Brings <paramref name="schema"/> up to the latest bundled migration and
@@ -351,14 +387,7 @@ public sealed class PostgresConnection : IAsyncDisposable
 
         var current = await ExecuteScalarIntAsync(
             conn, tx, "SELECT COALESCE(MAX(version), 0)::int FROM migration").ConfigureAwait(false);
-        var minimumClientVersion = await ExecuteScalarIntAsync(
-            conn, tx,
-            "SELECT COALESCE(MAX(min_client_version), $1)::int FROM migration",
-            BullMQMajorVersion).ConfigureAwait(false);
-        if (minimumClientVersion > BullMQMajorVersion)
-        {
-            throw new SchemaVersionMismatchException(minimumClientVersion, BullMQMajorVersion);
-        }
+        await AssertClientCompatibleAsync(conn, tx, quoted).ConfigureAwait(false);
 
         var version = current;
         foreach (var file in SqlLoader.MigrationFiles())
@@ -453,7 +482,7 @@ public sealed class PostgresConnection : IAsyncDisposable
             "ON CONFLICT (version) DO NOTHING");
 
     private static async Task<int> ExecuteScalarIntAsync(
-        NpgsqlConnection conn, NpgsqlTransaction tx, string sql, params object[] parameters)
+        NpgsqlConnection conn, NpgsqlTransaction? tx, string sql, params object[] parameters)
     {
         await using var cmd = new NpgsqlCommand(sql, conn, tx);
         foreach (var value in parameters)

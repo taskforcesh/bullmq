@@ -327,6 +327,75 @@ public sealed class PostgresMigrationTests
         }
     }
 
+    [Fact]
+    public async Task MinClientVersion_IsCheckedForEveryInstanceAfterTheMigrationIsCached()
+    {
+        var schema = NewSchema();
+        var options = new PostgresOptions { ConnectionString = ConnectionString, Schema = schema };
+        try
+        {
+            // Warm the per-process migration cache for this connection string.
+            await using (var warm = new PostgresConnection(options))
+            {
+                await warm.WaitUntilReadyAsync();
+            }
+
+            var newerMajor = PostgresConnection.BullMQMajorVersion + 1;
+            await ExecuteAsync(
+                $"UPDATE \"{schema}\".migration SET min_client_version = $1 WHERE version = $2",
+                newerMajor, LatestVersion);
+
+            await using (var incompatible = new PostgresConnection(options))
+            {
+                var err = await Assert.ThrowsAsync<SchemaVersionMismatchException>(
+                    () => incompatible.WaitUntilReadyAsync());
+                Assert.Equal(newerMajor, err.MinimumClientVersion);
+                Assert.Equal(PostgresConnection.BullMQMajorVersion, err.ClientVersion);
+                await Assert.ThrowsAsync<SchemaVersionMismatchException>(
+                    () => incompatible.RunAsync("SELECT 1", Array.Empty<object?>()));
+            }
+
+            await ExecuteAsync(
+                $"UPDATE \"{schema}\".migration SET min_client_version = $1 WHERE version = $2",
+                PostgresConnection.BullMQMajorVersion, LatestVersion);
+            await using (var compatible = new PostgresConnection(options))
+            {
+                await compatible.WaitUntilReadyAsync();
+            }
+        }
+        finally
+        {
+            await DropSchemaAsync(schema);
+        }
+    }
+
+    [Fact]
+    public async Task CachedSchemaWithoutLedger_IsMigratedAgain()
+    {
+        var schema = NewSchema();
+        var options = new PostgresOptions { ConnectionString = ConnectionString, Schema = schema };
+        try
+        {
+            await using (var warm = new PostgresConnection(options))
+            {
+                await warm.WaitUntilReadyAsync();
+            }
+
+            await DropSchemaAsync(schema);
+
+            await using (var next = new PostgresConnection(options))
+            {
+                await next.WaitUntilReadyAsync();
+            }
+
+            Assert.Equal(LatestVersion, (await ReadLedgerAsync(schema)).Count);
+        }
+        finally
+        {
+            await DropSchemaAsync(schema);
+        }
+    }
+
     // ============================================================
     // Helpers
     // ============================================================
