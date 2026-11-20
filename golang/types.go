@@ -45,8 +45,9 @@ type Backoff struct {
 	// Delay is the base delay in milliseconds.
 	Delay int64 `json:"delay,omitempty"`
 	// Jitter is the fraction (0 to 1) of the delay that is randomized: the
-	// effective delay is drawn uniformly from [delay*(1-Jitter), delay]. 0
-	// (the default) disables jitter. Applies to the fixed and exponential
+	// effective delay is drawn uniformly from [delay*(1-Jitter), delay),
+	// excluding delay itself, and rounded down to whole milliseconds. 0 (the
+	// default) disables jitter. Applies to the fixed and exponential
 	// strategies.
 	Jitter float64 `json:"jitter,omitempty"`
 }
@@ -301,7 +302,10 @@ type Metrics struct {
 	// internal metrics state, not the timestamp of the oldest retained data
 	// point, so do not use it as the retention boundary.
 	PrevTS int64
-	// Data holds one entry per minute, most recent first.
+	// Data holds one entry per minute, most recent first: the number of
+	// jobs recorded in that minute. Entries are added when a job is
+	// recorded in a later minute than the previous entry, so Data stays
+	// empty during the first minute of collection, as in Node.js.
 	Data []int64
 	// NumPoints is the total number of retained data points, regardless of
 	// the requested [start, end] window. Use it for pagination (the reference

@@ -40,7 +40,8 @@ const (
 	EventFailed    EventType = "failed"
 	EventProgress  EventType = "progress"
 	// EventStalled reports a job that the stalled check of this worker
-	// moved back to wait (or failed) because its lock had expired.
+	// moved back to wait (or failed) because its lock had expired. Only the
+	// ID and QueueName of its Event.Job are set.
 	EventStalled EventType = "stalled"
 	// EventLockRenewalFailed lists, in Event.JobIDs, the jobs of this worker
 	// whose lock could not be renewed. Their contexts are cancelled with
@@ -60,7 +61,9 @@ type Event struct {
 	// Type is the kind of event.
 	Type EventType
 	// Job is the job the event refers to; nil for EventDrained, EventError,
-	// EventClosed and the lock events.
+	// EventClosed and the lock events. For EventStalled only ID and
+	// QueueName are set, since the stalled check reports job ids; load the
+	// job with Queue.Job (or Job.State) if needed.
 	Job *Job
 	// JobIDs lists the jobs of EventLockRenewalFailed and EventLocksRenewed.
 	JobIDs []string

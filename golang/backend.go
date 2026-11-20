@@ -29,7 +29,7 @@ import (
 //   - Operations that fail because of queue semantics return the sentinel
 //     errors of this package (for example [ErrJobNotFound] or
 //     [ErrJobLockNotExist]), directly or wrapped in a [ScriptError] whose
-//     Code is one of the ErrCode constants (-1 to -9), whatever the datastore
+//     Code is one of the ErrCode constants (-1 to -11), whatever the datastore
 //     reports natively. The shared PostgreSQL commands raise SQLSTATE BM001
 //     with the same code in the detail.
 //   - All methods must be safe for concurrent use.

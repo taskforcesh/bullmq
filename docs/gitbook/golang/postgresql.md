@@ -105,6 +105,9 @@ The backend of a queue built with `postgresbackend.New` is a
   `prioritized`.
 - Children are keyed `<queue>:<id>` instead of `<prefix>:<queue>:<id>`.
 - Event ids are numbers instead of Redis stream ids.
+- Job data, return values and progress are stored as `jsonb`: a job read back
+  holds equal JSON values, but not necessarily the same bytes (`Job.Data`,
+  `Job.ReturnValue`), so decode them rather than compare bytes.
 - Deadlocks (`40P01`), serialization failures and connection errors are
   transient: a worker reports a failed fetch as an `EventError` and fetches
   again 5 s later, and retries finishing a job.

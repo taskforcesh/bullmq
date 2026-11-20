@@ -380,13 +380,14 @@ func (q *Queue) JobCounts(ctx context.Context, states ...JobState) (JobCounts, e
 	return counts, nil
 }
 
-// JobIDs returns job ids for the requested states, ordered by their position in
-// the underlying list or sorted set.
+// JobIDs returns the ids of the jobs in state, in [start, end] of their
+// position in it (a negative end counts from the last one), in ascending
+// order when asc is set, as Node's getRanges.
 func (q *Queue) JobIDs(ctx context.Context, state JobState, start, end int64, asc bool) ([]string, error) {
 	return q.backend.GetRanges(ctx, state, start, end, asc)
 }
 
-// Jobs returns the jobs in the requested state.
+// Jobs returns the jobs in state, selected and ordered as by JobIDs.
 func (q *Queue) Jobs(ctx context.Context, state JobState, start, end int64, asc bool) ([]*Job, error) {
 	records, err := q.backend.GetJobs(ctx, state, start, end, asc)
 	if err != nil {

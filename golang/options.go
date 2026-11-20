@@ -265,10 +265,14 @@ func (o *WorkerOptions) maxStalledCountVal() int {
 type QueueEventsOptions struct {
 	// Backend builds the datastore backend. It is required.
 	Backend BackendFactory
-	// LastEventID is the stream id to start reading from. Defaults to `$`
-	// (only events produced after the listener starts).
+	// LastEventID is the id of the event to start reading after: a
+	// [QueueEvent.ID], `0-0` (or `0`) to read every stored event, or `$`,
+	// the default, to read only the events produced once the listener
+	// starts.
 	LastEventID string
-	// BlockingTimeout is how long each XREAD call blocks. Defaults to 5s.
+	// BlockingTimeout is the longest a single read of the event stream waits
+	// for new events before reading again (XREAD BLOCK on Redis, a LISTEN
+	// wait on PostgreSQL). Defaults to 5s.
 	BlockingTimeout time.Duration
 	// BufferSize is the size of the delivery channel. Defaults to 128.
 	BufferSize int

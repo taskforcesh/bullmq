@@ -11,7 +11,9 @@ import (
 type ParentKeys struct {
 	// ID is the parent job id.
 	ID string `json:"id"`
-	// QueueKey is the fully qualified `{prefix}:{queueName}` parent queue key.
+	// QueueKey is the qualified name of the parent's queue (see
+	// [Backend.QualifiedName]): `{prefix}:{queueName}` on Redis, the bare
+	// queue name on PostgreSQL.
 	QueueKey string `json:"queueKey"`
 }
 
@@ -24,7 +26,10 @@ type Job struct {
 	ID string
 	// Name is the job name.
 	Name string
-	// Data is the JSON encoded payload.
+	// Data is the JSON encoded payload. On PostgreSQL, which stores it as
+	// jsonb, a job read back from the datastore holds an equal JSON value
+	// but not necessarily the same bytes (whitespace and key order may
+	// differ), so decode it rather than compare bytes.
 	Data json.RawMessage
 	// Opts are the options the job was created with.
 	Opts *JobOptions
@@ -48,7 +53,9 @@ type Job struct {
 	DeferredFailure string
 	// Stacktrace holds the recorded failure traces.
 	Stacktrace []string
-	// ReturnValue is the JSON encoded value returned by the processor.
+	// ReturnValue is the JSON encoded value returned by the processor. On
+	// PostgreSQL it is re-encoded as Data is: equal as JSON, possibly with
+	// different bytes.
 	ReturnValue json.RawMessage
 	// ParentKey is the key of the parent job, if any.
 	ParentKey string

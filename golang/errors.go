@@ -5,7 +5,8 @@ import (
 	"fmt"
 )
 
-// Script error codes returned by the shared Lua commands.
+// Error codes returned by the shared Lua commands, and by the shared SQL
+// commands on PostgreSQL (see [ScriptError]).
 const (
 	ErrCodeJobNotExist          = -1
 	ErrCodeJobLockNotExist      = -2
@@ -29,7 +30,8 @@ const (
 
 // Sentinel errors returned by the library.
 var (
-	// ErrJobNotFound is returned when a job key no longer exists in Redis.
+	// ErrJobNotFound is returned when the job an operation refers to does
+	// not exist (any longer) in the datastore.
 	ErrJobNotFound = errors.New("bullmq: missing job key")
 	// ErrJobLockNotExist is returned when the job lock is missing.
 	ErrJobLockNotExist = errors.New("bullmq: missing job lock")
@@ -63,8 +65,11 @@ var (
 	ErrWorkerClosed = errors.New("bullmq: worker is closed")
 	// ErrQueueEventsClosed is returned when Run is called more than once on a QueueEvents.
 	ErrQueueEventsClosed = errors.New("bullmq: queue events is closed")
-	// ErrNoContext is returned when a Job was built without a live Redis context.
-	ErrNoContext = errors.New("bullmq: job has no redis context")
+	// ErrNoContext is returned by the methods of a Job that reach the
+	// datastore, such as UpdateProgress or Log, when the Job has no backend:
+	// it was built by the caller (for example in a unit test) rather than
+	// returned by a Queue, a Worker or a FlowProducer.
+	ErrNoContext = errors.New("bullmq: job has no backend")
 	// ErrDelayed is returned by a processor that has moved its job to the delayed set.
 	ErrDelayed = errors.New("bullmq: job moved to delayed")
 	// ErrWaitingChildren is returned by a processor that moved its job to waiting-children.
@@ -117,7 +122,11 @@ func IsUnrecoverable(err error) bool {
 	return errors.As(err, &target)
 }
 
-// ScriptError wraps a negative status code returned by a Lua command.
+// ScriptError wraps a negative status code returned by a backend command: a
+// Lua command on Redis, or a shared SQL command on PostgreSQL, which raises
+// SQLSTATE BM001 with the same code. Script names the command. Code is one
+// of the ErrCode constants, and errors.Is matches the corresponding sentinel
+// error (for example [ErrJobNotFound] for [ErrCodeJobNotExist]).
 type ScriptError struct {
 	Code   int64
 	Script string

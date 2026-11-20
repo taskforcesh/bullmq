@@ -420,3 +420,22 @@ func testJobIsCompletedAndIsFailed(t *testing.T, be testBackend) {
 		t.Fatalf("FailedReason = %q, want %q", failedJob.FailedReason, "bad job")
 	}
 }
+
+// A Job built by the caller has no backend, so the methods that reach the
+// datastore report ErrNoContext, whose message names the actual problem.
+func TestJobWithoutBackendReportsErrNoContext(t *testing.T) {
+	ctx := context.Background()
+	job := &bullmq.Job{ID: "1", Name: "unit"}
+	if _, err := job.Log(ctx, "row"); !errors.Is(err, bullmq.ErrNoContext) {
+		t.Errorf("Log = %v, want ErrNoContext", err)
+	}
+	if _, err := job.State(ctx); !errors.Is(err, bullmq.ErrNoContext) {
+		t.Errorf("State = %v, want ErrNoContext", err)
+	}
+	if err := job.UpdateData(ctx, "x"); !errors.Is(err, bullmq.ErrNoContext) {
+		t.Errorf("UpdateData = %v, want ErrNoContext", err)
+	}
+	if got, want := bullmq.ErrNoContext.Error(), "bullmq: job has no backend"; got != want {
+		t.Errorf("ErrNoContext = %q, want %q", got, want)
+	}
+}

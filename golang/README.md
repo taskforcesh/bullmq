@@ -719,8 +719,9 @@ if err != nil {
 	log.Fatal(err)
 }
 
-// One count per minute, the most recent first; a data point is recorded
-// once a minute has passed.
+// One count per minute, the most recent first. As in Node.js, a minute's
+// count is recorded once a job finishes in a later minute, so Data is empty
+// during the first minute.
 metrics, err := queue.Metrics(ctx, bullmq.StateCompleted, 0, 59)
 if err != nil {
 	log.Fatal(err)
@@ -1001,6 +1002,9 @@ Python, Elixir and .NET ports use, so they all work on the same schema.
   `Queue.Workers` lists.
 - The backend of a queue built with `postgresbackend.New` is a
   `*postgresbackend.Backend`, which exposes `Pool()` and `Schema()`.
+- Job data, return values and progress are stored as `jsonb`, so a job read
+  back holds equal JSON values but not necessarily the same bytes in
+  `Job.Data` and `Job.ReturnValue`: decode them rather than compare bytes.
 
 Everything this guide describes works on both backends, with the caveats
 listed in [FEATURE_PARITY.md](./FEATURE_PARITY.md#postgresql) and

@@ -6,9 +6,12 @@ import (
 	"time"
 )
 
-// QueueEvent is a single entry of the queue's event stream.
+// QueueEvent is a single event of the queue's event stream.
 type QueueEvent struct {
-	// ID is the backend specific event id (a Redis stream entry id).
+	// ID is the opaque, backend-specific id of the event: a stream entry id
+	// such as `1700000000000-0` on Redis, a number such as `42` on
+	// PostgreSQL. Ids increase with every event; pass one as
+	// QueueEventsOptions.LastEventID to resume reading after that event.
 	ID string
 	// Event is the event name, for example `added`, `active`, `completed`,
 	// `failed`, `progress`, `delayed`, `waiting`, `stalled`, `removed`,
@@ -16,7 +19,7 @@ type QueueEvent struct {
 	Event string
 	// JobID is the job the event refers to, when applicable.
 	JobID string
-	// Data holds every field of the stream entry, including `event` and `jobId`.
+	// Data holds every field of the event, including `event` and `jobId`.
 	Data map[string]string
 }
 
