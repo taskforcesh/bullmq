@@ -1154,7 +1154,9 @@ if _, err := queue.RemoveJobScheduler(ctx, "poll"); err != nil {
   the schedule stops visibly instead of stalling.
 - `Every` schedulers accept an `Offset`; every scheduler a `Limit`, a
   `StartDate` and an `EndDate` (Unix milliseconds); `Pattern` schedulers
-  `Immediately`, to produce their first job right away.
+  `Immediately`, to produce their first job right away. A Go worker adds no
+  job due after `EndDate`, where Node.js adds one more to `Every` schedulers
+  ([#5190](https://github.com/taskforcesh/bullmq/issues/5190)).
 - `QueueOptions.RepeatStrategy` and `WorkerOptions.RepeatStrategy` replace
   cron for `Pattern` schedulers, as Node's `settings.repeatStrategy` does: it
   returns the next due time (Unix milliseconds) after `millis`, or 0 for no

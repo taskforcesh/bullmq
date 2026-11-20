@@ -40,16 +40,16 @@ scheduler doesn't pile up jobs.
 
 ## Repeat options
 
-| Option        | Meaning                                                                                                                                               |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Pattern`     | A cron expression: 5 fields, or 6 with leading seconds                                                                                                |
-| `Every`       | An interval in milliseconds, instead of `Pattern`                                                                                                     |
-| `Tz`          | Time zone of `Pattern`: IANA names (any case), ICU ids like `PST`, or offsets like `+03:00`. Defaults to the process's local time zone, as in Node.js |
-| `Offset`      | Shifts the runs of an `Every` scheduler, in milliseconds                                                                                              |
-| `Limit`       | Maximum number of jobs to produce                                                                                                                     |
-| `StartDate`   | When the schedule starts, in Unix milliseconds                                                                                                        |
-| `EndDate`     | When the schedule ends, in Unix milliseconds                                                                                                          |
-| `Immediately` | Produce the first job of a `Pattern` scheduler right away (`Every` schedulers always do)                                                              |
+| Option        | Meaning                                                                                                                                                                                            |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Pattern`     | A cron expression: 5 fields, or 6 with leading seconds                                                                                                                                             |
+| `Every`       | An interval in milliseconds, instead of `Pattern`                                                                                                                                                  |
+| `Tz`          | Time zone of `Pattern`: IANA names (any case), ICU ids like `PST`, or offsets like `+03:00`. Defaults to the process's local time zone, as in Node.js                                              |
+| `Offset`      | Shifts the runs of an `Every` scheduler, in milliseconds                                                                                                                                           |
+| `Limit`       | Maximum number of jobs to produce                                                                                                                                                                  |
+| `StartDate`   | When the schedule starts, in Unix milliseconds                                                                                                                                                     |
+| `EndDate`     | When the schedule ends, in Unix milliseconds. A Go worker adds no job due after it, where Node.js adds one more to `Every` schedulers ([#5190](https://github.com/taskforcesh/bullmq/issues/5190)) |
+| `Immediately` | Produce the first job of a `Pattern` scheduler right away (`Every` schedulers always do)                                                                                                           |
 
 Patterns are evaluated exactly as cron-parser evaluates them in Node.js, with
 names, ranges, steps, `L`, `#` and Sunday as 0 or 7, including across DST

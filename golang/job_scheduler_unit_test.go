@@ -331,3 +331,36 @@ func TestScheduleNextIterationFailsOnUnresolvableTimeZone(t *testing.T) {
 	}
 	waitForCondition(t, func() bool { return len(errs()) == 1 })
 }
+
+type offsetBackend struct {
+	stubBackend
+	offset int64
+}
+
+func (b offsetBackend) GetJobScheduler(context.Context, string) (*JobScheduler, error) {
+	return &JobScheduler{Offset: b.offset}, nil
+}
+
+// everyNextPastEnd follows getJobSchedulerEveryNextMillis.lua, including the
+// catch-up of missed iterations aligned to the scheduler's offset.
+func TestEveryNextPastEnd(t *testing.T) {
+	b := offsetBackend{offset: 30}
+	for _, tc := range []struct {
+		name               string
+		producer           string
+		prev, now, endDate int64
+		want               bool
+	}{
+		{"next after the end", "repeat:s:1000", 1000, 1050, 1099, true},
+		{"next at the end", "repeat:s:1000", 1000, 1050, 1100, false},
+		{"missed iterations, aligned slot after the end", "repeat:s:9000", 9000, 10_050, 10_100, true},
+		{"missed iterations, aligned slot before the end", "repeat:s:9000", 9000, 10_050, 10_130, false},
+		{"missed iterations, aligned slot still ahead", "repeat:s:9000", 9000, 10_010, 10_030, false},
+		{"another scheduler's job", "repeat:other:1000", 1000, 1050, 1099, false},
+	} {
+		got, err := everyNextPastEnd(context.Background(), b, "s", RepeatOptions{Every: 100, EndDate: tc.endDate}, tc.producer, tc.now)
+		if err != nil || got != tc.want {
+			t.Errorf("%s: everyNextPastEnd = %v, %v; want %v", tc.name, got, err, tc.want)
+		}
+	}
+}

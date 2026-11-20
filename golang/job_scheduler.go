@@ -353,6 +353,15 @@ func upsertJobScheduler(ctx context.Context, b Backend, strategy RepeatStrategy,
 		return nil, nil
 	}
 	now = max(now, opts.PrevMillis)
+	if !override && repeat.Every > 0 && repeat.EndDate != 0 {
+		past, err := everyNextPastEnd(ctx, b, id, repeat, producerID, now)
+		if err != nil {
+			return nil, err
+		}
+		if past {
+			return nil, nil
+		}
+	}
 
 	var nextMillis int64
 	if repeat.Pattern != "" {
@@ -413,6 +422,34 @@ func upsertJobScheduler(ctx context.Context, b Backend, strategy RepeatStrategy,
 		return nil, err
 	}
 	return newSchedulerJob(b, jobID, name, data, jobOpts), nil
+}
+
+// everyNextPastEnd reports whether the next iteration of an Every scheduler,
+// advanced from its job producerID, would be due after EndDate. The shared
+// commands compute that due time themselves but, like Node.js, only compare
+// EndDate with the current time, so a scheduler would produce one more job
+// due after its end (taskforcesh/bullmq#5190). It follows
+// getJobSchedulerEveryNextMillis.lua: the next iteration is due every after
+// the previous one or, when iterations were missed, at the first slot after
+// now aligned to the scheduler's offset, which is then read.
+func everyNextPastEnd(ctx context.Context, b Backend, id string, repeat RepeatOptions, producerID string, now int64) (bool, error) {
+	prev, err := strconv.ParseInt(strings.TrimPrefix(producerID, "repeat:"+id+":"), 10, 64)
+	if err != nil || !strings.HasPrefix(producerID, "repeat:"+id+":") {
+		return false, nil
+	}
+	every := repeat.Every
+	if next := prev + every; next >= now {
+		return next > repeat.EndDate, nil
+	}
+	s, err := b.GetJobScheduler(ctx, id)
+	if err != nil || s == nil {
+		return false, err
+	}
+	next := now/every*every + s.Offset
+	if next <= now {
+		next += every
+	}
+	return next > repeat.EndDate, nil
 }
 
 // nextPatternMillis is Node's defaultRepeatStrategy: the first time
