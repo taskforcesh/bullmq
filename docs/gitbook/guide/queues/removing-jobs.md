@@ -2,7 +2,7 @@ Currently we have 3 available methods in queue class:
 
 # Drain
 
-Removes all jobs that are waiting or delayed, but not active, waiting-children, completed or failed.
+Removes all waiting and prioritized jobs, and the delayed ones when asked to (see below), but not active, waiting-children, completed or failed jobs.
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -634,8 +634,8 @@ $queue->close();
 {% endtabs %}
 
 {% hint style="warning" %}
-Parent jobs in queues different from the one being obliterated will either stay in **waiting-children** if they
-have pending children in other queues, or just moved to wait.
+On Redis, parent jobs in queues different from the one being obliterated will either stay in **waiting-children** if they
+have pending children in other queues, or just moved to wait. On PostgreSQL, obliterate does not release them yet, so they stay in **waiting-children** ([#5189](https://github.com/taskforcesh/bullmq/issues/5189)).
 {% endhint %}
 
 ## Read more:
