@@ -23,20 +23,26 @@ Status of the Go port relative to the reference Node.js implementation.
 
 ### Worker
 
-| Feature                             | Notes                                                                |
-| ----------------------------------- | -------------------------------------------------------------------- |
-| Concurrency                         | Bounded by `WorkerOptions.Concurrency`                               |
-| Blocking fetch                      | Dedicated connection using `BZPOPMIN` on the marker key              |
-| Lock renewal                        | Disable with `SkipLockRenewal`                                       |
-| Stalled job recovery                | Disable with `SkipStalledCheck`                                      |
-| Retries and backoff                 | Fixed, exponential and custom `BackoffStrategy`                      |
-| `UnrecoverableError`                | Skips the remaining attempts                                         |
-| Panic recovery                      | A panicking processor fails the job instead of the process           |
-| Rate limiting                       | `WorkerOptions.Limiter`                                              |
-| `RemoveOnComplete` / `RemoveOnFail` | Count and age based                                                  |
-| Metrics                             | `WorkerOptions.Metrics`                                              |
-| `Pause`, `Resume`, `Close`          | Graceful shutdown drains in-flight jobs                              |
-| Events                              | Active, completed, failed, progress, stalled, drained, error, closed |
+| Feature                             | Notes                                                                                                                                                     |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Concurrency                         | Bounded by `WorkerOptions.Concurrency`                                                                                                                    |
+| Fetch-next                          | Each slot fetches its next job when it finishes the current one, re-using its lock token, as in Node.js                                                   |
+| Blocking fetch                      | Dedicated connection using `BZPOPMIN` on the marker key for the whole `DrainDelay`, interrupted on close; waits until the next delayed job is due         |
+| Lock renewal                        | Disable with `SkipLockRenewal`; `EventLocksRenewed` and `EventLockRenewalFailed`. A lost lock also cancels the job's context (`ErrLockLost`), unlike Node |
+| Stalled job recovery                | Disable with `SkipStalledCheck`; `EventStalled`                                                                                                           |
+| Retries and backoff                 | Fixed, exponential and custom `BackoffStrategy`; delays are clamped so they cannot overflow                                                               |
+| `UnrecoverableError`                | Skips the remaining attempts                                                                                                                              |
+| `MaxStartedAttempts`                | Checked after a deferred stalled failure, as in Node.js                                                                                                   |
+| `StackTraceLimit`                   | Job option; every trace is kept by default, as in Node.js                                                                                                 |
+| Panic recovery                      | A panicking processor fails the job instead of the process                                                                                                |
+| Rate limiting                       | `WorkerOptions.Limiter`; the limit is slept out, at most `MaximumRateLimitDelay` at a time                                                                |
+| Manual rate limiting                | `Worker.RateLimit` and `ErrRateLimited` (Node's `RateLimitError`)                                                                                         |
+| `RemoveOnComplete` / `RemoveOnFail` | Boolean, count, age and limit, stored in the same forms as Node.js (`RemoveAll` is `true`)                                                                |
+| Metrics                             | `WorkerOptions.Metrics`                                                                                                                                   |
+| `Pause`, `Resume`                   | `Pause(ctx, doNotWaitActive)` waits for active jobs, as in Node.js                                                                                        |
+| `Close`                             | Graceful shutdown drains in-flight jobs; cancelling the `Run` context leaves them active for stalled recovery                                             |
+| `CancelJob`, `CancelAllJobs`        | Cancel the job context; the job fails with the reason                                                                                                     |
+| Events                              | Active, completed, failed, progress, stalled, lock renewal, drained, error, closed; synchronous `OnEvent` and `DroppedEvents`                             |
 
 ### Job
 
