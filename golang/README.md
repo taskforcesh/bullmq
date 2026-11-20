@@ -174,7 +174,20 @@ worker.Resume()
 ```
 
 Pass `doNotWaitActive` = `true` to return at once; a processor pausing its own
-worker must do so.
+worker must do so. `Pause` may also be called from `WorkerOptions.OnEvent`, for
+example to pause once the queue is drained: from `EventDrained`,
+`EventCompleted` or `EventFailed` it waits for the other jobs only, and a job
+fetched in the meantime is put back in the wait list rather than started.
+`Close` always stops the worker, releasing a pending `Pause` with
+`ErrWorkerClosed`.
+
+```go
+OnEvent: func(ev bullmq.Event) {
+	if ev.Type == bullmq.EventDrained {
+		_ = worker.Pause(context.Background(), false)
+	}
+},
+```
 
 ### Job options
 

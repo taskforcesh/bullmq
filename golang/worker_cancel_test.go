@@ -183,6 +183,9 @@ func testWorkerCancelJobFailsTheJobWithTheReason(t *testing.T, be testBackend) {
 	if stored.FailedReason != "cancelled by the user" {
 		t.Errorf("failedReason = %q, want the cancellation reason", stored.FailedReason)
 	}
+	// The event follows the transition and is read from the channel
+	// asynchronously.
+	waitFor(t, 5*time.Second, "the failed event", func() bool { return len(log.jobsWith(bullmq.EventFailed)) > 0 })
 	if got := log.jobsWith(bullmq.EventFailed); !slices.Equal(got, ids[:1]) {
 		t.Errorf("failed events for %v, want %v", got, ids[:1])
 	}
