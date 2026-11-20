@@ -77,12 +77,8 @@ type Fixture interface {
 // All returns every datastore available to this test run.
 func All() []Backend {
 	backends := []Backend{Redis()}
-	if url := os.Getenv("POSTGRES_URL"); url != "" {
-		// TODO(postgres): append the PostgreSQL entry here once the
-		// postgresbackend package exists: a Factory built with
-		// postgresbackend.New for url (on a test-only schema), a Fixture
-		// implemented with SQL, and an availability check.
-		_ = url
+	if url := PostgresURL(); url != "" {
+		backends = append(backends, Postgres(url))
 	}
 	return backends
 }
