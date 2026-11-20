@@ -101,7 +101,9 @@ type Worker struct {
 	closeOnce sync.Once
 	closeErr  error
 	stop      chan struct{}
-	wg        sync.WaitGroup
+	// runDone is closed when the Run that claimed runOnce returns.
+	runDone chan struct{}
+	wg      sync.WaitGroup
 
 	// pauseMu guards the changes of paused and the fields below, which Pause
 	// waits on. inFlight counts the jobs being fetched into a free slot or
@@ -192,6 +194,7 @@ func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, 
 		id:      randomID(),
 		events:  make(chan Event, 256),
 		stop:    make(chan struct{}),
+		runDone: make(chan struct{}),
 		slots:   make(chan struct{}, o.Concurrency),
 		wake:    make(chan struct{}, 1),
 		ctrl:    make(chan struct{}, 1),
@@ -348,16 +351,15 @@ func (w *Worker) CancelAllJobs(reason string) {
 // Call Close after Run returns because ctx was done, to release the
 // worker's connections.
 func (w *Worker) Run(ctx context.Context) error {
-	var err error
 	started := false
-	w.runOnce.Do(func() {
-		started = true
-		err = w.run(ctx)
-	})
+	// runOnce only claims startup, so that a concurrent Run returns at once;
+	// Close waits for runDone instead.
+	w.runOnce.Do(func() { started = true })
 	if !started {
 		return ErrWorkerClosed
 	}
-	return err
+	defer close(w.runDone)
+	return w.run(ctx)
 }
 
 func (w *Worker) run(ctx context.Context) error {
@@ -1395,15 +1397,15 @@ func (w *Worker) checkStalledJobs(ctx context.Context) error {
 func (w *Worker) Close() error {
 	w.closeOnce.Do(func() {
 		w.stopOnce.Do(func() { close(w.stop) })
-		// runOnce is shared with Run: sync.Once.Do blocks concurrent callers
-		// until an in-progress call's function returns, and Run's function
-		// spans the entire run() lifecycle. So this call either waits for an
-		// already-running Run to fully stop (its function only returns once
-		// run() does, after the stop signal above has been observed), or, if
-		// Run was never called, claims the once itself so any later Run call
-		// observes it as already closed and never touches the resources
-		// below. Either way, it is safe to close them once this returns.
-		w.runOnce.Do(func() {})
+		// Claim startup in case Run was never called: a later Run then
+		// returns ErrWorkerClosed and never touches the resources below.
+		// Otherwise wait for Run, which returns once it has observed the
+		// stop signal above. Either way, it is safe to close them after.
+		ran := true
+		w.runOnce.Do(func() { ran = false })
+		if ran {
+			<-w.runDone
+		}
 		w.closeErr = w.backend.Close()
 		w.eventsMu.Lock()
 		w.eventsClosed = true

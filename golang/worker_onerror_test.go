@@ -7,8 +7,9 @@ import (
 	"time"
 )
 
-// A callback that closes the worker must not deadlock with Run, which holds
-// runOnce for its whole lifetime and waits for the goroutines emitting errors.
+// A callback that closes the worker must not deadlock with Run, which waits
+// for the goroutines emitting errors before it returns, while Close waits
+// for Run to return.
 func TestOnErrorCanCloseWorker(t *testing.T) {
 	var w *Worker
 	closed := make(chan error, 1)
@@ -21,11 +22,11 @@ func TestOnErrorCanCloseWorker(t *testing.T) {
 		t.Fatalf("NewWorker: %v", err)
 	}
 
-	// Emulate Run: emit an error while runOnce is held, and return without
-	// waiting for the callback.
-	w.runOnce.Do(func() {
-		w.emitError(errors.New("boom"))
-	})
+	// Emulate Run: claim startup, emit an error, and return (closing runDone)
+	// without waiting for the callback.
+	w.runOnce.Do(func() {})
+	w.emitError(errors.New("boom"))
+	close(w.runDone)
 
 	select {
 	case <-closed:
