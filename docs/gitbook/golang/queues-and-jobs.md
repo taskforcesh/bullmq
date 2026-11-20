@@ -216,6 +216,7 @@ See [Deduplication](../guide/jobs/deduplication.md).
 | `Count`, `JobCounts`, `CountsPerPriority`, `DelayedCount`                         | Count the waiting, delayed, prioritized and waiting-children jobs, the jobs in each state, the waiting jobs per priority, or the delayed jobs due before a time |
 | `Pause`, `Resume`, `IsPaused`                                                     | Pause the queue for every worker                                                                                                                                |
 | `Drain`                                                                           | Remove the waiting and prioritized jobs, and optionally the delayed ones                                                                                        |
+| `Remove`                                                                          | Remove a job by id, and optionally its children; false when a worker holds it                                                                                   |
 | `Clean`                                                                           | Remove the jobs of a state older than a grace period                                                                                                            |
 | `Obliterate`                                                                      | Remove the queue and all of its jobs                                                                                                                            |
 | `RetryJobs`, `PromoteJobs`                                                        | Move failed or completed jobs back to wait; make delayed jobs ready                                                                                             |
@@ -259,4 +260,6 @@ if err := queue.RetryJobs(ctx, &bullmq.RetryJobsOptions{Before: time.Now().Add(-
 changed and inspected with `UpdateData`, `UpdateProgress`, `Log` and `Logs`,
 `State`, `IsCompleted`, `IsFailed`, `Promote`, `ChangeDelay`,
 `ChangePriority`, `Retry` and `Remove`, which returns `bullmq.ErrJobLocked`
-while a worker holds the job.
+while a worker holds the job. `queue.Remove(ctx, id, removeChildren)` removes
+a job by id without reading it first, and returns false while a worker holds
+it.
