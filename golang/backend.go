@@ -427,6 +427,13 @@ type Backend interface {
 	// DeleteDeduplicationKey releases the deduplication id dedupID,
 	// whichever job holds it, and reports whether there was one to release.
 	DeleteDeduplicationKey(ctx context.Context, dedupID string) (bool, error)
+
+	// ── Job and queue API additions ──
+
+	// GetCountsPerPriority returns, for each of priorities in order, how
+	// many waiting jobs have that priority; 0 counts the waiting jobs
+	// without a priority.
+	GetCountsPerPriority(ctx context.Context, priorities []int64) ([]int64, error)
 }
 
 // BackendOptions describes the role of the backend being built by a
