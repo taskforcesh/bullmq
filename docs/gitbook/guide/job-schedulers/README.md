@@ -82,6 +82,19 @@ let first_job = queue
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+// Creates a new Job Scheduler that generates a job every 1000 milliseconds (1 second)
+firstJob, err := queue.UpsertJobScheduler(ctx, "my-scheduler-id",
+	bullmq.RepeatOptions{Every: 1000}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 This example will create a new Job Scheduler that will produce a new job every second. It will also return the first job created for this Job Scheduler, which will be in "delayed" status waiting to be processed after 1 second.
@@ -206,6 +219,28 @@ let first_job = queue
         ),
     )
     .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+// Create jobs every day at 3:15 (am)
+firstJob, err := queue.UpsertJobScheduler(ctx, "my-scheduler-id",
+	bullmq.RepeatOptions{Pattern: "0 15 3 * * *"},
+	&bullmq.JobTemplate{
+		Name: "my-job-name",
+		Data: map[string]string{"foo": "bar"},
+		Opts: &bullmq.JobOptions{
+			Backoff:      &bullmq.Backoff{Type: bullmq.BackoffFixed, Delay: 3},
+			Attempts:     bullmq.Int64(5),
+			RemoveOnFail: bullmq.KeepCount(1000),
+		},
+	})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}

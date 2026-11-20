@@ -128,6 +128,40 @@ my_queue
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+import (
+	"log"
+	"time"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+myQueue, err := bullmq.NewQueue("my-dated-jobs", &bullmq.QueueOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer myQueue.Close()
+
+_, err = myQueue.UpsertJobScheduler(ctx, "start-later-job",
+	bullmq.RepeatOptions{
+		Every:     60000,                                                               // every minute
+		StartDate: time.Date(2024, time.October, 15, 0, 0, 0, 0, time.UTC).UnixMilli(), // start on October 15, 2024
+	},
+	&bullmq.JobTemplate{
+		Name: "timed-start-job",
+		Data: map[string]string{"message": "Starting later"},
+	})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 #### End Date
@@ -228,6 +262,25 @@ my_queue
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+_, err = myQueue.UpsertJobScheduler(ctx, "end-soon-job",
+	bullmq.RepeatOptions{
+		Every:   60000,                                                               // every minute
+		EndDate: time.Date(2024, time.November, 1, 0, 0, 0, 0, time.UTC).UnixMilli(), // end on November 1, 2024
+	},
+	&bullmq.JobTemplate{
+		Name: "timed-end-job",
+		Data: map[string]string{"message": "Ending soon"},
+	})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 #### Timezone (`tz`)
@@ -304,6 +357,25 @@ my_queue
         None,
     )
     .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+_, err = myQueue.UpsertJobScheduler(ctx, "utc-cron-job",
+	bullmq.RepeatOptions{
+		Pattern: "0 15 3 * * *",
+		Tz:      "UTC",
+	},
+	&bullmq.JobTemplate{
+		Name: "utc-execution-job",
+		Data: map[string]string{"message": "Runs at 03:15 UTC"},
+	})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -411,6 +483,25 @@ my_queue
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+_, err = myQueue.UpsertJobScheduler(ctx, "limited-job",
+	bullmq.RepeatOptions{
+		Every: 10000, // every 10 seconds
+		Limit: 10,    // limit to 10 executions
+	},
+	&bullmq.JobTemplate{
+		Name: "limited-execution-job",
+		Data: map[string]string{"message": "Limited runs"},
+	})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 #### immediately
@@ -512,6 +603,25 @@ my_queue
         None,
     )
     .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+_, err = myQueue.UpsertJobScheduler(ctx, "immediate-job",
+	bullmq.RepeatOptions{
+		Every:       86400000, // once a day
+		Immediately: true,     // execute the first one immediately
+	},
+	&bullmq.JobTemplate{
+		Name: "instant-job",
+		Data: map[string]string{"message": "Immediate start"},
+	})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
