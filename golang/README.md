@@ -30,7 +30,7 @@ to.
 - [Quick start](#quick-start): [Redis](#redis) and [PostgreSQL](#postgresql)
 - [Connecting to Redis](#connecting-to-redis): [auto-pipelining](#auto-pipelining)
 - [Adding jobs](#adding-jobs): [delayed and prioritized jobs](#delayed-and-prioritized-jobs), [deduplication](#deduplication)
-- [Workers](#workers): [processors](#processors), [concurrency](#concurrency), [events](#worker-events), [pausing](#pausing-a-worker), [shutting down](#shutting-down), [cancellation](#cancelling-jobs), [retries](#retries-and-backoff), [stalled jobs](#stalled-jobs-and-locks), [rate limiting](#rate-limiting)
+- [Workers](#workers): [processors](#processors), [concurrency](#concurrency), [events](#worker-events), [pausing](#pausing-a-worker), [shutting down](#shutting-down), [cancellation](#cancelling-jobs), [retries](#retries-and-backoff), [stalled jobs](#stalled-jobs-and-locks), [rate limiting](#rate-limiting), [fetching jobs by hand](#fetching-jobs-by-hand)
 - [Queue operations](#queue-operations)
 - [QueueEvents](#queueevents)
 - [Flows](#flows)
@@ -836,6 +836,58 @@ if err != nil {
 
 As in Node.js, `RateLimit` only holds back workers that fetch with a limiter
 (`Limiter`, or a global rate limit).
+
+### Fetching jobs by hand
+
+A worker created without a processor fetches nothing by itself: you fetch
+its jobs with `GetNextJob` and finish them with `MoveToCompleted` or
+`MoveToFailed`, as in Node's
+[manual mode](https://docs.bullmq.io/patterns/manually-fetching-jobs). The
+token you choose locks the job; pass it again to finish it. With
+`fetchNext`, finishing a job fetches the next one in the same call:
+
+```go
+worker, err := bullmq.NewWorker("emails", nil, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+// Moves the jobs whose lock expired back to wait, until Close.
+if err := worker.StartStalledCheck(); err != nil {
+	log.Fatal(err)
+}
+
+const token = "my-token"
+for {
+	// Waits up to DrainDelay for a job; nil when there is none.
+	job, err := worker.GetNextJob(ctx, token, true)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for job != nil {
+		result, procErr := handle(ctx, job)
+		if procErr != nil {
+			job, err = job.MoveToFailed(ctx, procErr, token, true)
+		} else {
+			job, err = job.MoveToCompleted(ctx, result, token, true)
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+```
+
+- The worker's settings apply: `LockDuration`, `Limiter`, the removal
+  policies, `Metrics` and `BackoffStrategy`. A failed job is retried while
+  attempts remain, as with a processor.
+- Locks aren't renewed: finish a job within `LockDuration`, or call
+  `job.ExtendLock(ctx, d)`. A job whose lock expires is moved back to wait by
+  the stalled check, and its token no longer finishes it.
+- `GetNextJob` returns nil, without waiting, while the worker or the queue is
+  paused or the queue is rate limited. `Run` returns an error on a worker
+  without a processor.
 
 ### Metrics
 
