@@ -165,7 +165,7 @@ func TestScheduleNextIterationAdvancesPatternScheduler(t *testing.T) {
 	// An iteration due in the future: the next one follows it, not now.
 	millis := (nowMillis()/5000 + 12) * 5000
 	job := schedulerJob("sid", millis, &RepeatOptions{Pattern: "*/5 * * * * *", Tz: "UTC", Count: 2})
-	if !w.scheduleNextIteration(context.Background(), job) {
+	if ok, failure := w.scheduleNextIteration(context.Background(), job); !ok || failure != nil {
 		t.Fatalf("scheduling failed: %v", errs())
 	}
 	_, updates, checked := stub.recorded()
@@ -190,7 +190,7 @@ func TestScheduleNextIterationStopsAtLimit(t *testing.T) {
 	stub := &schedulerStub{}
 	w, errs := newSchedulerStubWorker(t, stub, nil)
 	job := schedulerJob("sid", nowMillis(), &RepeatOptions{Every: 1000, Limit: 3, Count: 3})
-	if !w.scheduleNextIteration(context.Background(), job) {
+	if ok, failure := w.scheduleNextIteration(context.Background(), job); !ok || failure != nil {
 		t.Fatalf("scheduling failed: %v", errs())
 	}
 	if _, updates, _ := stub.recorded(); len(updates) != 0 {
@@ -205,7 +205,7 @@ func TestScheduleNextIterationLegacyRepeatableJob(t *testing.T) {
 	stub := &schedulerStub{}
 	w, errs := newSchedulerStubWorker(t, stub, nil)
 	job := schedulerJob(legacy, nowMillis(), &RepeatOptions{Pattern: "*/5 * * * * *"})
-	if !w.scheduleNextIteration(context.Background(), job) {
+	if ok, failure := w.scheduleNextIteration(context.Background(), job); !ok || failure != nil {
 		t.Fatal("a legacy repeatable job must still be processed")
 	}
 	_, updates, checked := stub.recorded()
@@ -220,7 +220,7 @@ func TestScheduleNextIterationLegacyRepeatableJob(t *testing.T) {
 	// A scheduler whose id looks like a legacy key is advanced.
 	stub = &schedulerStub{isScheduler: true}
 	w, errs = newSchedulerStubWorker(t, stub, nil)
-	if !w.scheduleNextIteration(context.Background(), job) {
+	if ok, failure := w.scheduleNextIteration(context.Background(), job); !ok || failure != nil {
 		t.Fatalf("scheduling failed: %v", errs())
 	}
 	if _, updates, _ := stub.recorded(); len(updates) != 1 {
@@ -236,7 +236,7 @@ func TestScheduleNextIterationRetriesTransientErrors(t *testing.T) {
 	stub := &schedulerStub{updateErrs: []error{io.EOF, io.EOF}}
 	w, errs := newSchedulerStubWorker(t, stub, nil)
 	job := schedulerJob("sid", nowMillis(), &RepeatOptions{Every: 1000})
-	if !w.scheduleNextIteration(context.Background(), job) {
+	if ok, failure := w.scheduleNextIteration(context.Background(), job); !ok || failure != nil {
 		t.Fatalf("scheduling failed: %v", errs())
 	}
 	if _, updates, _ := stub.recorded(); len(updates) != 1 {
@@ -316,3 +316,18 @@ func waitForCondition(t *testing.T, cond func() bool) {
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
+
+func TestScheduleNextIterationFailsOnUnresolvableTimeZone(t *testing.T) {
+	stub := &schedulerStub{}
+	w, errs := newSchedulerStubWorker(t, stub, nil)
+	job := schedulerJob("sid", nowMillis(), &RepeatOptions{Pattern: "0 0 12 * * *", Tz: "SystemV/AST4", Count: 1})
+	ok, failure := w.scheduleNextIteration(context.Background(), job)
+	var unrecoverable *UnrecoverableError
+	if !ok || !errors.As(failure, &unrecoverable) || !strings.Contains(failure.Error(), `"SystemV/AST4"`) {
+		t.Fatalf("scheduleNextIteration = %v, %v; want a failure naming the time zone", ok, failure)
+	}
+	if _, updates, _ := stub.recorded(); len(updates) != 0 {
+		t.Fatalf("updates %+v, want none", updates)
+	}
+	waitForCondition(t, func() bool { return len(errs()) == 1 })
+}

@@ -282,10 +282,14 @@ advance each other's schedulers, and compute the same due times: patterns have
 exactly like cron-parser does in Node.js, including across DST changes. `Tz`
 accepts the time zones Node.js accepts: IANA names in any case
 (`america/new_york`), ICU's legacy ids (`PST`) and fixed offsets (`+03:00`,
-`UTC+3`), read from the system's time zone database (import `time/tzdata` where
-there is none); without it, patterns use the local time zone, as in Node.js. `Every` schedulers accept an `Offset`, and every scheduler
-`Limit`, `StartDate`, `EndDate` and, for patterns, `Immediately`. Legacy
-repeatable jobs (BullMQ 5 and earlier) are not supported: they must be
+`UTC+3`); without it, patterns use the local time zone, as in Node.js. Zones
+are read from the system's time zone database (import `time/tzdata` where there
+is none). A worker that cannot resolve the time zone of a scheduler, for
+example for lack of that database, fails the iteration it fetched with the
+reason and reports an error event, without processing it nor adding the next
+one, so the schedule stops. `Every` schedulers accept an `Offset`, and every
+scheduler `Limit`, `StartDate`, `EndDate` and, for patterns, `Immediately`.
+Legacy repeatable jobs (BullMQ 5 and earlier) are not supported: they must be
 migrated to job schedulers.
 
 ### Worker events

@@ -672,6 +672,41 @@ func TestJobSchedulerAdvancesNodeTimeZoneForms(t *testing.T) {
 	})
 }
 
+// A time zone Node.js accepts but Go cannot resolve (ICU's deprecated
+// SystemV ids) fails the iteration with the reason, unprocessed, instead of
+// leaving it to stall; no further iteration is added.
+func TestJobSchedulerUnresolvableTimeZoneFailsIteration(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, be testBackend) {
+		ctx := testContext(t)
+		q := newTestQueue(t, be, nil)
+		jobID := addSchedulerAsNode(t, ctx, q, "systemv", "0 0 12 * * *", "SystemV/AST4")
+
+		var errs errorRecorder
+		p := runRecordingWorker(t, be, q, &bullmq.WorkerOptions{OnEvent: errs.onEvent})
+		waitFor(t, 10*time.Second, "the iteration to fail", func() bool {
+			state, err := q.JobState(ctx, jobID)
+			return err == nil && state == bullmq.StateFailed
+		})
+		job, err := q.Job(ctx, jobID)
+		if err != nil || job == nil {
+			t.Fatalf("Job(%s) = %v, %v", jobID, job, err)
+		}
+		if !strings.Contains(job.FailedReason, `"SystemV/AST4"`) || !strings.Contains(job.FailedReason, "cannot be advanced") {
+			t.Fatalf("failed reason = %q, want the time zone", job.FailedReason)
+		}
+		if got := p.snapshot(); len(got) != 0 {
+			t.Fatalf("processed %v, want the iteration unprocessed", got)
+		}
+		if pending := pendingSchedulerJobs(t, ctx, q); len(pending) != 0 {
+			t.Fatalf("pending iterations %v, want none", pending)
+		}
+		got := errs.all()
+		if len(got) != 1 || !strings.Contains(got[0].Error(), "SystemV/AST4") {
+			t.Fatalf("error events %v, want one naming the time zone", got)
+		}
+	})
+}
+
 func mustLoad(t *testing.T, name string) *time.Location {
 	t.Helper()
 	loc, err := time.LoadLocation(name)

@@ -834,8 +834,12 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 
 	// A job produced by a job scheduler first adds the job of the
 	// scheduler's next iteration, as in Node.js.
-	if job.RepeatJobKey != "" && !w.scheduleNextIteration(runCtx, job) {
-		return nextFetch{}
+	var scheduleFailure error
+	if job.RepeatJobKey != "" {
+		var ok bool
+		if ok, scheduleFailure = w.scheduleNextIteration(runCtx, job); !ok {
+			return nextFetch{}
+		}
 	}
 
 	w.emit(Event{Type: EventActive, Job: job})
@@ -843,6 +847,9 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 	var result any
 	var err error
 	switch maxStarted := int64(w.opts.MaxStartedAttempts); {
+	case scheduleFailure != nil:
+		// The scheduler cannot be advanced here: fail the job with the reason.
+		err = scheduleFailure
 	case job.DeferredFailure != "":
 		// The stalled-check script found this job exceeded MaxStalledCount and
 		// stored the reason in "defa" instead of failing it outright, so it

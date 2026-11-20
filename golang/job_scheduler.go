@@ -196,6 +196,17 @@ type JobSchedulerNext struct {
 	Next int64
 }
 
+// repeatError reports repeat options that cannot be evaluated, which no
+// retry fixes. It unwraps to a [ConfigError].
+type repeatError struct{ cfg *ConfigError }
+
+func (e *repeatError) Error() string { return e.cfg.Error() }
+func (e *repeatError) Unwrap() error { return e.cfg }
+
+func invalidRepeat(format string, args ...any) error {
+	return &repeatError{cfg: &ConfigError{Message: fmt.Sprintf(format, args...)}}
+}
+
 // ErrLegacyRepeatableJob is returned for repeatable jobs created with the
 // legacy repeat API (BullMQ v5 and earlier), which this port does not
 // support. They must be migrated to job schedulers.
@@ -305,13 +316,13 @@ func (q *Queue) UpsertJobScheduler(ctx context.Context, id string, repeat Repeat
 func upsertJobScheduler(ctx context.Context, b Backend, id string, repeat RepeatOptions, name string, data []byte, opts *JobOptions, override bool, producerID string) (*Job, error) {
 	switch {
 	case repeat.Pattern != "" && repeat.Every != 0:
-		return nil, configError("Both .pattern and .every options are defined for this repeatable job")
+		return nil, invalidRepeat("Both .pattern and .every options are defined for this repeatable job")
 	case repeat.Pattern == "" && repeat.Every == 0:
-		return nil, configError("Either .pattern or .every options must be defined for this repeatable job")
+		return nil, invalidRepeat("Either .pattern or .every options must be defined for this repeatable job")
 	case repeat.Immediately && repeat.StartDate != 0:
-		return nil, configError("Both .immediately and .startDate options are defined for this repeatable job")
+		return nil, invalidRepeat("Both .immediately and .startDate options are defined for this repeatable job")
 	case repeat.Every < 0:
-		return nil, configError(".every must be a positive number of milliseconds")
+		return nil, invalidRepeat(".every must be a positive number of milliseconds")
 	}
 	if opts == nil {
 		opts = &JobOptions{}
@@ -385,13 +396,13 @@ func nextPatternMillis(millis int64, repeat RepeatOptions) (next int64, ok bool,
 	if err != nil {
 		var perr *cronparity.ParseError
 		if errors.As(err, &perr) {
-			return 0, false, configError("invalid repeat pattern %q: %s", repeat.Pattern, perr.Msg)
+			return 0, false, invalidRepeat("invalid repeat pattern %q: %s", repeat.Pattern, perr.Msg)
 		}
-		return 0, false, err
+		return 0, false, invalidRepeat("invalid repeat pattern %q: %v", repeat.Pattern, err)
 	}
 	loc, err := cronparity.LoadLocation(repeat.Tz)
 	if err != nil {
-		return 0, false, configError("invalid repeat time zone %q: %s; time zones are read from the system's tz database (import time/tzdata where there is none)",
+		return 0, false, invalidRepeat("invalid repeat time zone %q: %s; time zones are read from the system's tz database (import time/tzdata where there is none)",
 			repeat.Tz, strings.TrimPrefix(err.Error(), "cronparity: "))
 	}
 	current := max(millis, repeat.StartDate)
@@ -511,13 +522,22 @@ func (q *Queue) JobSchedulersCount(ctx context.Context) (int64, error) {
 
 // scheduleNextIteration advances the job scheduler that produced job, as
 // Node's worker does when it fetches a job (nextJobFromJobData): the job of
-// the next iteration is added before this one is processed. It returns
-// false when that failed; the job must then be left active, unprocessed, so
-// that the stalled check retries it, and the scheduling with it.
+// the next iteration is added before this one is processed, retrying
+// transient errors.
+//
+// It returns false when that failed: the job must then be left active,
+// unprocessed, so that the stalled check retries it, and the scheduling
+// with it, as in Node.js. When the scheduler's repeat options cannot be
+// evaluated by this process, for example a time zone Node.js accepts but
+// the tz database of this process lacks, no retry would help: it reports an
+// error event and returns the *UnrecoverableError to fail the job with,
+// unprocessed. The iteration is then neither run nor scheduled, rather than
+// stalling until the stalled check gives up, and no other iteration is
+// added, so none can run twice.
 //
 // Jobs of legacy repeatable jobs (keys `name:id:endDate:tz:pattern`) are
 // processed, but their schedule cannot be advanced, which is reported.
-func (w *Worker) scheduleNextIteration(ctx context.Context, job *Job) bool {
+func (w *Worker) scheduleNextIteration(ctx context.Context, job *Job) (ok bool, failure error) {
 	key := job.RepeatJobKey
 	legacy := hasLegacyRepeatableKeyShape(key)
 	isScheduler := !legacy
@@ -535,12 +555,19 @@ func (w *Worker) scheduleNextIteration(ctx context.Context, job *Job) bool {
 		_, err := upsertJobScheduler(c, w.backend, key, repeat, job.Name, job.Data, job.Opts, false, job.ID)
 		return err
 	})
+	var invalid *repeatError
+	if errors.As(err, &invalid) {
+		failure := &UnrecoverableError{Message: fmt.Sprintf(
+			"job scheduler %q cannot be advanced by this worker: %s", key, invalid.cfg.Message)}
+		w.emitError(fmt.Errorf("bullmq: failed to add repeatable job for next iteration, failing job %s: %w", job.ID, failure))
+		return true, failure
+	}
 	if err != nil {
 		w.emitError(fmt.Errorf("bullmq: failed to add repeatable job for next iteration: %w", err))
-		return false
+		return false, nil
 	}
 	if !isScheduler {
 		w.emitError(fmt.Errorf("bullmq: failed to add repeatable job for next iteration: %w", legacyRepeatableJobError(key)))
 	}
-	return true
+	return true, nil
 }
