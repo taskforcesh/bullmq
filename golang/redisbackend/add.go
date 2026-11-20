@@ -188,7 +188,7 @@ func (b *Backend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.C
 		var loadCmds []*redis.StringCmd
 		if _, err := b.rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 			for _, s := range toLoad {
-				loadCmds = append(loadCmds, s.script.Load(ctx, pipe))
+				loadCmds = append(loadCmds, s.load(ctx, pipe))
 			}
 			return nil
 		}); err != nil {
@@ -292,7 +292,7 @@ func (b *Backend) execFlow(ctx context.Context, prepared []redisAdd) ([]*redis.C
 	cmds := make([]*redis.Cmd, len(prepared))
 	_, execErr := b.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		for i, s := range distinct {
-			loads[i] = s.script.Load(ctx, pipe)
+			loads[i] = s.load(ctx, pipe)
 		}
 		for i, a := range prepared {
 			cmds[i] = scripts[a.scriptName].script.EvalSha(ctx, pipe, a.keys, a.args...)

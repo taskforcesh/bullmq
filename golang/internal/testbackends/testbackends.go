@@ -3,6 +3,8 @@
 // some of those tests need. Only tests import it.
 //
 // Redis is always included. PostgreSQL is included when POSTGRES_URL is set.
+// REDIS_AUTOPIPELINE=1 (or =fullduplex) runs the Redis backend with
+// auto-pipelining.
 // A new backend plugs into the matrix by adding an entry to [All] with a
 // [Fixture] implementation.
 package testbackends
@@ -100,11 +102,26 @@ var redisPing = sync.OnceValue(func() error {
 	return rdb.Ping(ctx).Err()
 })
 
+// RedisAutoPipeline returns the auto-pipelining options of the Redis
+// backends under test, from REDIS_AUTOPIPELINE: "fullduplex" for the
+// full-duplex mode, any other value but "" or "0" for go-redis's defaults,
+// and nil (off) otherwise.
+func RedisAutoPipeline() *redis.AutoPipelineOptions {
+	switch v := os.Getenv("REDIS_AUTOPIPELINE"); v {
+	case "", "0":
+		return nil
+	case "fullduplex":
+		return &redis.AutoPipelineOptions{FullDuplex: true}
+	default:
+		return &redis.AutoPipelineOptions{}
+	}
+}
+
 // Redis returns the Redis entry of the matrix.
 func Redis() Backend {
 	return Backend{
 		Name:      "redis",
-		Factory:   redisbackend.New(redisbackend.Options{Addr: RedisAddr()}),
+		Factory:   redisbackend.New(redisbackend.Options{Addr: RedisAddr(), AutoPipeline: RedisAutoPipeline()}),
 		Fixture:   redisFixture{},
 		available: redisPing,
 	}

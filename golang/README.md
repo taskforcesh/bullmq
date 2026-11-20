@@ -28,7 +28,7 @@ to.
 
 - [Requirements](#requirements) and [installation](#installation)
 - [Quick start](#quick-start): [Redis](#redis) and [PostgreSQL](#postgresql)
-- [Connecting to Redis](#connecting-to-redis)
+- [Connecting to Redis](#connecting-to-redis): [auto-pipelining](#auto-pipelining)
 - [Adding jobs](#adding-jobs): [delayed and prioritized jobs](#delayed-and-prioritized-jobs), [deduplication](#deduplication)
 - [Workers](#workers): [processors](#processors), [concurrency](#concurrency), [events](#worker-events), [pausing](#pausing-a-worker), [shutting down](#shutting-down), [cancellation](#cancelling-jobs), [retries](#retries-and-backoff), [stalled jobs](#stalled-jobs-and-locks), [rate limiting](#rate-limiting)
 - [Queue operations](#queue-operations)
@@ -44,7 +44,7 @@ to.
 
 ## Requirements
 
-- Go 1.24 or newer.
+- Go 1.26 or newer.
 - Redis 6.2 or newer, or PostgreSQL 13 or newer.
 
 ## Installation
@@ -176,6 +176,7 @@ The `bullmq` schema is created and migrated by the first operation. See
 | `Username`, `Password`, `DB`, `PoolSize` |                  | Passed to go-redis                                                                                 |
 | `Prefix`                                 | `bull`           | Prefix of every key, as in the other ports. Producers and workers of a queue must use the same one |
 | `Client`                                 |                  | An existing `redis.UniversalClient` to use instead of the fields above; BullMQ never closes it     |
+| `AutoPipeline`                           | off              | go-redis automatic pipelining (experimental); see [Auto-pipelining](#auto-pipelining)              |
 
 Each queue, worker and `QueueEvents` built from `redisbackend.New` with an
 `Addr` opens its own client. Pass a `Client` to share one connection pool, or
@@ -217,6 +218,51 @@ if err != nil {
 }
 log.Printf("%d jobs in the wait list", waiting)
 ```
+
+### Auto-pipelining
+
+`AutoPipeline` (experimental) sends the backend's non-blocking commands
+through go-redis's automatic pipeliner, which writes the commands that
+concurrent goroutines issue at the same time together, as ioredis does for
+Node.js, instead of each command waiting for its own round trip on a pooled
+connection. It helps workers with a `Concurrency` above 1 and producers that
+add jobs from many goroutines. Use its full-duplex mode:
+
+```go
+backend := redisbackend.New(redisbackend.Options{
+	Addr:         "127.0.0.1:6379",
+	AutoPipeline: &redis.AutoPipelineOptions{FullDuplex: true},
+})
+```
+
+In our benchmark the full-duplex mode processed 1.2× as many jobs per second
+at a concurrency of 10 and 1.3× at 50 on a local Redis, 1.6× at 50 through a
+link with a 1.15 ms round trip, and added jobs from 32 goroutines 1.5× as
+fast; a concurrency of 1 doesn't change. go-redis's default (half-duplex)
+mode needs fewer round trips but runs one batch at a time, and was up to 26%
+slower than no auto-pipelining, so we don't recommend it.
+
+Before you turn it on:
+
+- go-redis marks auto-pipelining as experimental: `AutoPipelineOptions` can
+  change in a minor release.
+- A queued command doesn't observe its context. The backend doesn't send a
+  command whose context is already done, but once queued the command runs,
+  bounded by the client's read and write timeouts, even if the context is
+  cancelled or its deadline passes first.
+- After a connection error, go-redis sends again, up to `MaxRetries` times,
+  the commands whose replies it didn't read; in half-duplex mode, the whole
+  batch, including commands whose replies it had read. A BullMQ command that
+  already ran then runs twice, as with a plain client that loses a reply: a
+  job fetched twice stays active until the stalled check recovers it, and an
+  `Add` without a `JobID` adds a second job. Pass a `Client` with
+  `MaxRetries: -1` to turn these retries off.
+- With a `Client`, every backend built on it shares the client's single
+  auto-pipeliner (the options of the first one win), and closing a backend
+  leaves it open; closing the client stops it. A `*redis.Ring` runs without
+  auto-pipelining.
+- Blocking reads, the transactions of `AddBulk` and flows, and commands sent
+  through `Backend.Client()` are never auto-pipelined.
 
 ## Adding jobs
 

@@ -38,11 +38,29 @@ func testQueueName(t *testing.T) string {
 	return "go-test-" + name + "-" + time.Now().Format("150405.000000")
 }
 
+// testAutoPipeline returns the auto-pipelining options the tests use unless
+// they set their own, from REDIS_AUTOPIPELINE as in internal/testbackends:
+// "fullduplex" for the full-duplex mode, any other value but "" or "0" for
+// go-redis's defaults.
+func testAutoPipeline() *redis.AutoPipelineOptions {
+	switch v := os.Getenv("REDIS_AUTOPIPELINE"); v {
+	case "", "0":
+		return nil
+	case "fullduplex":
+		return &redis.AutoPipelineOptions{FullDuplex: true}
+	default:
+		return &redis.AutoPipelineOptions{}
+	}
+}
+
 // testFactory returns a backend factory for opts, connecting to the test
 // server unless opts supplies a client or an address.
 func testFactory(opts Options) bullmq.BackendFactory {
 	if opts.Client == nil && opts.Addr == "" {
 		opts.Addr = redisAddr()
+	}
+	if opts.AutoPipeline == nil {
+		opts.AutoPipeline = testAutoPipeline()
 	}
 	return New(opts)
 }

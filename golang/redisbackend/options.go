@@ -2,6 +2,7 @@ package redisbackend
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"time"
@@ -31,6 +32,31 @@ type Options struct {
 	DB int
 	// PoolSize is the maximum number of pooled connections.
 	PoolSize int
+	// AutoPipeline, when set, sends the backend's non-blocking commands (the
+	// Lua commands, job and metadata reads) through go-redis's automatic
+	// pipeliner, which writes the commands that concurrent goroutines issue at
+	// the same time together, so a worker with Concurrency > 1, or many
+	// goroutines adding jobs, needs fewer round trips per job. Set FullDuplex:
+	// go-redis's default (half-duplex) mode runs one batch at a time, which
+	// was slower than no auto-pipelining in our benchmarks. Blocking reads
+	// (BZPOPMIN, XREAD) never go through it.
+	//
+	// The pipeliner comes from the client (AutoPipelineWithOptions). With a
+	// caller-supplied Client it is the client's shared instance: every backend
+	// built on that client uses it, the options of whoever creates it first
+	// apply, and the backend leaves it open, since it belongs to the client
+	// and closing it would stop it for all of them. Clients that cannot
+	// auto-pipeline (*redis.Ring) run unpipelined.
+	//
+	// EXPERIMENTAL: go-redis's auto-pipelining API may change in a minor
+	// release. A queued command does not observe its context's cancellation
+	// or deadline: the backend does not send a command whose context is
+	// already done, but once queued it runs, bounded by the client's read and
+	// write timeouts. After a connection error go-redis sends again, up to the
+	// client's MaxRetries, the commands whose replies it did not read (in
+	// half-duplex mode the whole batch); see the README for what that means
+	// for job state.
+	AutoPipeline *redis.AutoPipelineOptions
 }
 
 func (o Options) build() (redis.UniversalClient, bool) {
@@ -49,6 +75,19 @@ func (o Options) build() (redis.UniversalClient, bool) {
 		PoolSize:              o.PoolSize,
 		ContextTimeoutEnabled: true,
 	}), true
+}
+
+// autoPipeliner returns the client's auto-pipeliner for opts, or nil when the
+// client cannot auto-pipeline.
+func autoPipeliner(rdb redis.UniversalClient, opts *redis.AutoPipelineOptions) (*redis.AutoPipeliner, error) {
+	ap, err := rdb.AutoPipelineWithOptions(opts)
+	if errors.Is(err, redis.ErrRingAutoPipelineUnsupported) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, configError("redis auto-pipelining: %v", err)
+	}
+	return ap, nil
 }
 
 // buildBlocking builds a client dedicated to blocking reads (BZPOPMIN,
@@ -95,6 +134,14 @@ func (o Options) buildBlocking(name string, readTimeout time.Duration) (redis.Un
 		clone.ReadTimeout = readTimeout
 		clone.ContextTimeoutEnabled = true
 		clone.ClientName = name
+		// go-redis stores the client's push notification processor in its
+		// options; sharing it would make the clone fail to register its own
+		// maintenance notification handlers. Client-side caching has nothing to
+		// cache on a connection that only blocks, and its cache must not be
+		// shared either.
+		clone.PushNotificationProcessor = nil
+		clone.ClientSideCache = nil
+		clone.ClientSideCacheConfig = nil
 		opt = &clone
 	} else {
 		addr := o.Addr

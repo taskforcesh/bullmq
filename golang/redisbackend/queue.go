@@ -281,12 +281,12 @@ func (b *Backend) SetQueueMeta(ctx context.Context, values map[string]any) error
 	if len(values) == 0 {
 		return nil
 	}
-	return b.rdb.HSet(ctx, b.keys.Meta(), values).Err()
+	return b.cmd.HSet(ctx, b.keys.Meta(), values).Err()
 }
 
 // GetQueueMetaField reads a field of the queue metadata hash.
 func (b *Backend) GetQueueMetaField(ctx context.Context, field string) (string, bool, error) {
-	val, err := b.rdb.HGet(ctx, b.keys.Meta(), field).Result()
+	val, err := b.cmd.HGet(ctx, b.keys.Meta(), field).Result()
 	if err == redis.Nil {
 		return "", false, nil
 	}
@@ -301,5 +301,5 @@ func (b *Backend) RemoveQueueMetaFields(ctx context.Context, fields ...string) e
 	if len(fields) == 0 {
 		return nil
 	}
-	return b.rdb.HDel(ctx, b.keys.Meta(), fields...).Err()
+	return b.cmd.HDel(ctx, b.keys.Meta(), fields...).Err()
 }

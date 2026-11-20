@@ -27,7 +27,7 @@ go get github.com/taskforcesh/bullmq-go
 
 BullMQ for Go requires:
 
-- Go 1.24 or newer
+- Go 1.26 or newer
 - Redis 6.2 or newer, **or** PostgreSQL 13 or newer
 
 Both backends ship in the module, but a program only links the driver of the
@@ -203,6 +203,30 @@ backend := redisbackend.New(redisbackend.Options{Client: rdb})
 Workers and `QueueEvents` still run their blocking reads on a dedicated
 connection, derived from the client's options, so that a blocked read never
 holds a connection of the shared pool.
+
+### Auto-pipelining
+
+`AutoPipeline` (experimental) sends the backend's non-blocking commands through
+go-redis's automatic pipeliner, which writes the commands that concurrent
+goroutines issue at the same time together, as ioredis does for Node.js. It
+helps workers with a `Concurrency` above 1 and producers that add jobs from
+many goroutines, especially when Redis is remote. Use the full-duplex mode;
+go-redis's default mode runs one batch at a time and was slower in our
+benchmark:
+
+```go
+backend := redisbackend.New(redisbackend.Options{
+	Addr:         "127.0.0.1:6379",
+	AutoPipeline: &redis.AutoPipelineOptions{FullDuplex: true},
+})
+```
+
+A queued command doesn't observe its context's cancellation or deadline, and
+after a connection error go-redis may send a command again whose reply was
+lost, which can run a BullMQ command twice (as with a plain client). go-redis
+can change these options in a minor release. See the
+[README](https://github.com/taskforcesh/bullmq/tree/master/golang#auto-pipelining)
+for the details.
 
 ## Key differences from Node.js
 

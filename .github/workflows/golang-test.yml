@@ -43,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ['1.24', '1.25']
+        go-version: ['1.26', '1.27']
 
     services:
       redis:
@@ -130,3 +130,13 @@ jobs:
           REDIS_ADDR: 127.0.0.1:6379
           POSTGRES_URL: postgres://postgres:postgres@localhost:5432/bullmq_test?sslmode=disable
         run: go test -v -count=1 -timeout 10m ./...
+
+      # The Redis suites again, with the opt-in auto-pipelining in the
+      # full-duplex mode the docs recommend. PostgreSQL is left out.
+      - name: Run Redis tests with auto-pipelining
+        if: matrix.go-version == '1.27'
+        working-directory: golang
+        env:
+          REDIS_ADDR: 127.0.0.1:6379
+          REDIS_AUTOPIPELINE: fullduplex
+        run: go test -count=1 -timeout 10m . ./redisbackend

@@ -575,7 +575,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: '1.25'
+          go-version: '1.26'
           cache-dependency-path: golang/go.sum
       - name: Copy Lua scripts for Go
         if: ${{ contains(env.commitmsg, '[golang]') || contains(env.commitmsg, '(golang)') }}

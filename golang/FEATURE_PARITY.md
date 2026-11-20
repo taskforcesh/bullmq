@@ -28,6 +28,7 @@ Status of the Go port relative to the reference Node.js implementation.
 | Concurrency                         | Bounded by `WorkerOptions.Concurrency`                                                                                                                    |
 | Fetch-next                          | Each slot fetches its next job when it finishes the current one, re-using its lock token, as in Node.js                                                   |
 | Blocking fetch                      | Dedicated connection using `BZPOPMIN` on the marker key for the whole `DrainDelay`, interrupted on close; waits until the next delayed job is due         |
+| Auto-pipelining                     | Opt-in, experimental: `redisbackend.Options.AutoPipeline` (go-redis auto-pipelining, use `FullDuplex`) batches concurrent commands as ioredis does        |
 | Lock renewal                        | Disable with `SkipLockRenewal`; `EventLocksRenewed` and `EventLockRenewalFailed`. A lost lock also cancels the job's context (`ErrLockLost`), unlike Node |
 | Stalled job recovery                | Disable with `SkipStalledCheck`; `EventStalled`                                                                                                           |
 | Retries and backoff                 | Fixed, exponential and custom `BackoffStrategy`; delays are clamped so they cannot overflow                                                               |

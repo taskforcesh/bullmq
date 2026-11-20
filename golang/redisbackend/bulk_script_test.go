@@ -2,6 +2,8 @@ package redisbackend
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -183,5 +185,29 @@ func TestAddBulkReloadsScriptsAfterACacheMiss(t *testing.T) {
 	}
 	if got := hook.scriptLoads.Load(); got != loads+2 {
 		t.Errorf("SCRIPT LOAD commands = %d, want %d", got, loads+2)
+	}
+}
+
+// Since go-redis v9.19, redis.Script.Load stores the reply as the script's
+// digest, and a pipelined reply is still empty when Load returns: loading the
+// scripts of a bulk add through it would leave every later EVALSHA of those
+// scripts with an empty digest.
+func TestAddBulkKeepsTheScriptDigests(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q := newTestQueue(t, Options{})
+
+	if _, err := q.AddBulk(ctx, bulkSpecs(2)); err != nil {
+		t.Fatalf("AddBulk: %v", err)
+	}
+	for _, name := range []string{"addStandardJob", "addPrioritizedJob", "addDelayedJob"} {
+		s, err := getScript(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha1.Sum([]byte(s.src))
+		if got, want := s.script.Hash(), hex.EncodeToString(sum[:]); got != want {
+			t.Errorf("%s digest = %q, want %q", name, got, want)
+		}
 	}
 }

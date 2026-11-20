@@ -15,9 +15,10 @@ import (
 const defaultDependencyPageSize = 20
 
 // ForQueue returns a backend for another queue under the same prefix that
-// shares this backend's client, as Node's forQueue does. It owns no
-// connection: closing it is a no-op, and it stops working once this
-// backend's client is closed. Its blocking reads run on the shared client.
+// shares this backend's client (and auto-pipeliner), as Node's forQueue does.
+// It owns no connection: closing it is a no-op, and it stops working once
+// this backend's client is closed. Its blocking reads run on the shared
+// client.
 func (b *Backend) ForQueue(name string) (bullmq.Backend, error) {
 	return b.forQueue(name)
 }
@@ -35,7 +36,7 @@ func (b *Backend) forQueue(name string) (*Backend, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Backend{rdb: b.rdb, keys: keys, blocking: b.rdb, blockTimeout: b.blockTimeout}, nil
+	return &Backend{rdb: b.rdb, keys: keys, cmd: b.cmd, ap: b.ap, blocking: b.rdb, blockTimeout: b.blockTimeout}, nil
 }
 
 // AddFlow adds the entries in one MULTI/EXEC transaction, as Node's addFlow
@@ -252,7 +253,7 @@ func (b *Backend) GetDependencyCounts(ctx context.Context, jobID string) (bullmq
 // GetProcessedChildrenValues returns the processed hash of a parent job.
 func (b *Backend) GetProcessedChildrenValues(ctx context.Context, jobID string) (map[string]json.RawMessage, error) {
 	processedKey, _, _, _ := b.dependencyKeys(jobID)
-	values, err := b.rdb.HGetAll(ctx, processedKey).Result()
+	values, err := b.cmd.HGetAll(ctx, processedKey).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +264,7 @@ func (b *Backend) GetProcessedChildrenValues(ctx context.Context, jobID string) 
 // job.
 func (b *Backend) GetIgnoredChildrenFailures(ctx context.Context, jobID string) (map[string]string, error) {
 	_, _, ignoredKey, _ := b.dependencyKeys(jobID)
-	values, err := b.rdb.HGetAll(ctx, ignoredKey).Result()
+	values, err := b.cmd.HGetAll(ctx, ignoredKey).Result()
 	if err != nil {
 		return nil, err
 	}
