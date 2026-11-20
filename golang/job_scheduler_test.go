@@ -587,3 +587,96 @@ func TestJobSchedulersLegacyAndDanglingEntriesRedis(t *testing.T) {
 		t.Fatalf("JobSchedulers with a legacy entry: err = %v, want ErrLegacyRepeatableJob", err)
 	}
 }
+
+// addSchedulerAsNode stores a scheduler whose first iteration is due now,
+// with its time zone written verbatim, as Node's upsertJobScheduler does.
+func addSchedulerAsNode(t *testing.T, ctx context.Context, q *bullmq.Queue, id, pattern, tz string) string {
+	t.Helper()
+	now := time.Now().UnixMilli()
+	jobID := "repeat:" + id + ":" + strconv.FormatInt(now, 10)
+	_, _, err := q.Backend().AddJobScheduler(ctx, bullmq.NewJobScheduler{
+		ID: id, NextMillis: now, Name: "tick", Pattern: pattern, Tz: tz,
+		TemplateData: []byte("{}"), TemplateOpts: &bullmq.JobOptions{},
+		JobOpts: &bullmq.JobOptions{
+			JobID: jobID, Delay: bullmq.Int64(0), Timestamp: now, PrevMillis: now, RepeatJobKey: id,
+			Repeat: &bullmq.RepeatOptions{Pattern: pattern, Tz: tz, Count: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("AddJobScheduler(%s): %v", id, err)
+	}
+	return jobID
+}
+
+// errorRecorder collects the error events of a worker.
+type errorRecorder struct {
+	mu   sync.Mutex
+	errs []error
+}
+
+func (r *errorRecorder) onEvent(ev bullmq.Event) {
+	if ev.Type == bullmq.EventError {
+		r.mu.Lock()
+		r.errs = append(r.errs, ev.Err)
+		r.mu.Unlock()
+	}
+}
+
+func (r *errorRecorder) all() []error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.errs)
+}
+
+// Node.js accepts time zones in any case, ICU's legacy ids and offsets; a Go
+// worker must advance schedulers stored with them, to the same runs.
+func TestJobSchedulerAdvancesNodeTimeZoneForms(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, be testBackend) {
+		ctx := testContext(t)
+		q := newTestQueue(t, be, nil)
+		zones := map[string]*time.Location{
+			"america/new_york": mustLoad(t, "America/New_York"),
+			"us/eastern":       mustLoad(t, "America/New_York"),
+			"Europe/london":    mustLoad(t, "Europe/London"),
+			"pst":              mustLoad(t, "America/Los_Angeles"),
+			"+03:00":           time.FixedZone("+03:00", 3*3600),
+			"-0530":            time.FixedZone("-05:30", -(5*3600 + 30*60)),
+			"UTC+05:30":        time.FixedZone("UTC+05:30", 5*3600+30*60),
+		}
+		first := map[string]string{}
+		for tz := range zones {
+			first[tz] = addSchedulerAsNode(t, ctx, q, "noon "+tz, "0 0 12 * * *", tz)
+		}
+
+		var errs errorRecorder
+		p := runRecordingWorker(t, be, q, &bullmq.WorkerOptions{OnEvent: errs.onEvent})
+		waitFor(t, 10*time.Second, "the first iterations", func() bool { return len(p.snapshot()) == len(zones) })
+		waitFor(t, 10*time.Second, "the next iterations", func() bool { return len(pendingSchedulerJobs(t, ctx, q)) == len(zones) })
+
+		now := time.Now()
+		pending := pendingSchedulerJobs(t, ctx, q)
+		for tz, loc := range zones {
+			local := now.In(loc)
+			want := time.Date(local.Year(), local.Month(), local.Day(), 12, 0, 0, 0, loc)
+			if !want.After(now) {
+				want = time.Date(local.Year(), local.Month(), local.Day()+1, 12, 0, 0, 0, loc)
+			}
+			wantID := "repeat:noon " + tz + ":" + strconv.FormatInt(want.UnixMilli(), 10)
+			if !slices.Contains(pending, wantID) {
+				t.Errorf("tz %q: pending iterations %v, want %s (noon %s)", tz, pending, wantID, want)
+			}
+		}
+		if got := errs.all(); len(got) != 0 {
+			t.Fatalf("error events: %v", got)
+		}
+	})
+}
+
+func mustLoad(t *testing.T, name string) *time.Location {
+	t.Helper()
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		t.Skipf("time zone %s is not available: %v", name, err)
+	}
+	return loc
+}

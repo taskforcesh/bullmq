@@ -280,9 +280,10 @@ adds the following one before processing it. Go, Node.js and the other ports
 advance each other's schedulers, and compute the same due times: patterns have
 5 fields, or 6 with leading seconds, with names, `L` and `#`, and are evaluated
 exactly like cron-parser does in Node.js, including across DST changes. `Tz`
-names an IANA time zone, read from the system's time zone database (import
-`time/tzdata` where there is none); without it, patterns use the local time
-zone, as in Node.js. `Every` schedulers accept an `Offset`, and every scheduler
+accepts the time zones Node.js accepts: IANA names in any case
+(`america/new_york`), ICU's legacy ids (`PST`) and fixed offsets (`+03:00`,
+`UTC+3`), read from the system's time zone database (import `time/tzdata` where
+there is none); without it, patterns use the local time zone, as in Node.js. `Every` schedulers accept an `Offset`, and every scheduler
 `Limit`, `StartDate`, `EndDate` and, for patterns, `Immediately`. Legacy
 repeatable jobs (BullMQ 5 and earlier) are not supported: they must be
 migrated to job schedulers.

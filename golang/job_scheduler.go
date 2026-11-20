@@ -38,10 +38,12 @@ type RepeatOptions struct {
 	// EndDate is when the schedule ends, in Unix milliseconds. 0 means
 	// never.
 	EndDate int64 `json:"endDate,omitempty"`
-	// Tz is the IANA time zone Pattern is evaluated in. Empty means the
-	// local time zone of the process, as in Node.js. Time zones are read
-	// from the system's time zone database; programs running where there
-	// is none can embed one with `import _ "time/tzdata"`.
+	// Tz is the time zone Pattern is evaluated in, as Node.js resolves it:
+	// an IANA name in any case, an ICU legacy id such as "PST", or a fixed
+	// offset such as "+03:00" or "UTC+3". Empty means the local time zone
+	// of the process, as in Node.js. Time zones are read from the system's
+	// time zone database; programs running where there is none can embed
+	// one with `import _ "time/tzdata"`.
 	Tz string `json:"tz,omitempty"`
 	// Count is the iteration of the job it is stored in. It is maintained
 	// by the scheduler and ignored by Queue.UpsertJobScheduler.
@@ -389,7 +391,8 @@ func nextPatternMillis(millis int64, repeat RepeatOptions) (next int64, ok bool,
 	}
 	loc, err := cronparity.LoadLocation(repeat.Tz)
 	if err != nil {
-		return 0, false, configError("invalid repeat time zone %q", repeat.Tz)
+		return 0, false, configError("invalid repeat time zone %q: %s; time zones are read from the system's tz database (import time/tzdata where there is none)",
+			repeat.Tz, strings.TrimPrefix(err.Error(), "cronparity: "))
 	}
 	current := max(millis, repeat.StartDate)
 	opts := cronparity.Options{CurrentDate: time.UnixMilli(current), Location: loc}

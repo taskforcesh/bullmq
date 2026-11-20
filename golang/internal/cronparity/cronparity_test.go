@@ -247,8 +247,20 @@ func TestLoadLocation(t *testing.T) {
 		"UTC":              0,
 		"utc+3":            3 * 3600,
 		"UTC-05:30":        -(5*3600 + 30*60),
+		"UTC+25":           25 * 3600,
+		"+03:00":           3 * 3600,
+		"+0300":            3 * 3600,
+		"-03":              -3 * 3600,
+		"\u221205:30":      -(5*3600 + 30*60),
+		"Etc/GMT+3":        -3 * 3600,
+		"etc/gmt-14":       14 * 3600,
 		"Asia/Tokyo":       9 * 3600,
-		"America/New_York": -5 * 3600,
+		"america/new_york": -5 * 3600,
+		"AMERICA/NEW_YORK": -5 * 3600,
+		"us/eastern":       -5 * 3600,
+		"pst":              -8 * 3600,
+		"IST":              5*3600 + 30*60,
+		"gb":               0,
 	} {
 		loc, err := LoadLocation(tz)
 		if err != nil {
@@ -259,10 +271,86 @@ func TestLoadLocation(t *testing.T) {
 			t.Errorf("LoadLocation(%q) offset = %d, want %d", tz, off, wantOffset)
 		}
 	}
-	if loc, err := LoadLocation(""); err != nil || loc != time.Local {
-		t.Errorf(`LoadLocation("") = %v, %v; want the local zone`, loc, err)
+	for _, tz := range []string{"", "local", "System", "DEFAULT"} {
+		if loc, err := LoadLocation(tz); err != nil || loc != time.Local {
+			t.Errorf("LoadLocation(%q) = %v, %v; want the local zone", tz, loc, err)
+		}
 	}
-	if _, err := LoadLocation("Not/AZone"); err == nil {
-		t.Error("LoadLocation(Not/AZone) succeeded, want an error")
+	for _, tz := range []string{"Not/AZone", "+3", "+24:00", "+03:60", "UTC+0300", "GMT+3", "America//New_York", "../../etc/passwd", "UTC "} {
+		if _, err := LoadLocation(tz); err == nil {
+			t.Errorf("LoadLocation(%q) succeeded, want an error", tz)
+		}
+	}
+}
+
+// TestTimeZonesLikeCronParser checks time zone names against Node.js:
+// every IANA name, in its own case and lowercased, ICU's legacy ids such as
+// PST, and the fixed offset forms of Luxon and Intl. A name cron-parser
+// accepts must resolve, to the same runs; a name it rejects must be
+// rejected, except names only the tz database has.
+func TestTimeZonesLikeCronParser(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "tz-vectors.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file struct {
+		Meta struct {
+			Pattern      string  `json:"pattern"`
+			CurrentDates []int64 `json:"currentDates"`
+		} `json:"meta"`
+		Vectors []struct {
+			Tz   string  `json:"tz"`
+			OK   bool    `json:"ok"`
+			Next []int64 `json:"next"`
+		} `json:"vectors"`
+	}
+	if err := json.Unmarshal(raw, &file); err != nil {
+		t.Fatal(err)
+	}
+	expr, err := Parse(file.Meta.Pattern)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// tz database names ICU does not have (America/Coyhaique is newer than
+	// its tz 2024b).
+	tzdataOnly := map[string]bool{
+		"factory": true, "posixrules": true, "posix/america/new_york": true, "america/coyhaique": true,
+	}
+	checked := 0
+	for _, v := range file.Vectors {
+		loc, err := LoadLocation(v.Tz)
+		if !v.OK {
+			if err == nil && !tzdataOnly[strings.ToLower(v.Tz)] {
+				t.Errorf("LoadLocation(%q) succeeded; cron-parser rejects it", v.Tz)
+			}
+			continue
+		}
+		if strings.HasPrefix(strings.ToLower(v.Tz), "systemv/") {
+			// ICU's deprecated SystemV ids, which the tz database dropped,
+			// are not supported.
+			if err == nil {
+				t.Errorf("LoadLocation(%q) succeeded, want SystemV ids unsupported", v.Tz)
+			}
+			continue
+		}
+		if err != nil {
+			if strings.Contains(err.Error(), "is not available") {
+				t.Logf("skipping %q: %v", v.Tz, err)
+				continue
+			}
+			t.Errorf("LoadLocation(%q): %v; cron-parser accepts it", v.Tz, err)
+			continue
+		}
+		checked++
+		for i, want := range v.Next {
+			next, err := expr.Iterator(Options{CurrentDate: time.UnixMilli(file.Meta.CurrentDates[i]), Location: loc}).Next()
+			if err != nil || next.UnixMilli() != want {
+				t.Errorf("%q: next run after %d = %v, %v; cron-parser computes %s", v.Tz,
+					file.Meta.CurrentDates[i], next.UTC(), err, time.UnixMilli(want).UTC())
+			}
+		}
+	}
+	if checked < 1000 {
+		t.Fatalf("only %d time zones were checked", checked)
 	}
 }
