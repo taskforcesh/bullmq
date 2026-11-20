@@ -139,6 +139,54 @@ let trees = flow
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+import (
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+)
+
+flow, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flow.Close()
+
+trees, err := flow.AddBulk(ctx, []bullmq.FlowJob{
+	{
+		Name:      "root-job-1",
+		QueueName: "rootQueueName-1",
+		Data:      map[string]any{},
+		Children: []bullmq.FlowJob{
+			{
+				Name:      name,
+				Data:      map[string]any{"idx": 0, "foo": "bar"},
+				QueueName: "childrenQueueName-1",
+			},
+		},
+	},
+	{
+		Name:      "root-job-2",
+		QueueName: "rootQueueName-2",
+		Data:      map[string]any{},
+		Children: []bullmq.FlowJob{
+			{
+				Name:      name,
+				Data:      map[string]any{"idx": 1, "foo": "baz"},
+				QueueName: "childrenQueueName-2",
+			},
+		},
+	},
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 This call can only succeed or fail, and all or none of the jobs will be added.

@@ -160,6 +160,83 @@ let processor = move |job: Job, _token: CancellationToken| {
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+import (
+	"context"
+	"fmt"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+)
+
+flow, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flow.Close()
+
+// Define the flow
+originalTree, err := flow.Add(ctx, bullmq.FlowJob{
+	Name:      "root-job",
+	QueueName: "topQueueName",
+	Data:      map[string]any{},
+	Children: []bullmq.FlowJob{
+		{
+			Name:      "child-job-1",
+			Data:      map[string]any{"idx": 0, "foo": "bar"},
+			QueueName: "childrenQueueName",
+			Opts:      &bullmq.JobOptions{ContinueParentOnFailure: bullmq.Bool(true)}, // Parent processes if this child fails
+		},
+		{
+			Name:      "child-job-2",
+			Data:      map[string]any{"idx": 1, "foo": "baz"},
+			QueueName: "childrenQueueName",
+		},
+		{
+			Name:      "child-job-3",
+			Data:      map[string]any{"idx": 2, "foo": "qux"},
+			QueueName: "childrenQueueName",
+		},
+	},
+}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+
+// Processor for the parent job
+processor := func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// Check if any children failed
+	failedChildren, err := job.IgnoredChildrenFailures(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hasFailedChildren := len(failedChildren) > 0
+
+	if hasFailedChildren {
+		// Path 1: A child failed, triggering ContinueParentOnFailure
+		fmt.Printf("Parent job %s triggered by child failure(s): %v\n", job.Name, failedChildren)
+
+		// Remove unprocessed children
+		if err := job.RemoveUnprocessedChildren(ctx); err != nil {
+			return nil, err
+		}
+		fmt.Println("Unprocessed child jobs have been removed.")
+
+		// Additional cleanup or error handling can go here
+	} else {
+		// Path 2: All children completed successfully
+		fmt.Printf("Parent job %s processing after all children completed successfully.\n", job.Name)
+
+		// Proceed with normal parent logic (e.g., aggregating results)
+	}
+	return nil, nil
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 ### Practical use case

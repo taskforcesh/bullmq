@@ -187,6 +187,63 @@ let original_tree = flow
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+import (
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+)
+
+flow, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flow.Close()
+
+originalTree, err := flow.Add(ctx, bullmq.FlowJob{
+	Name:      "root-job",
+	QueueName: "topQueueName",
+	Data:      map[string]any{},
+	Children: []bullmq.FlowJob{
+		{
+			Name:      "child-job",
+			Data:      map[string]any{"idx": 0, "foo": "bar"},
+			QueueName: "childrenQueueName",
+			// This child will fail its parent if it fails
+			Opts: &bullmq.JobOptions{FailParentOnFailure: bullmq.Bool(true)},
+			Children: []bullmq.FlowJob{
+				{
+					Name:      name,
+					Data:      map[string]any{"idx": 1, "foo": "bah"},
+					QueueName: "grandChildrenQueueName",
+					// This grandchild will fail its parent if it fails
+					Opts: &bullmq.JobOptions{FailParentOnFailure: bullmq.Bool(true)},
+				},
+				{
+					Name:      name,
+					Data:      map[string]any{"idx": 2, "foo": "baz"},
+					QueueName: "grandChildrenQueueName",
+					// No FailParentOnFailure; its failure won't affect the parent
+				},
+			},
+		},
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 3, "foo": "foo"},
+			QueueName: "childrenQueueName",
+			// No FailParentOnFailure; its failure won't affect the parent
+		},
+	},
+}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="info" %}

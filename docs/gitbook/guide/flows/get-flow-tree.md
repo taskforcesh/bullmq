@@ -86,6 +86,63 @@ let JobNode { children, job } = tree;
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+flow, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flow.Close()
+
+originalTree, err := flow.Add(ctx, bullmq.FlowJob{
+	Name:      "root-job",
+	QueueName: "topQueueName",
+	Data:      map[string]any{},
+	Children: []bullmq.FlowJob{
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 0, "foo": "bar"},
+			QueueName: "childrenQueueName",
+			Children: []bullmq.FlowJob{
+				{
+					Name:      name,
+					Data:      map[string]any{"idx": 4, "foo": "baz"},
+					QueueName: "grandchildrenQueueName",
+				},
+			},
+		},
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 2, "foo": "foo"},
+			QueueName: "childrenQueueName",
+		},
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 3, "foo": "bis"},
+			QueueName: "childrenQueueName",
+		},
+	},
+}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+
+topJob := originalTree.Job
+
+tree, err := flow.GetFlow(ctx, bullmq.FlowGetOptions{
+	ID:        topJob.ID,
+	QueueName: "topQueueName",
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+children, job := tree.Children, tree.Job
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="info" %}
@@ -122,6 +179,24 @@ let limited_tree = flow
     .await?;
 
 let JobNode { children, job } = limited_tree;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+limitedTree, err := flow.GetFlow(ctx, bullmq.FlowGetOptions{
+	ID:          topJob.ID,
+	QueueName:   "topQueueName",
+	Depth:       2, // the root and its first level of children
+	MaxChildren: 2, // about 2 children of each status per node
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+children, job := limitedTree.Children, limitedTree.Job
 ```
 
 {% endtab %}
