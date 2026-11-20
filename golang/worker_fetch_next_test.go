@@ -345,3 +345,45 @@ func testWorkerFillsFreeSlotsWhileJobsRun(t *testing.T, be testBackend) {
 	}
 	releaseAll()
 }
+
+// When the queue announces a delayed job, an idle worker waits until it is
+// due instead of fetching right away and finding nothing.
+func TestWorkerWaitsUntilTheAnnouncedDelayedJobIsDue(t *testing.T) {
+	forEachBackend(t, testWorkerWaitsUntilTheAnnouncedDelayedJobIsDue)
+}
+
+func testWorkerWaitsUntilTheAnnouncedDelayedJobIsDue(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	hooks := &backendHooks{}
+	processed := make(chan time.Time, 1)
+	w := newTestWorker(t, be, q.Name(), func(context.Context, *bullmq.Job) (any, error) {
+		processed <- time.Now()
+		return nil, nil
+	}, &bullmq.WorkerOptions{Backend: hooks.wrap(be.Factory), DrainDelay: 5 * time.Second})
+	var log eventLog
+	log.collect(w)
+	runWorker(t, w)
+	waitFor(t, 5*time.Second, "the worker to see the queue drained", func() bool {
+		return log.count(bullmq.EventDrained) > 0
+	})
+	time.Sleep(100 * time.Millisecond)
+
+	before := hooks.moveToActive.Load()
+	start := time.Now()
+	if _, err := q.Add(ctx, "later", nil, &bullmq.JobOptions{Delay: bullmq.Int64(700)}); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	select {
+	case at := <-processed:
+		if elapsed := at.Sub(start); elapsed < 600*time.Millisecond || elapsed > 3*time.Second {
+			t.Errorf("the delayed job ran after %v, want about 700ms", elapsed)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the delayed job was never processed")
+	}
+	if n := hooks.moveToActive.Load() - before; n != 1 {
+		t.Errorf("the worker fetched %d times for the delayed job, want 1", n)
+	}
+}

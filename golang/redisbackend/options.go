@@ -1,6 +1,9 @@
 package redisbackend
 
 import (
+	"context"
+	"net"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -71,38 +74,84 @@ func (o Options) build() (redis.UniversalClient, bool) {
 // reused as-is, the returned bool is false, and callers must use go-redis's
 // timeout-aware typed blocking commands and treat the name as best-effort.
 //
-// The returned bool reports whether the client is dedicated and owned, i.e.
-// must be closed by the caller.
-func (o Options) buildBlocking(name string, readTimeout time.Duration) (redis.UniversalClient, bool) {
+// A dedicated client comes with a connTracker, which interrupts a blocked
+// read by closing the connection. The tracker is nil for a reused client,
+// which is not owned and must not be closed by the caller.
+func (o Options) buildBlocking(name string, readTimeout time.Duration) (redis.UniversalClient, *connTracker) {
 	if readTimeout <= 0 {
 		readTimeout = -1
 	}
+	var opt *redis.Options
 	if o.Client != nil {
-		if c, ok := o.Client.(*redis.Client); ok {
-			opt := *c.Options()
-			opt.PoolSize = 1
-			opt.MinIdleConns = 0
-			opt.MaxIdleConns = 0
-			opt.MaxActiveConns = 0
-			opt.ReadTimeout = readTimeout
-			opt.ContextTimeoutEnabled = true
-			opt.ClientName = name
-			return redis.NewClient(&opt), true
+		c, ok := o.Client.(*redis.Client)
+		if !ok {
+			return o.Client, nil
 		}
-		return o.Client, false
+		clone := *c.Options()
+		clone.PoolSize = 1
+		clone.MinIdleConns = 0
+		clone.MaxIdleConns = 0
+		clone.MaxActiveConns = 0
+		clone.ReadTimeout = readTimeout
+		clone.ContextTimeoutEnabled = true
+		clone.ClientName = name
+		opt = &clone
+	} else {
+		addr := o.Addr
+		if addr == "" {
+			addr = "127.0.0.1:6379"
+		}
+		opt = &redis.Options{
+			Addr:                  addr,
+			Username:              o.Username,
+			Password:              o.Password,
+			DB:                    o.DB,
+			PoolSize:              1,
+			ReadTimeout:           readTimeout,
+			ClientName:            name,
+			ContextTimeoutEnabled: true,
+		}
 	}
-	addr := o.Addr
-	if addr == "" {
-		addr = "127.0.0.1:6379"
+	client := redis.NewClient(opt)
+	tracker := &connTracker{}
+	client.AddHook(tracker)
+	return client, tracker
+}
+
+// connTracker remembers the connection of a dedicated blocking client, which
+// has at most one, so that a blocked read can be interrupted by closing it,
+// as Node's disconnectBlocking does. The client then drops the connection
+// and dials (and names) a new one for its next command.
+type connTracker struct {
+	mu   sync.Mutex
+	conn net.Conn
+}
+
+func (t *connTracker) DialHook(next redis.DialHook) redis.DialHook {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		conn, err := next(ctx, network, addr)
+		if err == nil {
+			t.mu.Lock()
+			t.conn = conn
+			t.mu.Unlock()
+		}
+		return conn, err
 	}
-	return redis.NewClient(&redis.Options{
-		Addr:                  addr,
-		Username:              o.Username,
-		Password:              o.Password,
-		DB:                    o.DB,
-		PoolSize:              1,
-		ReadTimeout:           readTimeout,
-		ClientName:            name,
-		ContextTimeoutEnabled: true,
-	}), true
+}
+
+func (t *connTracker) ProcessHook(next redis.ProcessHook) redis.ProcessHook { return next }
+
+func (t *connTracker) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return next
+}
+
+// interrupt closes the current connection, failing any read blocked on it.
+func (t *connTracker) interrupt() {
+	t.mu.Lock()
+	conn := t.conn
+	t.conn = nil
+	t.mu.Unlock()
+	if conn != nil {
+		_ = conn.Close()
+	}
 }

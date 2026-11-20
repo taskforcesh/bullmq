@@ -43,11 +43,15 @@ type Backend struct {
 
 	// blocking is the client used for BZPOPMIN and XREAD. When the caller asks
 	// for a dedicated blocking connection it is a single-connection client
-	// (blockingOwned == true) so a blocked read never starves the shared pool
-	// and CLIENT SETNAME reliably applies to the connection the blocking
-	// command runs on. Otherwise it is the shared client.
-	blocking      redis.UniversalClient
-	blockingOwned bool
+	// (blockingConn != nil) so a blocked read never starves the shared pool,
+	// CLIENT SETNAME reliably applies to the connection the blocking command
+	// runs on, and the read can be interrupted by closing that connection.
+	// Otherwise it is the shared client.
+	blocking     redis.UniversalClient
+	blockingConn *connTracker
+	// blockTimeout is the longest blocking read requested by the owner
+	// (bullmq.BackendOptions.BlockTimeout).
+	blockTimeout time.Duration
 }
 
 var _ bullmq.Backend = (*Backend)(nil)
@@ -79,9 +83,9 @@ func NewBackend(name string, redisOpts Options, opts bullmq.BackendOptions) (*Ba
 		}
 	}
 	rdb, owned := redisOpts.build()
-	b := &Backend{rdb: rdb, owned: owned, keys: keys, blocking: rdb}
+	b := &Backend{rdb: rdb, owned: owned, keys: keys, blocking: rdb, blockTimeout: opts.BlockTimeout}
 	if opts.WithBlockingConnection {
-		b.blocking, b.blockingOwned = redisOpts.buildBlocking(
+		b.blocking, b.blockingConn = redisOpts.buildBlocking(
 			clientName, opts.BlockTimeout+blockingReadSlack)
 	}
 	return b, nil
@@ -97,7 +101,7 @@ func (b *Backend) Keys() *Keys { return b.keys }
 // caller are left open.
 func (b *Backend) Close() error {
 	var firstErr error
-	if b.blockingOwned {
+	if b.blockingConn != nil {
 		firstErr = b.blocking.Close()
 	}
 	if b.owned {
@@ -112,7 +116,7 @@ func (b *Backend) Close() error {
 // already named through its OnConnect hook, on the exact connection the
 // blocking read runs on; naming a shared client is best-effort only.
 func (b *Backend) SetName(ctx context.Context, name string) error {
-	if b.blockingOwned {
+	if b.blockingConn != nil {
 		return nil
 	}
 	return b.blocking.Do(ctx, "client", "setname", name).Err()
