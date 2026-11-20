@@ -19,6 +19,8 @@ func TestEncodeOptsStoresTheLongNames(t *testing.T) {
 		FailParentOnFailure: bullmq.Bool(true),
 		Deduplication:       &bullmq.DeduplicationOptions{ID: "d1", TTL: 500, Extend: true},
 		RemoveOnComplete:    bullmq.KeepCount(5),
+		RemoveOnFail:        bullmq.RemoveAll(),
+		StackTraceLimit:     bullmq.Int64(2),
 		Backoff:             &bullmq.Backoff{Type: bullmq.BackoffFixed, Delay: 100},
 		Timestamp:           1234,
 	}
@@ -42,6 +44,8 @@ func TestEncodeOptsStoresTheLongNames(t *testing.T) {
 		"failParentOnFailure": true,
 		"deduplication":       map[string]any{"id": "d1", "ttl": float64(500), "extend": true},
 		"removeOnComplete":    map[string]any{"count": float64(5)},
+		"removeOnFail":        true,
+		"stackTraceLimit":     float64(2),
 		"backoff":             map[string]any{"type": "fixed", "delay": float64(100)},
 		"timestamp":           float64(1234),
 	}
@@ -80,8 +84,8 @@ func TestDecodeOptsReadsOptionsWrittenByNode(t *testing.T) {
 	}
 }
 
-func TestKeepArgsRemovesOnlyTheJobForACountOfZero(t *testing.T) {
-	zero, five, age := int64(0), int64(5), int64(60)
+func TestKeepArgsRemovesOnlyTheJobForRemoveAllAndACountOfZero(t *testing.T) {
+	five, age := int64(5), int64(60)
 	for _, tc := range []struct {
 		name      string
 		keep      *bullmq.RemoveOnFinish
@@ -90,10 +94,11 @@ func TestKeepArgsRemovesOnlyTheJobForACountOfZero(t *testing.T) {
 		keepCount any
 	}{
 		{"nil keeps everything", nil, false, nil, nil},
-		{"count 0 removes the job", &bullmq.RemoveOnFinish{Count: &zero}, true, nil, nil},
-		{"count 0 with an age removes the job", &bullmq.RemoveOnFinish{Count: &zero, Age: &age}, true, nil, nil},
-		{"count", &bullmq.RemoveOnFinish{Count: &five}, false, nil, int64(5)},
-		{"age", &bullmq.RemoveOnFinish{Age: &age}, false, int64(60), nil},
+		{"RemoveAll", bullmq.RemoveAll(), true, nil, nil},
+		{"KeepCount(0)", bullmq.KeepCount(0), true, nil, nil},
+		{"count", bullmq.KeepCount(5), false, nil, int64(5)},
+		{"age", bullmq.KeepAge(60), false, int64(60), nil},
+		{"count and age", &bullmq.RemoveOnFinish{Count: &five, Age: &age}, false, int64(60), int64(5)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			removeAll, keepAge, keepCount := keepArgs(tc.keep)
@@ -103,9 +108,7 @@ func TestKeepArgsRemovesOnlyTheJobForACountOfZero(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestKeepFromJSONReadsEveryStoredForm(t *testing.T) {
+	// The stored forms the other ports write.
 	for raw, want := range map[string][3]any{
 		`true`:                 {true, nil, nil},
 		`false`:                {false, nil, nil},
@@ -113,12 +116,14 @@ func TestKeepFromJSONReadsEveryStoredForm(t *testing.T) {
 		`10`:                   {false, nil, int64(10)},
 		`{"count":0}`:          {true, nil, nil},
 		`{"count":3,"age":60}`: {false, int64(60), int64(3)},
-		`{"age":60}`:           {false, int64(60), nil},
-		`"junk"`:               {false, nil, nil},
 	} {
-		removeAll, keepAge, keepCount := keepFromJSON([]byte(raw))
+		var keep bullmq.RemoveOnFinish
+		if err := json.Unmarshal([]byte(raw), &keep); err != nil {
+			t.Fatalf("decoding %s: %v", raw, err)
+		}
+		removeAll, keepAge, keepCount := keepArgs(&keep)
 		if got := [3]any{removeAll, keepAge, keepCount}; got != want {
-			t.Errorf("keepFromJSON(%s) = %v, want %v", raw, got, want)
+			t.Errorf("keepArgs(%s) = %v, want %v", raw, got, want)
 		}
 	}
 }

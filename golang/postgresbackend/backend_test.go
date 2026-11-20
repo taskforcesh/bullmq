@@ -696,3 +696,111 @@ func TestACallerSuppliedPool(t *testing.T) {
 		t.Fatalf("AddJob on a pool without the schema's search_path: err = %v, want a ConfigError about search_path", err)
 	}
 }
+
+func addTestJob(t *testing.T, ctx context.Context, b *Backend, delay int64) string {
+	t.Helper()
+	id, err := b.AddJob(ctx, bullmq.NewJob{Name: "j", Data: []byte(`{}`), Opts: &bullmq.JobOptions{Delay: bullmq.Int64(delay)}})
+	if err != nil {
+		t.Fatalf("AddJob: %v", err)
+	}
+	return id
+}
+
+// waitAsync runs WaitForJob in the background once the LISTEN connection is
+// up, and returns its outcome and how long it took.
+func waitAsync(t *testing.T, ctx context.Context, b *Backend, timeout time.Duration) <-chan [2]any {
+	t.Helper()
+	if err := b.jobs.ensure(ctx); err != nil {
+		t.Fatal(err)
+	}
+	out := make(chan [2]any, 1)
+	start := time.Now()
+	go func() {
+		res, err := b.WaitForJob(ctx, timeout)
+		if err != nil {
+			t.Errorf("WaitForJob: %v", err)
+		}
+		out <- [2]any{res, time.Since(start)}
+	}()
+	return out
+}
+
+func TestWaitForJobReportsNothingWhileTheQueueIsHeld(t *testing.T) {
+	url := testURL(t)
+	ctx := testCtx(t)
+	schema := newSchema(t)
+	opts := Options{ConnString: url, Schema: schema}
+	worker := newBackend(t, opts, "held", bullmq.BackendOptions{WithBlockingConnection: true})
+	producer := newBackend(t, opts, "held", bullmq.BackendOptions{})
+
+	// Paused: neither a waiting job, nor a delayed job coming due, nor the
+	// notifications of the adds end the wait.
+	if err := producer.Pause(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	waited := waitAsync(t, ctx, worker, 800*time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	addTestJob(t, ctx, producer, 0)
+	addTestJob(t, ctx, producer, 200)
+	got := <-waited
+	if res, elapsed := got[0].(bullmq.WaitResult), got[1].(time.Duration); res.Woken || elapsed < 700*time.Millisecond {
+		t.Fatalf("WaitForJob on a paused queue = %+v after %v, want a timeout", res, elapsed)
+	}
+
+	// Resuming wakes it.
+	waited = waitAsync(t, ctx, worker, 10*time.Second)
+	time.Sleep(100 * time.Millisecond)
+	if err := producer.Pause(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	got = <-waited
+	if res, elapsed := got[0].(bullmq.WaitResult), got[1].(time.Duration); !res.Woken || elapsed > 3*time.Second {
+		t.Fatalf("WaitForJob when the queue is resumed = %+v after %v, want woken", res, elapsed)
+	}
+
+	// At the global concurrency limit, a waiting job is not reported.
+	if err := producer.SetQueueMeta(ctx, map[string]any{"concurrency": 1}); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := producer.MoveToActive(ctx, bullmq.MoveToActiveOptions{Token: "t", LockDuration: time.Minute}); err != nil || res.Job == nil {
+		t.Fatalf("MoveToActive = %+v, %v", res, err)
+	}
+	waited = waitAsync(t, ctx, worker, 500*time.Millisecond)
+	got = <-waited
+	if res := got[0].(bullmq.WaitResult); res.Woken {
+		t.Fatalf("WaitForJob on a maxed queue = %+v, want a timeout", res)
+	}
+}
+
+func TestWaitForJobReportsADelayedJobAddedWhileWaiting(t *testing.T) {
+	url := testURL(t)
+	ctx := testCtx(t)
+	schema := newSchema(t)
+	opts := Options{ConnString: url, Schema: schema}
+	worker := newBackend(t, opts, "delayed", bullmq.BackendOptions{WithBlockingConnection: true})
+	producer := newBackend(t, opts, "delayed", bullmq.BackendOptions{})
+
+	waited := waitAsync(t, ctx, worker, 10*time.Second)
+	time.Sleep(100 * time.Millisecond)
+	id := addTestJob(t, ctx, producer, 600)
+	job, err := producer.GetJob(ctx, id)
+	if err != nil || job == nil {
+		t.Fatalf("GetJob = %v, %v", job, err)
+	}
+	due := job.Timestamp + 600
+	got := <-waited
+	if res, elapsed := got[0].(bullmq.WaitResult), got[1].(time.Duration); !res.Woken || res.NextDelayedAt != due || elapsed > 400*time.Millisecond {
+		t.Fatalf("WaitForJob after a delayed job was added = %+v after %v, want woken at once with NextDelayedAt %d", res, elapsed, due)
+	}
+
+	// The due time was reported: the next wait lasts until it.
+	waited = waitAsync(t, ctx, worker, 10*time.Second)
+	got = <-waited
+	res, elapsed := got[0].(bullmq.WaitResult), got[1].(time.Duration)
+	if !res.Woken || res.NextDelayedAt != 0 {
+		t.Fatalf("WaitForJob until the delayed job is due = %+v, want woken", res)
+	}
+	if now := time.Now().UnixMilli(); now < due-50 || elapsed > 2*time.Second {
+		t.Fatalf("WaitForJob returned %dms before the due time, after %v", due-now, elapsed)
+	}
+}

@@ -149,48 +149,22 @@ func (b *Backend) collectMetrics(ctx context.Context, kind string, finishedOn in
 }
 
 // keepArgs turns a removal policy into the retention parameters of the
-// finishing commands. It reads the policy's JSON form, the one stored in the
-// job options (true, a count, or {count, age}), as Node's normalizeKeep does.
+// finishing commands, as Node's normalizeKeep does.
 func keepArgs(k *bullmq.RemoveOnFinish) (removeAll bool, keepAge, keepCount any) {
 	if k == nil {
 		return false, nil, nil
 	}
-	raw, err := json.Marshal(k)
-	if err != nil {
-		return false, nil, nil
-	}
-	return keepFromJSON(raw)
-}
-
-// keepFromJSON reads a removal policy stored as true, false, a count or
-// {count, age}.
-func keepFromJSON(raw []byte) (removeAll bool, keepAge, keepCount any) {
-	var (
-		count  int64
-		policy struct {
-			Count *int64 `json:"count"`
-			Age   *int64 `json:"age"`
-		}
-	)
-	switch {
-	case json.Unmarshal(raw, &removeAll) == nil:
-		return removeAll, nil, nil
-	case json.Unmarshal(raw, &count) == nil:
-		policy.Count = &count
-	case json.Unmarshal(raw, &policy) != nil:
-		return false, nil, nil
-	}
-	// A count of 0 removes the job straight away, as on Redis. The keep-count
-	// retention of the shared SQL would instead trim the whole finished set
-	// down to 0 jobs, so ask for the removal of this job only.
-	if policy.Count != nil && *policy.Count == 0 {
+	// RemoveAll, and a count of 0, remove the job straight away, as on Redis.
+	// The keep-count retention of the shared SQL would instead trim the whole
+	// finished set down to 0 jobs, so ask for the removal of this job only.
+	if k.IsRemoveAll() || (k.Count != nil && *k.Count == 0) {
 		return true, nil, nil
 	}
-	if policy.Age != nil {
-		keepAge = *policy.Age
+	if k.Age != nil {
+		keepAge = *k.Age
 	}
-	if policy.Count != nil {
-		keepCount = clampInt32(*policy.Count)
+	if k.Count != nil {
+		keepCount = clampInt32(*k.Count)
 	}
 	return false, keepAge, keepCount
 }
@@ -394,25 +368,17 @@ func (b *Backend) SetRateLimit(ctx context.Context, ttl time.Duration) error {
 	return b.exec(ctx, "set_rate_limit", b.name, ms, nowMillis())
 }
 
-// SignalWork wakes the workers of the queue blocked in WaitForJob with a
-// notification on the jobs channel. WaitForJob checks for waiting jobs
-// before it blocks, so a signal sent while nobody waits is not needed later.
-func (b *Backend) SignalWork(ctx context.Context) error {
-	return b.runSQL(ctx, "signalWork", "SELECT pg_notify($1, $2)", func(ctx context.Context, sql string) error {
-		_, err := b.pool.Exec(ctx, sql, jobsChannel, b.name)
-		return err
-	})
-}
-
-// WaitForJob blocks until a job may be ready, a delayed job comes due, or
+// WaitForJob blocks until a job may be claimed, a delayed job comes due, or
 // timeout elapses.
 //
 // It subscribes to the jobs channel on the dedicated connection, then checks
-// for a waiting job and the next delayed job. It returns at once when a job
-// is waiting, or with the due time of a delayed job it has not reported yet.
-// Otherwise it blocks until a notification for this queue arrives or the
-// next delayed job is due, whichever is first. A cancelled ctx or Close ends
-// the wait at once.
+// the queue: it returns at once when a job can be claimed, or with the due
+// time of a delayed job it has not reported yet, as the delayed marker of
+// Redis, which a blocked worker pops once, does. Otherwise it blocks until
+// the next delayed job is due or a notification for this queue arrives, and
+// then checks again, so a notification for work that cannot be claimed does
+// not end the wait. Nothing is reported while the queue is paused or at its
+// global concurrency limit. A cancelled ctx or Close ends the wait at once.
 func (b *Backend) WaitForJob(ctx context.Context, timeout time.Duration) (bullmq.WaitResult, error) {
 	if b.isClosed() {
 		return bullmq.WaitResult{}, errClosed
@@ -420,67 +386,101 @@ func (b *Backend) WaitForJob(ctx context.Context, timeout time.Duration) (bullmq
 	if err := ctx.Err(); err != nil {
 		return bullmq.WaitResult{}, err
 	}
-	timeout = max(timeout, time.Millisecond)
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(max(timeout, time.Millisecond))
 	if err := b.jobs.ensure(ctx); err != nil {
 		return bullmq.WaitResult{}, err
 	}
-	signalled := b.jobs.signalled()
-
-	present, next, err := b.probe(ctx)
-	if err != nil {
-		return bullmq.WaitResult{}, err
-	}
-	if present {
-		return bullmq.WaitResult{Woken: true}, nil
-	}
-	wait := time.Until(deadline)
-	dueFirst := false
-	if next != nil {
-		dueIn := time.Until(time.UnixMilli(*next))
-		if dueIn <= 0 {
+	for {
+		// Taken before the check, so a notification sent after it is not
+		// missed.
+		signalled := b.jobs.signalled()
+		p, err := b.probe(ctx)
+		if err != nil {
+			return bullmq.WaitResult{}, err
+		}
+		if p.claimable {
 			return bullmq.WaitResult{Woken: true}, nil
 		}
-		// Like the delayed marker on Redis, which a blocked worker pops once,
-		// each new due time is reported once; later waits block until it.
-		if b.reportedDelay.Swap(*next) != *next {
-			return bullmq.WaitResult{Woken: true, NextDelayedAt: *next}, nil
+		wait := time.Until(deadline)
+		dueFirst := false
+		if p.nextDelayed != nil && !p.held {
+			next := *p.nextDelayed
+			dueIn := time.Until(time.UnixMilli(next))
+			if dueIn <= 0 {
+				return bullmq.WaitResult{Woken: true}, nil
+			}
+			if b.reportedDelay.Swap(next) != next {
+				return bullmq.WaitResult{Woken: true, NextDelayedAt: next}, nil
+			}
+			if dueIn < wait {
+				wait, dueFirst = dueIn, true
+			}
 		}
-		if dueIn < wait {
-			wait, dueFirst = dueIn, true
+		if wait <= 0 {
+			return bullmq.WaitResult{}, nil
 		}
-	}
-	if wait <= 0 {
-		return bullmq.WaitResult{}, nil
-	}
 
-	t := time.NewTimer(wait)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return bullmq.WaitResult{}, ctx.Err()
-	case <-b.closing:
-		return bullmq.WaitResult{}, nil
-	case <-signalled:
-		return bullmq.WaitResult{Woken: true}, nil
-	case <-t.C:
-		return bullmq.WaitResult{Woken: dueFirst}, nil
+		t := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			t.Stop()
+			return bullmq.WaitResult{}, ctx.Err()
+		case <-b.closing:
+			t.Stop()
+			return bullmq.WaitResult{}, nil
+		case <-t.C:
+			return bullmq.WaitResult{Woken: dueFirst}, nil
+		case <-signalled:
+			t.Stop()
+		}
 	}
 }
 
-// probe runs has_waiting_job and next_delay in one round trip.
-func (b *Backend) probe(ctx context.Context) (present bool, next *int64, err error) {
-	nextSQL, err := command("next_delay")
-	if err != nil {
-		return false, nil, err
+// queueProbe is what WaitForJob needs to know about the queue.
+type queueProbe struct {
+	// claimable is has_waiting_job: a job is waiting and the queue is
+	// neither paused nor at its global concurrency limit.
+	claimable bool
+	// held is true while the queue is paused or at its global concurrency
+	// limit, so no job can be claimed, delayed or not.
+	held bool
+	// nextDelayed is when the next delayed job is due (Unix milliseconds).
+	nextDelayed *int64
+}
+
+// probe runs has_waiting_job, next_delay, is_maxed and the paused flag in
+// one round trip.
+func (b *Backend) probe(ctx context.Context) (queueProbe, error) {
+	var p queueProbe
+	var sqls [3]string
+	for i, cmd := range []string{"next_delay", "is_maxed", "get_queue_meta_field"} {
+		sql, err := command(cmd)
+		if err != nil {
+			return p, err
+		}
+		sqls[i] = sql
 	}
-	err = b.run(ctx, "has_waiting_job", func(ctx context.Context, sql string) error {
+	var maxed, paused bool
+	err := b.run(ctx, "has_waiting_job", func(ctx context.Context, sql string) error {
 		batch := &pgx.Batch{}
-		batch.Queue(sql, b.name).QueryRow(func(row pgx.Row) error { return row.Scan(&present) })
-		batch.Queue(nextSQL, b.name).QueryRow(func(row pgx.Row) error { return row.Scan(&next) })
+		batch.Queue(sql, b.name).QueryRow(func(row pgx.Row) error { return row.Scan(&p.claimable) })
+		batch.Queue(sqls[0], b.name).QueryRow(func(row pgx.Row) error { return row.Scan(&p.nextDelayed) })
+		batch.Queue(sqls[1], b.name).QueryRow(func(row pgx.Row) error { return row.Scan(&maxed) })
+		batch.Queue(sqls[2], b.name, "paused").Query(func(rows pgx.Rows) error {
+			defer rows.Close()
+			for rows.Next() {
+				var v *string
+				if err := rows.Scan(&v); err != nil {
+					return err
+				}
+				paused = v != nil && *v != "" && *v != "0"
+			}
+			return rows.Err()
+		})
 		return b.pool.SendBatch(ctx, batch).Close()
 	})
-	return present, next, err
+	p.held = maxed || paused
+	return p, err
 }
 
 func clampInt32(n int64) int64 {
