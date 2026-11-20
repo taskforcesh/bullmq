@@ -26,6 +26,7 @@ import {
   Queue,
   QueueEvents,
   Job,
+  RedisQueueBackend,
   Worker,
   WaitingChildrenError,
 } from '../src/classes';
@@ -234,6 +235,51 @@ describe('workers (redis-only)', () => {
 
       expect(true).toBe(true);
       await worker.close();
+    });
+  });
+
+  describe('when the server reports a version that should block for 1ms but does not (#3516)', () => {
+    // AWS ElastiCache reports Redis 7.1.0, which is newer than the 7.0.8 fix
+    // for redis/redis#11688, yet a BZPOPMIN with a 0.001s timeout still blocks
+    // forever there. The worker must not trust the reported version for this.
+    it('never sends a block timeout below 0.002 to bzpopmin', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        connection,
+        prefix,
+        autorun: false,
+      });
+      await worker.waitUntilReady();
+
+      // Simulate the capabilities detected from ElastiCache's reported version.
+      const backend = worker.getBackend() as RedisQueueBackend;
+      for (const conn of [backend.connection, backend.blockingConnection]) {
+        if (conn) {
+          conn.capabilities = { canDoubleTimeout: true, canBlockFor1Ms: true };
+        }
+      }
+
+      const bzpopmin = sinon.spy(
+        await getBlockingRedisClient(worker),
+        'bzpopmin',
+      );
+      // Freeze the clock so the next delayed job is due in exactly 1ms, the
+      // case that used to produce a 0.001s block timeout.
+      const now = Date.now();
+      const clock = sinon.useFakeTimers({ now, toFake: ['Date'] });
+
+      try {
+        expect(worker.minimumBlockTimeout).toBe(0.002);
+        expect(worker['getBlockTimeout'](now + 1)).toBe(0.002);
+
+        await worker['waitForJob'](now + 1);
+
+        expect(bzpopmin.calledOnce).toBe(true);
+        expect(bzpopmin.firstCall.args[1]).toBe(0.002);
+      } finally {
+        clock.restore();
+        bzpopmin.restore();
+        await worker.close();
+      }
     });
   });
 
