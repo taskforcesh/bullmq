@@ -97,7 +97,7 @@ if err != nil {
 {% endtab %}
 {% endtabs %}
 
-This example will create a new Job Scheduler that will produce a new job every second. It will also return the first job created for this Job Scheduler, which will be in "delayed" status waiting to be processed after 1 second.
+This example will create a new Job Scheduler that will produce a new job every second. It will also return the first job created for this Job Scheduler, which is added without any delay, so it is processed right away; the following jobs are produced every second after it.
 
 Now there are also a few important considerations that need to be explained here.:
 
