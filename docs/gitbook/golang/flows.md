@@ -60,21 +60,19 @@ PostgreSQL):
 
 ```go
 func renderReport(ctx context.Context, job *bullmq.Job) (any, error) {
-	values, err := job.ChildrenValues(ctx)
-	if err != nil {
+	var amounts map[string]float64
+	if err := job.DecodeChildrenValues(ctx, &amounts); err != nil {
 		return nil, err
 	}
 	total := 0.0
-	for _, raw := range values {
-		var amount float64
-		if err := json.Unmarshal(raw, &amount); err != nil {
-			return nil, err
-		}
+	for _, amount := range amounts {
 		total += amount
 	}
 	return total, nil
 }
 ```
+
+`job.ChildrenValues` returns the raw JSON values instead.
 
 `job.Dependencies` lists the children by status (processed, unprocessed,
 ignored, failed), in full or a page at a time, and `job.DependenciesCount`

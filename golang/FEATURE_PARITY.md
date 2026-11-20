@@ -53,7 +53,8 @@ Status of the Go port relative to the reference Node.js implementation.
 `ChangeDelay`, `ChangePriority`, `ExtendLock`, `MoveToDelayed`,
 `MoveToWaitingChildren`, `IsCompleted`, `IsFailed`.
 
-Parent jobs: `ChildrenValues`, `Dependencies` (paginated), `DependenciesCount`,
+Parent jobs: `ChildrenValues` (and `DecodeChildrenValues` into a typed map),
+`Dependencies` (paginated), `DependenciesCount`,
 `IgnoredChildrenFailures` (and the deprecated `FailedChildrenValues`),
 `RemoveChildDependency`, `RemoveUnprocessedChildren`: Node's
 `getChildrenValues`, `getDependencies`, `getDependenciesCount`,
