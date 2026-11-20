@@ -141,29 +141,46 @@ func (b *Backend) AddJobs(ctx context.Context, jobs []bullmq.NewJob) ([]string, 
 	return ids, nil
 }
 
-// execAdds runs the prepared add* commands in one MULTI/EXEC. The
-// transaction carries only EVALSHA calls instead of repeating the script
-// text for every job. Each distinct script is loaded the first time this
-// backend needs it, and only then, so a bulk add is a single round trip.
-//
-// A NOSCRIPT reply means the server does not have the script cached (it was
-// flushed, or the server failed over since it was loaded); that command never
-// ran, so only those commands are resubmitted, with the full script text, in
-// a second transaction, which also caches the script again. Commands that
-// already ran are never replayed.
-func (b *Backend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.Cmd, error) {
+// commandScripts returns the scripts used by the prepared commands, by name
+// and in order of first use.
+func commandScripts(prepared []redisAdd) (map[string]*luaScript, []*luaScript, error) {
 	scripts := make(map[string]*luaScript)
-	var toLoad []*luaScript
+	var distinct []*luaScript
 	for _, a := range prepared {
 		if _, seen := scripts[a.scriptName]; seen {
 			continue
 		}
 		s, err := getScript(a.scriptName)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		scripts[a.scriptName] = s
-		if _, loaded := b.loadedScripts.Load(a.scriptName); !loaded {
+		distinct = append(distinct, s)
+	}
+	return scripts, distinct, nil
+}
+
+// execAdds runs the prepared add* commands of independent jobs in one
+// MULTI/EXEC. The transaction carries only EVALSHA calls instead of repeating
+// the script text for every job. Each distinct script is loaded the first
+// time this backend needs it, and only then, so a bulk add is a single round
+// trip.
+//
+// A NOSCRIPT reply means the server does not have the script cached (it was
+// flushed, or the server failed over since it was loaded); that command never
+// ran, so only those commands are resubmitted, with the full script text, in
+// a second transaction, which also caches the script again. Commands that
+// already ran are never replayed. Resubmitting only some commands changes
+// their order, which is harmless for independent jobs but not for a flow: see
+// execFlow.
+func (b *Backend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.Cmd, error) {
+	scripts, distinct, err := commandScripts(prepared)
+	if err != nil {
+		return nil, err
+	}
+	var toLoad []*luaScript
+	for _, s := range distinct {
+		if _, loaded := b.loadedScripts.Load(s.name); !loaded {
 			toLoad = append(toLoad, s)
 		}
 	}
@@ -242,14 +259,60 @@ func (b *Backend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.C
 		return results, nil
 	}
 
+	// The cache was most likely flushed as a whole, so every script must be
+	// loaded again; the resubmitted ones are cached by their EVAL.
+	b.loadedScripts.Clear()
 	retried, err := submit(missing, false)
 	if err != nil {
 		return nil, err
 	}
 	for n, i := range missing {
 		results[i] = retried[n]
+		if retried[n].Err() == nil || retried[n].Err() == redis.Nil {
+			b.loadedScripts.Store(prepared[i].scriptName, struct{}{})
+		}
 	}
 	return results, nil
+}
+
+// execFlow runs the prepared commands of a flow in one MULTI/EXEC, which
+// first loads every script the flow uses (SCRIPT LOAD), so each EVALSHA that
+// follows finds its script even if the server's cache was flushed since this
+// backend last loaded it. A flow is never split, unlike the independent jobs
+// of execAdds: its commands depend on each other (a child needs its parent,
+// a parent is released after its children), so resubmitting the commands
+// that missed the cache on their own would add a parent after its children
+// were rejected, and release it at once.
+func (b *Backend) execFlow(ctx context.Context, prepared []redisAdd) ([]*redis.Cmd, error) {
+	scripts, distinct, err := commandScripts(prepared)
+	if err != nil {
+		return nil, err
+	}
+	loads := make([]*redis.StringCmd, len(distinct))
+	cmds := make([]*redis.Cmd, len(prepared))
+	_, execErr := b.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		for i, s := range distinct {
+			loads[i] = s.script.Load(ctx, pipe)
+		}
+		for i, a := range prepared {
+			cmds[i] = scripts[a.scriptName].script.EvalSha(ctx, pipe, a.keys, a.args...)
+		}
+		return nil
+	})
+	for _, c := range loads {
+		if err := c.Err(); err != nil {
+			return nil, err
+		}
+	}
+	for _, c := range cmds {
+		if err := c.Err(); err != nil && err != redis.Nil {
+			return nil, err
+		}
+	}
+	if execErr != nil && execErr != redis.Nil {
+		return nil, execErr
+	}
+	return cmds, nil
 }
 
 // addArgs builds the entries of ARGV[1] of the add* commands, which is

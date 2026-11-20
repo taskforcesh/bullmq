@@ -55,7 +55,8 @@ type Backend struct {
 	blockTimeout time.Duration
 
 	// loadedScripts holds the names of the scripts this backend loaded with
-	// SCRIPT LOAD for bulk adds.
+	// SCRIPT LOAD for bulk adds. It is cleared when the server reports a
+	// script missing from its cache.
 	loadedScripts sync.Map
 }
 
