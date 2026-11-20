@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -38,19 +39,31 @@ const (
 	EventCompleted EventType = "completed"
 	EventFailed    EventType = "failed"
 	EventProgress  EventType = "progress"
-	EventStalled   EventType = "stalled"
-	EventDrained   EventType = "drained"
-	EventError     EventType = "error"
-	EventClosed    EventType = "closed"
+	// EventStalled reports a job that the stalled check of this worker
+	// moved back to wait (or failed) because its lock had expired.
+	EventStalled EventType = "stalled"
+	// EventLockRenewalFailed lists, in Event.JobIDs, the jobs of this worker
+	// whose lock could not be renewed. Their contexts are cancelled with
+	// ErrLockLost, since another worker may own them now; Node.js only
+	// reports them.
+	EventLockRenewalFailed EventType = "lockRenewalFailed"
+	// EventLocksRenewed lists, in Event.JobIDs, the jobs whose locks were
+	// renewed.
+	EventLocksRenewed EventType = "locksRenewed"
+	EventDrained      EventType = "drained"
+	EventError        EventType = "error"
+	EventClosed       EventType = "closed"
 )
 
 // Event is emitted by a Worker through Worker.Events.
 type Event struct {
 	// Type is the kind of event.
 	Type EventType
-	// Job is the job the event refers to; nil for EventDrained, EventError and
-	// EventClosed.
+	// Job is the job the event refers to; nil for EventDrained, EventError,
+	// EventClosed and the lock events.
 	Job *Job
+	// JobIDs lists the jobs of EventLockRenewalFailed and EventLocksRenewed.
+	JobIDs []string
 	// Result is the processor return value for EventCompleted, or the new
 	// Progress value for EventProgress.
 	Result any
@@ -1028,6 +1041,7 @@ func (w *Worker) lockRenewalLoop(ctx context.Context) {
 			continue
 		}
 
+		var lost []string
 		for _, id := range failed {
 			w.mu.Lock()
 			current, ok := w.active[id]
@@ -1046,12 +1060,32 @@ func (w *Worker) lockRenewalLoop(ctx context.Context) {
 			if !ok {
 				continue
 			}
-			// The lock is gone: another worker owns the job now, so stop
+			// The lock is gone: another worker may own the job now, so stop
 			// processing it locally.
 			current.cancel(ErrLockLost)
-			w.emit(Event{Type: EventStalled, Job: current.job})
+			lost = append(lost, id)
+		}
+		if len(lost) > 0 {
+			w.emit(Event{Type: EventLockRenewalFailed, JobIDs: lost})
+			for _, id := range lost {
+				w.emitError(fmt.Errorf("bullmq: could not renew the lock of job %s: %w", id, ErrLockLost))
+			}
+		}
+		if renewed := renewedIDs(snapshot, failed); len(renewed) > 0 {
+			w.emit(Event{Type: EventLocksRenewed, JobIDs: renewed})
 		}
 	}
+}
+
+// renewedIDs returns the ids of the snapshot jobs that are not in failed.
+func renewedIDs(snapshot []*activeJob, failed []string) []string {
+	ids := make([]string, 0, len(snapshot))
+	for _, a := range snapshot {
+		if !slices.Contains(failed, a.job.ID) {
+			ids = append(ids, a.job.ID)
+		}
+	}
+	return ids
 }
 
 func snapshotContains(snapshot []*activeJob, a *activeJob) bool {

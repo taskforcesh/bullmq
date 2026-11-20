@@ -935,11 +935,15 @@ func testWorkerCancelsOnlyTheJobWhoseLockWasLost(t *testing.T, be testBackend) {
 		SkipStalledCheck: true,
 	})
 
-	stalled := make(chan string, total)
+	lockFailures := make(chan []string, total)
+	var stalledEvents atomic.Int64
 	go func() {
 		for ev := range w.Events() {
-			if ev.Type == bullmq.EventStalled && ev.Job != nil {
-				stalled <- ev.Job.ID
+			switch ev.Type {
+			case bullmq.EventLockRenewalFailed:
+				lockFailures <- ev.JobIDs
+			case bullmq.EventStalled:
+				stalledEvents.Add(1)
 			}
 		}
 	}()
@@ -971,12 +975,16 @@ func testWorkerCancelsOnlyTheJobWhoseLockWasLost(t *testing.T, be testBackend) {
 	}
 
 	select {
-	case id := <-stalled:
-		if id != lostID {
-			t.Fatalf("EventStalled for job %s, want %s", id, lostID)
+	case ids := <-lockFailures:
+		if len(ids) != 1 || ids[0] != lostID {
+			t.Fatalf("EventLockRenewalFailed for jobs %v, want [%s]", ids, lostID)
 		}
 	case <-time.After(10 * time.Second):
-		t.Fatal("no EventStalled for the job whose lock was lost")
+		t.Fatal("no EventLockRenewalFailed for the job whose lock was lost")
+	}
+	// EventStalled is reserved for the stalled check.
+	if n := stalledEvents.Load(); n != 0 {
+		t.Errorf("EventStalled emitted %d times for a lost lock", n)
 	}
 
 	mu.Lock()

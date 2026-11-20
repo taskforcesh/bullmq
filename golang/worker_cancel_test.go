@@ -235,3 +235,45 @@ func testWorkerCancelAllJobsRetriesJobsWithAttemptsLeft(t *testing.T, be testBac
 		t.Errorf("attemptsMade = %d, stacktrace = %v; want 2 and the cancellation reason", stored.AttemptsMade, stored.Stacktrace)
 	}
 }
+
+// Every successful lock renewal is reported with the ids of the renewed jobs.
+func TestWorkerReportsRenewedLocks(t *testing.T) {
+	forEachBackend(t, testWorkerReportsRenewedLocks)
+}
+
+func testWorkerReportsRenewedLocks(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	job, err := q.Add(ctx, "held", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	release := make(chan struct{})
+	w := newTestWorker(t, be, q.Name(), func(context.Context, *bullmq.Job) (any, error) {
+		<-release
+		return nil, nil
+	}, &bullmq.WorkerOptions{LockDuration: time.Second, LockRenewTime: 50 * time.Millisecond})
+	renewed := make(chan []string, 1)
+	go func() {
+		for ev := range w.Events() {
+			if ev.Type == bullmq.EventLocksRenewed {
+				select {
+				case renewed <- ev.JobIDs:
+				default:
+				}
+			}
+		}
+	}()
+	runWorker(t, w)
+	defer close(release)
+
+	select {
+	case ids := <-renewed:
+		if !slices.Equal(ids, []string{job.ID}) {
+			t.Errorf("EventLocksRenewed for jobs %v, want [%s]", ids, job.ID)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no EventLocksRenewed while a job was held")
+	}
+}
