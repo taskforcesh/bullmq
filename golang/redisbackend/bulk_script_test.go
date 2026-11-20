@@ -155,3 +155,33 @@ func TestAddBulkLoadsEachScriptOnce(t *testing.T) {
 		t.Errorf("EVAL commands = %d, want 0", got)
 	}
 }
+
+// A cache miss means the server lost its scripts, so the backend loads every
+// script again before using it, not only the ones that missed.
+func TestAddBulkReloadsScriptsAfterACacheMiss(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q, hook := newHookedQueue(t)
+
+	if _, err := q.AddBulk(ctx, bulkSpecs(2)); err != nil {
+		t.Fatalf("AddBulk: %v", err)
+	}
+	loads := hook.scriptLoads.Load()
+
+	hook.missNext.Store(true)
+	if _, err := q.AddBulk(ctx, []bullmq.JobSpec{{Name: "plain"}}); err != nil {
+		t.Fatalf("AddBulk: %v", err)
+	}
+	if got := hook.scriptLoads.Load(); got != loads {
+		t.Fatalf("SCRIPT LOAD commands = %d after the miss, want %d: the EVAL fallback caches the script", got, loads)
+	}
+
+	// The prioritized and delayed scripts are loaded again; the standard one,
+	// cached by its EVAL fallback, is not.
+	if _, err := q.AddBulk(ctx, bulkSpecs(2)); err != nil {
+		t.Fatalf("AddBulk: %v", err)
+	}
+	if got := hook.scriptLoads.Load(); got != loads+2 {
+		t.Errorf("SCRIPT LOAD commands = %d, want %d", got, loads+2)
+	}
+}

@@ -39,10 +39,11 @@ func (b *Backend) forQueue(name string) (*Backend, error) {
 }
 
 // AddFlow adds the entries in one MULTI/EXEC transaction, as Node's addFlow
-// does. The commands of a transaction run one after the other, so the add
-// commands defer releasing a parent whose children all exist already and are
-// completed (ARGV[1] entry 10): every parent of the flow is released at the
-// end of the transaction instead, if it has no pending child left.
+// does, which also loads the scripts it uses (see execFlow). The commands of
+// a transaction run one after the other, so the add commands defer releasing
+// a parent whose children all exist already and are completed (ARGV[1] entry
+// 10): every parent of the flow is released at the end of the transaction
+// instead, if it has no pending child left.
 func (b *Backend) AddFlow(ctx context.Context, entries []bullmq.FlowEntry) ([]string, error) {
 	if len(entries) == 0 {
 		return nil, nil
@@ -90,7 +91,7 @@ func (b *Backend) AddFlow(ctx context.Context, entries []bullmq.FlowEntry) ([]st
 		})
 	}
 
-	cmds, err := b.execAdds(ctx, prepared)
+	cmds, err := b.execFlow(ctx, prepared)
 	if err != nil {
 		return nil, err
 	}
