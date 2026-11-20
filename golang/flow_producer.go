@@ -242,6 +242,9 @@ func (fp *FlowProducer) addNode(build *flowBuild, node FlowJob, parent *ParentOp
 		opts = *node.Opts
 	}
 	opts.Parent = parent
+	if parent != nil && opts.Deduplication != nil && opts.Deduplication.KeepLastIfActive {
+		return nil, configError("keepLastIfActive deduplication cannot be used on flow nodes with a parent")
+	}
 
 	// A node is validated and built exactly as Queue.Add would for its
 	// queue, with the flow's default options for that queue.

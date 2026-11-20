@@ -47,6 +47,18 @@ type DeduplicationOptions struct {
 	// Replace discards the existing job in favour of the new one, while the
 	// existing job is still delayed.
 	Replace bool `json:"replace,omitempty"`
+	// Reschedule moves the existing job, while it is still delayed, to the
+	// new job's delay counted from the new job's timestamp (no delay makes
+	// it due now). The existing job keeps its id and data, and a `delayed`
+	// event is emitted. It is independent of Extend, and ignored when
+	// Replace is set.
+	Reschedule bool `json:"reschedule,omitempty"`
+	// KeepLastIfActive keeps the data of the last job added while the
+	// existing job is active: when that job completes or fails, a new job
+	// is added with it, so at most one job runs and one waits per id. TTL
+	// is then ignored: the id is held until the jobs finish. It can't be
+	// used on a flow node with a parent.
+	KeepLastIfActive bool `json:"keepLastIfActive,omitempty"`
 }
 
 // JobOptions configures a single job.

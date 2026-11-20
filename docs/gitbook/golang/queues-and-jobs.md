@@ -146,7 +146,29 @@ _, err = queue.Add(ctx, "sync", data, &bullmq.JobOptions{
 if err != nil {
 	log.Fatal(err)
 }
+
+// Reschedule: push the delayed job back to 5 seconds from now, keeping its
+// id and data. A job that is no longer delayed is left alone.
+_, err = queue.Add(ctx, "sync", data, &bullmq.JobOptions{
+	Delay:         bullmq.Int64(5_000),
+	Deduplication: &bullmq.DeduplicationOptions{ID: "sync-account-42", Reschedule: true},
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+// Keep last if active: while the job runs, remember the last job added and
+// add it once the running one finishes. At most one job runs and one waits.
+_, err = queue.Add(ctx, "deploy", data, &bullmq.JobOptions{
+	Deduplication: &bullmq.DeduplicationOptions{ID: "deploy-repo-7", KeepLastIfActive: true},
+})
+if err != nil {
+	log.Fatal(err)
+}
 ```
+
+`KeepLastIfActive` ignores `TTL`: the id is held until the jobs finish. It
+can't be used on a flow node with a parent.
 
 The `Job` returned for a duplicate carries the existing job's `ID`, but the
 data and options of the call; read it back with `queue.Job` to see what is
