@@ -10,7 +10,8 @@ import (
 	"time"
 )
 
-// vector is a ground-truth case generated with cron-parser 5.10.5: the runs
+// vector is a ground-truth case generated with cron-parser 5.10.5 or 5.10.6,
+// which give the same results: the runs
 // that CronExpressionParser.parse(pattern, {tz, currentDate, startDate,
 // endDate}).next() returns, or the error it throws.
 type vector struct {
@@ -129,7 +130,7 @@ func TestCronParserVectors(t *testing.T) {
 
 // TestCronParserDifferentialVectors checks cases sampled at random around DST
 // transitions (including half-hour, midnight and southern-hemisphere ones)
-// and odd field syntax, compared against cron-parser 5.10.5.
+// and odd field syntax, generated with cron-parser 5.10.6.
 func TestCronParserDifferentialVectors(t *testing.T) {
 	for _, v := range loadVectors(t, "cron-vectors-random.json") {
 		t.Run(v.ID, func(t *testing.T) { runVector(t, v) })

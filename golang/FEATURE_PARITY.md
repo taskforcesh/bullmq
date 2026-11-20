@@ -71,14 +71,14 @@ Parent jobs: `ChildrenValues`, `Dependencies` (paginated), `DependenciesCount`,
 
 ### Job schedulers
 
-| Feature                                               | Notes                                                                                                                                                    |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `UpsertJobScheduler`                                  | Cron `Pattern` or `Every` interval, with `Offset`, `Limit`, `Immediately`, `StartDate`, `EndDate` and `Tz`; template name, data and options              |
-| `RemoveJobScheduler`                                  |                                                                                                                                                          |
-| `JobScheduler`, `JobSchedulers`, `JobSchedulersCount` | Paginated by next run; iteration count, schedule and template                                                                                            |
-| Worker reschedule-on-fetch                            | The worker that fetches an iteration adds the next one before processing it, as in Node.js; Go and other ports advance each other's schedulers           |
-| Cron patterns                                         | Evaluated exactly like cron-parser 5.10.5 (5 or 6 fields, names, `L`, `#`, Sunday as 0 or 7, DST changes); `W` and hashed (`H`) expressions are rejected |
-| Legacy repeatable jobs                                | Not supported, as in Node.js 6: their jobs are processed and a migration error is reported                                                               |
+| Feature                                               | Notes                                                                                                                                                                              |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UpsertJobScheduler`                                  | Cron `Pattern` or `Every` interval, with `Offset`, `Limit`, `Immediately`, `StartDate`, `EndDate` and `Tz`; template name, data and options                                        |
+| `RemoveJobScheduler`                                  |                                                                                                                                                                                    |
+| `JobScheduler`, `JobSchedulers`, `JobSchedulersCount` | Paginated by next run; iteration count, schedule and template                                                                                                                      |
+| Worker reschedule-on-fetch                            | The worker that fetches an iteration adds the next one before processing it, as in Node.js; Go and other ports advance each other's schedulers                                     |
+| Cron patterns                                         | Evaluated exactly like cron-parser 5.10.6, the version Node.js pins (5 or 6 fields, names, `L`, `#`, Sunday as 0 or 7, DST changes); `W` and hashed (`H`) expressions are rejected |
+| Legacy repeatable jobs                                | Not supported, as in Node.js 6: their jobs are processed and a migration error is reported                                                                                         |
 
 ### QueueEvents
 

@@ -1,7 +1,7 @@
 // Package cronparity evaluates cron expressions exactly like cron-parser
-// 5.10.5, the library the Node.js BullMQ uses for job scheduler patterns, so
-// a Go worker computes the same next runs, and therefore the same job ids, as
-// a Node.js worker would.
+// 5.10.6, the library and version the Node.js BullMQ uses for job scheduler
+// patterns, so a Go worker computes the same next runs, and therefore the
+// same job ids, as a Node.js worker would.
 //
 // Day matching is delegated to github.com/adhocore/gronx, which implements
 // Vixie cron semantics, including the L and # day modifiers. This package
@@ -80,14 +80,12 @@ type constraint struct {
 	validChar *regexp.Regexp
 }
 
-// hashedChars are the alternatives of cron-parser's validChars that accept
-// hashed (H) expressions anywhere in a field.
-const hashedChars = `|^.*H\(\d+-\d+\)\/\d+.*$|^.*H\(\d+-\d+\).*$|^.*H\/\d+.*$`
-
+// The validChars of cron-parser's fields, which accept hashed (H)
+// expressions, rejected later.
 var (
-	baseChars = regexp.MustCompile(`^[?,*\dH/-]+$` + hashedChars)
-	domChars  = regexp.MustCompile(`^[?,*\dLH/-]+$` + hashedChars)
-	dowChars  = regexp.MustCompile(`^[?,*\dLH#/-]+$` + hashedChars)
+	baseChars = regexp.MustCompile(`^(?:[?,*\dH/-]|H\(\d+-\d+\))+$`)
+	domChars  = regexp.MustCompile(`^(?:[?,*\dLH/-]|H\(\d+-\d+\))+$`)
+	dowChars  = regexp.MustCompile(`^(?:[?,*\dLH#/-]|H\(\d+-\d+\))+$`)
 	aliasRe   = regexp.MustCompile(`[a-zA-Z]{3}`)
 	digitsRe  = regexp.MustCompile(`^\d+$`)
 	intRe     = regexp.MustCompile(`^-?\d+$`)

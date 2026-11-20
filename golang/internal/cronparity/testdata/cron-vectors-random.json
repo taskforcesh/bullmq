@@ -1,5 +1,5 @@
 {
-  "generatedBy": "cron-parser@5.10.5",
+  "generatedBy": "cron-parser@5.10.6",
   "generator": "random DST-focused cases (seed 7), a stratified sample of 20000 that all matched",
   "vectors": [
     {
