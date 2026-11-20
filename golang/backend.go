@@ -434,6 +434,10 @@ type Backend interface {
 	// many waiting jobs have that priority; 0 counts the waiting jobs
 	// without a priority.
 	GetCountsPerPriority(ctx context.Context, priorities []int64) ([]int64, error)
+
+	// GetDelayedCount returns how many delayed jobs are due strictly before
+	// before (Unix milliseconds).
+	GetDelayedCount(ctx context.Context, before int64) (int64, error)
 }
 
 // BackendOptions describes the role of the backend being built by a

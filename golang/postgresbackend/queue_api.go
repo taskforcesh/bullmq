@@ -23,3 +23,11 @@ func (b *Backend) GetCountsPerPriority(ctx context.Context, priorities []int64) 
 	}
 	return counts, nil
 }
+
+// GetDelayedCount returns how many delayed jobs are due strictly before
+// before (Unix milliseconds).
+func (b *Backend) GetDelayedCount(ctx context.Context, before int64) (int64, error) {
+	var n int64
+	err := b.queryRow(ctx, "get_delayed_count", []any{b.name, before}, &n)
+	return n, err
+}

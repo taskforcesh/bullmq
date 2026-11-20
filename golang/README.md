@@ -856,21 +856,21 @@ log.Printf("%d jobs completed in total; last hour: %v", metrics.Count, metrics.D
 
 A `Queue` is safe for concurrent use. Its methods mirror Node's `Queue`:
 
-| Methods                                                                           | What they do                                                                                                                |
-| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `Add`, `AddBulk`                                                                  | Add jobs                                                                                                                    |
-| `Job`, `JobState`, `Jobs`, `JobIDs`                                               | Read jobs, by id or by state                                                                                                |
-| `Count`, `JobCounts`, `CountsPerPriority`                                         | Count the waiting, delayed, prioritized and waiting-children jobs, the jobs in each state, or the waiting jobs per priority |
-| `Pause`, `Resume`, `IsPaused`                                                     | Pause the queue for every worker                                                                                            |
-| `Drain`                                                                           | Remove the waiting and prioritized jobs, and optionally the delayed ones                                                    |
-| `Clean`                                                                           | Remove the jobs of a state older than a grace period                                                                        |
-| `Obliterate`                                                                      | Remove the queue and all of its jobs                                                                                        |
-| `RetryJobs`, `PromoteJobs`                                                        | Move failed or completed jobs back to wait; make delayed jobs ready                                                         |
-| `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency`, `IsMaxed` | Cap how many jobs are active across all workers                                                                             |
-| `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Rate limit every worker of the queue                                                                                        |
-| `DeduplicationJobID`, `RemoveDeduplicationKey`                                    | Read or release a [deduplication](#deduplication) id                                                                        |
-| `Metrics`, `Workers`                                                              | Completed and failed metrics; the connected workers (`[]WorkerInfo`)                                                        |
-| `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](#job-schedulers)                                                                                           |
+| Methods                                                                           | What they do                                                                                                                                                    |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Add`, `AddBulk`                                                                  | Add jobs                                                                                                                                                        |
+| `Job`, `JobState`, `Jobs`, `JobIDs`                                               | Read jobs, by id or by state                                                                                                                                    |
+| `Count`, `JobCounts`, `CountsPerPriority`, `DelayedCount`                         | Count the waiting, delayed, prioritized and waiting-children jobs, the jobs in each state, the waiting jobs per priority, or the delayed jobs due before a time |
+| `Pause`, `Resume`, `IsPaused`                                                     | Pause the queue for every worker                                                                                                                                |
+| `Drain`                                                                           | Remove the waiting and prioritized jobs, and optionally the delayed ones                                                                                        |
+| `Clean`                                                                           | Remove the jobs of a state older than a grace period                                                                                                            |
+| `Obliterate`                                                                      | Remove the queue and all of its jobs                                                                                                                            |
+| `RetryJobs`, `PromoteJobs`                                                        | Move failed or completed jobs back to wait; make delayed jobs ready                                                                                             |
+| `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency`, `IsMaxed` | Cap how many jobs are active across all workers                                                                                                                 |
+| `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Rate limit every worker of the queue                                                                                                                            |
+| `DeduplicationJobID`, `RemoveDeduplicationKey`                                    | Read or release a [deduplication](#deduplication) id                                                                                                            |
+| `Metrics`, `Workers`                                                              | Completed and failed metrics; the connected workers (`[]WorkerInfo`)                                                                                            |
+| `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](#job-schedulers)                                                                                                                               |
 
 ```go
 counts, err := queue.JobCounts(ctx, bullmq.StateWaiting, bullmq.StateActive, bullmq.StateFailed)

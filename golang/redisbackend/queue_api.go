@@ -2,6 +2,8 @@ package redisbackend
 
 import (
 	"context"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 // GetCountsPerPriority returns how many waiting jobs have each priority:
@@ -25,4 +27,20 @@ func (b *Backend) GetCountsPerPriority(ctx context.Context, priorities []int64) 
 		}
 	}
 	return counts, nil
+}
+
+// GetDelayedCount returns how many delayed jobs are due strictly before
+// before (Unix milliseconds).
+func (b *Backend) GetDelayedCount(ctx context.Context, before int64) (int64, error) {
+	res, err := b.runScript(ctx, "getCounts", []string{b.keys.KeyPrefix()},
+		before, luaStateName(bullmq.StateDelayed))
+	if err != nil {
+		return 0, err
+	}
+	arr, _ := res.([]any)
+	if len(arr) == 0 {
+		return 0, nil
+	}
+	n, _ := asInt64(arr[0])
+	return n, nil
 }

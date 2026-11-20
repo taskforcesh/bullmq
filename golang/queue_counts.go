@@ -1,6 +1,9 @@
 package bullmq
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // CountsPerPriority returns how many waiting jobs have each of priorities,
 // as Node's getCountsPerPriority does: 0 counts the waiting jobs without a
@@ -31,4 +34,18 @@ func (q *Queue) CountsPerPriority(ctx context.Context, priorities ...int64) (map
 		}
 	}
 	return counts, nil
+}
+
+// DelayedCount returns how many delayed jobs are due strictly before
+// before, as Node's getDelayedCount(timestamp) does, for example to count
+// the overdue ones with time.Now(). The zero time counts every delayed job.
+func (q *Queue) DelayedCount(ctx context.Context, before time.Time) (int64, error) {
+	if before.IsZero() {
+		counts, err := q.backend.GetCounts(ctx, []JobState{StateDelayed})
+		if err != nil || len(counts) == 0 {
+			return 0, err
+		}
+		return counts[0], nil
+	}
+	return q.backend.GetDelayedCount(ctx, before.UnixMilli())
 }
