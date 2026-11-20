@@ -279,8 +279,8 @@ if err != nil {
 log.Printf("added job %s", job.ID)
 ```
 
-The data is encoded with `encoding/json`; a processor decodes it with
-`job.DecodeData(&v)`. Several options are pointers so that an explicit zero
+The data is encoded with `encoding/json` (nil is stored as `{}`, as Node.js
+stores a job without data); a processor decodes it with `job.DecodeData(&v)`. Several options are pointers so that an explicit zero
 can override a queue default; `bullmq.Int64` and `bullmq.Bool` build them.
 
 | Option                             | Meaning                                                                                                                                                              |

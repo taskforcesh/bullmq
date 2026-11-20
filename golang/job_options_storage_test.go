@@ -45,3 +45,42 @@ func testRemovalPoliciesAreStoredInNodeForm(t *testing.T, be testBackend) {
 		}
 	}
 }
+
+// A job added without data is stored with {}, as Node stores it, by Add,
+// AddBulk and flows alike, so processors of other ports get an object.
+func TestNilDataIsStoredAsAnEmptyObject(t *testing.T) {
+	forEachBackend(t, testNilDataIsStoredAsAnEmptyObject)
+}
+
+func testNilDataIsStoredAsAnEmptyObject(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	added, err := q.Add(ctx, "none", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	var typedNil map[string]any
+	bulk, err := q.AddBulk(ctx, []bullmq.JobSpec{{Name: "none"}, {Name: "typed", Data: typedNil}})
+	if err != nil {
+		t.Fatalf("AddBulk: %v", err)
+	}
+	tree, err := newTestFlowProducer(t, be).Add(ctx, bullmq.FlowJob{Name: "root", QueueName: q.Name(),
+		Children: []bullmq.FlowJob{{Name: "child", QueueName: q.Name()}}}, nil)
+	if err != nil {
+		t.Fatalf("FlowProducer.Add: %v", err)
+	}
+
+	for _, job := range []*bullmq.Job{added, bulk[0], bulk[1], tree.Job, tree.Children[0].Job} {
+		if string(job.Data) != `{}` {
+			t.Errorf("returned job %s has data %s, want {}", job.Name, job.Data)
+		}
+		stored, err := q.Job(ctx, job.ID)
+		if err != nil || stored == nil {
+			t.Fatalf("Job(%s) = %v, %v", job.ID, stored, err)
+		}
+		if string(stored.Data) != `{}` {
+			t.Errorf("stored job %s has data %s, want {}", job.Name, stored.Data)
+		}
+	}
+}

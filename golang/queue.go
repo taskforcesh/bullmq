@@ -51,15 +51,17 @@ func (q *Queue) Close() error { return q.backend.Close() }
 type JobSpec struct {
 	// Name is the job name handed to the processor.
 	Name string
-	// Data is the payload; it is marshalled to JSON.
+	// Data is the payload; it is marshalled to JSON. nil is stored as {}, as
+	// Node stores a job added without data.
 	Data any
 	// Opts overrides the queue default job options.
 	Opts *JobOptions
 }
 
-// Add inserts a single job into the queue. When it is deduplicated (see
-// [DeduplicationOptions]), nothing is added and the returned Job has the ID
-// of the job that holds the deduplication id.
+// Add inserts a single job into the queue. data is marshalled to JSON, and
+// nil is stored as {}, as Node stores a job added without data. When the
+// job is deduplicated (see [DeduplicationOptions]), nothing is added and the
+// returned Job has the ID of the job that holds the deduplication id.
 func (q *Queue) Add(ctx context.Context, name string, data any, opts *JobOptions) (*Job, error) {
 	nj, err := q.prepareJob(JobSpec{Name: name, Data: data, Opts: opts})
 	if err != nil {
@@ -185,6 +187,11 @@ func (q *Queue) prepareJob(spec JobSpec) (NewJob, error) {
 	payload, err := json.Marshal(spec.Data)
 	if err != nil {
 		return NewJob{}, err
+	}
+	// Node stores {} for jobs added without data, and processors written for
+	// it expect an object, so nil is stored as {} too.
+	if string(payload) == "null" {
+		payload = []byte("{}")
 	}
 	if opts.sizeLimitVal() > 0 && int64(len(payload)) > opts.sizeLimitVal() {
 		return NewJob{}, configError("job data exceeds sizeLimit of %d bytes (was %d)",

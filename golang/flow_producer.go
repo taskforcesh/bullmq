@@ -40,7 +40,8 @@ type FlowJob struct {
 	Name string
 	// QueueName is the queue the job is added to.
 	QueueName string
-	// Data is the payload; it is marshalled to JSON.
+	// Data is the payload; it is marshalled to JSON. nil is stored as {}, as
+	// Node stores a job added without data.
 	Data any
 	// Opts are the job options. Opts.Parent is only honoured on the root of
 	// a flow, to add the whole flow under an existing job; the other nodes
