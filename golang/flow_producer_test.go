@@ -704,9 +704,18 @@ func testJobRemoveChildDependency(t *testing.T, be testBackend) {
 	requireState(t, ctx, parentQ, tree.Job.ID, bullmq.StateWaitingChildren)
 	requireCounts(t, ctx, tree.Job, bullmq.DependencyCounts{Unprocessed: 1})
 
-	// The child no longer has a parent.
-	if removed, err := stored.RemoveChildDependency(ctx); err != nil || removed {
-		t.Fatalf("second RemoveChildDependency = %v, %v; want false, nil", removed, err)
+	// The child no longer has a parent: as in Node.js, that is an error.
+	for _, job := range []*bullmq.Job{stored, first} {
+		if removed, err := job.RemoveChildDependency(ctx); !errors.Is(err, bullmq.ErrParentJobNotExist) || removed {
+			t.Fatalf("RemoveChildDependency without a parent = %v, %v; want ErrParentJobNotExist", removed, err)
+		}
+	}
+	plain, err := childQ.Add(ctx, "plain", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if _, err := plain.RemoveChildDependency(ctx); !errors.Is(err, bullmq.ErrParentJobNotExist) {
+		t.Fatalf("RemoveChildDependency of a job without a parent = %v, want ErrParentJobNotExist", err)
 	}
 
 	// Removing the last pending child releases the parent.

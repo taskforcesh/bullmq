@@ -93,8 +93,10 @@ options change that, as described in the guide:
 | `RemoveDependencyOnFailure` | [The child is removed from the dependencies](../guide/flows/remove-dependency.md)                        |
 
 The options are mutually exclusive. `job.RemoveChildDependency` detaches a
-pending child from its parent, and `job.RemoveUnprocessedChildren` removes
-the children of a parent that haven't been processed yet.
+pending child from its parent (it returns an error matching
+`bullmq.ErrParentJobNotExist` for a job without a parent, as Node.js throws),
+and `job.RemoveUnprocessedChildren` removes the children of a parent that
+haven't been processed yet.
 
 ## Adding children at runtime
 

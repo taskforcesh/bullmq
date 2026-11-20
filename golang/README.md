@@ -1296,6 +1296,7 @@ drafts of this port needs these changes:
 | `queue.GlobalConcurrency(ctx)` returned 0 when no limit was set                           | It returns a `*int64`, nil when no limit is set                                                                          |
 | `queue.Obliterate(ctx, force, count)`                                                     | `queue.Obliterate(ctx, &bullmq.ObliterateOptions{Force, Count})`, or nil                                                 |
 | `job.UpdateProgress(ctx, bullmq.Progress)`, built with `NumberProgress` or `JSONProgress` | `job.UpdateProgress(ctx, v)` with a number or any JSON value; a `Progress` still works                                   |
+| `job.RemoveChildDependency` returned false, nil for a job without a parent                | It returns an error matching `bullmq.ErrParentJobNotExist`, as Node.js throws                                            |
 
 Custom `Backend` implementations have more to change: `SignalWork` is gone,
 `MoveToCompleted` and `MoveToFailed` return a `*FinishResult` and can fetch

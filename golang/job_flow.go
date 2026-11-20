@@ -57,15 +57,16 @@ func (j *Job) DependenciesCount(ctx context.Context) (DependencyCounts, error) {
 // RemoveChildDependency detaches the job, which must not have finished yet,
 // from its parent, so the parent no longer waits for it; a parent left
 // without pending children is moved to wait. It returns false when the job
-// was not a pending child of its parent, or has no parent. On success the
-// job's Parent and ParentKey are cleared.
+// was not a pending child of its parent. As in Node.js, it returns an error
+// matching [ErrParentJobNotExist] when the job has no parent, or its parent
+// no longer exists. On success the job's Parent and ParentKey are cleared.
 func (j *Job) RemoveChildDependency(ctx context.Context) (bool, error) {
 	b, err := j.ctx()
 	if err != nil {
 		return false, err
 	}
 	if j.ParentKey == "" {
-		return false, nil
+		return false, scriptError("removeChildDependency", ErrCodeParentJobNotExist)
 	}
 	removed, err := b.RemoveChildDependency(ctx, j.ID, j.ParentKey)
 	if err != nil || !removed {
