@@ -153,20 +153,28 @@ func (j *Job) ctx() (Backend, error) {
 // UpdateProgress stores a new progress value and emits a `progress` event on
 // the owning Worker, mirroring how a per-job update is observed through
 // Worker.Events.
-func (j *Job) UpdateProgress(ctx context.Context, progress Progress) error {
+//
+// progress is a number, or any value encoded as JSON, as Node's
+// updateProgress takes a number or an object; a [Progress] is stored as
+// is. NaN and infinite numbers, which have no JSON encoding, are rejected.
+func (j *Job) UpdateProgress(ctx context.Context, progress any) error {
+	p, err := progressOf(progress)
+	if err != nil {
+		return err
+	}
 	b, err := j.ctx()
 	if err != nil {
 		return err
 	}
-	if err := b.UpdateProgress(ctx, j.ID, progress); err != nil {
+	if err := b.UpdateProgress(ctx, j.ID, p); err != nil {
 		return err
 	}
-	j.Progress = progress
+	j.Progress = p
 	// worker is set before the job is handed to the processor and never
 	// changes, so goroutines that outlive the processor may read it; emit
 	// discards events once the worker is closed.
 	if j.worker != nil {
-		j.worker.emit(Event{Type: EventProgress, Job: j, Result: progress})
+		j.worker.emit(Event{Type: EventProgress, Job: j, Result: p})
 	}
 	return nil
 }

@@ -493,11 +493,7 @@ A processor reports progress and writes job logs, which every port and
 dashboard can read:
 
 ```go
-progress, err := bullmq.NumberProgress(50)
-if err != nil {
-	return err
-}
-if err := job.UpdateProgress(ctx, progress); err != nil {
+if err := job.UpdateProgress(ctx, 50); err != nil {
 	return err
 }
 if _, err := job.Log(ctx, "half way there"); err != nil {
@@ -505,7 +501,8 @@ if _, err := job.Log(ctx, "half way there"); err != nil {
 }
 ```
 
-`bullmq.JSONProgress(v)` reports a structured value instead of a number.
+`UpdateProgress` also takes any value encoded as JSON, such as a struct or a
+map, instead of a number; NaN and infinite numbers are rejected.
 
 ### Concurrency
 
@@ -1279,25 +1276,26 @@ aren't implemented yet.
 The API changed before the first release; code written against the early
 drafts of this port needs these changes:
 
-| Before                                                                         | Now                                                                                                                      |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `Redis: bullmq.RedisOptions{Addr: ...}` in the options; Redis when unset       | `Backend: redisbackend.New(redisbackend.Options{Addr: ...})`, required in every options struct                           |
-| `Prefix` in `QueueOptions`, `WorkerOptions` and `QueueEventsOptions`           | `redisbackend.Options.Prefix`                                                                                            |
-| `bullmq.RedisBackendFactory`, `bullmq.NewRedisBackend`, `*bullmq.RedisBackend` | `redisbackend.New`, `redisbackend.NewBackend`, `*redisbackend.Backend`                                                   |
-| `queue.Client()`, `queue.Keys()`, `bullmq.Keys`                                | `queue.Backend().(*redisbackend.Backend).Client()` and `.Keys()`, `redisbackend.Keys`                                    |
-| `worker.Pause()` returned at once                                              | `worker.Pause(ctx, doNotWaitActive)` waits for the active jobs unless `doNotWaitActive` is true                          |
-| `EventStalled` reported lost locks                                             | `EventLockRenewalFailed` and `EventLocksRenewed`, with `Event.JobIDs`; `EventStalled` is only for the stalled check      |
-| Full event channel dropped events silently                                     | `Worker.DroppedEvents` counts them; `WorkerOptions.OnEvent` sees every event                                             |
-| Cancelling `Run`'s context failed in-flight jobs                               | They stay active, without using up an attempt, for the stalled check to recover                                          |
-| `Queue.Workers` returned connection names                                      | It returns `[]bullmq.WorkerInfo`, with the worker name and the connection's fields                                       |
-| `RemoveAll()` was stored as `{"count":0}`                                      | Stored as `true`, as in the other ports                                                                                  |
-| `Worker.Run` and `QueueEvents.Run` returned `context.Canceled` after `Close`   | They return nil after `Close`, and still return the context's error when their context is done                           |
-| `job.Retry(ctx, state)`                                                        | `job.Retry(ctx, state, opts)`, where `opts` (or nil) can reset the attempt counters                                      |
-| `queue.RetryJobs(ctx, state, count)` returned an always-0 `int64`              | `queue.RetryJobs(ctx, &bullmq.RetryJobsOptions{State, Count, Before})` returns only an error; `State` defaults to failed |
-| `queue.PromoteJobs(ctx, count)` returned an always-0 `int64`                   | It returns only an error                                                                                                 |
-| `queue.Jobs(ctx, state, start, end, asc)`, `queue.JobIDs(...)` with one state  | `queue.Jobs(ctx, start, end, asc, states...)`: several states, or none for all of them                                   |
-| `queue.GlobalConcurrency(ctx)` returned 0 when no limit was set                | It returns a `*int64`, nil when no limit is set                                                                          |
-| `queue.Obliterate(ctx, force, count)`                                          | `queue.Obliterate(ctx, &bullmq.ObliterateOptions{Force, Count})`, or nil                                                 |
+| Before                                                                                    | Now                                                                                                                      |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `Redis: bullmq.RedisOptions{Addr: ...}` in the options; Redis when unset                  | `Backend: redisbackend.New(redisbackend.Options{Addr: ...})`, required in every options struct                           |
+| `Prefix` in `QueueOptions`, `WorkerOptions` and `QueueEventsOptions`                      | `redisbackend.Options.Prefix`                                                                                            |
+| `bullmq.RedisBackendFactory`, `bullmq.NewRedisBackend`, `*bullmq.RedisBackend`            | `redisbackend.New`, `redisbackend.NewBackend`, `*redisbackend.Backend`                                                   |
+| `queue.Client()`, `queue.Keys()`, `bullmq.Keys`                                           | `queue.Backend().(*redisbackend.Backend).Client()` and `.Keys()`, `redisbackend.Keys`                                    |
+| `worker.Pause()` returned at once                                                         | `worker.Pause(ctx, doNotWaitActive)` waits for the active jobs unless `doNotWaitActive` is true                          |
+| `EventStalled` reported lost locks                                                        | `EventLockRenewalFailed` and `EventLocksRenewed`, with `Event.JobIDs`; `EventStalled` is only for the stalled check      |
+| Full event channel dropped events silently                                                | `Worker.DroppedEvents` counts them; `WorkerOptions.OnEvent` sees every event                                             |
+| Cancelling `Run`'s context failed in-flight jobs                                          | They stay active, without using up an attempt, for the stalled check to recover                                          |
+| `Queue.Workers` returned connection names                                                 | It returns `[]bullmq.WorkerInfo`, with the worker name and the connection's fields                                       |
+| `RemoveAll()` was stored as `{"count":0}`                                                 | Stored as `true`, as in the other ports                                                                                  |
+| `Worker.Run` and `QueueEvents.Run` returned `context.Canceled` after `Close`              | They return nil after `Close`, and still return the context's error when their context is done                           |
+| `job.Retry(ctx, state)`                                                                   | `job.Retry(ctx, state, opts)`, where `opts` (or nil) can reset the attempt counters                                      |
+| `queue.RetryJobs(ctx, state, count)` returned an always-0 `int64`                         | `queue.RetryJobs(ctx, &bullmq.RetryJobsOptions{State, Count, Before})` returns only an error; `State` defaults to failed |
+| `queue.PromoteJobs(ctx, count)` returned an always-0 `int64`                              | It returns only an error                                                                                                 |
+| `queue.Jobs(ctx, state, start, end, asc)`, `queue.JobIDs(...)` with one state             | `queue.Jobs(ctx, start, end, asc, states...)`: several states, or none for all of them                                   |
+| `queue.GlobalConcurrency(ctx)` returned 0 when no limit was set                           | It returns a `*int64`, nil when no limit is set                                                                          |
+| `queue.Obliterate(ctx, force, count)`                                                     | `queue.Obliterate(ctx, &bullmq.ObliterateOptions{Force, Count})`, or nil                                                 |
+| `job.UpdateProgress(ctx, bullmq.Progress)`, built with `NumberProgress` or `JSONProgress` | `job.UpdateProgress(ctx, v)` with a number or any JSON value; a `Progress` still works                                   |
 
 Custom `Backend` implementations have more to change: `SignalWork` is gone,
 `MoveToCompleted` and `MoveToFailed` return a `*FinishResult` and can fetch

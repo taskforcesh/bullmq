@@ -231,13 +231,35 @@ func NumberProgress(v float64) (Progress, error) {
 	return Progress{raw: json.RawMessage(strconv.FormatFloat(v, 'f', -1, 64))}, nil
 }
 
-// JSONProgress builds a structured progress value.
+// JSONProgress builds a structured progress value. Job.UpdateProgress also
+// takes the value itself.
 func JSONProgress(v any) (Progress, error) {
 	raw, err := json.Marshal(v)
 	if err != nil {
 		return Progress{}, err
 	}
 	return Progress{raw: raw}, nil
+}
+
+// progressOf converts a value given to Job.UpdateProgress.
+func progressOf(v any) (Progress, error) {
+	switch t := v.(type) {
+	case Progress:
+		return t, nil
+	case *Progress:
+		if t != nil {
+			return *t, nil
+		}
+	case float64:
+		return NumberProgress(t)
+	case float32:
+		return NumberProgress(float64(t))
+	}
+	p, err := JSONProgress(v)
+	if err != nil {
+		return Progress{}, configError("progress must be a number or a JSON value: %v", err)
+	}
+	return p, nil
 }
 
 // Raw returns the JSON encoding of the progress value.

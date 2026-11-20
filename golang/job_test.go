@@ -3,6 +3,7 @@ package bullmq_test
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -39,6 +40,44 @@ func testJobUpdateProgress(t *testing.T, be testBackend) {
 	}
 }
 
+// UpdateProgress takes numbers of any type, and rejects NaN and infinite
+// ones before reaching the datastore.
+func TestJobUpdateProgressWithNumbers(t *testing.T) {
+	forEachBackend(t, testJobUpdateProgressWithNumbers)
+}
+
+func testJobUpdateProgressWithNumbers(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	job, err := q.Add(ctx, "progress", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	for _, v := range []any{42, int64(43), uint8(44), 45.5, float32(46.5)} {
+		if err := job.UpdateProgress(ctx, v); err != nil {
+			t.Fatalf("UpdateProgress(%T %v): %v", v, v, err)
+		}
+	}
+	stored, err := q.Job(ctx, job.ID)
+	if err != nil {
+		t.Fatalf("Job: %v", err)
+	}
+	if n, ok := stored.Progress.Number(); !ok || n != 46.5 {
+		t.Fatalf("progress = %v (%v), want 46.5", n, ok)
+	}
+
+	var cfg *bullmq.ConfigError
+	for _, v := range []any{math.NaN(), math.Inf(1), float32(math.Inf(-1)), map[string]float64{"pct": math.NaN()}} {
+		if err := job.UpdateProgress(ctx, v); !errors.As(err, &cfg) {
+			t.Fatalf("UpdateProgress(%v) = %v, want a ConfigError", v, err)
+		}
+	}
+	if n, ok := job.Progress.Number(); !ok || n != 46.5 {
+		t.Fatalf("Job.Progress after rejected updates = %s, want 46.5", job.Progress.Raw())
+	}
+}
+
 func TestJobUpdateProgressWithAStruct(t *testing.T) {
 	forEachBackend(t, testJobUpdateProgressWithAStruct)
 }
@@ -51,22 +90,23 @@ func testJobUpdateProgressWithAStruct(t *testing.T, be testBackend) {
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	progress, err := bullmq.JSONProgress(map[string]any{"step": "upload", "pct": 10})
-	if err != nil {
-		t.Fatalf("JSONProgress: %v", err)
+	type step struct {
+		Step string `json:"step"`
+		Pct  int    `json:"pct"`
 	}
-	if err := job.UpdateProgress(ctx, progress); err != nil {
+	if err := job.UpdateProgress(ctx, step{Step: "upload", Pct: 10}); err != nil {
 		t.Fatalf("UpdateProgress: %v", err)
+	}
+	var local step
+	if err := job.Progress.Decode(&local); err != nil || local.Step != "upload" {
+		t.Fatalf("Job.Progress = %s (%v), want the new value", job.Progress.Raw(), err)
 	}
 
 	stored, err := q.Job(ctx, job.ID)
 	if err != nil {
 		t.Fatalf("Job: %v", err)
 	}
-	var out struct {
-		Step string `json:"step"`
-		Pct  int    `json:"pct"`
-	}
+	var out step
 	if err := stored.Progress.Decode(&out); err != nil {
 		t.Fatalf("Decode: %v", err)
 	}

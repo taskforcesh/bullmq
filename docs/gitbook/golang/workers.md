@@ -55,17 +55,16 @@ A processor reports progress, and writes logs that every SDK and dashboard
 can read:
 
 ```go
-progress, err := bullmq.NumberProgress(50)
-if err != nil {
-	return err
-}
-if err := job.UpdateProgress(ctx, progress); err != nil {
+if err := job.UpdateProgress(ctx, 50); err != nil {
 	return err
 }
 if _, err := job.Log(ctx, "half way there"); err != nil {
 	return err
 }
 ```
+
+`UpdateProgress` also takes any value encoded as JSON, such as a struct or a
+map, instead of a number; NaN and infinite numbers are rejected.
 
 A processor can also move its own job and return a sentinel error, so that
 the worker doesn't finish it: `job.MoveToDelayed` with `bullmq.ErrDelayed`
