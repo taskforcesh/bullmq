@@ -205,6 +205,13 @@
 ## Go
 
 - [Introduction](golang/introduction.md)
+- [Queues and Jobs](golang/queues-and-jobs.md)
+- [Workers](golang/workers.md)
+- [Queue Events](golang/queue-events.md)
+- [Flows](golang/flows.md)
+- [Job Schedulers](golang/job-schedulers.md)
+- [PostgreSQL](golang/postgresql.md)
+- [API Reference](https://pkg.go.dev/github.com/taskforcesh/bullmq-go)
 - [Changelogs](golang/changelog.md)
 
 ## .Net

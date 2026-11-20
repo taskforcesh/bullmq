@@ -19,6 +19,7 @@ const changelogProducts: Record<string, string> = {
   php: 'BullMQ for PHP',
   rust: 'BullMQ for Rust',
   dotnet: 'BullMQ for .NET',
+  golang: 'BullMQ for Go',
 };
 
 // https://vitepress.dev/reference/site-config
