@@ -1,4 +1,4 @@
-Currently we have 3 available methods in queue class:
+Currently we have 3 available methods in queue class to remove jobs in bulk, plus `removeJobs` to remove a specific set of jobs by id:
 
 # Drain
 
@@ -473,8 +473,33 @@ Parent jobs in queues different from the one being obliterated will either stay 
 have pending children in other queues, or just moved to wait.
 {% endhint %}
 
+# Remove jobs by id
+
+Removes a specific set of jobs atomically, no matter in which state they are. It returns the ids of the jobs that were actually removed.
+
+```typescript
+import { Queue } from 'bullmq';
+
+const queue = new Queue('paint');
+
+const removedJobIds = await queue.removeJobs(['1', '2', '3']);
+```
+
+By default the children of the jobs are removed too, you can keep them by setting `removeChildren` to false:
+
+```typescript
+await queue.removeJobs(['1', '2', '3'], { removeChildren: false });
+```
+
+Jobs that do not exist, that are locked by a worker (or have a locked child) and the current iteration of a job scheduler are skipped, so they do not prevent the rest of the jobs from being removed. A `removed` event is emitted for every job that was removed.
+
+{% hint style="warning" %}
+All the jobs are removed in a single atomic operation. When removing a very large number of jobs, split the ids into batches to avoid blocking the database for too long.
+{% endhint %}
+
 ## Read more:
 
 - 💡 [Drain API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#drain)
 - 💡 [Clean API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#clean)
 - 💡 [Obliterate API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#obliterate)
+- 💡 [RemoveJobs API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#removeJobs)
