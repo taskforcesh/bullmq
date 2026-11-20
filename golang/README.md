@@ -204,6 +204,45 @@ object. Every failure trace is kept unless `StackTraceLimit` says otherwise
 that was started more than that many times, for example because it keeps
 stalling.
 
+### Flows
+
+A `FlowProducer` adds a tree of jobs, possibly spanning several queues, in a
+single datastore operation. A parent stays in the `waiting-children` state
+until all of its children are processed, then reads their results:
+
+```go
+flows, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flows.Close()
+
+tree, err := flows.Add(ctx, bullmq.FlowJob{
+	Name:      "render-report",
+	QueueName: "reports",
+	Children: []bullmq.FlowJob{
+		{Name: "fetch", QueueName: "sources", Data: "sales"},
+		{Name: "fetch", QueueName: "sources", Data: "costs",
+			Opts: &bullmq.JobOptions{FailParentOnFailure: bullmq.Bool(true)}},
+	},
+}, nil)
+
+// In the "reports" processor:
+values, err := job.ChildrenValues(ctx) // child key -> JSON return value
+```
+
+Every queue of a flow is reached through the producer's backend, so they share
+its connections and its namespace (Redis prefix or PostgreSQL schema).
+`FailParentOnFailure`, `ContinueParentOnFailure`, `IgnoreDependencyOnFailure`
+and `RemoveDependencyOnFailure` decide what a failing child does to its
+parent, as in Node.js. `AddBulk` adds several flows at once and `GetFlow`
+reads a tree back. A processor can also add children at runtime (with
+`JobOptions.Parent` or a flow whose root has a parent) and then park its job
+with `Job.MoveToWaitingChildren`, returning `bullmq.ErrWaitingChildren`.
+`Job.Dependencies`, `Job.DependenciesCount`, `Job.IgnoredChildrenFailures`,
+`Job.RemoveChildDependency` and `Job.RemoveUnprocessedChildren` inspect and
+edit the children of a parent.
+
 ### Worker events
 
 ```go
