@@ -426,6 +426,12 @@ type Backend interface {
 	// DeleteDeduplicationKey releases the deduplication id dedupID,
 	// whichever job holds it, and reports whether there was one to release.
 	DeleteDeduplicationKey(ctx context.Context, dedupID string) (bool, error)
+
+	// ── Queue meta and connections ──
+
+	// GetQueueMeta returns every field of the queue metadata hash, or an
+	// empty map when there is none.
+	GetQueueMeta(ctx context.Context) (map[string]string, error)
 }
 
 // BackendOptions describes the role of the backend being built by a

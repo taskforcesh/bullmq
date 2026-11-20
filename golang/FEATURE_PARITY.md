@@ -19,6 +19,7 @@ Status of the Go port relative to the reference Node.js implementation.
 | `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Stored as the `max` and `duration` queue metadata, as in Node.js                                                                            |
 | `Metrics`                                                                         | Completed/failed data points                                                                                                                |
 | `Workers`                                                                         | `[]WorkerInfo`: the worker name and the connection's fields                                                                                 |
+| `Meta`, `Version`                                                                 | `*QueueMeta`, parsed as Node's `getMeta` parses it; `Version` reads the `version` field, `""` when unset                                    |
 | Job deduplication                                                                 | `JobOptions.Deduplication`, `Job.DeduplicationID`; `Queue.DeduplicationJobID`, `Queue.RemoveDeduplicationKey`, `Job.RemoveDeduplicationKey` |
 
 ### Worker

@@ -839,6 +839,7 @@ A `Queue` is safe for concurrent use. Its methods mirror Node's `Queue`:
 | `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Rate limit every worker of the queue                                                         |
 | `DeduplicationJobID`, `RemoveDeduplicationKey`                                    | Read or release a [deduplication](#deduplication) id                                         |
 | `Metrics`, `Workers`                                                              | Completed and failed metrics; the connected workers (`[]WorkerInfo`)                         |
+| `Meta`, `Version`                                                                 | The queue metadata (limits, paused, events length) and the library that wrote it             |
 | `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](#job-schedulers)                                                            |
 
 ```go
