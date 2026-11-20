@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	bullmq "github.com/taskforcesh/bullmq-go"
@@ -141,5 +142,118 @@ func TestWorkersOnRedisCluster(t *testing.T) {
 		if w.Name != want {
 			t.Errorf("worker %q listed, want only %s", w.Name, want)
 		}
+	}
+}
+
+// A cluster client is cloned into a dedicated blocking client, as a
+// *redis.Client is, leaving the caller's client untouched.
+func TestBlockingClientOfAClusterClient(t *testing.T) {
+	cluster := redis.NewClusterClient(&redis.ClusterOptions{
+		Addrs:       []string{"127.0.0.1:1"},
+		PoolSize:    50,
+		ReadTimeout: 3 * time.Second,
+	})
+	defer cluster.Close()
+	blocking, tracker := Options{Client: cluster}.buildBlocking("bull:cXVldWU:w:named", 15*time.Second)
+	defer blocking.Close()
+	clone, ok := blocking.(*redis.ClusterClient)
+	if !ok || clone == cluster || tracker == nil {
+		t.Fatalf("buildBlocking = %T (tracker %v), want a dedicated cluster client", blocking, tracker)
+	}
+	opt := clone.Options()
+	if opt.PoolSize != 1 || opt.ReadTimeout != 15*time.Second || opt.ClientName != "bull:cXVldWU:w:named" ||
+		!opt.ContextTimeoutEnabled || opt.Addrs[0] != "127.0.0.1:1" {
+		t.Errorf("clone options = %+v", opt)
+	}
+	if o := cluster.Options(); o.PoolSize != 50 || o.ReadTimeout != 3*time.Second || o.ClientName != "" {
+		t.Errorf("the caller's options changed: %+v", o)
+	}
+}
+
+// On a cluster, a worker blocks on a dedicated, named client: it is listed
+// by Queue.Workers, and stopping it interrupts its blocked read.
+func TestWorkerOnRedisCluster(t *testing.T) {
+	cluster := newTestCluster(t)
+	ctx := testContext(t)
+	factory := New(Options{Client: cluster, Prefix: clusterTestPrefix})
+	q, err := bullmq.NewQueue(testQueueName(t), &bullmq.QueueOptions{Backend: factory})
+	if err != nil {
+		t.Fatalf("NewQueue: %v", err)
+	}
+	defer func() {
+		_ = q.Obliterate(context.Background(), true, 0)
+		_ = q.Close()
+	}()
+
+	qe, err := bullmq.NewQueueEvents(q.Name(), &bullmq.QueueEventsOptions{Backend: factory, LastEventID: "0"})
+	if err != nil {
+		t.Fatalf("NewQueueEvents: %v", err)
+	}
+	completed := make(chan string, 1)
+	qeCtx, stopQE := context.WithCancel(context.Background())
+	qeDone := make(chan struct{})
+	go func() {
+		defer close(qeDone)
+		_ = qe.Run(qeCtx)
+	}()
+	go func() {
+		for ev := range qe.Events() {
+			if ev.Event == "completed" {
+				select {
+				case completed <- ev.JobID:
+				default:
+				}
+			}
+		}
+	}()
+	defer func() {
+		stopQE()
+		<-qeDone
+		_ = qe.Close()
+	}()
+
+	w, err := bullmq.NewWorker(q.Name(), func(context.Context, *bullmq.Job) (any, error) { return "done", nil },
+		&bullmq.WorkerOptions{Backend: factory, Name: "cluster-worker", DrainDelay: 5 * time.Second})
+	if err != nil {
+		t.Fatalf("NewWorker: %v", err)
+	}
+	rb, ok := w.Backend().(*Backend)
+	if !ok || rb.blockingConn == nil || rb.blocking == redis.UniversalClient(cluster) {
+		t.Fatal("the worker has no dedicated blocking client")
+	}
+	runCtx, cancel := context.WithCancel(context.Background())
+	stopped := make(chan error, 1)
+	go func() { stopped <- w.Run(runCtx) }()
+	defer w.Close()
+
+	job, err := q.Add(ctx, "job", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	select {
+	case id := <-completed:
+		if id != job.ID {
+			t.Fatalf("completed event for %s, want %s", id, job.ID)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("no completed event")
+	}
+
+	waitFor(t, 5*time.Second, "the worker to be listed", func() bool {
+		workers, err := q.Workers(ctx)
+		return err == nil && len(workers) == 1 && workers[0].Name == "cluster-worker"
+	})
+
+	// The worker is idle, blocked for up to its 5s DrainDelay.
+	time.Sleep(300 * time.Millisecond)
+	start := time.Now()
+	cancel()
+	select {
+	case <-stopped:
+		if d := time.Since(start); d > 2*time.Second {
+			t.Errorf("the worker took %v to stop", d)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the worker did not stop")
 	}
 }

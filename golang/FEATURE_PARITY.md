@@ -90,12 +90,12 @@ Streams every event published by any worker on the queue, in any language.
 
 ## Not implemented
 
-| Feature                                | Notes                                                                                                                                    |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Sandboxed processors                   | Not applicable; use goroutines.                                                                                                          |
-| Telemetry / OpenTelemetry              | No tracing hooks yet.                                                                                                                    |
-| Redis Cluster and Sentinel             | Only standalone Redis is exercised by the test suite. You can pass your own `redis.UniversalClient`, but this configuration is untested. |
-| Global concurrency groups (BullMQ Pro) | Pro-only feature.                                                                                                                        |
+| Feature                                | Notes                                                                                                            |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Sandboxed processors                   | Not applicable; use goroutines.                                                                                  |
+| Telemetry / OpenTelemetry              | No tracing hooks yet.                                                                                            |
+| Redis Cluster and Sentinel             | CI only runs on standalone Redis; the cluster tests run when `REDIS_CLUSTER_ADDRS` is set. Sentinel is untested. |
+| Global concurrency groups (BullMQ Pro) | Pro-only feature.                                                                                                |
 
 ## PostgreSQL
 

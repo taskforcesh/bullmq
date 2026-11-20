@@ -198,14 +198,15 @@ if err != nil {
 defer queue.Close()
 ```
 
-Blocking reads (`BZPOPMIN` in workers, `XREAD` in `QueueEvents`) never run on
-the shared pool. When the client is a `*redis.Client`, a worker derives a
-dedicated single-connection client from its options (address, credentials,
-TLS, dialer...) and closes it on `Close`. An idle worker blocks on it for the
+Workers and `QueueEvents` run their blocking reads (`BZPOPMIN`, `XREAD`) on a
+dedicated client that they derive from the client's options (address,
+credentials, TLS, dialer...) and close on `Close`: a single connection for a
+`*redis.Client`, one per node for a `*redis.ClusterClient`, named after the
+worker so that `Queue.Workers` finds it. An idle worker blocks on it for the
 whole `DrainDelay` (5 s by default), and stopping the worker interrupts the
-read by closing that connection, as Node's `disconnectBlocking` does. Other
-client types (cluster, ring) are used as they are, with blocking calls of at
-most a second; see [Known limitations](#known-limitations).
+read by closing that connection, as Node's `disconnectBlocking` does. A
+`*redis.Ring` can't be cloned: its blocking reads share its pool, in calls of
+at most a second, and `Queue.Workers` may not find its workers.
 
 The backend of a queue built with `redisbackend.New` is a
 `*redisbackend.Backend`, which exposes the client and the key names:
@@ -1218,11 +1219,12 @@ quickly, lower `LockDuration` and `StalledInterval`.
 
 - **No telemetry.** There are no OpenTelemetry hooks yet; use worker events
   or `OnEvent` for metrics and tracing.
-- **Redis Cluster and Sentinel are untested.** A `redis.UniversalClient` for a
-  cluster or a failover setup can be passed as `Client`, but the test suite
-  only runs on a standalone server. On a cluster, the prefix needs a hash tag
-  (for example `{bull}`) so that the keys of a queue share a slot, as in
-  Node.js.
+- **Redis Cluster is lightly tested, Sentinel untested.** A
+  `redis.UniversalClient` for a cluster or a failover setup can be passed as
+  `Client`. CI only runs on a standalone server; the cluster tests (workers,
+  worker discovery, queue events) run when `REDIS_CLUSTER_ADDRS` is set. On a
+  cluster, the prefix needs a hash tag (for example `{bull}`) so that the keys
+  of a queue share a slot, as in Node.js.
 - **QueueEvents on PostgreSQL can miss events under concurrency.** Event ids
   are assigned before their transaction commits, so a listener can skip an
   event that commits after a later one was read. Every runtime is affected
