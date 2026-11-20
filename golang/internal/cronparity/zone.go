@@ -97,7 +97,10 @@ var zoneIndex = sync.OnceValue(func() map[string]string {
 				return nil
 			}
 			if d.Type().IsRegular() || d.Type()&fs.ModeSymlink != 0 {
-				add(filepath.ToSlash(rel))
+				name := filepath.ToSlash(rel)
+				if !strings.EqualFold(name, "localtime") {
+					add(name)
+				}
 			}
 			return nil
 		})
@@ -147,10 +150,6 @@ func LoadLocation(tz string) (*time.Location, error) {
 	if !ianaNameRe.MatchString(tz) {
 		return nil, fmt.Errorf("cronparity: invalid time zone %q", tz)
 	}
-	loc, err := time.LoadLocation(tz)
-	if err == nil {
-		return loc, nil
-	}
 	name, ok := zoneIndex()[lower]
 	if !ok {
 		name, ok = icuAliases[lower]
@@ -158,7 +157,8 @@ func LoadLocation(tz string) (*time.Location, error) {
 	if !ok {
 		return nil, fmt.Errorf("cronparity: unknown time zone %q", tz)
 	}
-	if loc, err = time.LoadLocation(name); err != nil {
+	loc, err := time.LoadLocation(name)
+	if err != nil {
 		return nil, fmt.Errorf("cronparity: time zone %q (%s) is not available: %w", tz, name, err)
 	}
 	return loc, nil
