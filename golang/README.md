@@ -172,7 +172,7 @@ The `bullmq` schema is created and migrated by the first operation. See
 
 | Field                                    | Default          | Meaning                                                                                            |
 | ---------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
-| `Addr`                                   | `127.0.0.1:6379` | Server address                                                                                     |
+| `Addr`                                   | `localhost:6379` | Server address                                                                                     |
 | `Username`, `Password`, `DB`, `PoolSize` |                  | Passed to go-redis                                                                                 |
 | `Prefix`                                 | `bull`           | Prefix of every key, as in the other ports. Producers and workers of a queue must use the same one |
 | `Client`                                 |                  | An existing `redis.UniversalClient` to use instead of the fields above; BullMQ never closes it     |

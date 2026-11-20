@@ -171,7 +171,7 @@ The `bullmq` schema is created and migrated by the first operation. See
 
 ## Connection configuration
 
-`redisbackend.Options` holds the Redis settings: `Addr` (`127.0.0.1:6379` by
+`redisbackend.Options` holds the Redis settings: `Addr` (`localhost:6379` by
 default), `Username`, `Password`, `DB`, `PoolSize`, and the key `Prefix`
 (`bull` by default, as in every other SDK):
 

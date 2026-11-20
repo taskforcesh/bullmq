@@ -10,6 +10,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// DefaultAddr is the Redis server used when Options.Addr is empty, the
+// default of ioredis and go-redis.
+const DefaultAddr = "localhost:6379"
+
 // Options configures the Redis backend: how to reach the server and which key
 // prefix the queues live under.
 //
@@ -22,7 +26,7 @@ type Options struct {
 	// Client is an existing client to reuse. When set, the connection fields
 	// below are ignored. The backend never closes a supplied client.
 	Client redis.UniversalClient
-	// Addr is the `host:port` of the Redis server. Defaults to 127.0.0.1:6379.
+	// Addr is the `host:port` of the Redis server. Defaults to [DefaultAddr].
 	Addr string
 	// Username for ACL authentication.
 	Username string
@@ -65,7 +69,7 @@ func (o Options) build() (redis.UniversalClient, bool) {
 	}
 	addr := o.Addr
 	if addr == "" {
-		addr = "127.0.0.1:6379"
+		addr = DefaultAddr
 	}
 	return redis.NewClient(&redis.Options{
 		Addr:                  addr,
@@ -150,7 +154,7 @@ func (o Options) buildBlocking(name string, readTimeout time.Duration) (redis.Un
 	} else {
 		addr := o.Addr
 		if addr == "" {
-			addr = "127.0.0.1:6379"
+			addr = DefaultAddr
 		}
 		opt = &redis.Options{
 			Addr:                  addr,
