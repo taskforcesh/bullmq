@@ -1,24 +1,26 @@
 # BullMQ for Go
 
-A Go port of [BullMQ](https://github.com/taskforcesh/bullmq), the Redis-backed
-job queue.
+A Go port of [BullMQ](https://github.com/taskforcesh/bullmq), the job queue
+for Redis and PostgreSQL.
 
 Jobs produced by this package are fully interoperable with the Node.js, Python,
-Rust and .NET implementations: every state transition is executed by the exact
-same Lua scripts, which live in `src/commands` at the root of this repository.
+Rust and .NET implementations: on Redis every state transition is executed by
+the exact same Lua scripts, which live in `src/commands` at the root of this
+repository, and on PostgreSQL by the same SQL, which lives in `src/postgres`.
 
 > `Queue`, `Worker`, `QueueEvents` and `Job` depend only on the `Backend`
 > interface (the counterpart of the Node.js `IQueueBackend`), and the root
 > package imports no datastore driver. The datastore is chosen with the
 > required `Backend` option of `QueueOptions`, `WorkerOptions` and
 > `QueueEventsOptions`; the Redis backend lives in the
-> [`redisbackend`](./redisbackend) package. See
+> [`redisbackend`](./redisbackend) package and the PostgreSQL backend in the
+> [`postgresbackend`](./postgresbackend) package. See
 > [FEATURE_PARITY.md](./FEATURE_PARITY.md) for what is and is not implemented.
 
 ## Requirements
 
 - Go 1.24 or newer
-- Redis 6.2 or newer
+- Redis 6.2 or newer, or PostgreSQL 13 or newer
 
 ## Installation
 
@@ -33,22 +35,26 @@ The source of truth for this port is the
 of the main BullMQ repository. The
 [bullmq-go](https://github.com/taskforcesh/bullmq-go) repository is published
 automatically on every Go release and already contains the generated Lua
-commands, so `go get` works out of the box. Contributions should be made to
-the main BullMQ repository.
+commands and SQL files, so `go get` works out of the box. Contributions should
+be made to the main BullMQ repository.
 
-The Lua commands are **not** committed to the `golang` directory. They are
-generated from the shared sources so that every port stays byte-for-byte
-identical. Before building or testing, run from the repository root:
+The Lua commands and the SQL files are **not** committed to the `golang`
+directory. They are generated from the shared sources so that every port stays
+byte-for-byte identical. Before building or testing, run from the repository
+root:
 
 ```sh
 yarn install
 yarn generate:raw:scripts
 yarn copy:lua:golang
+yarn copy:sql:golang
 ```
 
 This resolves the `--- @include` directives in `src/commands/*.lua` into
-`rawScripts/` and copies the result into `golang/redisbackend/commands/`,
-where it is embedded into the binary with `go:embed`.
+`rawScripts/` and copies the result into `golang/redisbackend/commands/`, and
+copies the migrations and commands of `src/postgres` into
+`golang/postgresbackend/sql/`, where they are embedded into the binary with
+`go:embed`.
 
 ## Usage
 
@@ -227,9 +233,46 @@ queue, err := bullmq.NewQueue("emails", &bullmq.QueueOptions{Backend: backend})
 
 Clients supplied this way are not closed by `Queue.Close` or `Worker.Close`.
 
+### PostgreSQL
+
+The [`postgresbackend`](./postgresbackend) package stores queues in
+PostgreSQL, with the schema and SQL shared by every BullMQ port, so Go
+producers and workers interoperate with Node.js, Python, Elixir and .NET on the
+same database:
+
+```go
+backend := postgresbackend.New(postgresbackend.Options{
+	ConnString: "postgres://user:pass@localhost:5432/app",
+})
+queue, err := bullmq.NewQueue("emails", &bullmq.QueueOptions{Backend: backend})
+```
+
+`postgresbackend.Options` holds the PostgreSQL settings:
+
+- `Schema` namespaces every queue, as the key prefix does on Redis (`bullmq`
+  by default). It is created and migrated on first use, with the migration
+  ledger every runtime shares; a schema that requires a newer BullMQ major
+  version is refused with a `*postgresbackend.SchemaVersionError`.
+- `PoolSize` is the size of the query pool (20 by default). Backends built with
+  the same `ConnString`, `Schema` and `PoolSize` share one
+  [pgxpool](https://pkg.go.dev/github.com/jackc/pgx/v5/pgxpool) pool per
+  process; when the last of them closes, the pool closes its idle connections.
+- `Pool` is an optional caller-supplied `*pgxpool.Pool`, never closed by
+  BullMQ. Its connections must use the schema as their `search_path`
+  (`config.ConnConfig.RuntimeParams["search_path"] = "bullmq"`).
+- `SkipVersionCheck` skips the PostgreSQL 13 check.
+
+Each worker and `QueueEvents` also holds a dedicated connection, outside the
+pool, that `LISTEN`s for notifications, so an idle worker wakes up as soon as a
+job is added instead of polling. Its `application_name` is the client name
+that `Queue.Workers` looks for. The backend of a queue built with
+`postgresbackend.New` is a `*postgresbackend.Backend`, which exposes the pool
+and the schema.
+
 ## Testing
 
-The tests need a Redis server. From the repository root:
+The tests need a Redis server, and a PostgreSQL database for the PostgreSQL
+backend. From the repository root:
 
 ```sh
 docker compose up -d
@@ -237,19 +280,26 @@ cd golang
 go test ./...
 ```
 
-Set `REDIS_ADDR` to point at a different server:
+Set `REDIS_ADDR` to point at a different server, and `POSTGRES_URL` to run the
+tests against PostgreSQL too (the `postgres` service of `docker-compose.yml`
+listens there):
 
 ```sh
-REDIS_ADDR=127.0.0.1:6380 go test ./...
+REDIS_ADDR=127.0.0.1:6380 \
+  POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bullmq_test?sslmode=disable \
+  go test ./...
 ```
 
-Tests that require Redis are skipped automatically when no server is reachable.
+Tests that require Redis are skipped automatically when no server is reachable,
+and PostgreSQL tests when `POSTGRES_URL` is not set. The PostgreSQL tests
+create their own schemas (`bullmq_go_test` and `gotest_pg_*`) in that database
+and leave the default `bullmq` schema alone.
 
 The behaviour tests of the root package run once per datastore, as subtests
-named after it (for example `TestWorkerProcessesJobs/redis`). The datastores
-are listed in `internal/testbackends`: Redis always, and PostgreSQL when
-`POSTGRES_URL` is set. Tests specific to the Redis backend live in
-`redisbackend`.
+named after it (for example `TestWorkerProcessesJobs/redis` and
+`TestWorkerProcessesJobs/postgres`). The datastores are listed in
+`internal/testbackends`: Redis always, and PostgreSQL when `POSTGRES_URL` is
+set. Tests specific to a backend live in `redisbackend` and `postgresbackend`.
 
 ## License
 
