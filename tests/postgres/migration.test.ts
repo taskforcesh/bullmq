@@ -703,3 +703,64 @@ describe('PostgreSQL compatibility aliases and options', () => {
     ).toThrow(/mutually exclusive/i);
   });
 });
+
+describe('PostgreSQL clean-by-name migration (0012_clean_by_name)', () => {
+  const url = getPostgresUrl();
+  const schema = DEFAULT_SCHEMA;
+  let pool: Pool;
+
+  const dropAll = async () => {
+    await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+  };
+
+  beforeAll(async () => {
+    pool = new Pool({ connectionString: url });
+  });
+
+  beforeEach(dropAll);
+
+  afterAll(async () => {
+    await dropAll();
+    await pool.end();
+  });
+
+  it('keeps 4-argument clean() calls working without overload ambiguity', async () => {
+    const connection = new PostgresConnection({
+      connectionString: url,
+      migrate: true,
+    });
+    try {
+      await connection.waitUntilReady();
+
+      const now = Date.now();
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`SET LOCAL search_path TO "${schema}"`);
+        await client.query(
+          `SELECT add_job($1, $2, $3, '{}'::jsonb, '{}'::jsonb, 0, 0, $4, 1, NULL, NULL, NULL, NULL, NULL, false)`,
+          ['q1', 'j1', 'alpha', now - 1000],
+        );
+        await client.query(
+          `SELECT add_job($1, $2, $3, '{}'::jsonb, '{}'::jsonb, 0, 0, $4, 1, NULL, NULL, NULL, NULL, NULL, false)`,
+          ['q1', 'j2', 'beta', now - 1000],
+        );
+
+        // Legacy 4-arg call must resolve unambiguously and clean both jobs
+        const { rows } = await client.query<{ id: string }>(
+          `SELECT id FROM clean($1, $2, $3, $4) AS t(id)`,
+          ['q1', 'wait', now, 0],
+        );
+        await client.query('COMMIT');
+        expect(rows.map(r => r.id).sort()).toEqual(['j1', 'j2']);
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    } finally {
+      await connection.close();
+    }
+  });
+});

@@ -296,4 +296,24 @@ describe('Cleaner (redis-only)', () => {
 
     await worker.close();
   });
+
+  it('should clean legacy paused list jobs matching job name', async () => {
+    const client = await getRedisClient(queue);
+    const baseKey = `${prefix}:${queue.name}`;
+
+    const keepJob = await queue.add('keep', { idx: 1 });
+    const targetJob = await queue.add('target', { idx: 2 });
+    await delay(50);
+
+    // Move jobs into legacy `:paused` list key to exercise the `paused` branch
+    await client.lrem(`${baseKey}:wait`, 0, keepJob.id!);
+    await client.lrem(`${baseKey}:wait`, 0, targetJob.id!);
+    await client.lpush(`${baseKey}:paused`, keepJob.id!, targetJob.id!);
+
+    const cleaned = await queue.clean(0, 0, 'paused', 'target');
+    expect(cleaned).toEqual([targetJob.id!]);
+    expect(await client.lrange(`${baseKey}:paused`, 0, -1)).toEqual([
+      keepJob.id!,
+    ]);
+  });
 });

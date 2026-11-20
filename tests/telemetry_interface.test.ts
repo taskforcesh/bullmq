@@ -127,7 +127,7 @@ describe('Telemetry', () => {
   class MockContextManager<Context = any> implements ContextManager<Context> {
     private activeContext: Context = {} as Context;
 
-    with<A extends(...args: any[]) => any>(
+    with<A extends (...args: any[]) => any>(
       context: Context,
       fn: A,
     ): ReturnType<A> {
@@ -329,7 +329,24 @@ describe('Telemetry', () => {
       expect(span).toBeInstanceOf(MockSpan);
       expect(span.name).toBe(`clean ${queueName}`);
       expect(span.attributes[TelemetryAttributes.QueueCleanCount]).toBe(2);
+      expect(span.attributes[TelemetryAttributes.JobName]).toBeUndefined();
       expect(span.attributes[TelemetryAttributes.JobIds]).toBeUndefined();
+    });
+
+    it('should record job name attribute when cleaning by name', async () => {
+      await queue.addBulk([
+        { name: 'job1', data: { foo: 'bar' } },
+        { name: 'job2', data: { baz: 'qux' } },
+      ]);
+
+      const cleaned = await queue.clean(0, 0, 'wait', 'job1');
+      expect(cleaned).toHaveLength(1);
+
+      const activeContext = telemetryClient.contextManager.active();
+      const span = activeContext.getSpan?.() as MockSpan;
+      expect(span).toBeInstanceOf(MockSpan);
+      expect(span.attributes[TelemetryAttributes.QueueCleanCount]).toBe(1);
+      expect(span.attributes[TelemetryAttributes.JobName]).toBe('job1');
     });
   });
 
@@ -464,7 +481,7 @@ describe('Telemetry', () => {
       // other once each of their `with()` calls returns.
       private storage = new AsyncLocalStorage<any>();
 
-      with<A extends(...args: any[]) => any>(
+      with<A extends (...args: any[]) => any>(
         context: any,
         fn: A,
       ): ReturnType<A> {
@@ -904,9 +921,9 @@ describe('Telemetry', () => {
           .find(call => call.args[0] === 'job failed');
         expect(failedEventCall).toBeDefined();
         expect(failedEventCall?.thisValue).toBe(span);
-        expect(recordExceptionSpy.firstCall.calledBefore(failedEventCall!)).toBe(
-          true,
-        );
+        expect(
+          recordExceptionSpy.firstCall.calledBefore(failedEventCall!),
+        ).toBe(true);
         expect(
           failedEventCall?.args[1]?.[TelemetryAttributes.JobFailedReason],
         ).toBe(error.message);
