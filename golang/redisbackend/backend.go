@@ -42,9 +42,10 @@ type Backend struct {
 	owned bool
 	keys  *Keys
 
-	// cmd runs every non-blocking command: ap when auto-pipelining is on, rdb
-	// otherwise. Explicit pipelines and transactions run on rdb.
-	cmd redis.UniversalClient
+	// commands runs every non-blocking command: ap when auto-pipelining is on,
+	// rdb otherwise. Explicit pipelines and transactions run on rdb. Reach it
+	// only through cmd, which refuses a done context.
+	commands redis.UniversalClient
 	// ap is the client's auto-pipeliner, closed by Close when the backend owns
 	// the client.
 	ap *redis.AutoPipeliner
@@ -96,7 +97,7 @@ func NewBackend(name string, redisOpts Options, opts bullmq.BackendOptions) (*Ba
 		}
 	}
 	rdb, owned := redisOpts.build()
-	b := &Backend{rdb: rdb, owned: owned, keys: keys, cmd: rdb, blocking: rdb, blockTimeout: opts.BlockTimeout}
+	b := &Backend{rdb: rdb, owned: owned, keys: keys, commands: rdb, blocking: rdb, blockTimeout: opts.BlockTimeout}
 	if redisOpts.AutoPipeline != nil {
 		ap, err := autoPipeliner(rdb, redisOpts.AutoPipeline)
 		if err != nil {
@@ -106,7 +107,7 @@ func NewBackend(name string, redisOpts Options, opts bullmq.BackendOptions) (*Ba
 			return nil, err
 		}
 		if ap != nil {
-			b.ap, b.cmd = ap, ap
+			b.ap, b.commands = ap, ap
 		}
 	}
 	if opts.WithBlockingConnection {
@@ -206,18 +207,28 @@ func (b *Backend) ResolveParent(parent *bullmq.ParentOptions) (*bullmq.ParentKey
 // ClientName returns `{prefix}:{base64(queue)}{suffix}`.
 func (b *Backend) ClientName(suffix string) string { return b.keys.ClientName(suffix) }
 
+// cmd returns the client for a non-blocking command, or ctx's error when ctx
+// is done. A plain client does not send a command whose context is done, but
+// the auto-pipeliner ignores the context, so every non-blocking command must
+// be issued through cmd.
+func (b *Backend) cmd(ctx context.Context) (redis.Cmdable, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return b.commands, nil
+}
+
 // runScript evaluates a shared Lua command.
 func (b *Backend) runScript(ctx context.Context, name string, keys []string, args ...any) (any, error) {
 	s, err := getScript(name)
 	if err != nil {
 		return nil, err
 	}
-	// A plain client does not send a command whose context is done; the
-	// auto-pipeliner ignores the context, so check it here.
-	if err := ctx.Err(); err != nil {
+	c, err := b.cmd(ctx)
+	if err != nil {
 		return nil, err
 	}
-	res, err := s.run(ctx, b.cmd, keys, args...).Result()
+	res, err := s.run(ctx, c, keys, args...).Result()
 	if err == redis.Nil {
 		return nil, nil
 	}

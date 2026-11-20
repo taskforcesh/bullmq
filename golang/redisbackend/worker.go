@@ -312,7 +312,11 @@ func (b *Backend) SetRateLimit(ctx context.Context, ttl time.Duration) error {
 	if ms < 1 {
 		return configError("rate limit ttl must be at least 1ms, got %v", ttl)
 	}
-	return b.cmd.Set(ctx, b.keys.Limiter(), maxSafeInteger, time.Duration(ms)*time.Millisecond).Err()
+	c, err := b.cmd(ctx)
+	if err != nil {
+		return err
+	}
+	return c.Set(ctx, b.keys.Limiter(), maxSafeInteger, time.Duration(ms)*time.Millisecond).Err()
 }
 
 // maxSafeInteger is the limiter counter Node stores to saturate the window

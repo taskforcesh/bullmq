@@ -9,7 +9,11 @@ import (
 // GetDeduplicationJobID returns the id of the job that holds a
 // deduplication id, or "" when no job does.
 func (b *Backend) GetDeduplicationJobID(ctx context.Context, dedupID string) (string, error) {
-	id, err := b.cmd.Get(ctx, b.keys.Deduplication(dedupID)).Result()
+	c, err := b.cmd(ctx)
+	if err != nil {
+		return "", err
+	}
+	id, err := c.Get(ctx, b.keys.Deduplication(dedupID)).Result()
 	if err == redis.Nil {
 		return "", nil
 	}
@@ -30,6 +34,10 @@ func (b *Backend) RemoveDeduplicationKey(ctx context.Context, dedupID, jobID str
 // DeleteDeduplicationKey releases a deduplication id, whichever job holds
 // it.
 func (b *Backend) DeleteDeduplicationKey(ctx context.Context, dedupID string) (bool, error) {
-	n, err := b.cmd.Del(ctx, b.keys.Deduplication(dedupID)).Result()
+	c, err := b.cmd(ctx)
+	if err != nil {
+		return false, err
+	}
+	n, err := c.Del(ctx, b.keys.Deduplication(dedupID)).Result()
 	return n > 0, err
 }
