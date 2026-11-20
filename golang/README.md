@@ -219,6 +219,10 @@ if err != nil {
 log.Printf("%d jobs in the wait list", waiting)
 ```
 
+`Worker`, `QueueEvents` and `FlowProducer` have a `Backend` method too. The
+`BlockingClient` of a worker's or a listener's backend is its dedicated
+blocking client.
+
 ### Auto-pipelining
 
 `AutoPipeline` (experimental) sends the backend's non-blocking commands
