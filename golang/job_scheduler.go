@@ -363,7 +363,7 @@ func upsertJobScheduler(ctx context.Context, b Backend, id string, repeat Repeat
 			return nil, err
 		}
 		added := *jobOpts
-		added.Delay = Int64(delay)
+		added.JobID, added.Delay = jobID, Int64(delay)
 		return newSchedulerJob(b, jobID, name, data, &added), nil
 	}
 
