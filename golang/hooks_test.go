@@ -24,6 +24,10 @@ type backendHooks struct {
 	mu     sync.Mutex
 	tokens map[string]struct{}
 
+	// deafWait makes WaitForJob ignore every signal and just wait out its
+	// timeout, as a backend that does not announce delayed jobs would.
+	deafWait bool
+
 	// Optional interceptors; they receive the wrapped backend.
 	onMoveToCompleted func(ctx context.Context, b bullmq.Backend, jobID string, rv []byte, opts bullmq.FinishOptions) (*bullmq.FinishResult, error)
 	onMoveToDelayed   func(ctx context.Context, b bullmq.Backend, jobID, token string, delay time.Duration, opts bullmq.MoveToDelayedOptions) (*bullmq.FetchResult, error)
@@ -100,6 +104,16 @@ func (b *hookedBackend) RetryJob(ctx context.Context, jobID, token string, lifo 
 
 func (b *hookedBackend) WaitForJob(ctx context.Context, timeout time.Duration) (bullmq.WaitResult, error) {
 	b.hooks.waits.Add(1)
+	if b.hooks.deafWait {
+		t := time.NewTimer(timeout)
+		defer t.Stop()
+		select {
+		case <-ctx.Done():
+			return bullmq.WaitResult{}, ctx.Err()
+		case <-t.C:
+			return bullmq.WaitResult{}, nil
+		}
+	}
 	return b.Backend.WaitForJob(ctx, timeout)
 }
 

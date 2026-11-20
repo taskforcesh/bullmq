@@ -389,3 +389,67 @@ func testWorkerWaitsUntilTheAnnouncedDelayedJobIsDue(t *testing.T, be testBacken
 		t.Errorf("the worker fetched %d times for the delayed job, want 1", n)
 	}
 }
+
+// A slot that learns of a delayed job while the loop is already waiting on
+// the backend makes the loop fetch when that job is due, even if the backend
+// never announces it.
+func TestWorkerFetchesADelayedJobLearnedWhileWaiting(t *testing.T) {
+	forEachBackend(t, testWorkerFetchesADelayedJobLearnedWhileWaiting)
+}
+
+func testWorkerFetchesADelayedJobLearnedWhileWaiting(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	failing, err := q.Add(ctx, "fails-once", nil, &bullmq.JobOptions{
+		Attempts: bullmq.Int64(2),
+		Backoff:  &bullmq.Backoff{Type: bullmq.BackoffFixed, Delay: 300},
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	hooks := &backendHooks{deafWait: true}
+	fail := make(chan struct{})
+	retried := make(chan time.Time, 1)
+	var attempts atomic.Int64
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
+		if job.ID != failing.ID {
+			return nil, nil
+		}
+		if attempts.Add(1) == 1 {
+			<-fail
+			return nil, errors.New("fail once")
+		}
+		retried <- time.Now()
+		return nil, nil
+	}, &bullmq.WorkerOptions{Backend: hooks.wrap(be.Factory), Concurrency: 2, DrainDelay: 5 * time.Second})
+	var log eventLog
+	log.collect(w)
+	runWorker(t, w)
+	t.Cleanup(func() {
+		select {
+		case <-fail:
+		default:
+			close(fail)
+		}
+	})
+
+	// The loop finds nothing else and waits on the backend.
+	waitFor(t, 5*time.Second, "the worker to wait for jobs", func() bool { return hooks.waits.Load() > 0 })
+	// The failing job is retried with a backoff and its slot chains into this
+	// job, so only that slot learns when the retry is due.
+	if _, err := q.Add(ctx, "chained", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	failedAt := time.Now()
+	close(fail)
+
+	select {
+	case at := <-retried:
+		if gap := at.Sub(failedAt); gap > 2*time.Second {
+			t.Errorf("the retry ran %v after the failure, want about its 300ms backoff", gap)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the failed job was never retried")
+	}
+}

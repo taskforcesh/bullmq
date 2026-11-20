@@ -456,17 +456,38 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 			if waiter.running() {
 				waited = waiter.results
 			}
+			// A slot may have learned of a delayed job due before the
+			// outstanding wait ends.
+			var due <-chan time.Time
+			var timer *time.Timer
+			next := w.blockUntil.Load()
+			if next > 0 && waiter.running() {
+				d := time.Until(time.UnixMilli(next))
+				if d <= 0 {
+					w.blockUntil.CompareAndSwap(next, 0)
+					fetchNow = true
+					continue
+				}
+				timer = time.NewTimer(d)
+				due = timer.C
+			}
 			select {
 			case <-loopCtx.Done():
 				return loopCtx.Err()
 			case <-w.wake:
 			case <-w.ctrl:
+			case <-due:
+				w.blockUntil.CompareAndSwap(next, 0)
+				fetchNow = true
 			case out := <-waited:
 				waiter.done()
 				if !w.afterWait(loopCtx, out) {
 					return loopCtx.Err()
 				}
 				fetchNow = w.blockUntil.Load() == 0
+			}
+			if timer != nil {
+				timer.Stop()
 			}
 			continue
 		}
