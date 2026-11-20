@@ -105,6 +105,24 @@ func TestKeepArgsRemovesOnlyTheJobForACountOfZero(t *testing.T) {
 	}
 }
 
+func TestKeepFromJSONReadsEveryStoredForm(t *testing.T) {
+	for raw, want := range map[string][3]any{
+		`true`:                 {true, nil, nil},
+		`false`:                {false, nil, nil},
+		`0`:                    {true, nil, nil},
+		`10`:                   {false, nil, int64(10)},
+		`{"count":0}`:          {true, nil, nil},
+		`{"count":3,"age":60}`: {false, int64(60), int64(3)},
+		`{"age":60}`:           {false, int64(60), nil},
+		`"junk"`:               {false, nil, nil},
+	} {
+		removeAll, keepAge, keepCount := keepFromJSON([]byte(raw))
+		if got := [3]any{removeAll, keepAge, keepCount}; got != want {
+			t.Errorf("keepFromJSON(%s) = %v, want %v", raw, got, want)
+		}
+	}
+}
+
 func TestMapErrorTurnsBM001IntoScriptErrors(t *testing.T) {
 	err := mapError("move_to_completed", &pgconn.PgError{Code: "BM001", Detail: "-6", Message: "lock mismatch"})
 	if !errors.Is(err, bullmq.ErrJobLockMismatch) {

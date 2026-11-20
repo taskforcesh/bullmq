@@ -149,22 +149,48 @@ func (b *Backend) collectMetrics(ctx context.Context, kind string, finishedOn in
 }
 
 // keepArgs turns a removal policy into the retention parameters of the
-// finishing commands.
+// finishing commands. It reads the policy's JSON form, the one stored in the
+// job options (true, a count, or {count, age}), as Node's normalizeKeep does.
 func keepArgs(k *bullmq.RemoveOnFinish) (removeAll bool, keepAge, keepCount any) {
 	if k == nil {
+		return false, nil, nil
+	}
+	raw, err := json.Marshal(k)
+	if err != nil {
+		return false, nil, nil
+	}
+	return keepFromJSON(raw)
+}
+
+// keepFromJSON reads a removal policy stored as true, false, a count or
+// {count, age}.
+func keepFromJSON(raw []byte) (removeAll bool, keepAge, keepCount any) {
+	var (
+		count  int64
+		policy struct {
+			Count *int64 `json:"count"`
+			Age   *int64 `json:"age"`
+		}
+	)
+	switch {
+	case json.Unmarshal(raw, &removeAll) == nil:
+		return removeAll, nil, nil
+	case json.Unmarshal(raw, &count) == nil:
+		policy.Count = &count
+	case json.Unmarshal(raw, &policy) != nil:
 		return false, nil, nil
 	}
 	// A count of 0 removes the job straight away, as on Redis. The keep-count
 	// retention of the shared SQL would instead trim the whole finished set
 	// down to 0 jobs, so ask for the removal of this job only.
-	if k.Count != nil && *k.Count == 0 {
+	if policy.Count != nil && *policy.Count == 0 {
 		return true, nil, nil
 	}
-	if k.Age != nil {
-		keepAge = *k.Age
+	if policy.Age != nil {
+		keepAge = *policy.Age
 	}
-	if k.Count != nil {
-		keepCount = clampInt32(*k.Count)
+	if policy.Count != nil {
+		keepCount = clampInt32(*policy.Count)
 	}
 	return false, keepAge, keepCount
 }
