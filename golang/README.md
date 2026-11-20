@@ -1093,9 +1093,11 @@ Python, Elixir and .NET ports use, so they all work on the same schema.
   connection per worker and listener.
 - **Worker discovery.** The `application_name` of a worker's dedicated
   connection is `<queue>` or `<queue>:w:<name>`, as in Node.js, and is what
-  `Queue.Workers` finds. PostgreSQL truncates it to 63 bytes, so the workers
-  of a queue with a long name may be missing, and long worker names are
-  truncated.
+  `Queue.Workers` finds. PostgreSQL stores each non-ASCII byte of it as a
+  4-byte `\xhh` escape (`é` becomes `\xc3\xa9`; before PostgreSQL 16, a `?`),
+  which `Queue.Workers` undoes, and then truncates it to 63 bytes, so the
+  workers of a queue with a long name may be missing, and long worker names
+  are truncated. Non-ASCII characters make a name reach that limit sooner.
 - The backend of a queue built with `postgresbackend.New` is a
   `*postgresbackend.Backend`, which exposes `Pool()` and `Schema()`.
 - Job data, return values and progress are stored as `jsonb`, so a job read

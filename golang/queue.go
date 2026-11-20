@@ -511,15 +511,19 @@ type WorkerInfo struct {
 	// age, idle, ...), only name on PostgreSQL. Fields["name"] is the raw
 	// connection name, which encodes the queue: `{prefix}:{base64(queue)}`
 	// followed by `:w:{name}` for a named worker on Redis, `{queue}` and
-	// `:w:{name}` on PostgreSQL.
+	// `:w:{name}` on PostgreSQL, where it is reported as the worker set it,
+	// with PostgreSQL's `\xhh` escaping of non-ASCII bytes undone.
 	Fields map[string]string
 }
 
 // Workers lists the workers connected to this queue, as Node's getWorkers
 // does. Workers are found by the name of their dedicated connection, in
 // CLIENT LIST on Redis and in pg_stat_activity on PostgreSQL. PostgreSQL
-// truncates connection names to 63 bytes, so there the workers of a queue
-// with a long name may be missing, and long worker names are truncated.
+// stores each non-ASCII byte of a connection name as a 4-byte `\xhh` escape
+// (a `?` before version 16, which loses the worker name's non-ASCII
+// characters) and truncates the result to 63 bytes, so there the workers of
+// a queue with a long name may be missing, and long worker names are
+// truncated.
 func (q *Queue) Workers(ctx context.Context) ([]WorkerInfo, error) {
 	lists, err := q.backend.GetClientList(ctx)
 	if err != nil {

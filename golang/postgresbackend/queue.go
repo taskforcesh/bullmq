@@ -199,6 +199,8 @@ func (b *Backend) GetMetrics(ctx context.Context, state bullmq.JobState, start, 
 // GetClientList reports the named sessions of the database as `name=<name>`
 // lines, the shape of Redis CLIENT LIST that worker discovery parses. Only
 // the dedicated connections of workers and queue events listeners are named.
+// The names of this queue's connections are reported as their clients set
+// them, with PostgreSQL's escaping of non-ASCII bytes undone.
 func (b *Backend) GetClientList(ctx context.Context) ([]string, error) {
 	names, err := b.queryStrings(ctx, "get_client_list")
 	if err != nil {
@@ -206,7 +208,7 @@ func (b *Backend) GetClientList(ctx context.Context) ([]string, error) {
 	}
 	lines := make([]string, len(names))
 	for i, name := range names {
-		lines[i] = "name=" + name
+		lines[i] = "name=" + b.clientNameAsSet(name)
 	}
 	return []string{strings.Join(lines, "\n")}, nil
 }
