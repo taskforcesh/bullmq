@@ -416,7 +416,9 @@ queue, err := bullmq.NewQueue("emails", &bullmq.QueueOptions{Backend: backend})
 - `PoolSize` is the size of the query pool (20 by default). Backends built with
   the same `ConnString`, `Schema` and `PoolSize` share one
   [pgxpool](https://pkg.go.dev/github.com/jackc/pgx/v5/pgxpool) pool per
-  process; when the last of them closes, the pool closes its idle connections.
+  process. It opens connections on demand (`pool_min_conns` and
+  `pool_min_idle_conns` are ignored) and closes them once the last of those
+  backends is closed.
 - `Pool` is an optional caller-supplied `*pgxpool.Pool`, never closed by
   BullMQ. Its connections must use the schema as their `search_path`
   (`config.ConnConfig.RuntimeParams["search_path"] = "bullmq"`).

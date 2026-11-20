@@ -883,3 +883,26 @@ func TestMoveToDelayedSucceedsWhenTheNextFetchFails(t *testing.T) {
 		t.Fatalf("job is %q (%v), want delayed", state, err)
 	}
 }
+
+func TestASharedPoolKeepsNoConnectionAfterItsLastClose(t *testing.T) {
+	url := testURL(t)
+	ctx := testCtx(t)
+	schema := newSchema(t)
+	sep := "?"
+	if strings.Contains(url, "?") {
+		sep = "&"
+	}
+	connString := url + sep + "pool_min_conns=2&pool_min_idle_conns=2&pool_health_check_period=100ms"
+
+	b := newBackend(t, Options{ConnString: connString, Schema: schema}, "min-conns", bullmq.BackendOptions{})
+	if _, err := b.GetCounts(ctx, nil); err != nil {
+		t.Fatalf("GetCounts: %v", err)
+	}
+	pool := b.Pool()
+	_ = b.Close()
+	// Several health checks run meanwhile.
+	time.Sleep(600 * time.Millisecond)
+	if n := pool.Stat().TotalConns(); n != 0 {
+		t.Fatalf("the pool holds %d connections after its last backend closed", n)
+	}
+}

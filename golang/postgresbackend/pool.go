@@ -42,9 +42,11 @@ func acquireSharedPool(connString, schema string, poolSize int) (*sharedPool, er
 	case !strings.Contains(connString, "pool_max_conns"):
 		cfg.MaxConns = DefaultPoolSize
 	}
-	if cfg.MinConns > cfg.MaxConns {
-		cfg.MinConns = cfg.MaxConns
-	}
+	// Connections are opened on demand. A minimum would make the pool's
+	// health check reopen sessions after the last backend closed and the pool
+	// was cleared, leaving sessions nobody uses.
+	cfg.MinConns = 0
+	cfg.MinIdleConns = 0
 	// Every pooled session resolves the unqualified names of the shared SQL
 	// in the schema. The value is quoted to match the case-preserving
 	// CREATE SCHEMA of the migrations.

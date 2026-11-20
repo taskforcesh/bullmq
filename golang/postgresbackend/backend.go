@@ -70,7 +70,10 @@ type Options struct {
 	// PoolSize is the maximum number of pooled connections used for
 	// queries. Defaults to the connection string's pool_max_conns, or
 	// DefaultPoolSize. Backends built with the same ConnString, Schema and
-	// PoolSize share one pool per process.
+	// PoolSize share one pool per process. Its connections are opened on
+	// demand and closed once its last backend is closed, so pool_min_conns
+	// and pool_min_idle_conns in ConnString are ignored; pass a Pool to keep
+	// connections open.
 	PoolSize int
 	// SkipVersionCheck skips the check that the server runs PostgreSQL 13 or
 	// newer.
