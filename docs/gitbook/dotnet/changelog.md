@@ -5,6 +5,13 @@
 
 * **worker:** retry failed jobs according to attempts and backoff [dotnet] ([#5161](https://github.com/taskforcesh/bullmq/issues/5161)) ([02c3725](https://github.com/taskforcesh/bullmq/commit/02c372557b585f5e179c6ad868b06a283593286b))
 
+## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vnet1.3.4...vnet1.3.5) (2026-11-19)
+
+
+### Performance Improvements
+
+* **worker:** fetch the next job when finishing the current one [dotnet] ([#5164](https://github.com/taskforcesh/bullmq/issues/5164)) ([b613f6a](https://github.com/taskforcesh/bullmq/commit/b613f6a259b874085475695887c2238fb57ac2d5))
+
 ## [1.3.4](https://github.com/taskforcesh/bullmq/compare/vnet1.3.3...vnet1.3.4) (2026-11-19)
 
 
