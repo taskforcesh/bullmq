@@ -8,7 +8,16 @@ import (
 	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
-func dedupKey(q *bullmq.Queue, id string) string { return q.Keys().Base() + ":de:" + id }
+// dedupEntry returns the job a deduplication id points at and the time left
+// before the entry expires (-1 when it never expires).
+func dedupEntry(t *testing.T, ctx context.Context, be testBackend, q *bullmq.Queue, id string) (string, time.Duration, bool) {
+	t.Helper()
+	jobID, ttl, ok, err := be.Fixture.Deduplication(ctx, q.Backend(), id)
+	if err != nil {
+		t.Fatalf("Deduplication(%s): %v", id, err)
+	}
+	return jobID, ttl, ok
+}
 
 func addDeduped(t *testing.T, ctx context.Context, q *bullmq.Queue, data string, de *bullmq.DeduplicationOptions, opts *bullmq.JobOptions) *bullmq.Job {
 	t.Helper()
@@ -54,9 +63,12 @@ func requireWaitingCount(t *testing.T, ctx context.Context, q *bullmq.Queue, sta
 }
 
 func TestDeduplicationSuppressesDuplicatesAndClearsKeyOnCompletion(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testDeduplicationSuppressesDuplicatesAndClearsKeyOnCompletion)
+}
+
+func testDeduplicationSuppressesDuplicatesAndClearsKeyOnCompletion(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 	de := &bullmq.DeduplicationOptions{ID: "same"}
 
 	first := addDeduped(t, ctx, q, "first", de, nil)
@@ -67,14 +79,10 @@ func TestDeduplicationSuppressesDuplicatesAndClearsKeyOnCompletion(t *testing.T)
 	requireWaitingCount(t, ctx, q, bullmq.StateWaiting, 1)
 	requireStoredData(t, ctx, q, first.ID, `"first"`)
 
-	key := dedupKey(q, "same")
-	if got, err := q.Client().Get(ctx, key).Result(); err != nil || got != first.ID {
-		t.Fatalf("dedup key = %q (%v), want %q", got, err, first.ID)
+	if got, ttl, ok := dedupEntry(t, ctx, be, q, "same"); !ok || got != first.ID || ttl != -1 {
+		t.Fatalf("dedup entry = %q, ttl %v, exists %v; want %q without expiry", got, ttl, ok, first.ID)
 	}
-	if ttl, err := q.Client().PTTL(ctx, key).Result(); err != nil || ttl != -1 {
-		t.Fatalf("simple-mode PTTL = %v (%v), want no expiry", ttl, err)
-	}
-	if deid, err := q.Client().HGet(ctx, q.Keys().Job(first.ID), "deid").Result(); err != nil || deid != "same" {
+	if deid, err := be.Fixture.JobDeduplicationID(ctx, q.Backend(), first.ID); err != nil || deid != "same" {
 		t.Fatalf("job deid = %q (%v), want same", deid, err)
 	}
 
@@ -84,16 +92,17 @@ func TestDeduplicationSuppressesDuplicatesAndClearsKeyOnCompletion(t *testing.T)
 		t.Fatalf("different dedup id reused job %s", first.ID)
 	}
 
-	w := newTestWorker(t, q.Name(), func(context.Context, *bullmq.Job) (any, error) { return nil, nil }, nil)
+	w := newTestWorker(t, be, q.Name(), func(context.Context, *bullmq.Job) (any, error) { return nil, nil }, nil)
 	runWorker(t, w)
 	waitFor(t, 10*time.Second, "both jobs to complete", func() bool {
 		s1, _ := q.JobState(ctx, first.ID)
 		s2, _ := q.JobState(ctx, other.ID)
 		return s1 == bullmq.StateCompleted && s2 == bullmq.StateCompleted
 	})
-	waitFor(t, 5*time.Second, "dedup keys to be removed", func() bool {
-		n, _ := q.Client().Exists(ctx, key, dedupKey(q, "different")).Result()
-		return n == 0
+	waitFor(t, 5*time.Second, "dedup entries to be removed", func() bool {
+		_, _, same := dedupEntry(t, ctx, be, q, "same")
+		_, _, different := dedupEntry(t, ctx, be, q, "different")
+		return !same && !different
 	})
 
 	if err := w.Close(); err != nil {
@@ -106,36 +115,38 @@ func TestDeduplicationSuppressesDuplicatesAndClearsKeyOnCompletion(t *testing.T)
 		t.Fatalf("add after completion returned the old job %s", first.ID)
 	}
 	requireStoredData(t, ctx, q, again.ID, `"again"`)
-	if got, err := q.Client().Get(ctx, key).Result(); err != nil || got != again.ID {
-		t.Fatalf("dedup key = %q (%v), want %q", got, err, again.ID)
+	if got, _, ok := dedupEntry(t, ctx, be, q, "same"); !ok || got != again.ID {
+		t.Fatalf("dedup entry = %q (exists %v), want %q", got, ok, again.ID)
 	}
 }
 
 func TestDeduplicationTTLKeepsKeyUntilItExpires(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testDeduplicationTTLKeepsKeyUntilItExpires)
+}
+
+func testDeduplicationTTLKeepsKeyUntilItExpires(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 	de := &bullmq.DeduplicationOptions{ID: "ttl", TTL: 500}
 
 	first := addDeduped(t, ctx, q, "first", de, nil)
-	key := dedupKey(q, "ttl")
-	if ttl, err := q.Client().PTTL(ctx, key).Result(); err != nil || ttl <= 0 || ttl > 500*time.Millisecond {
-		t.Fatalf("PTTL = %v (%v), want within (0, 500ms]", ttl, err)
+	if _, ttl, ok := dedupEntry(t, ctx, be, q, "ttl"); !ok || ttl <= 0 || ttl > 500*time.Millisecond {
+		t.Fatalf("dedup ttl = %v (exists %v), want within (0, 500ms]", ttl, ok)
 	}
 	if dup := addDeduped(t, ctx, q, "dup", de, nil); dup.ID != first.ID {
 		t.Fatalf("duplicate id = %s, want %s", dup.ID, first.ID)
 	}
 
 	// A TTL key is left to expire on its own rather than being deleted by completion.
-	w := newTestWorker(t, q.Name(), func(context.Context, *bullmq.Job) (any, error) { return nil, nil }, nil)
+	w := newTestWorker(t, be, q.Name(), func(context.Context, *bullmq.Job) (any, error) { return nil, nil }, nil)
 	runWorker(t, w)
 	waitFor(t, 10*time.Second, "job to complete", func() bool {
 		s, _ := q.JobState(ctx, first.ID)
 		return s == bullmq.StateCompleted
 	})
-	waitFor(t, 5*time.Second, "dedup key to expire", func() bool {
-		n, _ := q.Client().Exists(ctx, key).Result()
-		return n == 0
+	waitFor(t, 5*time.Second, "dedup entry to expire", func() bool {
+		_, _, ok := dedupEntry(t, ctx, be, q, "ttl")
+		return !ok
 	})
 
 	next := addDeduped(t, ctx, q, "next", de, nil)
@@ -147,11 +158,14 @@ func TestDeduplicationTTLKeepsKeyUntilItExpires(t *testing.T) {
 }
 
 func TestDeduplicationExtendRefreshesTheTTLOnDuplicates(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testDeduplicationExtendRefreshesTheTTLOnDuplicates)
+}
+
+func testDeduplicationExtendRefreshesTheTTLOnDuplicates(t *testing.T, be testBackend) {
 	ctx := testContext(t)
 
 	pttlAfterDuplicate := func(t *testing.T, extend bool) time.Duration {
-		q := newTestQueue(t, nil)
+		q := newTestQueue(t, be, nil)
 		de := &bullmq.DeduplicationOptions{ID: "ext", TTL: 3000, Extend: extend}
 		first := addDeduped(t, ctx, q, "first", de, nil)
 		time.Sleep(1200 * time.Millisecond)
@@ -160,10 +174,7 @@ func TestDeduplicationExtendRefreshesTheTTLOnDuplicates(t *testing.T) {
 		}
 		requireStoredData(t, ctx, q, first.ID, `"first"`)
 		requireWaitingCount(t, ctx, q, bullmq.StateWaiting, 1)
-		ttl, err := q.Client().PTTL(ctx, dedupKey(q, "ext")).Result()
-		if err != nil {
-			t.Fatalf("PTTL: %v", err)
-		}
+		_, ttl, _ := dedupEntry(t, ctx, be, q, "ext")
 		return ttl
 	}
 
@@ -176,9 +187,12 @@ func TestDeduplicationExtendRefreshesTheTTLOnDuplicates(t *testing.T) {
 }
 
 func TestDeduplicationReplaceSwapsTheDelayedJob(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testDeduplicationReplaceSwapsTheDelayedJob)
+}
+
+func testDeduplicationReplaceSwapsTheDelayedJob(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 	de := &bullmq.DeduplicationOptions{ID: "swap", TTL: 60_000, Replace: true}
 	delayed := func() *bullmq.JobOptions { return &bullmq.JobOptions{Delay: bullmq.Int64(60_000)} }
 
@@ -193,12 +207,8 @@ func TestDeduplicationReplaceSwapsTheDelayedJob(t *testing.T) {
 	if state, err := q.JobState(ctx, second.ID); err != nil || state != bullmq.StateDelayed {
 		t.Fatalf("replacement state = %q (%v), want delayed", state, err)
 	}
-	key := dedupKey(q, "swap")
-	if got, err := q.Client().Get(ctx, key).Result(); err != nil || got != second.ID {
-		t.Fatalf("dedup key = %q (%v), want %q", got, err, second.ID)
-	}
-	if ttl, err := q.Client().PTTL(ctx, key).Result(); err != nil || ttl <= 0 || ttl > 60*time.Second {
-		t.Fatalf("PTTL = %v (%v), want a live TTL", ttl, err)
+	if got, ttl, ok := dedupEntry(t, ctx, be, q, "swap"); !ok || got != second.ID || ttl <= 0 || ttl > 60*time.Second {
+		t.Fatalf("dedup entry = %q, ttl %v, exists %v; want %q with a live TTL", got, ttl, ok, second.ID)
 	}
 
 	// Replacing again keeps only the latest job.
@@ -209,20 +219,20 @@ func TestDeduplicationReplaceSwapsTheDelayedJob(t *testing.T) {
 }
 
 func TestDeduplicationReplaceKeepsTheTTLUnlessExtended(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testDeduplicationReplaceKeepsTheTTLUnlessExtended)
+}
+
+func testDeduplicationReplaceKeepsTheTTLUnlessExtended(t *testing.T, be testBackend) {
 	ctx := testContext(t)
 
 	pttlAfterReplace := func(t *testing.T, extend bool) time.Duration {
-		q := newTestQueue(t, nil)
+		q := newTestQueue(t, be, nil)
 		de := &bullmq.DeduplicationOptions{ID: "swap", TTL: 3000, Replace: true, Extend: extend}
 		opts := func() *bullmq.JobOptions { return &bullmq.JobOptions{Delay: bullmq.Int64(60_000)} }
 		addDeduped(t, ctx, q, "first", de, opts())
 		time.Sleep(1200 * time.Millisecond)
 		addDeduped(t, ctx, q, "second", de, opts())
-		ttl, err := q.Client().PTTL(ctx, dedupKey(q, "swap")).Result()
-		if err != nil {
-			t.Fatalf("PTTL: %v", err)
-		}
+		_, ttl, _ := dedupEntry(t, ctx, be, q, "swap")
 		return ttl
 	}
 
@@ -235,9 +245,12 @@ func TestDeduplicationReplaceKeepsTheTTLUnlessExtended(t *testing.T) {
 }
 
 func TestDeduplicationReplaceDoesNotTouchANonDelayedJob(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testDeduplicationReplaceDoesNotTouchANonDelayedJob)
+}
+
+func testDeduplicationReplaceDoesNotTouchANonDelayedJob(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 	de := &bullmq.DeduplicationOptions{ID: "keep", TTL: 60_000, Replace: true}
 
 	first := addDeduped(t, ctx, q, "first", de, nil) // waiting, not delayed

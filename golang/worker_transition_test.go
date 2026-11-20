@@ -3,39 +3,15 @@ package bullmq
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
-	"net"
 	"testing"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 )
-
-func TestIsTransientRedisError(t *testing.T) {
-	cases := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{"eof", io.EOF, true},
-		{"wrapped eof", fmt.Errorf("x: %w", io.ErrUnexpectedEOF), true},
-		{"net op error", &net.OpError{Op: "dial", Err: errors.New("connection refused")}, true},
-		{"timeout", context.DeadlineExceeded, true},
-		{"redis nil", redis.Nil, false},
-		{"script error", scriptError("moveToFinished", ErrCodeJobLockNotExist), false},
-		{"plain", errors.New("boom"), false},
-	}
-	for _, tc := range cases {
-		if got := isTransientRedisError(tc.err); got != tc.want {
-			t.Errorf("%s: got %v, want %v", tc.name, got, tc.want)
-		}
-	}
-}
 
 func newTransitionTestWorker(t *testing.T) *Worker {
 	t.Helper()
-	w, err := NewWorker("transition", func(context.Context, *Job) (any, error) { return nil, nil }, nil)
+	w, err := NewWorker("transition", func(context.Context, *Job) (any, error) { return nil, nil },
+		&WorkerOptions{Backend: stubBackendFactory})
 	if err != nil {
 		t.Fatalf("NewWorker: %v", err)
 	}

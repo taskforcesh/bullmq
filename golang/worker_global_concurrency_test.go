@@ -13,9 +13,12 @@ import (
 // that job must wake it rather than leave the queued job waiting for the
 // drain delay.
 func TestWorkerConcurrencyAboveGlobalConcurrencyDoesNotStallQueuedJobs(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerConcurrencyAboveGlobalConcurrencyDoesNotStallQueuedJobs)
+}
+
+func testWorkerConcurrencyAboveGlobalConcurrencyDoesNotStallQueuedJobs(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 	if err := q.SetGlobalConcurrency(ctx, 1); err != nil {
 		t.Fatalf("SetGlobalConcurrency: %v", err)
 	}
@@ -28,7 +31,7 @@ func TestWorkerConcurrencyAboveGlobalConcurrencyDoesNotStallQueuedJobs(t *testin
 	}
 
 	running := make(chan struct{}, 1)
-	w := newTestWorker(t, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
 		select {
 		case running <- struct{}{}:
 		default:

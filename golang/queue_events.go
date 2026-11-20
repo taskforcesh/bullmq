@@ -58,8 +58,7 @@ func NewQueueEvents(queueName string, opts *QueueEventsOptions) (*QueueEvents, e
 	if o.BufferSize <= 0 {
 		o.BufferSize = 128
 	}
-	backend, err := resolveBackend(o.Backend, o.Redis, queueName, BackendOptions{
-		Prefix:                 o.Prefix,
+	backend, err := resolveBackend(o.Backend, queueName, BackendOptions{
 		WithBlockingConnection: true,
 		ClientNameSuffix:       ":qe",
 		BlockTimeout:           o.BlockingTimeout,

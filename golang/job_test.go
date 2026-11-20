@@ -10,9 +10,12 @@ import (
 )
 
 func TestJobUpdateProgress(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testJobUpdateProgress)
+}
+
+func testJobUpdateProgress(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "progress", nil, nil)
 	if err != nil {
@@ -37,9 +40,12 @@ func TestJobUpdateProgress(t *testing.T) {
 }
 
 func TestJobUpdateProgressWithAStruct(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testJobUpdateProgressWithAStruct)
+}
+
+func testJobUpdateProgressWithAStruct(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "progress", nil, nil)
 	if err != nil {
@@ -70,9 +76,12 @@ func TestJobUpdateProgressWithAStruct(t *testing.T) {
 }
 
 func TestJobUpdateData(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testJobUpdateData)
+}
+
+func testJobUpdateData(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "data", map[string]int{"v": 1}, nil)
 	if err != nil {
@@ -96,9 +105,12 @@ func TestJobUpdateData(t *testing.T) {
 }
 
 func TestJobLogs(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testJobLogs)
+}
+
+func testJobLogs(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "logged", nil, nil)
 	if err != nil {
@@ -123,9 +135,12 @@ func TestJobLogs(t *testing.T) {
 }
 
 func TestJobRemove(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testJobRemove)
+}
+
+func testJobRemove(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "removable", nil, nil)
 	if err != nil {
@@ -145,9 +160,12 @@ func TestJobRemove(t *testing.T) {
 }
 
 func TestJobPromote(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testJobPromote)
+}
+
+func testJobPromote(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "delayed", nil, &bullmq.JobOptions{Delay: bullmq.Int64(600_000)})
 	if err != nil {
@@ -167,9 +185,12 @@ func TestJobPromote(t *testing.T) {
 }
 
 func TestJobChangeDelay(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testJobChangeDelay)
+}
+
+func testJobChangeDelay(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "delayed", nil, &bullmq.JobOptions{Delay: bullmq.Int64(600_000)})
 	if err != nil {
@@ -189,9 +210,12 @@ func TestJobChangeDelay(t *testing.T) {
 }
 
 func TestJobChangePriority(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testJobChangePriority)
+}
+
+func testJobChangePriority(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "normal", nil, nil)
 	if err != nil {
@@ -211,9 +235,12 @@ func TestJobChangePriority(t *testing.T) {
 }
 
 func TestJobStateReportsUnknownForMissingJobs(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testJobStateReportsUnknownForMissingJobs)
+}
+
+func testJobStateReportsUnknownForMissingJobs(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	state, err := q.JobState(ctx, "does-not-exist")
 	if err != nil {
@@ -225,12 +252,15 @@ func TestJobStateReportsUnknownForMissingJobs(t *testing.T) {
 }
 
 func TestJobRetryMovesAFailedJobBackToWait(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testJobRetryMovesAFailedJobBackToWait)
+}
+
+func testJobRetryMovesAFailedJobBackToWait(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	failed := make(chan string, 1)
-	w := newTestWorker(t, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
 		return nil, errors.New("nope")
 	}, nil)
 	go func() {
@@ -277,12 +307,15 @@ func TestJobRetryMovesAFailedJobBackToWait(t *testing.T) {
 }
 
 func TestJobRetryMovesAFailedPriorityJobBackToPrioritized(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testJobRetryMovesAFailedPriorityJobBackToPrioritized)
+}
+
+func testJobRetryMovesAFailedPriorityJobBackToPrioritized(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	failed := make(chan string, 1)
-	w := newTestWorker(t, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
 		return nil, errors.New("nope")
 	}, nil)
 	go func() {
@@ -329,11 +362,14 @@ func TestJobRetryMovesAFailedPriorityJobBackToPrioritized(t *testing.T) {
 }
 
 func TestJobIsCompletedAndIsFailed(t *testing.T) {
-	requireRedis(t)
-	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	forEachBackend(t, testJobIsCompletedAndIsFailed)
+}
 
-	w := newTestWorker(t, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
+func testJobIsCompletedAndIsFailed(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
 		if job.Name == "bad" {
 			return nil, errors.New("bad job")
 		}

@@ -2,24 +2,27 @@ package bullmq_test
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/internal/testbackends"
 )
 
-// redisAddr is the server used by the integration tests.
-func redisAddr() string {
-	if addr := os.Getenv("REDIS_ADDR"); addr != "" {
-		return addr
-	}
-	return "127.0.0.1:6379"
-}
+// testBackend is one datastore of the behaviour test matrix.
+type testBackend = testbackends.Backend
 
-func redisOptions() bullmq.RedisOptions {
-	return bullmq.RedisOptions{Addr: redisAddr()}
+// forEachBackend runs fn as a subtest against every datastore available to
+// this test run (see testbackends.All), skipping unreachable ones.
+func forEachBackend(t *testing.T, fn func(t *testing.T, be testBackend)) {
+	t.Helper()
+	for _, be := range testbackends.All() {
+		t.Run(be.Name, func(t *testing.T) {
+			be.Require(t)
+			fn(t, be)
+		})
+	}
 }
 
 // testQueueName returns a queue name unique to the running test.
@@ -29,14 +32,14 @@ func testQueueName(t *testing.T) string {
 	return "go-test-" + name + "-" + time.Now().Format("150405.000000")
 }
 
-// newTestQueue creates a queue that is obliterated when the test ends.
-func newTestQueue(t *testing.T, opts *bullmq.QueueOptions) *bullmq.Queue {
+// newTestQueue creates a queue on be that is obliterated when the test ends.
+func newTestQueue(t *testing.T, be testBackend, opts *bullmq.QueueOptions) *bullmq.Queue {
 	t.Helper()
 	if opts == nil {
 		opts = &bullmq.QueueOptions{}
 	}
-	if opts.Redis.Addr == "" && opts.Redis.Client == nil {
-		opts.Redis = redisOptions()
+	if opts.Backend == nil {
+		opts.Backend = be.Factory
 	}
 	q, err := bullmq.NewQueue(testQueueName(t), opts)
 	if err != nil {
@@ -51,14 +54,15 @@ func newTestQueue(t *testing.T, opts *bullmq.QueueOptions) *bullmq.Queue {
 	return q
 }
 
-// newTestWorker creates a worker for queueName and closes it when the test ends.
-func newTestWorker(t *testing.T, queueName string, proc bullmq.Processor, opts *bullmq.WorkerOptions) *bullmq.Worker {
+// newTestWorker creates a worker on be for queueName. Start it with
+// runWorker, which also stops it when the test ends.
+func newTestWorker(t *testing.T, be testBackend, queueName string, proc bullmq.Processor, opts *bullmq.WorkerOptions) *bullmq.Worker {
 	t.Helper()
 	if opts == nil {
 		opts = &bullmq.WorkerOptions{}
 	}
-	if opts.Redis.Addr == "" && opts.Redis.Client == nil {
-		opts.Redis = redisOptions()
+	if opts.Backend == nil {
+		opts.Backend = be.Factory
 	}
 	if opts.DrainDelay == 0 {
 		opts.DrainDelay = 200 * time.Millisecond
@@ -91,21 +95,6 @@ func runWorker(t *testing.T, w *bullmq.Worker) {
 		}
 		_ = w.Close()
 	})
-}
-
-// requireRedis skips the test when no Redis server is reachable.
-func requireRedis(t *testing.T) {
-	t.Helper()
-	q, err := bullmq.NewQueue("go-test-ping", &bullmq.QueueOptions{Redis: redisOptions()})
-	if err != nil {
-		t.Fatalf("NewQueue: %v", err)
-	}
-	defer q.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if err := q.Client().Ping(ctx).Err(); err != nil {
-		t.Skipf("redis is not available at %s: %v", redisAddr(), err)
-	}
 }
 
 // waitFor polls cond until it returns true or the timeout elapses.

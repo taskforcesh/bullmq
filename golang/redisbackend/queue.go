@@ -1,4 +1,4 @@
-package bullmq
+package redisbackend
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/redis/go-redis/v9"
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 // getJobsMaxBackfillIterations bounds how many forward-backfill iterations the
@@ -14,7 +15,7 @@ import (
 const getJobsMaxBackfillIterations = 5
 
 // Pause pauses (true) or resumes (false) the queue.
-func (b *RedisBackend) Pause(ctx context.Context, paused bool) error {
+func (b *Backend) Pause(ctx context.Context, paused bool) error {
 	k := b.keys
 	if paused {
 		return b.runScriptStatus(ctx, "pause", []string{
@@ -44,7 +45,7 @@ func (b *RedisBackend) Pause(ctx context.Context, paused bool) error {
 
 // Drain removes all waiting and prioritized jobs, and delayed jobs too when
 // delayed is true.
-func (b *RedisBackend) Drain(ctx context.Context, delayed bool) error {
+func (b *Backend) Drain(ctx context.Context, delayed bool) error {
 	k := b.keys
 	_, err := b.runScript(ctx, "drain", []string{
 		k.Wait(), k.Paused(), k.Delayed(), k.Prioritized(), k.Repeat(),
@@ -54,7 +55,7 @@ func (b *RedisBackend) Drain(ctx context.Context, delayed bool) error {
 
 // Obliterate removes up to count jobs of the queue and returns how many
 // batches remain: 0 once the queue is gone.
-func (b *RedisBackend) Obliterate(ctx context.Context, force bool, count int64) (int64, error) {
+func (b *Backend) Obliterate(ctx context.Context, force bool, count int64) (int64, error) {
 	forceArg := ""
 	if force {
 		forceArg = "force"
@@ -77,7 +78,7 @@ func (b *RedisBackend) Obliterate(ctx context.Context, force bool, count int64) 
 }
 
 // CleanJobsByState removes up to limit jobs of state older than timestamp.
-func (b *RedisBackend) CleanJobsByState(ctx context.Context, state JobState, timestamp, limit int64) ([]string, error) {
+func (b *Backend) CleanJobsByState(ctx context.Context, state bullmq.JobState, timestamp, limit int64) ([]string, error) {
 	k := b.keys
 	name := luaStateName(state)
 	res, err := b.runScript(ctx, "cleanJobsInSet",
@@ -90,12 +91,12 @@ func (b *RedisBackend) CleanJobsByState(ctx context.Context, state JobState, tim
 }
 
 // RetryFinishedJobs moves up to count completed or failed jobs back to wait.
-func (b *RedisBackend) RetryFinishedJobs(ctx context.Context, state JobState, count, timestamp int64) (int64, error) {
+func (b *Backend) RetryFinishedJobs(ctx context.Context, state bullmq.JobState, count, timestamp int64) (int64, error) {
 	return b.moveJobsToWait(ctx, string(state), count, timestamp)
 }
 
 // PromoteJobs moves up to count delayed jobs back to wait.
-func (b *RedisBackend) PromoteJobs(ctx context.Context, count int64) (int64, error) {
+func (b *Backend) PromoteJobs(ctx context.Context, count int64) (int64, error) {
 	// The delayed set is scored by dueTimestamp*4096 (plus a counter), not by a
 	// millisecond timestamp, so the cutoff must be the largest int64 to cover
 	// every delayed job regardless of how far in the future it is due.
@@ -105,7 +106,7 @@ func (b *RedisBackend) PromoteJobs(ctx context.Context, count int64) (int64, err
 // moveJobsToWait invokes the moveJobsToWait script once. The script returns a
 // cursor (1 when another batch of up to count jobs remains, 0 once complete),
 // not a remaining-count.
-func (b *RedisBackend) moveJobsToWait(ctx context.Context, state string, count, timestamp int64) (int64, error) {
+func (b *Backend) moveJobsToWait(ctx context.Context, state string, count, timestamp int64) (int64, error) {
 	k := b.keys
 	res, err := b.runScript(ctx, "moveJobsToWait", []string{
 		k.KeyPrefix(), k.Events(), k.Get(state),
@@ -120,7 +121,7 @@ func (b *RedisBackend) moveJobsToWait(ctx context.Context, state string, count, 
 }
 
 // GetCounts returns the number of jobs in each requested state.
-func (b *RedisBackend) GetCounts(ctx context.Context, states []JobState) ([]int64, error) {
+func (b *Backend) GetCounts(ctx context.Context, states []bullmq.JobState) ([]int64, error) {
 	args := make([]any, 0, len(states))
 	for _, s := range states {
 		args = append(args, luaStateName(s))
@@ -141,7 +142,7 @@ func (b *RedisBackend) GetCounts(ctx context.Context, states []JobState) ([]int6
 
 // GetRanges returns job ids of state, ordered by their position in the
 // underlying list or sorted set.
-func (b *RedisBackend) GetRanges(ctx context.Context, state JobState, start, end int64, asc bool) ([]string, error) {
+func (b *Backend) GetRanges(ctx context.Context, state bullmq.JobState, start, end int64, asc bool) ([]string, error) {
 	res, err := b.runScript(ctx, "getRanges", []string{b.keys.KeyPrefix()},
 		start, end, boolToStr(asc), luaStateName(state))
 	if err != nil {
@@ -169,14 +170,14 @@ func (b *RedisBackend) GetRanges(ctx context.Context, state JobState, start, end
 // saving N round trips for a range of N jobs, it avoids the race where a
 // job's hash is removed after its id is read but before it would otherwise
 // have been fetched individually.
-func (b *RedisBackend) GetJobs(ctx context.Context, state JobState, start, end int64, asc bool) ([]*JobRecord, error) {
+func (b *Backend) GetJobs(ctx context.Context, state bullmq.JobState, start, end int64, asc bool) ([]*bullmq.JobRecord, error) {
 	res, err := b.runScript(ctx, "getJobs", []string{b.keys.KeyPrefix()},
 		start, end, boolToStr(asc), getJobsMaxBackfillIterations, luaStateName(state))
 	if err != nil {
 		return nil, err
 	}
 	groups, _ := res.([]any)
-	jobs := make([]*JobRecord, 0)
+	jobs := make([]*bullmq.JobRecord, 0)
 	for _, group := range groups {
 		entries, ok := group.([]any)
 		if !ok {
@@ -202,7 +203,7 @@ func (b *RedisBackend) GetJobs(ctx context.Context, state JobState, start, end i
 }
 
 // IsMaxed reports whether the queue reached its global concurrency limit.
-func (b *RedisBackend) IsMaxed(ctx context.Context) (bool, error) {
+func (b *Backend) IsMaxed(ctx context.Context) (bool, error) {
 	res, err := b.runScript(ctx, "isMaxed", []string{b.keys.Meta(), b.keys.Active()})
 	if err != nil {
 		return false, err
@@ -212,7 +213,7 @@ func (b *RedisBackend) IsMaxed(ctx context.Context) (bool, error) {
 }
 
 // GetRateLimitTTL returns the remaining rate limit window in milliseconds.
-func (b *RedisBackend) GetRateLimitTTL(ctx context.Context, maxJobs int64) (int64, error) {
+func (b *Backend) GetRateLimitTTL(ctx context.Context, maxJobs int64) (int64, error) {
 	res, err := b.runScript(ctx, "getRateLimitTtl",
 		[]string{b.keys.Limiter(), b.keys.Meta()}, strconv.FormatInt(maxJobs, 10))
 	if err != nil {
@@ -223,14 +224,14 @@ func (b *RedisBackend) GetRateLimitTTL(ctx context.Context, maxJobs int64) (int6
 }
 
 // GetMetrics returns the collected metrics for the completed or failed state.
-func (b *RedisBackend) GetMetrics(ctx context.Context, state JobState, start, end int64) (*Metrics, error) {
+func (b *Backend) GetMetrics(ctx context.Context, state bullmq.JobState, start, end int64) (*bullmq.Metrics, error) {
 	key := b.keys.Metrics(string(state))
 	res, err := b.runScript(ctx, "getMetrics", []string{key, key + ":data"}, start, end)
 	if err != nil {
 		return nil, err
 	}
 	arr, _ := res.([]any)
-	m := &Metrics{}
+	m := &bullmq.Metrics{}
 	if len(arr) > 0 {
 		// HMGET replies positionally (count, prevTS, prevCount), not as
 		// field/value pairs, so it must be decoded by index rather than
@@ -267,7 +268,7 @@ func (b *RedisBackend) GetMetrics(ctx context.Context, state JobState, start, en
 }
 
 // GetClientList returns the output of CLIENT LIST.
-func (b *RedisBackend) GetClientList(ctx context.Context) ([]string, error) {
+func (b *Backend) GetClientList(ctx context.Context) ([]string, error) {
 	raw, err := b.rdb.ClientList(ctx).Result()
 	if err != nil {
 		return nil, err
@@ -276,7 +277,7 @@ func (b *RedisBackend) GetClientList(ctx context.Context) ([]string, error) {
 }
 
 // SetQueueMeta sets fields of the queue metadata hash.
-func (b *RedisBackend) SetQueueMeta(ctx context.Context, values map[string]any) error {
+func (b *Backend) SetQueueMeta(ctx context.Context, values map[string]any) error {
 	if len(values) == 0 {
 		return nil
 	}
@@ -284,7 +285,7 @@ func (b *RedisBackend) SetQueueMeta(ctx context.Context, values map[string]any) 
 }
 
 // GetQueueMetaField reads a field of the queue metadata hash.
-func (b *RedisBackend) GetQueueMetaField(ctx context.Context, field string) (string, bool, error) {
+func (b *Backend) GetQueueMetaField(ctx context.Context, field string) (string, bool, error) {
 	val, err := b.rdb.HGet(ctx, b.keys.Meta(), field).Result()
 	if err == redis.Nil {
 		return "", false, nil
@@ -296,7 +297,7 @@ func (b *RedisBackend) GetQueueMetaField(ctx context.Context, field string) (str
 }
 
 // RemoveQueueMetaFields deletes fields of the queue metadata hash.
-func (b *RedisBackend) RemoveQueueMetaFields(ctx context.Context, fields ...string) error {
+func (b *Backend) RemoveQueueMetaFields(ctx context.Context, fields ...string) error {
 	if len(fields) == 0 {
 		return nil
 	}

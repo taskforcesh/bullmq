@@ -1,10 +1,11 @@
-package bullmq
+package redisbackend
 
 import (
 	"context"
 	"strings"
 
 	"github.com/redis/go-redis/v9"
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 // redisAdd holds everything needed to run an add* command, on a client or on
@@ -19,20 +20,20 @@ type redisAdd struct {
 
 // prepareAdd computes the script name, keys and packed arguments needed to
 // add the job without touching Redis.
-func (b *RedisBackend) prepareAdd(job NewJob) (redisAdd, error) {
+func (b *Backend) prepareAdd(job bullmq.NewJob) (redisAdd, error) {
 	k := b.keys
 	opts := job.Opts
 
 	var scriptName string
 	var keys []string
 	switch {
-	case opts.delayMs() > 0:
+	case int64Val(opts.Delay) > 0:
 		scriptName = "addDelayedJob"
 		keys = []string{
 			k.Marker(), k.Meta(), k.ID(),
 			k.Delayed(), k.Completed(), k.Events(),
 		}
-	case opts.priorityVal() > 0:
+	case int64Val(opts.Priority) > 0:
 		scriptName = "addPrioritizedJob"
 		keys = []string{
 			k.Marker(), k.Meta(), k.ID(),
@@ -80,7 +81,7 @@ func (a redisAdd) parseReply(res any) (string, error) {
 }
 
 // AddJob adds a single job.
-func (b *RedisBackend) AddJob(ctx context.Context, job NewJob) (string, error) {
+func (b *Backend) AddJob(ctx context.Context, job bullmq.NewJob) (string, error) {
 	a, err := b.prepareAdd(job)
 	if err != nil {
 		return "", err
@@ -96,7 +97,7 @@ func (b *RedisBackend) AddJob(ctx context.Context, job NewJob) (string, error) {
 // their results in one round trip. Redis does not roll back earlier scripts
 // when a later script returns an application-level error, so a failed batch
 // may contain jobs that were inserted before the failing command.
-func (b *RedisBackend) AddJobs(ctx context.Context, jobs []NewJob) ([]string, error) {
+func (b *Backend) AddJobs(ctx context.Context, jobs []bullmq.NewJob) ([]string, error) {
 	if len(jobs) == 0 {
 		return nil, nil
 	}
@@ -138,7 +139,7 @@ func (b *RedisBackend) AddJobs(ctx context.Context, jobs []NewJob) ([]string, er
 // the EXEC (for example a failover); that command never ran, so only those
 // commands are resubmitted, with the full script text, in a second
 // transaction. Commands that already ran are never replayed.
-func (b *RedisBackend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.Cmd, error) {
+func (b *Backend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.Cmd, error) {
 	loaded := make(map[string]*luaScript)
 	var loadCmds []*redis.StringCmd
 	_, err := b.rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
@@ -230,7 +231,7 @@ func (b *RedisBackend) execAdds(ctx context.Context, prepared []redisAdd) ([]*re
 // packAddArgs builds ARGV[1] of the add* commands: a msgpack array of
 // [keyPrefix, customId, name, timestamp, parentKey, parentDepsKey, parent,
 // repeatJobKey, deduplicationKey].
-func (b *RedisBackend) packAddArgs(opts *JobOptions, name string, timestamp int64) ([]byte, error) {
+func (b *Backend) packAddArgs(opts *bullmq.JobOptions, name string, timestamp int64) ([]byte, error) {
 	// Unset entries stay nil: index 7 is the repeat job key, which this port
 	// does not support yet.
 	args := make([]any, 9)
@@ -250,10 +251,10 @@ func (b *RedisBackend) packAddArgs(opts *JobOptions, name string, timestamp int6
 			"queueKey": parentRef.QueueKey,
 		}
 		for key, enabled := range map[string]bool{
-			"fpof": opts.failParentOnFailureVal(),
-			"idof": opts.ignoreDependencyOnFailureVal(),
-			"rdof": opts.removeDependencyOnFailureVal(),
-			"cpof": opts.continueParentOnFailureVal(),
+			"fpof": boolVal(opts.FailParentOnFailure),
+			"idof": boolVal(opts.IgnoreDependencyOnFailure),
+			"rdof": boolVal(opts.RemoveDependencyOnFailure),
+			"cpof": boolVal(opts.ContinueParentOnFailure),
 		} {
 			if enabled {
 				parent[key] = true
@@ -272,7 +273,7 @@ func (b *RedisBackend) packAddArgs(opts *JobOptions, name string, timestamp int6
 }
 
 // packJobOptions builds ARGV[3] of the add* commands.
-func packJobOptions(opts *JobOptions) ([]byte, error) {
+func packJobOptions(opts *bullmq.JobOptions) ([]byte, error) {
 	// This map is persisted verbatim (as JSON) in the job's "opts" field, so
 	// every option that was set is encoded, including explicit zero/false
 	// values, under the same keys JobOptions uses for JSON.
@@ -304,13 +305,13 @@ func packJobOptions(opts *JobOptions) ([]byte, error) {
 		m["parent"] = map[string]any{"id": p.ID, "queue": p.Queue}
 	}
 	if opts.RemoveOnComplete != nil {
-		m["removeOnComplete"] = opts.RemoveOnComplete.msgpackValue()
+		m["removeOnComplete"] = keepJobsValue(opts.RemoveOnComplete)
 	}
 	if opts.RemoveOnFail != nil {
-		m["removeOnFail"] = opts.RemoveOnFail.msgpackValue()
+		m["removeOnFail"] = keepJobsValue(opts.RemoveOnFail)
 	}
 	if opts.Backoff != nil {
-		m["backoff"] = opts.Backoff.msgpackValue()
+		m["backoff"] = backoffValue(opts.Backoff)
 	}
 	addBool("fpof", opts.FailParentOnFailure)
 	addBool("cpof", opts.ContinueParentOnFailure)

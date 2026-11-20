@@ -1,4 +1,4 @@
-package bullmq
+package redisbackend
 
 import (
 	"encoding/base64"

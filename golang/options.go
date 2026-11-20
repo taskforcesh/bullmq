@@ -40,7 +40,7 @@ type DeduplicationOptions struct {
 
 // JobOptions configures a single job.
 //
-// The JSON tags mirror the field names persisted in Redis by the shared Lua
+// The JSON tags mirror the field names persisted by the shared Lua and SQL
 // commands, so options round-trip across all BullMQ language ports.
 type JobOptions struct {
 	// JobID overrides the automatically generated job id.
@@ -97,26 +97,18 @@ type JobOptions struct {
 
 // QueueOptions configures a Queue.
 type QueueOptions struct {
-	// Backend builds the datastore backend. When nil, the Redis backend
-	// configured by Redis is used.
+	// Backend builds the datastore backend, for example
+	// redisbackend.New(redisbackend.Options{Addr: "127.0.0.1:6379"}). It is
+	// required.
 	Backend BackendFactory
-	// Redis describes the connection to use by the default Redis backend.
-	Redis RedisOptions
-	// Prefix overrides the default `bull` key prefix.
-	Prefix string
 	// DefaultJobOptions are merged into every job added to this queue.
 	DefaultJobOptions *JobOptions
 }
 
 // WorkerOptions configures a Worker.
 type WorkerOptions struct {
-	// Backend builds the datastore backend. When nil, the Redis backend
-	// configured by Redis is used.
+	// Backend builds the datastore backend. It is required.
 	Backend BackendFactory
-	// Redis describes the connection to use by the default Redis backend.
-	Redis RedisOptions
-	// Prefix overrides the default `bull` key prefix.
-	Prefix string
 	// Name identifies the worker; stored on each processed job as `pb`.
 	Name string
 	// Concurrency is the number of jobs processed in parallel. Defaults to 1.
@@ -133,7 +125,7 @@ type WorkerOptions struct {
 	LockRenewTime time.Duration
 	// StalledInterval is how often stalled jobs are checked. Defaults to 30s.
 	// A positive value must be at least 1ms unless SkipStalledCheck is set,
-	// since it is sent to Redis as a millisecond lock TTL.
+	// since it is stored as a millisecond lock TTL.
 	StalledInterval time.Duration
 	// MaxStalledCount is how many times a job may stall before failing. Defaults to 1.
 	// Use a pointer so an explicit 0 (fail on first stall) is distinguishable
@@ -220,13 +212,8 @@ func (o *WorkerOptions) maxStalledCountVal() int {
 
 // QueueEventsOptions configures a QueueEvents listener.
 type QueueEventsOptions struct {
-	// Backend builds the datastore backend. When nil, the Redis backend
-	// configured by Redis is used.
+	// Backend builds the datastore backend. It is required.
 	Backend BackendFactory
-	// Redis describes the connection to use by the default Redis backend.
-	Redis RedisOptions
-	// Prefix overrides the default `bull` key prefix.
-	Prefix string
 	// LastEventID is the stream id to start reading from. Defaults to `$`
 	// (only events produced after the listener starts).
 	LastEventID string

@@ -1,4 +1,4 @@
-package bullmq
+package redisbackend
 
 import (
 	"time"
@@ -6,12 +6,17 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// RedisOptions describes how to reach the Redis server.
+// Options configures the Redis backend: how to reach the server and which key
+// prefix the queues live under.
 //
 // Set Client to reuse an existing go-redis client; otherwise Addr and the
-// remaining fields are used to build one.
-type RedisOptions struct {
-	// Client is an existing client to reuse. When set every other field is ignored.
+// connection fields are used to build one.
+type Options struct {
+	// Prefix is the key prefix of every queue key. Defaults to [DefaultPrefix]
+	// ("bull"), as in every other BullMQ port.
+	Prefix string
+	// Client is an existing client to reuse. When set, the connection fields
+	// below are ignored. The backend never closes a supplied client.
 	Client redis.UniversalClient
 	// Addr is the `host:port` of the Redis server. Defaults to 127.0.0.1:6379.
 	Addr string
@@ -25,7 +30,7 @@ type RedisOptions struct {
 	PoolSize int
 }
 
-func (o RedisOptions) build() (redis.UniversalClient, bool) {
+func (o Options) build() (redis.UniversalClient, bool) {
 	if o.Client != nil {
 		return o.Client, false
 	}
@@ -68,7 +73,7 @@ func (o RedisOptions) build() (redis.UniversalClient, bool) {
 //
 // The returned bool reports whether the client is dedicated and owned, i.e.
 // must be closed by the caller.
-func (o RedisOptions) buildBlocking(name string, readTimeout time.Duration) (redis.UniversalClient, bool) {
+func (o Options) buildBlocking(name string, readTimeout time.Duration) (redis.UniversalClient, bool) {
 	if readTimeout <= 0 {
 		readTimeout = -1
 	}

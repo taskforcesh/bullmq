@@ -63,19 +63,6 @@ func (b *Backoff) validate() error {
 	return nil
 }
 
-// msgpackValue builds the `{type, delay}` map the Lua commands expect, with
-// `jitter` added only when it is enabled.
-func (b *Backoff) msgpackValue() map[string]any {
-	m := map[string]any{
-		"type":  string(b.Type),
-		"delay": b.Delay,
-	}
-	if b.Jitter > 0 {
-		m["jitter"] = b.Jitter
-	}
-	return m
-}
-
 // RemoveOnFinish controls the automatic removal of completed or failed jobs.
 //
 // Use [RemoveAll], [KeepCount] or [KeepAge] to construct a value; the zero
@@ -104,23 +91,6 @@ func KeepCount(n int64) *RemoveOnFinish {
 // KeepAge keeps finished jobs younger than seconds.
 func KeepAge(seconds int64) *RemoveOnFinish {
 	return &RemoveOnFinish{Age: &seconds}
-}
-
-// msgpackValue builds the keep policy map the Lua commands expect. Only the
-// fields that were set are included, so an explicit zero count (remove the
-// job straight away) is preserved.
-func (r *RemoveOnFinish) msgpackValue() map[string]any {
-	m := make(map[string]any, 3)
-	if r.Count != nil {
-		m["count"] = *r.Count
-	}
-	if r.Age != nil {
-		m["age"] = *r.Age
-	}
-	if r.Limit != nil {
-		m["limit"] = *r.Limit
-	}
-	return m
 }
 
 // UnmarshalJSON accepts the boolean, numeric and object forms written by the
@@ -221,17 +191,9 @@ type JobCounts map[JobState]int64
 type RateLimiter struct {
 	// Max is the maximum number of jobs per Duration.
 	Max int64
-	// Duration is the rate limit window. Redis stores it with millisecond
+	// Duration is the rate limit window. It is stored with millisecond
 	// precision, so sub-millisecond values are rounded down.
 	Duration time.Duration
-}
-
-// msgpackValue builds the `{max, duration}` map the Lua commands expect.
-func (r *RateLimiter) msgpackValue() map[string]any {
-	return map[string]any{
-		"max":      r.Max,
-		"duration": r.Duration.Milliseconds(),
-	}
 }
 
 // MetricsOptions enables the collection of completed/failed counters.

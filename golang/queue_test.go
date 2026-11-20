@@ -9,9 +9,12 @@ import (
 )
 
 func TestQueueAddStoresTheJob(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueAddStoresTheJob)
+}
+
+func testQueueAddStoresTheJob(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "greet", map[string]string{"to": "world"}, nil)
 	if err != nil {
@@ -50,9 +53,12 @@ func TestQueueAddStoresTheJob(t *testing.T) {
 }
 
 func TestQueueAddUsesACustomJobID(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueAddUsesACustomJobID)
+}
+
+func testQueueAddUsesACustomJobID(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "custom", 1, &bullmq.JobOptions{JobID: "my-id"})
 	if err != nil {
@@ -64,9 +70,12 @@ func TestQueueAddUsesACustomJobID(t *testing.T) {
 }
 
 func TestQueueAddPersistsJobOptions(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueAddPersistsJobOptions)
+}
+
+func testQueueAddPersistsJobOptions(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	_, err := q.Add(ctx, "opts", nil, &bullmq.JobOptions{
 		JobID:            "opts-1",
@@ -102,9 +111,12 @@ func TestQueueAddPersistsJobOptions(t *testing.T) {
 }
 
 func TestQueueDefaultJobOptionsAreApplied(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueDefaultJobOptionsAreApplied)
+}
+
+func testQueueDefaultJobOptionsAreApplied(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, &bullmq.QueueOptions{
+	q := newTestQueue(t, be, &bullmq.QueueOptions{
 		DefaultJobOptions: &bullmq.JobOptions{Attempts: bullmq.Int64(7)},
 	})
 
@@ -122,9 +134,12 @@ func TestQueueDefaultJobOptionsAreApplied(t *testing.T) {
 }
 
 func TestQueueAddBulk(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueAddBulk)
+}
+
+func testQueueAddBulk(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	specs := make([]bullmq.JobSpec, 0, 5)
 	for i := range 5 {
@@ -148,9 +163,12 @@ func TestQueueAddBulk(t *testing.T) {
 }
 
 func TestQueueAddDelayedJob(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueAddDelayedJob)
+}
+
+func testQueueAddDelayedJob(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "later", nil, &bullmq.JobOptions{Delay: bullmq.Int64(60_000)})
 	if err != nil {
@@ -166,9 +184,12 @@ func TestQueueAddDelayedJob(t *testing.T) {
 }
 
 func TestQueueAddPrioritizedJob(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueAddPrioritizedJob)
+}
+
+func testQueueAddPrioritizedJob(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "urgent", nil, &bullmq.JobOptions{Priority: bullmq.Int64(1)})
 	if err != nil {
@@ -184,9 +205,12 @@ func TestQueueAddPrioritizedJob(t *testing.T) {
 }
 
 func TestQueueSizeLimitIsEnforced(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueSizeLimitIsEnforced)
+}
+
+func testQueueSizeLimitIsEnforced(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	_, err := q.Add(ctx, "big", "a very long payload indeed", &bullmq.JobOptions{SizeLimit: bullmq.Int64(4)})
 	if err == nil {
@@ -195,9 +219,12 @@ func TestQueueSizeLimitIsEnforced(t *testing.T) {
 }
 
 func TestQueuePauseAndResume(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueuePauseAndResume)
+}
+
+func testQueuePauseAndResume(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	if err := q.Pause(ctx); err != nil {
 		t.Fatalf("Pause: %v", err)
@@ -223,9 +250,12 @@ func TestQueuePauseAndResume(t *testing.T) {
 }
 
 func TestQueueDrainRemovesWaitingJobs(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueDrainRemovesWaitingJobs)
+}
+
+func testQueueDrainRemovesWaitingJobs(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	for range 3 {
 		if _, err := q.Add(ctx, "drain-me", nil, nil); err != nil {
@@ -246,9 +276,12 @@ func TestQueueDrainRemovesWaitingJobs(t *testing.T) {
 }
 
 func TestQueueJobIDsAndJobs(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueJobIDsAndJobs)
+}
+
+func testQueueJobIDsAndJobs(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	for i := range 3 {
 		if _, err := q.Add(ctx, "listed", i, nil); err != nil {
@@ -279,9 +312,12 @@ func TestQueueJobIDsAndJobs(t *testing.T) {
 }
 
 func TestQueueCount(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueCount)
+}
+
+func testQueueCount(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	if _, err := q.Add(ctx, "a", nil, nil); err != nil {
 		t.Fatalf("Add: %v", err)
@@ -303,9 +339,12 @@ func TestQueueCount(t *testing.T) {
 }
 
 func TestQueueObliterateRemovesEverything(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueObliterateRemovesEverything)
+}
+
+func testQueueObliterateRemovesEverything(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	for range 3 {
 		if _, err := q.Add(ctx, "sticky", nil, nil); err != nil {
@@ -326,13 +365,16 @@ func TestQueueObliterateRemovesEverything(t *testing.T) {
 }
 
 func TestQueueObliterateRefusesActiveJobsWithoutForce(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueObliterateRefusesActiveJobsWithoutForce)
+}
+
+func testQueueObliterateRefusesActiveJobsWithoutForce(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	started := make(chan struct{})
 	release := make(chan struct{})
-	w := newTestWorker(t, q.Name(), func(ctx context.Context, _ *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(ctx context.Context, _ *bullmq.Job) (any, error) {
 		close(started)
 		select {
 		case <-release:
@@ -358,9 +400,12 @@ func TestQueueObliterateRefusesActiveJobsWithoutForce(t *testing.T) {
 }
 
 func TestQueueGlobalConcurrency(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueGlobalConcurrency)
+}
+
+func testQueueGlobalConcurrency(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	if err := q.SetGlobalConcurrency(ctx, 3); err != nil {
 		t.Fatalf("SetGlobalConcurrency: %v", err)
@@ -386,12 +431,15 @@ func TestQueueGlobalConcurrency(t *testing.T) {
 }
 
 func TestQueueCleanRemovesCompletedJobs(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueCleanRemovesCompletedJobs)
+}
+
+func testQueueCleanRemovesCompletedJobs(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	done := make(chan struct{}, 1)
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		select {
 		case done <- struct{}{}:
 		default:
@@ -420,9 +468,12 @@ func TestQueueCleanRemovesCompletedJobs(t *testing.T) {
 }
 
 func TestQueueCleanUnlimitedRunsInBatches(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueCleanUnlimitedRunsInBatches)
+}
+
+func testQueueCleanUnlimitedRunsInBatches(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	// More than one 10,000-job batch, so the loop must run at least twice.
 	const total = 10_050
@@ -451,9 +502,12 @@ func TestQueueCleanUnlimitedRunsInBatches(t *testing.T) {
 }
 
 func TestQueueCleanHonoursLimit(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueCleanHonoursLimit)
+}
+
+func testQueueCleanHonoursLimit(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	specs := make([]bullmq.JobSpec, 10)
 	for i := range specs {
@@ -472,9 +526,12 @@ func TestQueueCleanHonoursLimit(t *testing.T) {
 }
 
 func TestQueuePromoteJobsFarFuture(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueuePromoteJobsFarFuture)
+}
+
+func testQueuePromoteJobsFarFuture(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	// ~30 years: its delayed-set score (due timestamp * 4096) exceeds 2^53.
 	job, err := q.Add(ctx, "delayed", nil, &bullmq.JobOptions{Delay: bullmq.Int64(30 * 365 * 24 * 3600 * 1000)})
@@ -494,9 +551,12 @@ func TestQueuePromoteJobsFarFuture(t *testing.T) {
 }
 
 func TestQueuePromoteJobs(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueuePromoteJobs)
+}
+
+func testQueuePromoteJobs(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	job, err := q.Add(ctx, "delayed", nil, &bullmq.JobOptions{Delay: bullmq.Int64(600_000)})
 	if err != nil {

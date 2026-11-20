@@ -3,6 +3,7 @@ package bullmq
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -14,15 +15,15 @@ import (
 //
 // The interface expresses the queue semantics ("move job to active", "extend
 // lock", "promote job", ...) independently of the underlying store. The Redis
-// implementation is [RedisBackend]; a PostgreSQL implementation can be plugged
-// in through [BackendFactory] without any change to Queue, Worker, QueueEvents
-// or Job.
+// implementation lives in the redisbackend subpackage; other datastores are
+// plugged in through a [BackendFactory] without any change to Queue, Worker,
+// QueueEvents or Job. This package never imports a datastore driver.
 //
 // Rules for implementations:
 //
-//   - Methods use only exported domain types. Redis specifics (Lua scripts,
-//     key names, msgpack encoding, reply parsing) stay private to the
-//     implementation.
+//   - Methods use only exported domain types. Datastore specifics (Lua
+//     scripts, key names, SQL, msgpack encoding, reply parsing) stay private
+//     to the implementation.
 //   - A backend owns its connection(s). Callers never thread a connection or
 //     a transaction through an operation.
 //   - Operations that fail because of queue semantics return the sentinel
@@ -257,11 +258,9 @@ type Backend interface {
 }
 
 // BackendOptions describes the role of the backend being built by a
-// [BackendFactory].
+// [BackendFactory]. Datastore settings such as addresses, credentials or a
+// Redis key prefix belong to the options of the backend package itself.
 type BackendOptions struct {
-	// Prefix is the keyspace prefix requested by the caller; empty means the
-	// backend default. Backends with no prefix concept may ignore it.
-	Prefix string
 	// WithBlockingConnection requests a connection dedicated to WaitForJob and
 	// ReadEvents, so a blocked read never starves other operations.
 	WithBlockingConnection bool
@@ -274,17 +273,39 @@ type BackendOptions struct {
 }
 
 // BackendFactory builds a [Backend] for the queue called name. It is injected
-// through the Backend field of [QueueOptions], [WorkerOptions] and
-// [QueueEventsOptions]; when it is nil the Redis backend configured by the
-// Redis option is used.
+// through the required Backend field of [QueueOptions], [WorkerOptions] and
+// [QueueEventsOptions], for example with redisbackend.New. The queue name has
+// already been validated when the factory is called.
 type BackendFactory func(name string, opts BackendOptions) (Backend, error)
 
-// resolveBackend builds the backend for a queue, defaulting to Redis.
-func resolveBackend(factory BackendFactory, redis RedisOptions, name string, opts BackendOptions) (Backend, error) {
+// resolveBackend validates the queue name and builds its backend.
+func resolveBackend(factory BackendFactory, name string, opts BackendOptions) (Backend, error) {
 	if factory == nil {
-		factory = RedisBackendFactory(redis)
+		return nil, configError("a Backend is required, for example redisbackend.New(redisbackend.Options{})")
 	}
-	return factory(name, opts)
+	if err := validateQueueName(name); err != nil {
+		return nil, err
+	}
+	b, err := factory(name, opts)
+	if err != nil {
+		return nil, err
+	}
+	if b == nil {
+		return nil, configError("the Backend factory returned no backend")
+	}
+	return b, nil
+}
+
+// validateQueueName applies the queue name rules shared by every backend and
+// language port.
+func validateQueueName(name string) error {
+	if name == "" {
+		return configError("queue name must be provided")
+	}
+	if strings.Contains(name, ":") {
+		return configError("queue name cannot contain ':'")
+	}
+	return nil
 }
 
 // NewJob is a validated job ready to be stored by a [Backend]. Opts is a

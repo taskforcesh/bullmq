@@ -1,7 +1,6 @@
 package bullmq
 
 import (
-	"reflect"
 	"testing"
 	"time"
 )
@@ -99,19 +98,5 @@ func TestBackoffNegativeDelayRejected(t *testing.T) {
 		if _, err := w.backoffDelay(job, nil); err == nil {
 			t.Fatalf("backoffDelay accepted a negative delay for %s", typ)
 		}
-	}
-}
-
-func TestBackoffMsgpackJitter(t *testing.T) {
-	without := (&Backoff{Type: BackoffFixed, Delay: 10}).msgpackValue()
-	want := map[string]any{"type": string(BackoffFixed), "delay": int64(10)}
-	if !reflect.DeepEqual(without, want) {
-		t.Fatalf("without jitter = %v, want %v", without, want)
-	}
-
-	with := (&Backoff{Type: BackoffFixed, Delay: 10, Jitter: 0.5}).msgpackValue()
-	want["jitter"] = 0.5
-	if !reflect.DeepEqual(with, want) {
-		t.Fatalf("with jitter = %v, want %v", with, want)
 	}
 }

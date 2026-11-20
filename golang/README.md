@@ -7,12 +7,12 @@ Jobs produced by this package are fully interoperable with the Node.js, Python,
 Rust and .NET implementations: every state transition is executed by the exact
 same Lua scripts, which live in `src/commands` at the root of this repository.
 
-> Redis is the only bundled backend. `Queue`, `Worker`, `QueueEvents` and `Job`
-> depend only on the `Backend` interface (the counterpart of the Node.js
-> `IQueueBackend`), and `RedisBackend` is one implementation of it. Another
-> datastore, such as PostgreSQL, can be added by implementing `Backend` and
-> passing a `BackendFactory` through the `Backend` option of `QueueOptions`,
-> `WorkerOptions` and `QueueEventsOptions`. See
+> `Queue`, `Worker`, `QueueEvents` and `Job` depend only on the `Backend`
+> interface (the counterpart of the Node.js `IQueueBackend`), and the root
+> package imports no datastore driver. The datastore is chosen with the
+> required `Backend` option of `QueueOptions`, `WorkerOptions` and
+> `QueueEventsOptions`; the Redis backend lives in the
+> [`redisbackend`](./redisbackend) package. See
 > [FEATURE_PARITY.md](./FEATURE_PARITY.md) for what is and is not implemented.
 
 ## Requirements
@@ -47,8 +47,8 @@ yarn copy:lua:golang
 ```
 
 This resolves the `--- @include` directives in `src/commands/*.lua` into
-`rawScripts/` and copies the result into `golang/commands/`, where it is
-embedded into the binary with `go:embed`.
+`rawScripts/` and copies the result into `golang/redisbackend/commands/`,
+where it is embedded into the binary with `go:embed`.
 
 ## Usage
 
@@ -62,14 +62,14 @@ import (
 	"log"
 
 	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
 )
 
 func main() {
 	ctx := context.Background()
 
-	queue, err := bullmq.NewQueue("emails", &bullmq.QueueOptions{
-		Redis: bullmq.RedisOptions{Addr: "127.0.0.1:6379"},
-	})
+	backend := redisbackend.New(redisbackend.Options{Addr: "127.0.0.1:6379"})
+	queue, err := bullmq.NewQueue("emails", &bullmq.QueueOptions{Backend: backend})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -106,7 +106,7 @@ worker, err := bullmq.NewWorker("emails",
 		return map[string]string{"sent": payload.To}, nil
 	},
 	&bullmq.WorkerOptions{
-		Redis:       bullmq.RedisOptions{Addr: "127.0.0.1:6379"},
+		Backend:     backend,
 		Concurrency: 8,
 	})
 if err != nil {
@@ -132,7 +132,7 @@ in-flight jobs differently:
   cancellation through `ctx.Done()` and should return early.
 
 Cancelling the context only makes `Run` return; it does not release the
-worker's Redis connections, so `Close` must still be called afterwards (as
+worker's connections, so `Close` must still be called afterwards (as
 `defer` does above) to avoid leaking connections in a long-lived process. To
 shut down gracefully on a signal, call `Close` from the signal handler and run
 the worker on a context that is not tied to the signal.
@@ -177,12 +177,12 @@ go func() {
 
 ### Queue-wide events
 
-`QueueEvents` consumes the shared Redis stream, so it observes every worker
-attached to the queue regardless of the language it is written in.
+`QueueEvents` consumes the queue's shared event stream, so it observes every
+worker attached to the queue regardless of the language it is written in.
 
 ```go
 events, err := bullmq.NewQueueEvents("emails", &bullmq.QueueEventsOptions{
-	Redis: bullmq.RedisOptions{Addr: "127.0.0.1:6379"},
+	Backend: backend,
 })
 if err != nil {
 	log.Fatal(err)
@@ -204,15 +204,25 @@ for ev := range events.Events() {
 }
 ```
 
-### Sharing a Redis client
+### Redis options
+
+`redisbackend.Options` holds everything Redis-specific: the address,
+credentials and pool size, or an existing client, plus the key `Prefix`
+(`bull` by default, as in every other port). The backend of a queue built with
+`redisbackend.New` is a `*redisbackend.Backend`, which exposes the client and
+the key names:
+
+```go
+rb := queue.Backend().(*redisbackend.Backend)
+waiting, err := rb.Client().LLen(ctx, rb.Keys().Wait()).Result()
+```
 
 Pass an existing `redis.UniversalClient` to reuse a connection pool. Blocking reads (`BZPOPMIN` in workers, `XREAD` in `QueueEvents`) never run on the shared pool: when the client is a `*redis.Client`, a dedicated single-connection client is derived from its options with a read timeout suited to blocking calls, and is closed by `Worker.Close`/`QueueEvents.Close`. Other client types (cluster, ring) are used as-is with go-redis's timeout-aware typed blocking commands.
 
 ```go
 rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:6379"})
-queue, err := bullmq.NewQueue("emails", &bullmq.QueueOptions{
-	Redis: bullmq.RedisOptions{Client: rdb},
-})
+backend := redisbackend.New(redisbackend.Options{Client: rdb})
+queue, err := bullmq.NewQueue("emails", &bullmq.QueueOptions{Backend: backend})
 ```
 
 Clients supplied this way are not closed by `Queue.Close` or `Worker.Close`.
@@ -234,6 +244,12 @@ REDIS_ADDR=127.0.0.1:6380 go test ./...
 ```
 
 Tests that require Redis are skipped automatically when no server is reachable.
+
+The behaviour tests of the root package run once per datastore, as subtests
+named after it (for example `TestWorkerProcessesJobs/redis`). The datastores
+are listed in `internal/testbackends`: Redis always, and PostgreSQL when
+`POSTGRES_URL` is set. Tests specific to the Redis backend live in
+`redisbackend`.
 
 ## License
 

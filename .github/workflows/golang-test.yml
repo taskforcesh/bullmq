@@ -30,6 +30,8 @@ jobs:
             golang:
               - 'golang/**'
               - 'src/commands/**'
+              - 'src/postgres/**'
+              - 'package.json'
               - '.github/workflows/golang-test.yml'
 
   test:
@@ -53,6 +55,19 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bullmq_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repository
@@ -64,11 +79,12 @@ jobs:
           node-version: lts/*
           cache: 'yarn'
 
-      - name: Generate rawScripts (resolve Lua includes)
+      - name: Generate rawScripts (resolve Lua includes) and copy the shared SQL
         run: |
           yarn install --frozen-lockfile --non-interactive
           yarn generate:raw:scripts
           yarn copy:lua:golang
+          yarn copy:sql:golang
 
       - name: Setup Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
@@ -96,6 +112,14 @@ jobs:
         working-directory: golang
         run: go vet ./...
 
+      - name: Keep datastore drivers out of the core package
+        working-directory: golang
+        run: |
+          if go list -deps . | grep -E 'github.com/redis/go-redis|github.com/jackc/pgx'; then
+            echo "package bullmq must not import a datastore driver; keep it in the backend packages"
+            exit 1
+          fi
+
       - name: Build
         working-directory: golang
         run: go build ./...
@@ -104,4 +128,5 @@ jobs:
         working-directory: golang
         env:
           REDIS_ADDR: 127.0.0.1:6379
+          POSTGRES_URL: postgres://postgres:postgres@localhost:5432/bullmq_test?sslmode=disable
         run: go test -v -count=1 -timeout 10m ./...

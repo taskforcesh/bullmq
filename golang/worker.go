@@ -116,8 +116,7 @@ func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, 
 		return nil, err
 	}
 
-	backend, err := resolveBackend(o.Backend, o.Redis, queueName, BackendOptions{
-		Prefix:                 o.Prefix,
+	backend, err := resolveBackend(o.Backend, queueName, BackendOptions{
 		WithBlockingConnection: true,
 		ClientNameSuffix:       clientNameSuffix(o.Name),
 		BlockTimeout:           o.DrainDelay,

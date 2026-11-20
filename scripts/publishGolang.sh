@@ -37,7 +37,7 @@ ROOT=$(pwd)
 WORK="${RUNNER_TEMP:-$(mktemp -d)}"
 TARGET_REMOTE="${TARGET_REMOTE:-https://x-access-token:${GH_TOKEN:-}@github.com/${TARGET_REPO}.git}"
 SOURCE_GH_TOKEN="${SOURCE_GH_TOKEN:-${GH_TOKEN:-}}"
-GENERATE_LUA_CMD="${GENERATE_LUA_CMD:-yarn install --frozen-lockfile --non-interactive && yarn generate:raw:scripts && yarn copy:lua:golang}"
+GENERATE_LUA_CMD="${GENERATE_LUA_CMD:-yarn install --frozen-lockfile --non-interactive && yarn generate:raw:scripts && yarn copy:lua:golang && yarn copy:sql:golang}"
 SEMVER='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
 
 DEST="${WORK}/bullmq-go"
@@ -180,7 +180,7 @@ stage_version() {
   fi
 
   (cd "$SRC_TREE" && bash -c "$GENERATE_LUA_CMD")
-  if ! ls "$SRC_TREE"/golang/commands/*.lua > /dev/null 2>&1; then
+  if ! ls "$SRC_TREE"/golang/redisbackend/commands/*.lua > /dev/null 2>&1; then
     echo "::error::Generated Lua commands are missing for ${source_tag}"
     return 1
   fi

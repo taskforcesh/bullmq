@@ -1,4 +1,18 @@
-package bullmq
+// Package redisbackend is the Redis implementation of [bullmq.Backend].
+//
+// It stores queues in Redis and drives every state transition through the
+// Lua commands shared by all BullMQ language ports, so Go producers and
+// workers interoperate with the Node.js, Python, Elixir, PHP, Rust and .NET
+// ports on the same queues.
+//
+//	backend := redisbackend.New(redisbackend.Options{Addr: "127.0.0.1:6379"})
+//	queue, err := bullmq.NewQueue("emails", &bullmq.QueueOptions{Backend: backend})
+//
+// The Lua commands are embedded at build time from the commands directory,
+// which is generated from the repository root with:
+//
+//	yarn generate:raw:scripts && yarn copy:lua:golang
+package redisbackend
 
 import (
 	"context"
@@ -9,19 +23,20 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 // blockingReadSlack is added to the longest blocking read to size the socket
 // read timeout of the dedicated blocking client.
 const blockingReadSlack = 10 * time.Second
 
-// RedisBackend is the [Backend] implementation that stores queues in Redis and
-// drives every state transition through the Lua commands shared by all BullMQ
-// language ports.
+// Backend is the [bullmq.Backend] implementation that stores queues in Redis
+// and drives every state transition through the Lua commands shared by all
+// BullMQ language ports.
 //
-// Everything Redis specific lives in the redis_*.go files: key names, Lua
-// script arguments, msgpack encoding and reply parsing.
-type RedisBackend struct {
+// Queue.Backend, for a queue built with [New], returns a *Backend, which gives
+// access to the underlying client and key names.
+type Backend struct {
 	rdb   redis.UniversalClient
 	owned bool
 	keys  *Keys
@@ -35,20 +50,23 @@ type RedisBackend struct {
 	blockingOwned bool
 }
 
-var _ Backend = (*RedisBackend)(nil)
+var _ bullmq.Backend = (*Backend)(nil)
 
-// RedisBackendFactory returns a [BackendFactory] that builds [RedisBackend]s
-// connected according to opts. It is what Queue, Worker and QueueEvents use
-// when no explicit Backend is configured.
-func RedisBackendFactory(opts RedisOptions) BackendFactory {
-	return func(name string, bo BackendOptions) (Backend, error) {
-		return NewRedisBackend(name, opts, bo)
+// New returns a [bullmq.BackendFactory] that builds Redis backends connected
+// according to opts. Pass it as the Backend option of bullmq.QueueOptions,
+// bullmq.WorkerOptions and bullmq.QueueEventsOptions. Every queue, worker or
+// queue events listener built from it gets its own backend; they share the
+// connection only when opts.Client is set.
+func New(opts Options) bullmq.BackendFactory {
+	return func(name string, bo bullmq.BackendOptions) (bullmq.Backend, error) {
+		return NewBackend(name, opts, bo)
 	}
 }
 
-// NewRedisBackend creates a Redis backend for the queue called name.
-func NewRedisBackend(name string, redisOpts RedisOptions, opts BackendOptions) (*RedisBackend, error) {
-	keys, err := NewKeys(name, opts.Prefix)
+// NewBackend creates a Redis backend for the queue called name. Most callers
+// use [New] instead and let bullmq build the backend.
+func NewBackend(name string, redisOpts Options, opts bullmq.BackendOptions) (*Backend, error) {
+	keys, err := NewKeys(name, redisOpts.Prefix)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +79,7 @@ func NewRedisBackend(name string, redisOpts RedisOptions, opts BackendOptions) (
 		}
 	}
 	rdb, owned := redisOpts.build()
-	b := &RedisBackend{rdb: rdb, owned: owned, keys: keys, blocking: rdb}
+	b := &Backend{rdb: rdb, owned: owned, keys: keys, blocking: rdb}
 	if opts.WithBlockingConnection {
 		b.blocking, b.blockingOwned = redisOpts.buildBlocking(
 			clientName, opts.BlockTimeout+blockingReadSlack)
@@ -70,14 +88,14 @@ func NewRedisBackend(name string, redisOpts RedisOptions, opts BackendOptions) (
 }
 
 // Client returns the underlying Redis client.
-func (b *RedisBackend) Client() redis.UniversalClient { return b.rdb }
+func (b *Backend) Client() redis.UniversalClient { return b.rdb }
 
 // Keys returns the key generator used by the backend.
-func (b *RedisBackend) Keys() *Keys { return b.keys }
+func (b *Backend) Keys() *Keys { return b.keys }
 
 // Close releases the connections the backend created. Clients supplied by the
 // caller are left open.
-func (b *RedisBackend) Close() error {
+func (b *Backend) Close() error {
 	var firstErr error
 	if b.blockingOwned {
 		firstErr = b.blocking.Close()
@@ -93,7 +111,7 @@ func (b *RedisBackend) Close() error {
 // SetName names the blocking connection. A dedicated blocking client is
 // already named through its OnConnect hook, on the exact connection the
 // blocking read runs on; naming a shared client is best-effort only.
-func (b *RedisBackend) SetName(ctx context.Context, name string) error {
+func (b *Backend) SetName(ctx context.Context, name string) error {
 	if b.blockingOwned {
 		return nil
 	}
@@ -102,7 +120,7 @@ func (b *RedisBackend) SetName(ctx context.Context, name string) error {
 
 // IsTransientError reports whether err is a connectivity or server
 // availability problem that is worth retrying.
-func (b *RedisBackend) IsTransientError(err error) bool { return isTransientRedisError(err) }
+func (b *Backend) IsTransientError(err error) bool { return isTransientRedisError(err) }
 
 // isTransientRedisError reports whether err is a connectivity or server
 // availability problem that is worth retrying, as opposed to a script or
@@ -130,26 +148,26 @@ func isTransientRedisError(err error) bool {
 }
 
 // QueueName returns the bare queue name.
-func (b *RedisBackend) QueueName() string { return b.keys.Name() }
+func (b *Backend) QueueName() string { return b.keys.Name() }
 
 // QualifiedName returns `{prefix}:{queue}`.
-func (b *RedisBackend) QualifiedName() string { return b.keys.Base() }
+func (b *Backend) QualifiedName() string { return b.keys.Base() }
 
 // ResolveParent returns the parent reference and `{prefix}:{queue}:{id}` key
 // that are stored for a job added under parent.
-func (b *RedisBackend) ResolveParent(parent *ParentOptions) (*ParentKeys, string, error) {
+func (b *Backend) ResolveParent(parent *bullmq.ParentOptions) (*bullmq.ParentKeys, string, error) {
 	queueKey, err := resolveParentQueueKey(b.keys.Prefix(), parent.Queue)
 	if err != nil {
 		return nil, "", err
 	}
-	return &ParentKeys{ID: parent.ID, QueueKey: queueKey}, queueKey + ":" + parent.ID, nil
+	return &bullmq.ParentKeys{ID: parent.ID, QueueKey: queueKey}, queueKey + ":" + parent.ID, nil
 }
 
 // ClientName returns `{prefix}:{base64(queue)}{suffix}`.
-func (b *RedisBackend) ClientName(suffix string) string { return b.keys.ClientName(suffix) }
+func (b *Backend) ClientName(suffix string) string { return b.keys.ClientName(suffix) }
 
 // runScript evaluates a shared Lua command.
-func (b *RedisBackend) runScript(ctx context.Context, name string, keys []string, args ...any) (any, error) {
+func (b *Backend) runScript(ctx context.Context, name string, keys []string, args ...any) (any, error) {
 	s, err := getScript(name)
 	if err != nil {
 		return nil, err
@@ -163,7 +181,7 @@ func (b *RedisBackend) runScript(ctx context.Context, name string, keys []string
 
 // runScriptStatus evaluates a command that returns a numeric status code and
 // converts negative codes into errors.
-func (b *RedisBackend) runScriptStatus(ctx context.Context, name string, keys []string, args ...any) error {
+func (b *Backend) runScriptStatus(ctx context.Context, name string, keys []string, args ...any) error {
 	res, err := b.runScript(ctx, name, keys, args...)
 	if err != nil {
 		return err
@@ -247,8 +265,8 @@ func boolToStr(b bool) string {
 }
 
 // luaStateName maps a JobState to the key suffix used by the Lua commands.
-func luaStateName(state JobState) string {
-	if state == StateWaiting {
+func luaStateName(state bullmq.JobState) string {
+	if state == bullmq.StateWaiting {
 		return "wait"
 	}
 	return string(state)

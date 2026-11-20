@@ -12,9 +12,9 @@ import (
 
 // newChildQueue creates a second queue, distinct from the parent's, whose
 // jobs are children of a parent job.
-func newChildQueue(t *testing.T) *bullmq.Queue {
+func newChildQueue(t *testing.T, be testBackend) *bullmq.Queue {
 	t.Helper()
-	q, err := bullmq.NewQueue(testQueueName(t)+"-children", &bullmq.QueueOptions{Redis: redisOptions()})
+	q, err := bullmq.NewQueue(testQueueName(t)+"-children", &bullmq.QueueOptions{Backend: be.Factory})
 	if err != nil {
 		t.Fatalf("NewQueue: %v", err)
 	}
@@ -44,10 +44,10 @@ func childKeys(childQ *bullmq.Queue, child *bullmq.Job) *bullmq.ParentKeys {
 
 // processParentOnce processes the single parent job in q with fn, which runs
 // while the job is active and holds its lock.
-func processParentOnce(t *testing.T, q *bullmq.Queue, fn func(ctx context.Context, job *bullmq.Job) error) {
+func processParentOnce(t *testing.T, be testBackend, q *bullmq.Queue, fn func(ctx context.Context, job *bullmq.Job) error) {
 	t.Helper()
 	done := make(chan struct{})
-	w := newTestWorker(t, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
 		defer close(done)
 		return nil, fn(ctx, job)
 	}, nil)
@@ -71,10 +71,13 @@ func requireState(t *testing.T, ctx context.Context, q *bullmq.Queue, id string,
 }
 
 func TestMoveToWaitingChildrenParksParentWithPendingChild(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testMoveToWaitingChildrenParksParentWithPendingChild)
+}
+
+func testMoveToWaitingChildrenParksParentWithPendingChild(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	parentQ := newTestQueue(t, nil)
-	childQ := newChildQueue(t)
+	parentQ := newTestQueue(t, be, nil)
+	childQ := newChildQueue(t, be)
 
 	parent, err := parentQ.Add(ctx, "parent", nil, nil)
 	if err != nil {
@@ -83,7 +86,7 @@ func TestMoveToWaitingChildrenParksParentWithPendingChild(t *testing.T) {
 	child := addChild(t, ctx, childQ, parentQ, parent, "child")
 
 	var moved bool
-	processParentOnce(t, parentQ, func(ctx context.Context, job *bullmq.Job) error {
+	processParentOnce(t, be, parentQ, func(ctx context.Context, job *bullmq.Job) error {
 		var err error
 		moved, err = job.MoveToWaitingChildren(ctx, childKeys(childQ, child))
 		if err != nil {
@@ -96,19 +99,22 @@ func TestMoveToWaitingChildrenParksParentWithPendingChild(t *testing.T) {
 	}
 
 	requireState(t, ctx, parentQ, parent.ID, bullmq.StateWaitingChildren)
-	if n, err := parentQ.Client().LLen(ctx, parentQ.Keys().Active()).Result(); err != nil || n != 0 {
-		t.Fatalf("active list length = %d (%v), want 0", n, err)
+	if counts, err := parentQ.JobCounts(ctx, bullmq.StateActive); err != nil || counts[bullmq.StateActive] != 0 {
+		t.Fatalf("active jobs = %d (%v), want 0", counts[bullmq.StateActive], err)
 	}
-	if lock, err := parentQ.Client().Exists(ctx, parentQ.Keys().JobLock(parent.ID)).Result(); err != nil || lock != 0 {
-		t.Fatalf("lock exists = %d (%v), want 0 after parking", lock, err)
+	if lock, err := be.Fixture.LockExists(ctx, parentQ.Backend(), parent.ID); err != nil || lock {
+		t.Fatalf("lock exists = %v (%v), want false after parking", lock, err)
 	}
 }
 
 func TestMoveToWaitingChildrenWithoutSpecificChildParksOnAnyPendingDependency(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testMoveToWaitingChildrenWithoutSpecificChildParksOnAnyPendingDependency)
+}
+
+func testMoveToWaitingChildrenWithoutSpecificChildParksOnAnyPendingDependency(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	parentQ := newTestQueue(t, nil)
-	childQ := newChildQueue(t)
+	parentQ := newTestQueue(t, be, nil)
+	childQ := newChildQueue(t, be)
 
 	parent, err := parentQ.Add(ctx, "parent", nil, nil)
 	if err != nil {
@@ -117,7 +123,7 @@ func TestMoveToWaitingChildrenWithoutSpecificChildParksOnAnyPendingDependency(t 
 	addChild(t, ctx, childQ, parentQ, parent, "child")
 
 	var moved bool
-	processParentOnce(t, parentQ, func(ctx context.Context, job *bullmq.Job) error {
+	processParentOnce(t, be, parentQ, func(ctx context.Context, job *bullmq.Job) error {
 		var err error
 		moved, err = job.MoveToWaitingChildren(ctx, nil)
 		if err != nil {
@@ -132,10 +138,13 @@ func TestMoveToWaitingChildrenWithoutSpecificChildParksOnAnyPendingDependency(t 
 }
 
 func TestMoveToWaitingChildrenReturnsFalseWithoutDependencies(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testMoveToWaitingChildrenReturnsFalseWithoutDependencies)
+}
+
+func testMoveToWaitingChildrenReturnsFalseWithoutDependencies(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	parentQ := newTestQueue(t, nil)
-	childQ := newChildQueue(t)
+	parentQ := newTestQueue(t, be, nil)
+	childQ := newChildQueue(t, be)
 
 	if _, err := parentQ.Add(ctx, "parent", nil, nil); err != nil {
 		t.Fatalf("Add parent: %v", err)
@@ -146,7 +155,7 @@ func TestMoveToWaitingChildrenReturnsFalseWithoutDependencies(t *testing.T) {
 		t.Fatalf("Add stranger: %v", err)
 	}
 
-	processParentOnce(t, parentQ, func(ctx context.Context, job *bullmq.Job) error {
+	processParentOnce(t, be, parentQ, func(ctx context.Context, job *bullmq.Job) error {
 		for name, child := range map[string]*bullmq.ParentKeys{
 			"nil child":      nil,
 			"unknown child":  childKeys(childQ, stranger),
@@ -165,10 +174,13 @@ func TestMoveToWaitingChildrenReturnsFalseWithoutDependencies(t *testing.T) {
 }
 
 func TestMoveToWaitingChildrenIgnoresChildThatIsNotPending(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testMoveToWaitingChildrenIgnoresChildThatIsNotPending)
+}
+
+func testMoveToWaitingChildrenIgnoresChildThatIsNotPending(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	parentQ := newTestQueue(t, nil)
-	childQ := newChildQueue(t)
+	parentQ := newTestQueue(t, be, nil)
+	childQ := newChildQueue(t, be)
 
 	parent, err := parentQ.Add(ctx, "parent", nil, nil)
 	if err != nil {
@@ -180,7 +192,7 @@ func TestMoveToWaitingChildrenIgnoresChildThatIsNotPending(t *testing.T) {
 		t.Fatalf("Add stranger: %v", err)
 	}
 
-	processParentOnce(t, parentQ, func(ctx context.Context, job *bullmq.Job) error {
+	processParentOnce(t, be, parentQ, func(ctx context.Context, job *bullmq.Job) error {
 		// The parent has a pending dependency, but not on this job.
 		moved, err := job.MoveToWaitingChildren(ctx, childKeys(childQ, stranger))
 		if err != nil || moved {
@@ -199,10 +211,13 @@ func TestMoveToWaitingChildrenIgnoresChildThatIsNotPending(t *testing.T) {
 }
 
 func TestMoveToWaitingChildrenRequiresTheJobLock(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testMoveToWaitingChildrenRequiresTheJobLock)
+}
+
+func testMoveToWaitingChildrenRequiresTheJobLock(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	parentQ := newTestQueue(t, nil)
-	childQ := newChildQueue(t)
+	parentQ := newTestQueue(t, be, nil)
+	childQ := newChildQueue(t, be)
 
 	parent, err := parentQ.Add(ctx, "parent", nil, nil)
 	if err != nil {
@@ -211,7 +226,7 @@ func TestMoveToWaitingChildrenRequiresTheJobLock(t *testing.T) {
 	child := addChild(t, ctx, childQ, parentQ, parent, "child")
 	keys := childKeys(childQ, child)
 
-	processParentOnce(t, parentQ, func(ctx context.Context, job *bullmq.Job) error {
+	processParentOnce(t, be, parentQ, func(ctx context.Context, job *bullmq.Job) error {
 		// Mismatched token: the lock exists but belongs to someone else.
 		moved, err := parentQ.Backend().MoveToWaitingChildren(ctx, job.ID, "not-the-token", keys)
 		if !errors.Is(err, bullmq.ErrJobLockMismatch) || moved {
@@ -222,9 +237,8 @@ func TestMoveToWaitingChildrenRequiresTheJobLock(t *testing.T) {
 		}
 
 		// Missing lock: it expired or was removed.
-		lockKey := parentQ.Keys().JobLock(job.ID)
-		if err := parentQ.Client().Del(ctx, lockKey).Err(); err != nil {
-			t.Errorf("Del lock: %v", err)
+		if err := be.Fixture.DeleteLock(ctx, parentQ.Backend(), job.ID); err != nil {
+			t.Errorf("DeleteLock: %v", err)
 		}
 		moved, err = job.MoveToWaitingChildren(ctx, keys)
 		if !errors.Is(err, bullmq.ErrJobLockNotExist) || moved {
@@ -235,18 +249,21 @@ func TestMoveToWaitingChildrenRequiresTheJobLock(t *testing.T) {
 		}
 
 		// Restore the lock so the worker can complete the job normally.
-		if err := parentQ.Client().Set(ctx, lockKey, job.Token(), 30*time.Second).Err(); err != nil {
-			t.Errorf("Set lock: %v", err)
+		if err := be.Fixture.SetLock(ctx, parentQ.Backend(), job.ID, job.Token(), 30*time.Second); err != nil {
+			t.Errorf("SetLock: %v", err)
 		}
 		return nil
 	})
 }
 
 func TestMoveToWaitingChildrenWithoutATokenFails(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testMoveToWaitingChildrenWithoutATokenFails)
+}
+
+func testMoveToWaitingChildrenWithoutATokenFails(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	parentQ := newTestQueue(t, nil)
-	childQ := newChildQueue(t)
+	parentQ := newTestQueue(t, be, nil)
+	childQ := newChildQueue(t, be)
 
 	parent, err := parentQ.Add(ctx, "parent", nil, nil)
 	if err != nil {
@@ -267,10 +284,13 @@ func TestMoveToWaitingChildrenWithoutATokenFails(t *testing.T) {
 }
 
 func TestCompletingTheLastChildReleasesTheParkedParent(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testCompletingTheLastChildReleasesTheParkedParent)
+}
+
+func testCompletingTheLastChildReleasesTheParkedParent(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	parentQ := newTestQueue(t, nil)
-	childQ := newChildQueue(t)
+	parentQ := newTestQueue(t, be, nil)
+	childQ := newChildQueue(t, be)
 
 	parent, err := parentQ.Add(ctx, "parent", nil, nil)
 	if err != nil {
@@ -282,7 +302,7 @@ func TestCompletingTheLastChildReleasesTheParkedParent(t *testing.T) {
 	var runs atomic.Int32
 	parked := make(chan struct{})
 	finished := make(chan bool, 1)
-	pw := newTestWorker(t, parentQ.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
+	pw := newTestWorker(t, be, parentQ.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
 		if runs.Add(1) == 1 {
 			moved, err := job.MoveToWaitingChildren(ctx, nil)
 			if err != nil || !moved {
@@ -314,7 +334,7 @@ func TestCompletingTheLastChildReleasesTheParkedParent(t *testing.T) {
 		first.ID:  make(chan struct{}),
 		second.ID: make(chan struct{}),
 	}
-	cw := newTestWorker(t, childQ.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
+	cw := newTestWorker(t, be, childQ.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
 		select {
 		case <-release[job.ID]:
 			return nil, nil
@@ -331,7 +351,7 @@ func TestCompletingTheLastChildReleasesTheParkedParent(t *testing.T) {
 		return s == bullmq.StateCompleted
 	})
 	requireState(t, ctx, parentQ, parent.ID, bullmq.StateWaitingChildren)
-	if n, err := parentQ.Client().SCard(ctx, parentQ.Keys().Dependencies(parent.ID)).Result(); err != nil || n != 1 {
+	if n, err := be.Fixture.PendingDependencies(ctx, parentQ.Backend(), parent.ID); err != nil || n != 1 {
 		t.Fatalf("pending dependencies = %d (%v), want 1", n, err)
 	}
 	if got := runs.Load(); got != 1 {
@@ -352,16 +372,19 @@ func TestCompletingTheLastChildReleasesTheParkedParent(t *testing.T) {
 		s, _ := parentQ.JobState(ctx, parent.ID)
 		return s == bullmq.StateCompleted
 	})
-	if n, err := parentQ.Client().SCard(ctx, parentQ.Keys().Dependencies(parent.ID)).Result(); err != nil || n != 0 {
+	if n, err := be.Fixture.PendingDependencies(ctx, parentQ.Backend(), parent.ID); err != nil || n != 0 {
 		t.Fatalf("pending dependencies = %d (%v), want 0", n, err)
 	}
 }
 
 func TestAddedChildJobReportsItsParent(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testAddedChildJobReportsItsParent)
+}
+
+func testAddedChildJobReportsItsParent(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	parentQ := newTestQueue(t, nil)
-	childQ := newChildQueue(t)
+	parentQ := newTestQueue(t, be, nil)
+	childQ := newChildQueue(t, be)
 
 	parent, err := parentQ.Add(ctx, "parent", nil, nil)
 	if err != nil {

@@ -14,6 +14,7 @@ func TestOnErrorCanCloseWorker(t *testing.T) {
 	closed := make(chan error, 1)
 	w, err := NewWorker("onerror-close", func(context.Context, *Job) (any, error) { return nil, nil },
 		&WorkerOptions{
+			Backend: stubBackendFactory,
 			OnError: func(error) { closed <- w.Close() },
 		})
 	if err != nil {

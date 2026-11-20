@@ -6,14 +6,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 )
 
 // Queue adds jobs to a BullMQ queue and inspects its contents.
 //
 // A Queue only depends on the [Backend] abstraction, so it works with any
-// datastore for which a backend exists. By default it uses Redis.
+// datastore for which a backend exists.
 //
 // A Queue is safe for concurrent use.
 type Queue struct {
@@ -31,7 +29,7 @@ func NewQueue(name string, opts *QueueOptions) (*Queue, error) {
 	if opts == nil {
 		opts = &QueueOptions{}
 	}
-	backend, err := resolveBackend(opts.Backend, opts.Redis, name, BackendOptions{Prefix: opts.Prefix})
+	backend, err := resolveBackend(opts.Backend, name, BackendOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -41,26 +39,10 @@ func NewQueue(name string, opts *QueueOptions) (*Queue, error) {
 // Name returns the queue name.
 func (q *Queue) Name() string { return q.backend.QueueName() }
 
-// Backend returns the datastore backend used by the queue.
+// Backend returns the datastore backend used by the queue. Type-assert it to
+// the concrete backend, for example *redisbackend.Backend, to reach
+// datastore-specific features such as the underlying client.
 func (q *Queue) Backend() Backend { return q.backend }
-
-// Keys exposes the key generator used by the queue. It returns nil when the
-// queue does not use the Redis backend.
-func (q *Queue) Keys() *Keys {
-	if rb, ok := q.backend.(*RedisBackend); ok {
-		return rb.Keys()
-	}
-	return nil
-}
-
-// Client returns the underlying Redis client. It returns nil when the queue
-// does not use the Redis backend.
-func (q *Queue) Client() redis.UniversalClient {
-	if rb, ok := q.backend.(*RedisBackend); ok {
-		return rb.Client()
-	}
-	return nil
-}
 
 // Close releases the connections the queue owns.
 func (q *Queue) Close() error { return q.backend.Close() }

@@ -11,10 +11,10 @@ import (
 )
 
 // collectEvents starts a QueueEvents listener and returns a snapshot function.
-func collectEvents(t *testing.T, queueName string) func() []bullmq.QueueEvent {
+func collectEvents(t *testing.T, be testBackend, queueName string) func() []bullmq.QueueEvent {
 	t.Helper()
 	qe, err := bullmq.NewQueueEvents(queueName, &bullmq.QueueEventsOptions{
-		Redis:           redisOptions(),
+		Backend:         be.Factory,
 		BlockingTimeout: 200 * time.Millisecond,
 	})
 	if err != nil {
@@ -64,12 +64,15 @@ func hasEvent(events []bullmq.QueueEvent, name, jobID string) bool {
 }
 
 func TestQueueEventsReportsTheJobLifecycle(t *testing.T) {
-	requireRedis(t)
-	ctx := testContext(t)
-	q := newTestQueue(t, nil)
-	snapshot := collectEvents(t, q.Name())
+	forEachBackend(t, testQueueEventsReportsTheJobLifecycle)
+}
 
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+func testQueueEventsReportsTheJobLifecycle(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	snapshot := collectEvents(t, be, q.Name())
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		return "result", nil
 	}, nil)
 	runWorker(t, w)
@@ -96,8 +99,11 @@ func TestQueueEventsReportsTheJobLifecycle(t *testing.T) {
 }
 
 func TestQueueEventsClosesErrorsChannelOnShutdown(t *testing.T) {
-	requireRedis(t)
-	q := newTestQueue(t, nil)
+	forEachBackend(t, testQueueEventsClosesErrorsChannelOnShutdown)
+}
+
+func testQueueEventsClosesErrorsChannelOnShutdown(t *testing.T, be testBackend) {
+	q := newTestQueue(t, be, nil)
 
 	drained := func(t *testing.T, qe *bullmq.QueueEvents) {
 		t.Helper()
@@ -116,7 +122,7 @@ func TestQueueEventsClosesErrorsChannelOnShutdown(t *testing.T) {
 
 	// Closed after Run exits because of cancellation.
 	qe, err := bullmq.NewQueueEvents(q.Name(), &bullmq.QueueEventsOptions{
-		Redis:           redisOptions(),
+		Backend:         be.Factory,
 		BlockingTimeout: 200 * time.Millisecond,
 	})
 	if err != nil {
@@ -135,7 +141,7 @@ func TestQueueEventsClosesErrorsChannelOnShutdown(t *testing.T) {
 	_ = qe.Close()
 
 	// Closed by Close when Run was never called.
-	unstarted, err := bullmq.NewQueueEvents(q.Name(), &bullmq.QueueEventsOptions{Redis: redisOptions()})
+	unstarted, err := bullmq.NewQueueEvents(q.Name(), &bullmq.QueueEventsOptions{Backend: be.Factory})
 	if err != nil {
 		t.Fatalf("NewQueueEvents: %v", err)
 	}
@@ -144,12 +150,15 @@ func TestQueueEventsClosesErrorsChannelOnShutdown(t *testing.T) {
 }
 
 func TestQueueEventsReportsFailures(t *testing.T) {
-	requireRedis(t)
-	ctx := testContext(t)
-	q := newTestQueue(t, nil)
-	snapshot := collectEvents(t, q.Name())
+	forEachBackend(t, testQueueEventsReportsFailures)
+}
 
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+func testQueueEventsReportsFailures(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	snapshot := collectEvents(t, be, q.Name())
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		return nil, errors.New("kaboom")
 	}, nil)
 	runWorker(t, w)
@@ -173,12 +182,15 @@ func TestQueueEventsReportsFailures(t *testing.T) {
 }
 
 func TestQueueEventsReportsProgress(t *testing.T) {
-	requireRedis(t)
-	ctx := testContext(t)
-	q := newTestQueue(t, nil)
-	snapshot := collectEvents(t, q.Name())
+	forEachBackend(t, testQueueEventsReportsProgress)
+}
 
-	w := newTestWorker(t, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
+func testQueueEventsReportsProgress(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	snapshot := collectEvents(t, be, q.Name())
+
+	w := newTestWorker(t, be, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
 		progress, err := bullmq.NumberProgress(75)
 		if err != nil {
 			return nil, err
@@ -198,10 +210,13 @@ func TestQueueEventsReportsProgress(t *testing.T) {
 }
 
 func TestQueueEventsReportsPauseAndResume(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testQueueEventsReportsPauseAndResume)
+}
+
+func testQueueEventsReportsPauseAndResume(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
-	snapshot := collectEvents(t, q.Name())
+	q := newTestQueue(t, be, nil)
+	snapshot := collectEvents(t, be, q.Name())
 
 	if err := q.Pause(ctx); err != nil {
 		t.Fatalf("Pause: %v", err)

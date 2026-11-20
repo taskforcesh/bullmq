@@ -1,4 +1,4 @@
-package bullmq
+package redisbackend
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 const blockingPollInterval = time.Second
@@ -13,7 +14,7 @@ const blockingPollInterval = time.Second
 // MoveToActive atomically moves the next job to the active list and locks it.
 // The result carries a nil Job when none is available; Wait is then how long
 // to wait before the next attempt (rate limit or next delayed job).
-func (b *RedisBackend) MoveToActive(ctx context.Context, opts MoveToActiveOptions) (*FetchResult, error) {
+func (b *Backend) MoveToActive(ctx context.Context, opts bullmq.MoveToActiveOptions) (*bullmq.FetchResult, error) {
 	k := b.keys
 	packed, err := packMoveToActiveOpts(opts)
 	if err != nil {
@@ -31,10 +32,10 @@ func (b *RedisBackend) MoveToActive(ctx context.Context, opts MoveToActiveOption
 
 // parseFetchResult decodes the `{jobData, jobId, limitUntil, delayUntil}` reply
 // of the moveToActive command.
-func parseFetchResult(res any) *FetchResult {
+func parseFetchResult(res any) *bullmq.FetchResult {
 	arr, ok := res.([]any)
 	if !ok || len(arr) < 2 {
-		return &FetchResult{}
+		return &bullmq.FetchResult{}
 	}
 	fields := flatToMap(arr[0])
 	jobID, _ := asString(arr[1])
@@ -52,12 +53,12 @@ func parseFetchResult(res any) *FetchResult {
 				}
 			}
 		}
-		return &FetchResult{Wait: wait}
+		return &bullmq.FetchResult{Wait: wait}
 	}
-	return &FetchResult{Job: jobRecordFromHash(jobID, fields)}
+	return &bullmq.FetchResult{Job: jobRecordFromHash(jobID, fields)}
 }
 
-func packMoveToActiveOpts(opts MoveToActiveOptions) ([]byte, error) {
+func packMoveToActiveOpts(opts bullmq.MoveToActiveOptions) ([]byte, error) {
 	m := map[string]any{
 		"token":        opts.Token,
 		"lockDuration": opts.LockDuration.Milliseconds(),
@@ -66,18 +67,18 @@ func packMoveToActiveOpts(opts MoveToActiveOptions) ([]byte, error) {
 		m["name"] = opts.WorkerName
 	}
 	if l := opts.Limiter; l != nil {
-		m["limiter"] = l.msgpackValue()
+		m["limiter"] = limiterValue(l)
 	}
 	return packMsgpack(m)
 }
 
 // MoveToCompleted moves an active job into the completed set.
-func (b *RedisBackend) MoveToCompleted(ctx context.Context, jobID string, returnValue []byte, opts FinishOptions) (int64, error) {
+func (b *Backend) MoveToCompleted(ctx context.Context, jobID string, returnValue []byte, opts bullmq.FinishOptions) (int64, error) {
 	return b.moveToFinished(ctx, jobID, "completed", "returnvalue", string(returnValue), nil, opts)
 }
 
 // MoveToFailed moves an active job into the failed set.
-func (b *RedisBackend) MoveToFailed(ctx context.Context, jobID string, failure FailureInfo, opts FinishOptions) (int64, error) {
+func (b *Backend) MoveToFailed(ctx context.Context, jobID string, failure bullmq.FailureInfo, opts bullmq.FinishOptions) (int64, error) {
 	fields, err := packFailureFields(&failure)
 	if err != nil {
 		return 0, err
@@ -87,7 +88,7 @@ func (b *RedisBackend) MoveToFailed(ctx context.Context, jobID string, failure F
 
 // moveToFinished moves an active job into the completed or failed set. The
 // fetch-next flag is never set: the worker's fetch loop owns fetching.
-func (b *RedisBackend) moveToFinished(ctx context.Context, jobID, target, field, value string, fieldsToUpdate []byte, opts FinishOptions) (int64, error) {
+func (b *Backend) moveToFinished(ctx context.Context, jobID, target, field, value string, fieldsToUpdate []byte, opts bullmq.FinishOptions) (int64, error) {
 	k := b.keys
 	keys := []string{
 		k.Wait(), k.Active(), k.Prioritized(), k.Events(), k.Stalled(),
@@ -116,7 +117,7 @@ func (b *RedisBackend) moveToFinished(ctx context.Context, jobID, target, field,
 	return finishedOn, nil
 }
 
-func packMoveToFinishedOpts(opts FinishOptions) ([]byte, error) {
+func packMoveToFinishedOpts(opts bullmq.FinishOptions) ([]byte, error) {
 	maxMetricsSize := ""
 	if opts.Metrics != nil && opts.Metrics.MaxDataPoints > 0 {
 		maxMetricsSize = strconv.FormatInt(opts.Metrics.MaxDataPoints, 10)
@@ -125,35 +126,37 @@ func packMoveToFinishedOpts(opts FinishOptions) ([]byte, error) {
 	// The Lua command indexes keepJobs, so it must always be a table.
 	keepJobs := map[string]any{}
 	if opts.KeepJobs != nil {
-		keepJobs = opts.KeepJobs.msgpackValue()
+		keepJobs = keepJobsValue(opts.KeepJobs)
 	}
 
-	// The job option accessors are nil-safe.
 	jobOpts := opts.JobOpts
+	if jobOpts == nil {
+		jobOpts = &bullmq.JobOptions{}
+	}
 
 	m := map[string]any{
 		"token":          opts.Token,
 		"keepJobs":       keepJobs,
 		"lockDuration":   opts.LockDuration.Milliseconds(),
-		"attempts":       jobOpts.attemptsVal(),
+		"attempts":       int64Val(jobOpts.Attempts),
 		"maxMetricsSize": maxMetricsSize,
-		"fpof":           jobOpts.failParentOnFailureVal(),
-		"cpof":           jobOpts.continueParentOnFailureVal(),
-		"idof":           jobOpts.ignoreDependencyOnFailureVal(),
-		"rdof":           jobOpts.removeDependencyOnFailureVal(),
+		"fpof":           boolVal(jobOpts.FailParentOnFailure),
+		"cpof":           boolVal(jobOpts.ContinueParentOnFailure),
+		"idof":           boolVal(jobOpts.IgnoreDependencyOnFailure),
+		"rdof":           boolVal(jobOpts.RemoveDependencyOnFailure),
 	}
 	if opts.WorkerName != "" {
 		m["name"] = opts.WorkerName
 	}
 	if l := opts.Limiter; l != nil {
-		m["limiter"] = l.msgpackValue()
+		m["limiter"] = limiterValue(l)
 	}
 	return packMsgpack(m)
 }
 
 // MoveStalledJobsToWait moves jobs whose lock expired back to the wait list
 // and returns their ids.
-func (b *RedisBackend) MoveStalledJobsToWait(ctx context.Context, opts StalledOptions) ([]string, error) {
+func (b *Backend) MoveStalledJobsToWait(ctx context.Context, opts bullmq.StalledOptions) ([]string, error) {
 	k := b.keys
 	res, err := b.runScript(ctx, "moveStalledJobsToWait", []string{
 		k.Stalled(), k.Wait(), k.Active(), k.StalledCheck(), k.Meta(),
@@ -172,7 +175,7 @@ func (b *RedisBackend) MoveStalledJobsToWait(ctx context.Context, opts StalledOp
 
 // WaitForJob blocks on the marker key until a job shows up, a delayed job comes
 // due, or timeout elapses.
-func (b *RedisBackend) WaitForJob(ctx context.Context, timeout time.Duration) error {
+func (b *Backend) WaitForJob(ctx context.Context, timeout time.Duration) error {
 	if timeout < time.Millisecond {
 		timeout = time.Millisecond
 	}
@@ -220,13 +223,13 @@ func (b *RedisBackend) WaitForJob(ctx context.Context, timeout time.Duration) er
 }
 
 // SignalWork adds the base marker that WaitForJob blocks on.
-func (b *RedisBackend) SignalWork(ctx context.Context) error {
+func (b *Backend) SignalWork(ctx context.Context) error {
 	return b.rdb.ZAdd(ctx, b.keys.Marker(), redis.Z{Score: 0, Member: "0"}).Err()
 }
 
 // LastEventID returns the id of the newest event stream entry, or "0-0" when
 // the stream is empty.
-func (b *RedisBackend) LastEventID(ctx context.Context) (string, error) {
+func (b *Backend) LastEventID(ctx context.Context) (string, error) {
 	messages, err := b.blocking.XRevRangeN(ctx, b.keys.Events(), "+", "-", 1).Result()
 	if err != nil {
 		return "", err
@@ -239,7 +242,7 @@ func (b *RedisBackend) LastEventID(ctx context.Context) (string, error) {
 
 // ReadEvents blocks up to block waiting for event stream entries newer than
 // lastID.
-func (b *RedisBackend) ReadEvents(ctx context.Context, lastID string, block time.Duration) ([]QueueEvent, error) {
+func (b *Backend) ReadEvents(ctx context.Context, lastID string, block time.Duration) ([]bullmq.QueueEvent, error) {
 	streams, err := b.blocking.XRead(ctx, &redis.XReadArgs{
 		Streams: []string{b.keys.Events(), lastID},
 		Block:   block,
@@ -251,10 +254,10 @@ func (b *RedisBackend) ReadEvents(ctx context.Context, lastID string, block time
 		return nil, err
 	}
 
-	var events []QueueEvent
+	var events []bullmq.QueueEvent
 	for _, stream := range streams {
 		for _, msg := range stream.Messages {
-			ev := QueueEvent{ID: msg.ID, Data: make(map[string]string, len(msg.Values))}
+			ev := bullmq.QueueEvent{ID: msg.ID, Data: make(map[string]string, len(msg.Values))}
 			for k, v := range msg.Values {
 				s, _ := asString(v)
 				ev.Data[k] = s

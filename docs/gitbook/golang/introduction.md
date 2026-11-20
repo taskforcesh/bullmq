@@ -39,14 +39,14 @@ import (
 	"log"
 
 	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
 )
 
 func main() {
 	ctx := context.Background()
 
-	queue, err := bullmq.NewQueue("my-queue", &bullmq.QueueOptions{
-		Redis: bullmq.RedisOptions{Addr: "127.0.0.1:6379"},
-	})
+	backend := redisbackend.New(redisbackend.Options{Addr: "127.0.0.1:6379"})
+	queue, err := bullmq.NewQueue("my-queue", &bullmq.QueueOptions{Backend: backend})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -71,17 +71,19 @@ import (
 	"log"
 
 	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
 )
 
 func main() {
 	ctx := context.Background()
 
+	backend := redisbackend.New(redisbackend.Options{Addr: "127.0.0.1:6379"})
 	worker, err := bullmq.NewWorker("my-queue",
 		func(ctx context.Context, job *bullmq.Job) (any, error) {
 			log.Printf("Processing job: %s - %s", job.ID, job.Name)
 			return map[string]bool{"processed": true}, nil
 		},
-		&bullmq.WorkerOptions{Redis: bullmq.RedisOptions{Addr: "127.0.0.1:6379"}},
+		&bullmq.WorkerOptions{Backend: backend},
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -106,7 +108,7 @@ treated:
   stops fetching new jobs, but the same context is handed to your processors,
   so they observe the cancellation through `ctx.Done()` and should return
   early. After `Run` returns, call `worker.Close()` to release the worker's
-  Redis connections and close its event channel.
+  connections and close its event channel.
 
 ```go
 // Graceful: let in-flight jobs finish.
@@ -152,7 +154,7 @@ Configure how many jobs are processed simultaneously:
 
 ```go
 worker, err := bullmq.NewWorker("my-queue", processor, &bullmq.WorkerOptions{
-	Redis:       bullmq.RedisOptions{Addr: "127.0.0.1:6379"},
+	Backend:     backend,
 	Concurrency: 10,
 })
 ```
@@ -191,17 +193,21 @@ queue.Add(ctx, "flaky-job", map[string]any{}, &bullmq.JobOptions{
 
 ## Connection Configuration
 
+The datastore is chosen with the required `Backend` option. The Redis backend
+lives in the `redisbackend` package, and `redisbackend.Options` holds the
+connection settings and the key `Prefix` (`bull` by default):
+
 ```go
-redisOpts := bullmq.RedisOptions{
+backend := redisbackend.New(redisbackend.Options{
 	Addr:     "redis.example.com:6380",
 	Username: "user",
 	Password: "password",
 	DB:       0,
-}
+})
 
-queue, err := bullmq.NewQueue("my-queue", &bullmq.QueueOptions{Redis: redisOpts})
+queue, err := bullmq.NewQueue("my-queue", &bullmq.QueueOptions{Backend: backend})
 
-worker, err := bullmq.NewWorker("my-queue", processor, &bullmq.WorkerOptions{Redis: redisOpts})
+worker, err := bullmq.NewWorker("my-queue", processor, &bullmq.WorkerOptions{Backend: backend})
 ```
 
 ### Sharing a Redis client
@@ -215,9 +221,8 @@ import "github.com/redis/go-redis/v9"
 
 rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:6379"})
 
-queue, err := bullmq.NewQueue("my-queue", &bullmq.QueueOptions{
-	Redis: bullmq.RedisOptions{Client: rdb},
-})
+backend := redisbackend.New(redisbackend.Options{Client: rdb})
+queue, err := bullmq.NewQueue("my-queue", &bullmq.QueueOptions{Backend: backend})
 ```
 
 ## Key Differences from Node.js

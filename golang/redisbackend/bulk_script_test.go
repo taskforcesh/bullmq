@@ -1,4 +1,4 @@
-package bullmq_test
+package redisbackend
 
 import (
 	"context"
@@ -10,13 +10,17 @@ import (
 	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
-// scriptHook records the script commands sent in pipelines and can flush the
-// server's script cache right before the next EVALSHA transaction runs.
+// unknownSHA is a script digest no server has cached.
+const unknownSHA = "0000000000000000000000000000000000000000"
+
+// scriptHook records the script commands sent in pipelines and can make the
+// next EVALSHA transaction miss the script cache. It rewrites the digests of
+// that transaction instead of flushing the server's script cache, which other
+// clients of the shared test server rely on.
 type scriptHook struct {
-	admin     *redis.Client
-	evalSHAs  atomic.Int32
-	evals     atomic.Int32
-	flushNext atomic.Bool
+	evalSHAs atomic.Int32
+	evals    atomic.Int32
+	missNext atomic.Bool
 }
 
 func (h *scriptHook) DialHook(next redis.DialHook) redis.DialHook {
@@ -39,9 +43,11 @@ func (h *scriptHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.P
 			}
 		}
 		h.evalSHAs.Add(int32(sha))
-		if sha > 0 && h.flushNext.CompareAndSwap(true, false) {
-			if err := h.admin.ScriptFlush(context.Background()).Err(); err != nil {
-				return err
+		if sha > 0 && h.missNext.CompareAndSwap(true, false) {
+			for _, c := range cmds {
+				if c.Name() == "evalsha" {
+					c.Args()[1] = unknownSHA
+				}
 			}
 		}
 		return next(ctx, cmds)
@@ -50,12 +56,11 @@ func (h *scriptHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.P
 
 func newHookedQueue(t *testing.T) (*bullmq.Queue, *scriptHook) {
 	t.Helper()
-	hook := &scriptHook{admin: redis.NewClient(&redis.Options{Addr: redisAddr()})}
-	t.Cleanup(func() { _ = hook.admin.Close() })
+	hook := &scriptHook{}
 	client := redis.NewClient(&redis.Options{Addr: redisAddr()})
 	client.AddHook(hook)
 	t.Cleanup(func() { _ = client.Close() })
-	return newTestQueue(t, &bullmq.QueueOptions{Redis: bullmq.RedisOptions{Client: client}}), hook
+	return newTestQueue(t, Options{Client: client}), hook
 }
 
 func bulkSpecs(n int) []bullmq.JobSpec {
@@ -74,9 +79,6 @@ func TestAddBulkSendsEvalSHAInsteadOfScriptText(t *testing.T) {
 	requireRedis(t)
 	ctx := testContext(t)
 	q, hook := newHookedQueue(t)
-	if err := hook.admin.ScriptFlush(ctx).Err(); err != nil {
-		t.Fatalf("ScriptFlush: %v", err)
-	}
 
 	specs := bulkSpecs(20)
 	jobs, err := q.AddBulk(ctx, specs)
@@ -99,9 +101,9 @@ func TestAddBulkRecoversFromScriptCacheMissWithoutReplayingJobs(t *testing.T) {
 	ctx := testContext(t)
 	q, hook := newHookedQueue(t)
 
-	// The cache is flushed after the scripts are loaded but before the
-	// transaction runs, so every EVALSHA in it answers NOSCRIPT.
-	hook.flushNext.Store(true)
+	// Every EVALSHA of the transaction answers NOSCRIPT, as if the cache had
+	// been flushed after the scripts were loaded (for example by a failover).
+	hook.missNext.Store(true)
 	specs := bulkSpecs(10)
 	jobs, err := q.AddBulk(ctx, specs)
 	if err != nil {

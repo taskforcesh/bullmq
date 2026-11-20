@@ -1,8 +1,10 @@
-package bullmq
+package redisbackend
 
 import (
 	"errors"
 	"testing"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 func TestParseAddReplyTreatsStringRepliesAsJobIDs(t *testing.T) {
@@ -28,14 +30,14 @@ func TestParseAddReplyTreatsStringRepliesAsJobIDs(t *testing.T) {
 func TestParseAddReplyTreatsNegativeIntegersAsStatusCodes(t *testing.T) {
 	a := redisAdd{scriptName: "addStandardJob"}
 
-	_, err := a.parseReply(int64(ErrCodeJobNotExist))
-	if !errors.Is(err, ErrJobNotFound) {
-		t.Errorf("parseReply(%d) error = %v, want ErrJobNotFound", ErrCodeJobNotExist, err)
+	_, err := a.parseReply(int64(bullmq.ErrCodeJobNotExist))
+	if !errors.Is(err, bullmq.ErrJobNotFound) {
+		t.Errorf("parseReply(%d) error = %v, want ErrJobNotFound", bullmq.ErrCodeJobNotExist, err)
 	}
 
-	_, err = a.parseReply(int64(ErrCodeParentJobNotExist))
-	if !errors.Is(err, ErrParentJobNotExist) {
-		t.Errorf("parseReply(%d) error = %v, want ErrParentJobNotExist", ErrCodeParentJobNotExist, err)
+	_, err = a.parseReply(int64(bullmq.ErrCodeParentJobNotExist))
+	if !errors.Is(err, bullmq.ErrParentJobNotExist) {
+		t.Errorf("parseReply(%d) error = %v, want ErrParentJobNotExist", bullmq.ErrCodeParentJobNotExist, err)
 	}
 }
 

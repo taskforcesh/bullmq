@@ -12,12 +12,15 @@ import (
 )
 
 func TestWorkerProcessesJobs(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerProcessesJobs)
+}
+
+func testWorkerProcessesJobs(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	processed := make(chan string, 1)
-	w := newTestWorker(t, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
 		var payload map[string]string
 		if err := job.DecodeData(&payload); err != nil {
 			return nil, err
@@ -64,11 +67,14 @@ func TestWorkerProcessesJobs(t *testing.T) {
 }
 
 func TestWorkerCollectsCompletedMetrics(t *testing.T) {
-	requireRedis(t)
-	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	forEachBackend(t, testWorkerCollectsCompletedMetrics)
+}
 
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+func testWorkerCollectsCompletedMetrics(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		return nil, nil
 	}, &bullmq.WorkerOptions{Metrics: &bullmq.MetricsOptions{MaxDataPoints: 10}})
 	runWorker(t, w)
@@ -99,16 +105,19 @@ func TestWorkerCollectsCompletedMetrics(t *testing.T) {
 }
 
 func TestWorkerProcessesJobsInOrder(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerProcessesJobsInOrder)
+}
+
+func testWorkerProcessesJobsInOrder(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	const total = 10
 	var mu sync.Mutex
 	seen := make([]string, 0, total)
 	done := make(chan struct{})
 
-	w := newTestWorker(t, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
 		mu.Lock()
 		seen = append(seen, job.Name)
 		if len(seen) == total {
@@ -141,15 +150,18 @@ func TestWorkerProcessesJobsInOrder(t *testing.T) {
 }
 
 func TestWorkerRespectsConcurrency(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerRespectsConcurrency)
+}
+
+func testWorkerRespectsConcurrency(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	var inFlight, peak atomic.Int64
 	done := make(chan struct{})
 	var processed atomic.Int64
 
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		current := inFlight.Add(1)
 		for {
 			old := peak.Load()
@@ -187,11 +199,14 @@ func TestWorkerRespectsConcurrency(t *testing.T) {
 }
 
 func TestWorkerFailedEventReportsAttemptsMadeOnRetry(t *testing.T) {
-	requireRedis(t)
-	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	forEachBackend(t, testWorkerFailedEventReportsAttemptsMadeOnRetry)
+}
 
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+func testWorkerFailedEventReportsAttemptsMadeOnRetry(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		return nil, errors.New("nope")
 	}, nil)
 	counts := make(chan int64, 4)
@@ -226,13 +241,16 @@ func TestWorkerFailedEventReportsAttemptsMadeOnRetry(t *testing.T) {
 }
 
 func TestWorkerRetriesFailedJobs(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerRetriesFailedJobs)
+}
+
+func testWorkerRetriesFailedJobs(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	var attempts atomic.Int64
 	succeeded := make(chan struct{})
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		if attempts.Add(1) < 3 {
 			return nil, errors.New("transient")
 		}
@@ -276,12 +294,15 @@ func TestWorkerRetriesFailedJobs(t *testing.T) {
 }
 
 func TestWorkerFailsAfterExhaustingAttempts(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerFailsAfterExhaustingAttempts)
+}
+
+func testWorkerFailsAfterExhaustingAttempts(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	var attempts atomic.Int64
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		attempts.Add(1)
 		return nil, errors.New("always fails")
 	}, nil)
@@ -313,7 +334,10 @@ func TestWorkerFailsAfterExhaustingAttempts(t *testing.T) {
 }
 
 func TestWorkerDoesNotUpdateFailureMetadataAfterLosingLock(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerDoesNotUpdateFailureMetadataAfterLosingLock)
+}
+
+func testWorkerDoesNotUpdateFailureMetadataAfterLosingLock(t *testing.T, be testBackend) {
 
 	tests := []struct {
 		name string
@@ -330,14 +354,14 @@ func TestWorkerDoesNotUpdateFailureMetadataAfterLosingLock(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := testContext(t)
-			q := newTestQueue(t, nil)
+			q := newTestQueue(t, be, nil)
 			started := make(chan struct{})
 			release := make(chan struct{})
 			var releaseOnce sync.Once
 			releaseProcessor := func() { releaseOnce.Do(func() { close(release) }) }
 			t.Cleanup(releaseProcessor)
 
-			w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+			w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 				close(started)
 				<-release
 				return nil, errors.New("stale failure")
@@ -357,13 +381,10 @@ func TestWorkerDoesNotUpdateFailureMetadataAfterLosingLock(t *testing.T) {
 				t.Fatal("the processor did not start")
 			}
 
-			if err := q.Client().Del(ctx, q.Keys().JobLock(job.ID)).Err(); err != nil {
+			if err := be.Fixture.DeleteLock(ctx, q.Backend(), job.ID); err != nil {
 				t.Fatalf("delete lock: %v", err)
 			}
-			if err := q.Client().HSet(ctx, q.Keys().Job(job.ID),
-				"failedReason", "new owner",
-				"stacktrace", `["new owner"]`,
-			).Err(); err != nil {
+			if err := be.Fixture.SetFailure(ctx, q.Backend(), job.ID, "new owner", []string{"new owner"}); err != nil {
 				t.Fatalf("set failure metadata: %v", err)
 			}
 			releaseProcessor()
@@ -394,12 +415,15 @@ func TestWorkerDoesNotUpdateFailureMetadataAfterLosingLock(t *testing.T) {
 }
 
 func TestWorkerDoesNotRetryUnrecoverableErrors(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerDoesNotRetryUnrecoverableErrors)
+}
+
+func testWorkerDoesNotRetryUnrecoverableErrors(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	var attempts atomic.Int64
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		attempts.Add(1)
 		return nil, bullmq.NewUnrecoverableError("bad input")
 	}, nil)
@@ -422,11 +446,14 @@ func TestWorkerDoesNotRetryUnrecoverableErrors(t *testing.T) {
 }
 
 func TestWorkerRecoversFromAPanic(t *testing.T) {
-	requireRedis(t)
-	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	forEachBackend(t, testWorkerRecoversFromAPanic)
+}
 
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+func testWorkerRecoversFromAPanic(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		panic("boom")
 	}, nil)
 	runWorker(t, w)
@@ -443,11 +470,14 @@ func TestWorkerRecoversFromAPanic(t *testing.T) {
 }
 
 func TestWorkerEmitsEvents(t *testing.T) {
-	requireRedis(t)
-	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	forEachBackend(t, testWorkerEmitsEvents)
+}
 
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+func testWorkerEmitsEvents(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		return "done", nil
 	}, nil)
 
@@ -474,11 +504,14 @@ func TestWorkerEmitsEvents(t *testing.T) {
 }
 
 func TestWorkerEmitsProgressEvent(t *testing.T) {
-	requireRedis(t)
-	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	forEachBackend(t, testWorkerEmitsProgressEvent)
+}
 
-	w := newTestWorker(t, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
+func testWorkerEmitsProgressEvent(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
 		progress, err := bullmq.NumberProgress(42)
 		if err != nil {
 			return nil, err
@@ -525,12 +558,15 @@ func TestWorkerEmitsProgressEvent(t *testing.T) {
 }
 
 func TestWorkerRemoveOnComplete(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerRemoveOnComplete)
+}
+
+func testWorkerRemoveOnComplete(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	done := make(chan struct{}, 1)
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		done <- struct{}{}
 		return nil, nil
 	}, nil)
@@ -551,12 +587,15 @@ func TestWorkerRemoveOnComplete(t *testing.T) {
 }
 
 func TestWorkerPauseAndResume(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerPauseAndResume)
+}
+
+func testWorkerPauseAndResume(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	var processed atomic.Int64
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		processed.Add(1)
 		return nil, nil
 	}, nil)
@@ -581,12 +620,15 @@ func TestWorkerPauseAndResume(t *testing.T) {
 }
 
 func TestWorkerHonoursTheRateLimiter(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerHonoursTheRateLimiter)
+}
+
+func testWorkerHonoursTheRateLimiter(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	var processed atomic.Int64
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		processed.Add(1)
 		return nil, nil
 	}, &bullmq.WorkerOptions{
@@ -610,12 +652,15 @@ func TestWorkerHonoursTheRateLimiter(t *testing.T) {
 }
 
 func TestWorkerProcessesDelayedJobs(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerProcessesDelayedJobs)
+}
+
+func testWorkerProcessesDelayedJobs(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	processed := make(chan time.Time, 1)
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		processed <- time.Now()
 		return nil, nil
 	}, nil)
@@ -637,13 +682,16 @@ func TestWorkerProcessesDelayedJobs(t *testing.T) {
 }
 
 func TestWorkerMoveToDelayedFromTheProcessor(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerMoveToDelayedFromTheProcessor)
+}
+
+func testWorkerMoveToDelayedFromTheProcessor(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	var runs atomic.Int64
 	completed := make(chan struct{})
-	w := newTestWorker(t, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
 		if runs.Add(1) == 1 {
 			if err := job.MoveToDelayed(ctx, 200*time.Millisecond); err != nil {
 				return nil, err
@@ -667,16 +715,19 @@ func TestWorkerMoveToDelayedFromTheProcessor(t *testing.T) {
 }
 
 func TestWorkerRecoversStalledJobs(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerRecoversStalledJobs)
+}
+
+func testWorkerRecoversStalledJobs(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	// The first worker takes the job and then hangs forever without renewing
 	// its lock, so the job ends up stalled in the active list.
 	stuck := make(chan struct{})
 	hang := make(chan struct{})
 
-	stalling := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	stalling := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		close(stuck)
 		<-hang
 		return nil, nil
@@ -708,7 +759,7 @@ func TestWorkerRecoversStalledJobs(t *testing.T) {
 
 	// A second worker with a fast stalled check recovers it.
 	recovered := make(chan struct{})
-	rescuer := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	rescuer := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		close(recovered)
 		return nil, nil
 	}, &bullmq.WorkerOptions{
@@ -725,9 +776,12 @@ func TestWorkerRecoversStalledJobs(t *testing.T) {
 }
 
 func TestWorkerCloseKeepsRenewingLocksOfInFlightJobs(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerCloseKeepsRenewingLocksOfInFlightJobs)
+}
+
+func testWorkerCloseKeepsRenewingLocksOfInFlightJobs(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	// The processor sleeps well past LockDuration; if lock renewal stops as
 	// soon as Close is called (rather than once the job actually finishes),
@@ -737,7 +791,7 @@ func TestWorkerCloseKeepsRenewingLocksOfInFlightJobs(t *testing.T) {
 	var invocations atomic.Int64
 	release := make(chan struct{})
 
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		invocations.Add(1)
 		close(started)
 		<-release
@@ -766,7 +820,7 @@ func TestWorkerCloseKeepsRenewingLocksOfInFlightJobs(t *testing.T) {
 	// Close stops this worker's own stalled checker, so a separate rescuer
 	// with a fast stalled check is what would reclaim the job if its lock
 	// expired. It stays idle as long as the lock keeps being renewed.
-	rescuer := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	rescuer := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		invocations.Add(1)
 		return nil, nil
 	}, &bullmq.WorkerOptions{
@@ -785,9 +839,8 @@ func TestWorkerCloseKeepsRenewingLocksOfInFlightJobs(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	// The lock must still be present, i.e. it was renewed after Close.
-	lockKey := q.Keys().JobLock(job.ID)
-	if n, err := q.Client().Exists(ctx, lockKey).Result(); err != nil || n != 1 {
-		t.Errorf("lock %s exists = %d (err %v), want 1: renewal stopped during Close", lockKey, n, err)
+	if held, err := be.Fixture.LockExists(ctx, q.Backend(), job.ID); err != nil || !held {
+		t.Errorf("lock of job %s held = %v (err %v), want true: renewal stopped during Close", job.ID, held, err)
 	}
 	close(release)
 
@@ -806,9 +859,12 @@ func TestWorkerCloseKeepsRenewingLocksOfInFlightJobs(t *testing.T) {
 }
 
 func TestWorkerRenewsLocksOfAllActiveJobsInOneBatch(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerRenewsLocksOfAllActiveJobsInOneBatch)
+}
+
+func testWorkerRenewsLocksOfAllActiveJobsInOneBatch(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	const total = 5
 	var invocations atomic.Int64
@@ -817,7 +873,7 @@ func TestWorkerRenewsLocksOfAllActiveJobsInOneBatch(t *testing.T) {
 	// The jobs outlive LockDuration several times over and the stalled check
 	// runs more often than the lock TTL, so any job whose lock is not renewed
 	// in time would be picked up (and processed) a second time.
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		invocations.Add(1)
 		<-release
 		return nil, nil
@@ -854,16 +910,19 @@ func TestWorkerRenewsLocksOfAllActiveJobsInOneBatch(t *testing.T) {
 }
 
 func TestWorkerCancelsOnlyTheJobWhoseLockWasLost(t *testing.T) {
-	requireRedis(t)
+	forEachBackend(t, testWorkerCancelsOnlyTheJobWhoseLockWasLost)
+}
+
+func testWorkerCancelsOnlyTheJobWhoseLockWasLost(t *testing.T, be testBackend) {
 	ctx := testContext(t)
-	q := newTestQueue(t, nil)
+	q := newTestQueue(t, be, nil)
 
 	const total = 3
 	var mu sync.Mutex
 	ctxs := map[string]context.Context{}
 	release := make(chan struct{})
 
-	w := newTestWorker(t, q.Name(), func(jobCtx context.Context, job *bullmq.Job) (any, error) {
+	w := newTestWorker(t, be, q.Name(), func(jobCtx context.Context, job *bullmq.Job) (any, error) {
 		mu.Lock()
 		ctxs[job.ID] = jobCtx
 		mu.Unlock()
@@ -907,8 +966,8 @@ func TestWorkerCancelsOnlyTheJobWhoseLockWasLost(t *testing.T) {
 		break
 	}
 	mu.Unlock()
-	if err := q.Client().Del(ctx, q.Keys().JobLock(lostID)).Err(); err != nil {
-		t.Fatalf("Del: %v", err)
+	if err := be.Fixture.DeleteLock(ctx, q.Backend(), lostID); err != nil {
+		t.Fatalf("DeleteLock: %v", err)
 	}
 
 	select {
@@ -935,10 +994,13 @@ func TestWorkerCancelsOnlyTheJobWhoseLockWasLost(t *testing.T) {
 }
 
 func TestWorkerCloseIsIdempotent(t *testing.T) {
-	requireRedis(t)
-	q := newTestQueue(t, nil)
+	forEachBackend(t, testWorkerCloseIsIdempotent)
+}
 
-	w := newTestWorker(t, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+func testWorkerCloseIsIdempotent(t *testing.T, be testBackend) {
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
 		return nil, nil
 	}, nil)
 	ctx, cancel := context.WithCancel(context.Background())

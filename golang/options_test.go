@@ -1,6 +1,9 @@
 package bullmq
 
 import (
+	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -76,5 +79,36 @@ func TestApplyDefaultsUnsetLockDuration(t *testing.T) {
 	}
 	if o.LockDuration != 30*time.Second {
 		t.Fatalf("LockDuration = %v, want 30s", o.LockDuration)
+	}
+}
+
+func TestConstructorsRequireABackend(t *testing.T) {
+	proc := func(context.Context, *Job) (any, error) { return nil, nil }
+	_, qErr := NewQueue("q", nil)
+	_, wErr := NewWorker("q", proc, nil)
+	_, eErr := NewQueueEvents("q", nil)
+	for name, err := range map[string]error{"NewQueue": qErr, "NewWorker": wErr, "NewQueueEvents": eErr} {
+		var ce *ConfigError
+		if !errors.As(err, &ce) || !strings.Contains(ce.Message, "Backend is required") {
+			t.Errorf("%s without a Backend: err = %v, want a ConfigError", name, err)
+		}
+	}
+}
+
+func TestConstructorsValidateTheQueueNameBeforeBuildingTheBackend(t *testing.T) {
+	built := false
+	factory := func(string, BackendOptions) (Backend, error) {
+		built = true
+		return stubBackend{}, nil
+	}
+	for _, name := range []string{"", "with:colon"} {
+		_, err := NewQueue(name, &QueueOptions{Backend: factory})
+		var ce *ConfigError
+		if !errors.As(err, &ce) {
+			t.Errorf("NewQueue(%q): err = %v, want a ConfigError", name, err)
+		}
+	}
+	if built {
+		t.Error("the backend was built for an invalid queue name")
 	}
 }

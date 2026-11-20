@@ -1,4 +1,4 @@
-package bullmq_test
+package redisbackend
 
 import (
 	"context"
@@ -24,7 +24,7 @@ func TestWorkerSharedClientShortReadTimeout(t *testing.T) {
 	w := newTestWorker(t, testQueueName(t), func(ctx context.Context, job *bullmq.Job) (any, error) {
 		return nil, nil
 	}, &bullmq.WorkerOptions{
-		Redis:      bullmq.RedisOptions{Client: rdb},
+		Backend:    testFactory(Options{Client: rdb}),
 		DrainDelay: 1500 * time.Millisecond,
 		OnError:    func(error) { errCount.Add(1) },
 	})
@@ -45,7 +45,7 @@ func TestWorkerStopsPromptlyWithLongDrainDelayAndSharedClient(t *testing.T) {
 		w := newTestWorker(t, testQueueName(t), func(context.Context, *bullmq.Job) (any, error) {
 			return nil, nil
 		}, &bullmq.WorkerOptions{
-			Redis:            bullmq.RedisOptions{Client: rdb},
+			Backend:          testFactory(Options{Client: rdb}),
 			DrainDelay:       time.Hour,
 			SkipLockRenewal:  true,
 			SkipStalledCheck: true,
