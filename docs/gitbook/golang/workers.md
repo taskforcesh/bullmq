@@ -69,8 +69,10 @@ map, instead of a number; NaN and infinite numbers are rejected.
 A processor can also move its own job and return a sentinel error, so that
 the worker doesn't finish it: `job.MoveToDelayed` with `bullmq.ErrDelayed`
 (the attempt isn't counted), `job.MoveToWaitingChildren` with
-`bullmq.ErrWaitingChildren` (see [Flows](flows.md)), and `worker.RateLimit`
-with `bullmq.ErrRateLimited` (see [Rate limiting](#rate-limiting)).
+`bullmq.ErrWaitingChildren` (see [Flows](flows.md)), `job.MoveToWait` with
+`bullmq.ErrWaiting` (back to the wait list; the attempt isn't counted, as
+with Node's `WaitingError`), and `worker.RateLimit` with
+`bullmq.ErrRateLimited` (see [Rate limiting](#rate-limiting)).
 
 ## Concurrency
 

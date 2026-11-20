@@ -481,10 +481,12 @@ func sendWelcome(ctx context.Context, job *bullmq.Job) (any, error) {
   remain. `bullmq.NewUnrecoverableError`, or calling `job.Discard()` before
   returning, fails it for good.
 - A panic is recovered and fails the attempt, with the stack as its trace.
-- `bullmq.ErrDelayed`, `bullmq.ErrWaitingChildren` and
+- `bullmq.ErrDelayed`, `bullmq.ErrWaitingChildren`, `bullmq.ErrWaiting` and
   `bullmq.ErrRateLimited` tell the worker that the processor moved the job
   itself; see [delayed jobs](#delayed-and-prioritized-jobs),
-  [flows](#flows) and [rate limiting](#rate-limiting).
+  [flows](#flows) and [rate limiting](#rate-limiting). `job.MoveToWait`
+  puts the job back in the wait list without counting the attempt, as
+  Node's `moveToWait`; return `bullmq.ErrWaiting` after it.
 - `ctx` is cancelled when the worker stops immediately, loses the job's lock
   or cancels the job; see [Shutting down](#shutting-down) and
   [Cancelling jobs](#cancelling-jobs).

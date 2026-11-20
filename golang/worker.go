@@ -895,7 +895,7 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 	}
 
 	// The processor took ownership of the job's next state.
-	if errors.Is(err, ErrDelayed) || errors.Is(err, ErrWaitingChildren) {
+	if errors.Is(err, ErrDelayed) || errors.Is(err, ErrWaitingChildren) || errors.Is(err, ErrWaiting) {
 		return w.fetchAfterHandOff(runCtx, job.token)
 	}
 
@@ -1004,8 +1004,8 @@ func (w *Worker) RateLimit(ctx context.Context, d time.Duration) error {
 }
 
 // fetchAfterHandOff fetches the slot's next job once the processor itself
-// moved its job out of active (to delayed or waiting-children), as finishing
-// would have.
+// moved its job out of active (to delayed, waiting-children or wait), as
+// finishing would have.
 func (w *Worker) fetchAfterHandOff(runCtx context.Context, token string) nextFetch {
 	if !w.canFetchNext(runCtx) {
 		return nextFetch{}

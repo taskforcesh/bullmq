@@ -50,7 +50,8 @@ Status of the Go port relative to the reference Node.js implementation.
 
 `UpdateProgress`, `UpdateData`, `Log`, `Logs`, `State`, `Remove`, `Promote`,
 `Retry` (with `RetryOptions.ResetAttemptsMade` / `ResetAttemptsStarted`),
-`ChangeDelay`, `ChangePriority`, `ExtendLock`, `MoveToDelayed`,
+`ChangeDelay`, `ChangePriority`, `ExtendLock`, `MoveToDelayed`, `MoveToWait`
+(with `ErrWaiting`, Node's `WaitingError`),
 `MoveToWaitingChildren`, `IsCompleted`, `IsFailed`.
 
 Parent jobs: `ChildrenValues` (and `DecodeChildrenValues` into a typed map),
