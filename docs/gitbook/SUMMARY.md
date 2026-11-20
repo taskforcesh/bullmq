@@ -214,7 +214,7 @@
 - [API Reference](https://pkg.go.dev/github.com/taskforcesh/bullmq-go)
 - [Changelogs](golang/changelog.md)
 
-## .Net
+## .NET
 
 - [Introduction](dotnet/introduction.md)
 - [Changelogs](dotnet/changelog.md)

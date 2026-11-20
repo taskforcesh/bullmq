@@ -27,7 +27,7 @@ export default defineConfig({
   title: 'BullMQ',
   description:
     'The fastest, most reliable distributed queue for Node.js, Bun, Python, ' +
-    'Elixir, .NET, Rust and PHP, on top of Redis or PostgreSQL. ' +
+    'Elixir, .NET, Go, Rust and PHP, on top of Redis or PostgreSQL. ' +
     'Carefully written for rock solid stability and atomicity.',
   lang: 'en-US',
   cleanUrls: true,
