@@ -87,7 +87,7 @@ func pendingSchedulerJobs(t *testing.T, ctx context.Context, q *bullmq.Queue) []
 	t.Helper()
 	var ids []string
 	for _, state := range []bullmq.JobState{bullmq.StateDelayed, bullmq.StateWaiting, bullmq.StatePrioritized} {
-		got, err := q.JobIDs(ctx, state, 0, -1, true)
+		got, err := q.JobIDs(ctx, 0, -1, true, state)
 		if err != nil {
 			t.Fatalf("JobIDs(%s): %v", state, err)
 		}

@@ -212,7 +212,7 @@ See [Deduplication](../guide/jobs/deduplication.md).
 | Methods                                                                           | What they do                                                                                                                                                    |
 | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Add`, `AddBulk`                                                                  | Add jobs                                                                                                                                                        |
-| `Job`, `JobState`, `Jobs`, `JobIDs`                                               | Read jobs, by id or by state                                                                                                                                    |
+| `Job`, `JobState`, `Jobs`, `JobIDs`                                               | Read jobs, by id or by states                                                                                                                                   |
 | `Count`, `JobCounts`, `CountsPerPriority`, `DelayedCount`                         | Count the waiting, delayed, prioritized and waiting-children jobs, the jobs in each state, the waiting jobs per priority, or the delayed jobs due before a time |
 | `Pause`, `Resume`, `IsPaused`                                                     | Pause the queue for every worker                                                                                                                                |
 | `Drain`                                                                           | Remove the waiting and prioritized jobs, and optionally the delayed ones                                                                                        |
@@ -235,13 +235,21 @@ log.Printf("%d waiting, %d active, %d failed",
 	counts[bullmq.StateWaiting], counts[bullmq.StateActive], counts[bullmq.StateFailed])
 
 // The 10 most recent failures.
-failed, err := queue.Jobs(ctx, bullmq.StateFailed, 0, 9, false)
+failed, err := queue.Jobs(ctx, 0, 9, false, bullmq.StateFailed)
 if err != nil {
 	log.Fatal(err)
 }
 for _, job := range failed {
 	log.Printf("%s failed: %s", job.ID, job.FailedReason)
 }
+
+// The next 10 jobs to run of each pending state, as Node's getWaiting,
+// getPrioritized and getDelayed list them.
+next, err := queue.Jobs(ctx, 0, 9, true, bullmq.StateWaiting, bullmq.StatePrioritized, bullmq.StateDelayed)
+if err != nil {
+	log.Fatal(err)
+}
+log.Printf("%d jobs to run", len(next))
 
 // Remove the completed jobs older than a day, at most 1000 of them.
 removed, err := queue.Clean(ctx, 24*time.Hour, 1000, bullmq.StateCompleted)

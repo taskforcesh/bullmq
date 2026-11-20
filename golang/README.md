@@ -859,7 +859,7 @@ A `Queue` is safe for concurrent use. Its methods mirror Node's `Queue`:
 | Methods                                                                           | What they do                                                                                                                                                    |
 | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Add`, `AddBulk`                                                                  | Add jobs                                                                                                                                                        |
-| `Job`, `JobState`, `Jobs`, `JobIDs`                                               | Read jobs, by id or by state                                                                                                                                    |
+| `Job`, `JobState`, `Jobs`, `JobIDs`                                               | Read jobs, by id or by states                                                                                                                                   |
 | `Count`, `JobCounts`, `CountsPerPriority`, `DelayedCount`                         | Count the waiting, delayed, prioritized and waiting-children jobs, the jobs in each state, the waiting jobs per priority, or the delayed jobs due before a time |
 | `Pause`, `Resume`, `IsPaused`                                                     | Pause the queue for every worker                                                                                                                                |
 | `Drain`                                                                           | Remove the waiting and prioritized jobs, and optionally the delayed ones                                                                                        |
@@ -882,13 +882,21 @@ log.Printf("%d waiting, %d active, %d failed",
 	counts[bullmq.StateWaiting], counts[bullmq.StateActive], counts[bullmq.StateFailed])
 
 // The 10 most recent failures.
-failed, err := queue.Jobs(ctx, bullmq.StateFailed, 0, 9, false)
+failed, err := queue.Jobs(ctx, 0, 9, false, bullmq.StateFailed)
 if err != nil {
 	log.Fatal(err)
 }
 for _, job := range failed {
 	log.Printf("%s failed: %s", job.ID, job.FailedReason)
 }
+
+// The next 10 jobs to run of each pending state, as Node's getWaiting,
+// getPrioritized and getDelayed list them.
+next, err := queue.Jobs(ctx, 0, 9, true, bullmq.StateWaiting, bullmq.StatePrioritized, bullmq.StateDelayed)
+if err != nil {
+	log.Fatal(err)
+}
+log.Printf("%d jobs to run", len(next))
 
 // Remove the completed jobs older than a day, at most 1000 of them.
 removed, err := queue.Clean(ctx, 24*time.Hour, 1000, bullmq.StateCompleted)
@@ -1280,6 +1288,7 @@ drafts of this port needs these changes:
 | `job.Retry(ctx, state)`                                                        | `job.Retry(ctx, state, opts)`, where `opts` (or nil) can reset the attempt counters                                      |
 | `queue.RetryJobs(ctx, state, count)` returned an always-0 `int64`              | `queue.RetryJobs(ctx, &bullmq.RetryJobsOptions{State, Count, Before})` returns only an error; `State` defaults to failed |
 | `queue.PromoteJobs(ctx, count)` returned an always-0 `int64`                   | It returns only an error                                                                                                 |
+| `queue.Jobs(ctx, state, start, end, asc)`, `queue.JobIDs(...)` with one state  | `queue.Jobs(ctx, start, end, asc, states...)`: several states, or none for all of them                                   |
 
 Custom `Backend` implementations have more to change: `SignalWork` is gone,
 `MoveToCompleted` and `MoveToFailed` return a `*FinishResult` and can fetch

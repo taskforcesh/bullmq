@@ -413,16 +413,27 @@ func (q *Queue) JobCounts(ctx context.Context, states ...JobState) (JobCounts, e
 	return counts, nil
 }
 
-// JobIDs returns the ids of the jobs in state, in [start, end] of their
-// position in it (a negative end counts from the last one), in ascending
-// order when asc is set, as Node's getRanges.
-func (q *Queue) JobIDs(ctx context.Context, state JobState, start, end int64, asc bool) ([]string, error) {
-	return q.backend.GetRanges(ctx, state, start, end, asc)
+// JobIDs returns the ids of the jobs in the given states, as Node's
+// getRanges does: for each state, in order, the jobs at positions start to
+// end (inclusive; a negative end counts from the last one) of that state,
+// so the range applies to every state on its own. A job listed twice is
+// returned once. With no state, every state in [AllStates] is listed.
+//
+// asc selects the order within each state. Node's shortcuts use asc=true for
+// waiting, active, delayed, prioritized and waiting-children jobs (oldest or
+// first due first: getWaiting, getActive, getDelayed, getPrioritized,
+// getWaitingChildren) and asc=false for completed and failed jobs (most
+// recent first: getCompleted, getFailed), and getJobs defaults to false.
+func (q *Queue) JobIDs(ctx context.Context, start, end int64, asc bool, states ...JobState) ([]string, error) {
+	return q.backend.GetRanges(ctx, jobStates(states), start, end, asc)
 }
 
-// Jobs returns the jobs in state, selected and ordered as by JobIDs.
-func (q *Queue) Jobs(ctx context.Context, state JobState, start, end int64, asc bool) ([]*Job, error) {
-	records, err := q.backend.GetJobs(ctx, state, start, end, asc)
+// Jobs returns the jobs in the given states, selected and ordered as by
+// JobIDs, as Node's getJobs does. For example, the 10 most recent failures:
+//
+//	jobs, err := queue.Jobs(ctx, 0, 9, false, bullmq.StateFailed)
+func (q *Queue) Jobs(ctx context.Context, start, end int64, asc bool, states ...JobState) ([]*Job, error) {
+	records, err := q.backend.GetJobs(ctx, jobStates(states), start, end, asc)
 	if err != nil {
 		return nil, err
 	}
@@ -431,6 +442,22 @@ func (q *Queue) Jobs(ctx context.Context, state JobState, start, end int64, asc 
 		jobs = append(jobs, newJob(q.backend, rec))
 	}
 	return jobs, nil
+}
+
+// jobStates returns states without duplicates, or AllStates when empty.
+func jobStates(states []JobState) []JobState {
+	if len(states) == 0 {
+		return AllStates
+	}
+	unique := make([]JobState, 0, len(states))
+	seen := make(map[JobState]bool, len(states))
+	for _, s := range states {
+		if !seen[s] {
+			seen[s] = true
+			unique = append(unique, s)
+		}
+	}
+	return unique
 }
 
 // IsMaxed reports whether the queue reached its global concurrency limit.

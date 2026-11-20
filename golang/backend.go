@@ -229,14 +229,20 @@ type Backend interface {
 	// GetJob returns the stored job, or nil when it does not exist.
 	GetJob(ctx context.Context, jobID string) (*JobRecord, error)
 
-	// GetJobs returns the jobs in state, ordered by their position in it.
-	GetJobs(ctx context.Context, state JobState, start, end int64, asc bool) ([]*JobRecord, error)
+	// GetJobs returns the jobs of each of states in turn, those at positions
+	// start to end of that state, ordered as GetRanges orders them. A job is
+	// returned once even if it shows up in two states, and jobs removed
+	// meanwhile are skipped.
+	GetJobs(ctx context.Context, states []JobState, start, end int64, asc bool) ([]*JobRecord, error)
 
 	// GetCounts returns the number of jobs per requested state, in order.
 	GetCounts(ctx context.Context, states []JobState) ([]int64, error)
 
-	// GetRanges returns the job ids of state in [start, end].
-	GetRanges(ctx context.Context, state JobState, start, end int64, asc bool) ([]string, error)
+	// GetRanges returns the ids of the jobs of each of states in turn, those
+	// at positions start to end (inclusive; a negative end counts from the
+	// last one) of that state, oldest or first due first when asc is set.
+	// An id is returned once even if it shows up in two states.
+	GetRanges(ctx context.Context, states []JobState, start, end int64, asc bool) ([]string, error)
 
 	// IsMaxed reports whether the queue reached its global concurrency limit.
 	IsMaxed(ctx context.Context) (bool, error)

@@ -3,6 +3,7 @@ package redisbackend
 import (
 	"context"
 	"math"
+	"slices"
 	"strconv"
 
 	"github.com/redis/go-redis/v9"
@@ -140,44 +141,60 @@ func (b *Backend) GetCounts(ctx context.Context, states []bullmq.JobState) ([]in
 	return counts, nil
 }
 
-// GetRanges returns job ids of state, ordered by their position in the
-// underlying list or sorted set.
-func (b *Backend) GetRanges(ctx context.Context, state bullmq.JobState, start, end int64, asc bool) ([]string, error) {
+// stateArgs appends the script names of states to args.
+func stateArgs(args []any, states []bullmq.JobState) []any {
+	for _, s := range states {
+		args = append(args, luaStateName(s))
+	}
+	return args
+}
+
+// GetRanges returns the ids of the jobs of each state in turn, ordered by
+// their position in the underlying list or sorted set.
+func (b *Backend) GetRanges(ctx context.Context, states []bullmq.JobState, start, end int64, asc bool) ([]string, error) {
 	res, err := b.runScript(ctx, "getRanges", []string{b.keys.KeyPrefix()},
-		start, end, boolToStr(asc), luaStateName(state))
+		stateArgs([]any{start, end, boolToStr(asc)}, states)...)
 	if err != nil {
 		return nil, err
 	}
 	groups, _ := res.([]any)
-	var ids []string
-	stateName := luaStateName(state)
-	for _, group := range groups {
+	ids := make([]string, 0)
+	seen := make(map[string]bool)
+	for i, group := range groups {
 		groupIDs := asStrings(group)
+		var stateName string
+		if i < len(states) {
+			stateName = luaStateName(states[i])
+		}
 		if asc && (stateName == "wait" || stateName == "paused" || stateName == "active") {
-			for i, j := 0, len(groupIDs)-1; i < j; i, j = i+1, j-1 {
-				groupIDs[i], groupIDs[j] = groupIDs[j], groupIDs[i]
+			slices.Reverse(groupIDs)
+		}
+		for _, id := range groupIDs {
+			if !seen[id] {
+				seen[id] = true
+				ids = append(ids, id)
 			}
 		}
-		ids = append(ids, groupIDs...)
 	}
 	return ids, nil
 }
 
-// GetJobs returns the jobs in the requested state.
+// GetJobs returns the jobs of each state in turn.
 //
 // It uses the shared `getJobs` command, which reads ids and job hashes in the
 // same script, instead of GetRanges plus one GetJob lookup per id: besides
 // saving N round trips for a range of N jobs, it avoids the race where a
 // job's hash is removed after its id is read but before it would otherwise
 // have been fetched individually.
-func (b *Backend) GetJobs(ctx context.Context, state bullmq.JobState, start, end int64, asc bool) ([]*bullmq.JobRecord, error) {
+func (b *Backend) GetJobs(ctx context.Context, states []bullmq.JobState, start, end int64, asc bool) ([]*bullmq.JobRecord, error) {
 	res, err := b.runScript(ctx, "getJobs", []string{b.keys.KeyPrefix()},
-		start, end, boolToStr(asc), getJobsMaxBackfillIterations, luaStateName(state))
+		stateArgs([]any{start, end, boolToStr(asc), getJobsMaxBackfillIterations}, states)...)
 	if err != nil {
 		return nil, err
 	}
 	groups, _ := res.([]any)
 	jobs := make([]*bullmq.JobRecord, 0)
+	seen := make(map[string]bool)
 	for _, group := range groups {
 		entries, ok := group.([]any)
 		if !ok {
@@ -189,13 +206,14 @@ func (b *Backend) GetJobs(ctx context.Context, state bullmq.JobState, start, end
 				continue
 			}
 			jobID, ok := asString(pair[0])
-			if !ok {
+			if !ok || seen[jobID] {
 				continue
 			}
 			fields := flatToMap(pair[1])
 			if len(fields) == 0 {
 				continue
 			}
+			seen[jobID] = true
 			jobs = append(jobs, jobRecordFromHash(jobID, fields))
 		}
 	}

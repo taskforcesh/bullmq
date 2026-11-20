@@ -292,7 +292,7 @@ func testQueueJobIDsAndJobs(t *testing.T, be testBackend) {
 		}
 	}
 
-	ids, err := q.JobIDs(ctx, bullmq.StateWaiting, 0, -1, false)
+	ids, err := q.JobIDs(ctx, 0, -1, false, bullmq.StateWaiting)
 	if err != nil {
 		t.Fatalf("JobIDs: %v", err)
 	}
@@ -300,7 +300,7 @@ func testQueueJobIDsAndJobs(t *testing.T, be testBackend) {
 		t.Fatalf("len(ids) = %d, want 3", len(ids))
 	}
 
-	jobs, err := q.Jobs(ctx, bullmq.StateWaiting, 0, -1, false)
+	jobs, err := q.Jobs(ctx, 0, -1, false, bullmq.StateWaiting)
 	if err != nil {
 		t.Fatalf("Jobs: %v", err)
 	}
@@ -683,7 +683,7 @@ func testQueueStatePausedIsTheLegacyPausedList(t *testing.T, be testBackend) {
 	if counts[bullmq.StateWaiting] != 2 || counts[bullmq.StatePaused] != 0 {
 		t.Fatalf("counts = %v, want 2 waiting and 0 paused", counts)
 	}
-	ids, err := q.JobIDs(ctx, bullmq.StatePaused, 0, -1, true)
+	ids, err := q.JobIDs(ctx, 0, -1, true, bullmq.StatePaused)
 	if err != nil || len(ids) != 0 {
 		t.Fatalf("JobIDs(paused) = %v, %v; want none", ids, err)
 	}
