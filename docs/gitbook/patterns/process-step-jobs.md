@@ -265,6 +265,7 @@ const worker = new Worker(
             step: Step.Finish,
           });
           step = Step.Finish;
+          break;
         }
         default: {
           throw new Error('invalid step');
