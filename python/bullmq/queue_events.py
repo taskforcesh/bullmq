@@ -42,6 +42,11 @@ _JSON_DECODE_FIELDS = {
     "completed": "returnvalue",
 }
 
+# Delay (in seconds) before reading again after a failed read. Mirrors the
+# DELAY_TIME_5 constant Node's checkConnectionError waits for the same
+# purpose.
+retry_delay = 5
+
 
 class QueueEvents(EventEmitter):
     """
@@ -157,14 +162,16 @@ class QueueEvents(EventEmitter):
             except asyncio.CancelledError:
                 raise
             except Exception as err:
-                # Surface the error and exit the loop; the connection
-                # is likely no longer usable. Mirrors Node's
-                # checkConnectionError path which lets the caller see
-                # connection issues via the 'error' event.
                 if self.closing:
                     return
+                # Mirrors Node's checkConnectionError: surface the error,
+                # wait, and read again from the same id. redis-py
+                # reconnects on the next command, so the consumer
+                # survives a dropped connection and still delivers what
+                # was published while it was down.
                 self.emit("error", err)
-                return
+                await asyncio.sleep(retry_delay)
+                continue
 
             if not data:
                 # Blocking timeout elapsed with no events; loop and
