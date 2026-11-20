@@ -93,6 +93,9 @@ function removeUndefined<T extends Record<string, any>>(obj: T): T {
  * - `false`/`undefined` → keep forever
  * - number → keep at most that many (most recent)
  * - `{ age, count }` → keep within age (seconds) and/or count
+ *
+ * A keep-count of `0` removes only the finished job (like `true`); this is
+ * handled by `apply_retention`, matching Redis `moveToFinished`.
  */
 function normalizeKeep(opt: boolean | number | KeepJobs | undefined): {
   removeAll: boolean;

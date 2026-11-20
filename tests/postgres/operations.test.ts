@@ -1348,6 +1348,66 @@ describe('PostgreSQL backend operations', () => {
     }
   });
 
+  for (const [label, keep] of [
+    ['0', 0],
+    ['{ count: 0 }', { count: 0 }],
+  ] as const) {
+    it(`removeOnComplete: ${label} removes only the finished job`, async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const token = randomUUID();
+        const keptId = await backend.addJob(makeJob(), '');
+        await backend.moveToActive(token);
+        await backend.moveToCompleted(
+          { id: keptId } as any,
+          1,
+          false,
+          token,
+          false,
+        );
+
+        const id = await backend.addJob(makeJob(), '');
+        await backend.moveToActive(token);
+        await backend.moveToCompleted({ id } as any, 2, keep, token, false);
+
+        expect(await backend.getState(id)).toBe('unknown');
+        expect(await backend.getJobData(id)).toBeUndefined();
+        // Other completed jobs are untouched (matches Redis moveToFinished).
+        expect(await backend.getState(keptId)).toBe('completed');
+        expect(await backend.getJobData(keptId)).toBeTruthy();
+      } finally {
+        await backend.close();
+      }
+    });
+  }
+
+  it('removeOnFail: 0 removes only the failed job', async () => {
+    const backend = newBackend();
+    try {
+      await backend.waitUntilReady();
+      const token = randomUUID();
+      const keptId = await backend.addJob(makeJob(), '');
+      await backend.moveToActive(token);
+      await backend.moveToFailed(
+        { id: keptId } as any,
+        'boom',
+        false,
+        token,
+        false,
+      );
+
+      const id = await backend.addJob(makeJob(), '');
+      await backend.moveToActive(token);
+      await backend.moveToFailed({ id } as any, 'boom', 0, token, false);
+
+      expect(await backend.getState(id)).toBe('unknown');
+      expect(await backend.getState(keptId)).toBe('failed');
+    } finally {
+      await backend.close();
+    }
+  });
+
   it('removeOnFail: true removes the job on failure', async () => {
     const backend = newBackend();
     try {
