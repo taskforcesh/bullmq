@@ -60,6 +60,30 @@ const processorFile = path.join(__dirname, 'my_procesor.js');
 worker = new Worker(queueName, processorFile, { useWorkerThreads: true });
 ```
 
+### Closing idle processors
+
+By default, sandboxed processors are kept in a pool and reused for the lifetime of
+the worker. For queues with occasional bursts, set `sandboxedProcessorIdleTimeout`
+to release the memory held by processors that are no longer needed:
+
+```typescript
+const worker = new Worker(queueName, processorFile, {
+    connection,
+    sandboxedProcessorIdleTimeout: 60_000, // Close after one minute idle
+});
+```
+
+The timeout is measured in milliseconds from when a processor finishes a job.
+Reusing a processor cancels its timeout; active jobs are never interrupted. This
+works with both child processes and worker threads. Closing the worker also waits
+for processors whose idle timeout has already expired to exit.
+
+Use an integer between `0` and `2147483647`. Omitting the option or setting it to
+`0` keeps the default reuse behavior. A later job starts a fresh processor after
+an idle processor has closed, which adds startup latency and runs module
+initialization again. This option does not limit peak concurrency or memory use
+while jobs are running.
+
 ## Read more:
 
 * 💡 [Worker API Reference](https://docs.bullmq.io/api/classes/v6.Worker.html)
