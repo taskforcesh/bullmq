@@ -256,6 +256,37 @@ with `Job.MoveToWaitingChildren`, returning `bullmq.ErrWaitingChildren`.
 `Job.RemoveChildDependency` and `Job.RemoveUnprocessedChildren` inspect and
 edit the children of a parent.
 
+### Job schedulers
+
+A job scheduler produces jobs on a schedule, a cron pattern or a fixed
+interval, as Node's `upsertJobScheduler` does:
+
+```go
+// Every day at 09:00 in Madrid.
+job, err := queue.UpsertJobScheduler(ctx, "daily-report",
+	bullmq.RepeatOptions{Pattern: "0 9 * * *", Tz: "Europe/Madrid"},
+	&bullmq.JobTemplate{Name: "report", Data: map[string]string{"kind": "daily"}})
+
+// Every 10 seconds, at most 100 times.
+_, err = queue.UpsertJobScheduler(ctx, "poll",
+	bullmq.RepeatOptions{Every: 10_000, Limit: 100}, nil)
+```
+
+Upserting again replaces the schedule and template of a scheduler.
+`RemoveJobScheduler`, `JobScheduler`, `JobSchedulers` (paginated by next run)
+and `JobSchedulersCount` manage them. Only the job of the next iteration is
+stored, as `repeat:<scheduler id>:<due time in ms>`; the worker that fetches it
+adds the following one before processing it. Go, Node.js and the other ports
+advance each other's schedulers, and compute the same due times: patterns have
+5 fields, or 6 with leading seconds, with names, `L` and `#`, and are evaluated
+exactly like cron-parser does in Node.js, including across DST changes. `Tz`
+names an IANA time zone, read from the system's time zone database (import
+`time/tzdata` where there is none); without it, patterns use the local time
+zone, as in Node.js. `Every` schedulers accept an `Offset`, and every scheduler
+`Limit`, `StartDate`, `EndDate` and, for patterns, `Immediately`. Legacy
+repeatable jobs (BullMQ 5 and earlier) are not supported: they must be
+migrated to job schedulers.
+
 ### Worker events
 
 ```go
