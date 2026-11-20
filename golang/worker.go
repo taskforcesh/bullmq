@@ -100,13 +100,16 @@ type Worker struct {
 	stop      chan struct{}
 	wg        sync.WaitGroup
 
-	paused atomic.Bool
-	// pauseMu guards pausedIdle and loopRunning. pausedIdle is created by
-	// Pause and closed once the worker is paused with no job in flight (or
-	// resumed, or stopped), which is what Pause waits for.
-	pauseMu     sync.Mutex
-	pausedIdle  chan struct{}
-	loopRunning bool
+	// pauseMu guards the changes of paused and the fields below, which Pause
+	// waits on. inFlight counts the jobs being fetched into a free slot or
+	// processed; a job stops counting once its finishing transition is done,
+	// before its EventCompleted or EventFailed. idle is closed while inFlight
+	// is 0, and resumed is closed by Resume.
+	paused   atomic.Bool
+	pauseMu  sync.Mutex
+	inFlight int
+	idle     chan struct{}
+	resumed  chan struct{}
 
 	// slots holds one token per free processing slot.
 	slots chan struct{}
@@ -220,30 +223,36 @@ func (w *Worker) Events() <-chan Event { return w.events }
 // Events channel because its buffer was full.
 func (w *Worker) DroppedEvents() uint64 { return w.droppedEvents.Load() }
 
-// Pause stops this worker from fetching new jobs, as Node's pause does. Unless
-// doNotWaitActive is set, it then waits until the jobs in flight have
-// finished, or until ctx is done (returning ctx's error), the worker is
-// resumed or it stops. A processor pausing its own worker must set
-// doNotWaitActive, since Pause would otherwise wait for it.
+// Pause stops this worker from starting new jobs, as Node's pause does.
+// Unless doNotWaitActive is set, it then waits until the jobs being processed
+// have finished, or until ctx is done (returning ctx's error), the worker is
+// resumed, or it is closed (returning ErrWorkerClosed).
+//
+// It may be called from WorkerOptions.OnEvent: from EventDrained, or from the
+// EventCompleted or EventFailed of a job, it waits for the other jobs only. A
+// processor pausing its own worker, or a callback for an event emitted while
+// its job runs (EventActive, EventProgress), must set doNotWaitActive, since
+// Pause would otherwise wait for that job.
 func (w *Worker) Pause(ctx context.Context, doNotWaitActive bool) error {
 	w.pauseMu.Lock()
 	if !w.paused.Load() {
 		w.paused.Store(true)
-		w.pausedIdle = make(chan struct{})
-		if !w.loopRunning {
-			close(w.pausedIdle)
-		}
+		w.resumed = make(chan struct{})
 	}
-	idle := w.pausedIdle
+	idle, resumed, busy := w.idle, w.resumed, w.inFlight > 0
 	w.pauseMu.Unlock()
 	signal(w.ctrl)
 
-	if doNotWaitActive {
+	if doNotWaitActive || !busy {
 		return nil
 	}
 	select {
 	case <-idle:
 		return nil
+	case <-resumed:
+		return nil
+	case <-w.stop:
+		return ErrWorkerClosed
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -253,31 +262,37 @@ func (w *Worker) Pause(ctx context.Context, doNotWaitActive bool) error {
 func (w *Worker) Resume() {
 	w.pauseMu.Lock()
 	w.paused.Store(false)
-	w.releasePauseLocked()
+	if w.resumed != nil {
+		close(w.resumed)
+		w.resumed = nil
+	}
 	w.pauseMu.Unlock()
 	signal(w.ctrl)
 }
 
-// releasePauseLocked releases the callers of Pause. w.pauseMu must be held.
-func (w *Worker) releasePauseLocked() {
-	if w.pausedIdle == nil {
-		return
-	}
-	select {
-	case <-w.pausedIdle:
-	default:
-		close(w.pausedIdle)
-	}
-}
-
-// setLoopRunning records whether the fetch loop runs, releasing the callers
-// of Pause once it stops.
-func (w *Worker) setLoopRunning(running bool) {
+// beginJob counts a job about to be fetched into a free slot or started by
+// a slot, so that Pause waits for it. It reports false, counting nothing,
+// once the worker is paused: no job may start after Pause returned.
+func (w *Worker) beginJob() bool {
 	w.pauseMu.Lock()
 	defer w.pauseMu.Unlock()
-	w.loopRunning = running
-	if !running {
-		w.releasePauseLocked()
+	if w.paused.Load() {
+		return false
+	}
+	if w.inFlight == 0 {
+		w.idle = make(chan struct{})
+	}
+	w.inFlight++
+	return true
+}
+
+// endJob stops counting a job counted by beginJob.
+func (w *Worker) endJob() {
+	w.pauseMu.Lock()
+	defer w.pauseMu.Unlock()
+	w.inFlight--
+	if w.inFlight == 0 {
+		close(w.idle)
 	}
 }
 
@@ -400,8 +415,6 @@ func (w *Worker) run(ctx context.Context) error {
 // cancelled by the caller (never by Close), so a graceful shutdown drains
 // in-flight jobs instead of cancelling them.
 func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
-	w.setLoopRunning(true)
-	defer w.setLoopRunning(false)
 	var processing sync.WaitGroup
 	defer processing.Wait()
 	waiter := &jobWaiter{backend: w.backend, results: make(chan waitOutcome, 1)}
@@ -502,7 +515,9 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 			continue
 		case <-w.slots:
 		}
-		if w.IsPaused() {
+		// The job being fetched counts for Pause from now on, and nothing is
+		// fetched once the worker is paused.
+		if !w.beginJob() {
 			w.slots <- struct{}{}
 			continue
 		}
@@ -511,6 +526,7 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 		token := w.nextToken()
 		res, err := w.backend.MoveToActive(loopCtx, w.fetchOptions(token))
 		if err != nil {
+			w.endJob()
 			w.slots <- struct{}{}
 			if loopCtx.Err() != nil {
 				return loopCtx.Err()
@@ -523,6 +539,7 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 			continue
 		}
 		if res == nil || res.Job == nil {
+			w.endJob()
 			w.slots <- struct{}{}
 			w.noteEmptyFetch(res)
 			continue
@@ -581,23 +598,14 @@ func (w *Worker) noteNextDelayed(at int64) {
 	}
 }
 
-// waitUnpaused blocks until the worker is resumed, releasing the callers of
-// Pause once no job is in flight anymore. It returns false when ctx is done
-// first.
+// waitUnpaused blocks until the worker is resumed. It returns false when ctx
+// is done first.
 func (w *Worker) waitUnpaused(ctx context.Context) bool {
 	for w.IsPaused() {
-		if len(w.slots) == cap(w.slots) {
-			w.pauseMu.Lock()
-			if w.paused.Load() {
-				w.releasePauseLocked()
-			}
-			w.pauseMu.Unlock()
-		}
 		select {
 		case <-ctx.Done():
 			return false
 		case <-w.ctrl:
-		case <-w.wake:
 		}
 	}
 	return true
@@ -684,7 +692,26 @@ func (w *Worker) chainedJob(runCtx context.Context, token string, next nextFetch
 	if runCtx.Err() != nil {
 		return nil
 	}
-	return w.newActiveJob(next.res.Job, token)
+	job := w.newActiveJob(next.res.Job, token)
+	// The worker was paused since the next job was fetched (possibly by an
+	// OnEvent callback of the job just finished, which Pause did not wait
+	// for): put it back instead of starting it after Pause returned.
+	if !w.beginJob() {
+		w.putBack(runCtx, job)
+		return nil
+	}
+	return job
+}
+
+// putBack returns a job this worker fetched but will not process to the
+// wait list, without using up an attempt.
+func (w *Worker) putBack(runCtx context.Context, job *Job) {
+	if err := w.retryTransition(runCtx, func(c context.Context) error {
+		_, err := w.backend.MoveJobFromActiveToWait(c, job.ID, job.token)
+		return err
+	}); err != nil {
+		w.emitError(err)
+	}
 }
 
 // canFetchNext reports whether finishing a job should also fetch the next
@@ -777,7 +804,20 @@ func (w *Worker) nextToken() string {
 // processJob runs one attempt of job and moves the job to its next state.
 // Unless the worker is pausing or stopping, that transition also fetches the
 // next job for this slot, which is returned for chaining.
+//
+// The job must be counted for Pause (see beginJob). It stops counting once
+// its transition is done, before EventCompleted, EventFailed or a transition
+// error is emitted, so a callback pausing the worker does not wait for it.
 func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
+	released := false
+	release := func() {
+		if !released {
+			released = true
+			w.endJob()
+		}
+	}
+	defer release()
+
 	jobCtx, cancel := context.WithCancelCause(runCtx)
 	entry := &activeJob{job: job, cancel: cancel}
 	w.mu.Lock()
@@ -850,14 +890,14 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 	}
 
 	if err != nil {
-		return w.fail(runCtx, job, err)
+		return w.fail(runCtx, job, err, release)
 	}
 
 	// A result that cannot be encoded is a genuine job failure, unlike an
 	// error from the completion transition below.
 	raw, merr := json.Marshal(result)
 	if merr != nil {
-		return w.fail(runCtx, job, merr)
+		return w.fail(runCtx, job, merr, release)
 	}
 
 	// The processor succeeded, so a failure to record that is never turned
@@ -865,11 +905,13 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 	// (e.g. the lock was lost) is reported and left to the stalled check.
 	fetchNext := w.canFetchNext(runCtx)
 	var finished *FinishResult
-	if cerr := w.retryTransition(runCtx, func(c context.Context) error {
+	cerr := w.retryTransition(runCtx, func(c context.Context) error {
 		var err error
 		finished, err = w.moveToCompleted(c, job, raw, fetchNext)
 		return err
-	}); cerr != nil {
+	})
+	release()
+	if cerr != nil {
 		w.emitError(cerr)
 		return nextFetch{}
 	}
@@ -877,8 +919,9 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 	return nextFetch{res: finished.Next}
 }
 
-// fail records a failed attempt, retrying the job when attempts remain.
-func (w *Worker) fail(runCtx context.Context, job *Job, cause error) nextFetch {
+// fail records a failed attempt, retrying the job when attempts remain. It
+// calls release once the transition is done, before emitting events.
+func (w *Worker) fail(runCtx context.Context, job *Job, cause error, release func()) nextFetch {
 	// moveToFailed appends to job.Stacktrace, so restore it before every
 	// attempt to keep retried transitions from duplicating entries.
 	baseTrace := job.Stacktrace
@@ -890,6 +933,7 @@ func (w *Worker) fail(runCtx context.Context, job *Job, cause error) nextFetch {
 		next, err = w.moveToFailed(c, job, cause, fetchNext)
 		return err
 	})
+	release()
 	if ferr != nil {
 		w.emitError(ferr)
 		return nextFetch{}

@@ -181,7 +181,9 @@ type WorkerOptions struct {
 	// emits, including those dropped from a full Events channel. It runs on
 	// the worker's goroutines (a slow callback slows processing down), may
 	// be called concurrently, and must not call Worker.Close, which waits
-	// for those goroutines; start a goroutine for that instead.
+	// for those goroutines; start a goroutine for that instead. It may call
+	// Worker.Pause, for example on EventDrained (see Pause for the events it
+	// must not wait from).
 	OnEvent func(Event)
 	// OnError is called for background errors that cannot be returned to a caller.
 	// It runs on its own goroutine, so it may safely call Worker.Close, but
