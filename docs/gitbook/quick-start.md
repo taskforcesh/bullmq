@@ -5,7 +5,7 @@ description: This is a basic guide to get your first queue working.
 # Quick Start
 
 {% hint style="info" %}
-This guide uses the TypeScript package, which runs on [Node.js](https://nodejs.org) and [Bun](https://bun.sh). If you are using another language, check the getting started section of the [Python](python/introduction.md), [Elixir](elixir/introduction.md), [.NET](dotnet/introduction.md), [Rust](rust/introduction.md) or [PHP](php/introduction.md) SDKs. All of them can work on the same queues.
+This guide uses the TypeScript package, which runs on [Node.js](https://nodejs.org) and [Bun](https://bun.sh). If you are using another language, check the getting started section of the [Python](python/introduction.md), [Elixir](elixir/introduction.md), [.NET](dotnet/introduction.md), [Rust](rust/introduction.md), [Go](golang/introduction.md) or [PHP](php/introduction.md) SDKs. All of them can work on the same queues.
 {% endhint %}
 
 ## Install
