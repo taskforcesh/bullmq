@@ -296,6 +296,16 @@ func testQueueDeduplicationJobID(t *testing.T, be testBackend) {
 	if stored.DeduplicationID != "sync" {
 		t.Fatalf("stored job DeduplicationID = %q, want sync", stored.DeduplicationID)
 	}
+	// The backend reads the stored id (deid on Redis, dedup_id on
+	// PostgreSQL), which Node's job.deduplicationId reads too, not only the
+	// options.
+	rec, err := q.Backend().GetJob(ctx, first.ID)
+	if err != nil || rec == nil {
+		t.Fatalf("GetJob = %v, %v", rec, err)
+	}
+	if rec.DeduplicationID != "sync" {
+		t.Fatalf("JobRecord.DeduplicationID = %q, want sync", rec.DeduplicationID)
+	}
 
 	// A TTL that ran out releases the id.
 	addDeduped(t, ctx, q, "short", &bullmq.DeduplicationOptions{ID: "short", TTL: 100}, nil)
