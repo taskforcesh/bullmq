@@ -452,26 +452,29 @@ func testQueueGlobalConcurrency(t *testing.T, be testBackend) {
 	ctx := testContext(t)
 	q := newTestQueue(t, be, nil)
 
+	requireLimit := func(what string, want *int64) {
+		t.Helper()
+		got, err := q.GlobalConcurrency(ctx)
+		if err != nil {
+			t.Fatalf("%s: GlobalConcurrency: %v", what, err)
+		}
+		if (got == nil) != (want == nil) || (got != nil && *got != *want) {
+			t.Fatalf("%s: GlobalConcurrency() = %v, want %v", what, deref(got), deref(want))
+		}
+	}
+
+	requireLimit("unset", nil)
 	if err := q.SetGlobalConcurrency(ctx, 3); err != nil {
 		t.Fatalf("SetGlobalConcurrency: %v", err)
 	}
-	got, err := q.GlobalConcurrency(ctx)
-	if err != nil {
-		t.Fatalf("GlobalConcurrency: %v", err)
-	}
-	if got != 3 {
-		t.Fatalf("GlobalConcurrency() = %d, want 3", got)
-	}
+	requireLimit("set to 3", bullmq.Int64(3))
 
 	if err := q.SetGlobalConcurrency(ctx, 0); err != nil {
 		t.Fatalf("SetGlobalConcurrency(0): %v", err)
 	}
-	got, err = q.GlobalConcurrency(ctx)
-	if err != nil {
-		t.Fatalf("GlobalConcurrency: %v", err)
-	}
-	if got != 0 {
-		t.Fatalf("GlobalConcurrency() = %d, want 0", got)
+	requireLimit("SetGlobalConcurrency(0)", nil)
+	if maxed, err := q.IsMaxed(ctx); err != nil || maxed {
+		t.Fatalf("IsMaxed without a limit = %v, %v; want false", maxed, err)
 	}
 
 	if err := q.SetGlobalConcurrency(ctx, 2); err != nil {
@@ -480,9 +483,23 @@ func testQueueGlobalConcurrency(t *testing.T, be testBackend) {
 	if err := q.RemoveGlobalConcurrency(ctx); err != nil {
 		t.Fatalf("RemoveGlobalConcurrency: %v", err)
 	}
-	if got, err := q.GlobalConcurrency(ctx); err != nil || got != 0 {
-		t.Fatalf("GlobalConcurrency() after RemoveGlobalConcurrency = %d, %v; want 0", got, err)
+	requireLimit("RemoveGlobalConcurrency", nil)
+
+	// Node's setGlobalConcurrency(0) stores 0, which maxes the queue out.
+	if err := q.Backend().SetQueueMeta(ctx, map[string]any{"concurrency": 0}); err != nil {
+		t.Fatalf("SetQueueMeta: %v", err)
 	}
+	requireLimit("0 stored by Node", bullmq.Int64(0))
+	if maxed, err := q.IsMaxed(ctx); err != nil || !maxed {
+		t.Fatalf("IsMaxed with a limit of 0 = %v, %v; want true", maxed, err)
+	}
+}
+
+func deref[T any](p *T) any {
+	if p == nil {
+		return nil
+	}
+	return *p
 }
 
 // The global rate limit is stored as the max and duration queue metadata

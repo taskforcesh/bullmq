@@ -92,6 +92,11 @@ if err := queue.SetGlobalConcurrency(ctx, 20); err != nil {
 }
 ```
 
+`queue.GlobalConcurrency` returns the limit, or nil when there is none. Unlike
+Node.js, where `setGlobalConcurrency(0)` stores 0 and stops every worker,
+`SetGlobalConcurrency(ctx, 0)` removes the limit, as
+`RemoveGlobalConcurrency` does.
+
 ## Events
 
 `worker.Events()` delivers lifecycle events on a buffered channel, which

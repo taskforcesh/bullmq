@@ -528,7 +528,9 @@ does, so a busy worker needs about one round trip per job whatever its
 concurrency. The worker only blocks on the datastore once the queue looks
 drained. Run as many workers as you like, in one process or many; to cap the
 number of jobs processed at once across all of them, use
-`Queue.SetGlobalConcurrency`.
+`Queue.SetGlobalConcurrency`. `Queue.GlobalConcurrency` returns that limit, or
+nil when there is none. Unlike Node.js, where `setGlobalConcurrency(0)` stores
+0 and stops every worker, `SetGlobalConcurrency(ctx, 0)` removes the limit.
 
 `Name` is stored on every job the worker processes and is part of the name
 of the worker's connection, which is how `Queue.Workers` finds it:
@@ -1289,6 +1291,7 @@ drafts of this port needs these changes:
 | `queue.RetryJobs(ctx, state, count)` returned an always-0 `int64`              | `queue.RetryJobs(ctx, &bullmq.RetryJobsOptions{State, Count, Before})` returns only an error; `State` defaults to failed |
 | `queue.PromoteJobs(ctx, count)` returned an always-0 `int64`                   | It returns only an error                                                                                                 |
 | `queue.Jobs(ctx, state, start, end, asc)`, `queue.JobIDs(...)` with one state  | `queue.Jobs(ctx, start, end, asc, states...)`: several states, or none for all of them                                   |
+| `queue.GlobalConcurrency(ctx)` returned 0 when no limit was set                | It returns a `*int64`, nil when no limit is set                                                                          |
 
 Custom `Backend` implementations have more to change: `SignalWork` is gone,
 `MoveToCompleted` and `MoveToFailed` return a `*FinishResult` and can fetch

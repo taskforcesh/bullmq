@@ -466,7 +466,9 @@ func (q *Queue) IsMaxed(ctx context.Context) (bool, error) {
 }
 
 // SetGlobalConcurrency limits how many jobs may be active across all workers.
-// A value of 0 removes the limit, as RemoveGlobalConcurrency does.
+// A value of 0 (or less) removes the limit, as RemoveGlobalConcurrency does.
+// Unlike Go, Node's setGlobalConcurrency(0) stores 0, which stops every
+// worker: the queue is then always maxed.
 func (q *Queue) SetGlobalConcurrency(ctx context.Context, max int64) error {
 	if max <= 0 {
 		return q.RemoveGlobalConcurrency(ctx)
@@ -479,14 +481,17 @@ func (q *Queue) RemoveGlobalConcurrency(ctx context.Context) error {
 	return q.backend.RemoveQueueMetaFields(ctx, "concurrency")
 }
 
-// GlobalConcurrency returns the configured global concurrency limit, or 0 when
-// no limit is set.
-func (q *Queue) GlobalConcurrency(ctx context.Context) (int64, error) {
+// GlobalConcurrency returns the global concurrency limit, or nil when none
+// is set, as Node's getGlobalConcurrency returns null. It may be 0 when
+// another port stored it (see SetGlobalConcurrency): no job is then
+// fetched, and IsMaxed reports true.
+func (q *Queue) GlobalConcurrency(ctx context.Context) (*int64, error) {
 	val, ok, err := q.backend.GetQueueMetaField(ctx, "concurrency")
-	if err != nil || !ok {
-		return 0, err
+	if err != nil || !ok || val == "" {
+		return nil, err
 	}
-	return parseInt(val), nil
+	n := parseInt(val)
+	return &n, nil
 }
 
 // SetGlobalRateLimit throttles every worker of this queue to at most max jobs
