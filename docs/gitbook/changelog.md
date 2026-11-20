@@ -1,3 +1,18 @@
+## [6.7.8](https://github.com/taskforcesh/bullmq/compare/v6.7.7...v6.7.8) (2026-11-19)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cron-parser to v5.10.6 [security] ([#5150](https://github.com/taskforcesh/bullmq/issues/5150)) ([db233ed](https://github.com/taskforcesh/bullmq/commit/db233ed33c592d660d985f6a0fbb767a95d88a13))
+* **postgres:** don't report a claimable job while the queue is maxed (python)(elixir)(dotnet) ([#5163](https://github.com/taskforcesh/bullmq/issues/5163)) ([42745d5](https://github.com/taskforcesh/bullmq/commit/42745d5e29fae50bf5f255bf2285cde903c2497a))
+
+## [6.7.7](https://github.com/taskforcesh/bullmq/compare/v6.7.6...v6.7.7) (2026-11-17)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cron-parser to v5.10.5 [security] ([#5137](https://github.com/taskforcesh/bullmq/issues/5137)) ([2c0cb51](https://github.com/taskforcesh/bullmq/commit/2c0cb519d5a4cd631574dc07dffce3807a3c38c4))
+
 ## [6.7.6](https://github.com/taskforcesh/bullmq/compare/v6.7.5...v6.7.6) (2026-11-12)
 
 
