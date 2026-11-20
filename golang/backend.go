@@ -302,6 +302,65 @@ type Backend interface {
 	// so it must not report work that cannot be claimed, for example while
 	// the queue is paused or at its global concurrency limit.
 	WaitForJob(ctx context.Context, timeout time.Duration) (WaitResult, error)
+
+	// ------------------------------------------------------------------
+	// Flows
+	// ------------------------------------------------------------------
+
+	// ForQueue returns a backend for another queue of the same namespace
+	// that shares this backend's connections, as Node's forQueue does.
+	// [FlowProducer] uses it to reach every queue of a flow over one
+	// connection. name is a bare queue name or a qualified name as returned
+	// by QualifiedName. The returned backend does not own the connections:
+	// closing it releases only what it opened itself, and it stops working
+	// once this backend is closed.
+	ForQueue(name string) (Backend, error)
+
+	// AddFlow inserts the jobs of one or more flows in a single operation (a
+	// Redis transaction, a single SQL statement) and returns their ids in
+	// order. Each entry names its own queue, which may differ from this
+	// backend's. Entries are ordered so that a parent comes before its
+	// children, and a parent is released from waiting-children only once the
+	// whole tree has been inserted, if none of its children is pending.
+	//
+	// When the datastore rejects an entry, for example because its parent
+	// does not exist ([ErrParentJobNotExist]) or because the job already
+	// exists under another parent ([ErrParentJobCannotBeReplaced]), AddFlow
+	// returns an error for the first rejected entry. Entries the datastore
+	// accepted are kept: neither Redis nor the shared SQL rolls them back.
+	AddFlow(ctx context.Context, entries []FlowEntry) ([]string, error)
+
+	// GetDependencies returns the children of a parent job grouped by
+	// status, identified by their keys (`{QualifiedName}:{id}`). With nil
+	// opts every group is returned in full; otherwise only the requested
+	// groups are, one page each, with the cursor of the next page.
+	GetDependencies(ctx context.Context, jobID string, opts *DependenciesOptions) (*Dependencies, error)
+
+	// GetDependencyCounts returns how many children of a parent job are in
+	// each status.
+	GetDependencyCounts(ctx context.Context, jobID string) (DependencyCounts, error)
+
+	// GetProcessedChildrenValues returns the return value (JSON) of every
+	// completed child of a parent job, by child key.
+	GetProcessedChildrenValues(ctx context.Context, jobID string) (map[string]json.RawMessage, error)
+
+	// GetIgnoredChildrenFailures returns the failure reason of every child
+	// of a parent job whose failure was ignored (IgnoreDependencyOnFailure or
+	// ContinueParentOnFailure), by child key.
+	GetIgnoredChildrenFailures(ctx context.Context, jobID string) (map[string]string, error)
+
+	// RemoveChildDependency detaches a job that has not finished yet from
+	// the parent stored under parentKey (see [JobRecord.ParentKey]), and
+	// moves the parent to wait when it was its last pending child. It
+	// returns false when there was no such dependency, [ErrJobNotFound] when
+	// the job does not exist and [ErrParentJobNotExist] when the parent does
+	// not.
+	RemoveChildDependency(ctx context.Context, jobID, parentKey string) (bool, error)
+
+	// RemoveUnprocessedChildren removes, recursively, the children of a
+	// parent job that have not been processed yet. Active, completed and
+	// failed children, and locked ones, are kept.
+	RemoveUnprocessedChildren(ctx context.Context, jobID string) error
 }
 
 // BackendOptions describes the role of the backend being built by a

@@ -8,61 +8,71 @@ import (
 	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
-// redisAdd holds everything needed to run an add* command, on a client or on
-// a pipeline, and to turn its reply into a job id.
+// redisAdd holds everything needed to run an add* command (or another
+// command of the same transaction), on a client or on a pipeline, and to turn
+// its reply into a job id.
 type redisAdd struct {
 	scriptName string
 	keys       []string
-	argv1      []byte
-	payload    string
-	opts       []byte
+	args       []any
 }
 
-// prepareAdd computes the script name, keys and packed arguments needed to
-// add the job without touching Redis.
-func (b *Backend) prepareAdd(job bullmq.NewJob) (redisAdd, error) {
+// addCommand selects the add* command for a job and its keys: addParentJob
+// for a flow parent added in waiting-children, otherwise by delay and
+// priority.
+func (b *Backend) addCommand(opts *bullmq.JobOptions, parent bool) (string, []string) {
 	k := b.keys
-	opts := job.Opts
-
-	var scriptName string
-	var keys []string
 	switch {
+	case parent:
+		return "addParentJob", []string{
+			k.Meta(), k.ID(), k.Delayed(),
+			k.WaitingChildren(), k.Completed(), k.Events(),
+		}
 	case int64Val(opts.Delay) > 0:
-		scriptName = "addDelayedJob"
-		keys = []string{
+		return "addDelayedJob", []string{
 			k.Marker(), k.Meta(), k.ID(),
 			k.Delayed(), k.Completed(), k.Events(),
 		}
 	case int64Val(opts.Priority) > 0:
-		scriptName = "addPrioritizedJob"
-		keys = []string{
+		return "addPrioritizedJob", []string{
 			k.Marker(), k.Meta(), k.ID(),
 			k.Prioritized(), k.Delayed(), k.Completed(),
 			k.Active(), k.Events(), k.PC(),
 		}
 	default:
-		scriptName = "addStandardJob"
-		keys = []string{
+		return "addStandardJob", []string{
 			k.Wait(), k.Paused(), k.Meta(), k.ID(),
 			k.Completed(), k.Delayed(), k.Active(),
 			k.Events(), k.Marker(),
 		}
 	}
+}
 
-	argv1, err := b.packAddArgs(opts, job.Name, opts.Timestamp)
+// prepareAdd computes the script name, keys and packed arguments needed to
+// add the job without touching Redis.
+func (b *Backend) prepareAdd(job bullmq.NewJob) (redisAdd, error) {
+	args, err := b.addArgs(job.Opts, job.Name, job.Opts.Timestamp)
 	if err != nil {
 		return redisAdd{}, err
 	}
-	packedOpts, err := packJobOptions(opts)
+	return b.newAdd(job, false, args)
+}
+
+// newAdd builds the add* command of job from the ARGV[1] entries args.
+func (b *Backend) newAdd(job bullmq.NewJob, parent bool, args []any) (redisAdd, error) {
+	scriptName, keys := b.addCommand(job.Opts, parent)
+	argv1, err := packMsgpack(args)
+	if err != nil {
+		return redisAdd{}, err
+	}
+	packedOpts, err := packJobOptions(job.Opts)
 	if err != nil {
 		return redisAdd{}, err
 	}
 	return redisAdd{
 		scriptName: scriptName,
 		keys:       keys,
-		argv1:      argv1,
-		payload:    string(job.Data),
-		opts:       packedOpts,
+		args:       []any{argv1, string(job.Data), packedOpts},
 	}, nil
 }
 
@@ -86,7 +96,7 @@ func (b *Backend) AddJob(ctx context.Context, job bullmq.NewJob) (string, error)
 	if err != nil {
 		return "", err
 	}
-	res, err := b.runScript(ctx, a.scriptName, a.keys, a.argv1, a.payload, a.opts)
+	res, err := b.runScript(ctx, a.scriptName, a.keys, a.args...)
 	if err != nil {
 		return "", err
 	}
@@ -182,19 +192,23 @@ func (b *Backend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.C
 				a := prepared[i]
 				s := scripts[a.scriptName]
 				if useSHA {
-					cmds[n] = s.script.EvalSha(ctx, pipe, a.keys, a.argv1, a.payload, a.opts)
+					cmds[n] = s.script.EvalSha(ctx, pipe, a.keys, a.args...)
 				} else {
-					cmds[n] = s.script.Eval(ctx, pipe, a.keys, a.argv1, a.payload, a.opts)
+					cmds[n] = s.script.Eval(ctx, pipe, a.keys, a.args...)
 				}
 			}
 			return nil
 		})
 		// Per-command errors are inspected by the caller; surface the
-		// transaction error only when no command carries one.
+		// transaction error only when no command carries one. A nil reply
+		// (from a command that returns nothing) is not an error.
 		for _, c := range cmds {
 			if err := c.Err(); err != nil && err != redis.Nil {
 				return cmds, nil
 			}
+		}
+		if execErr == redis.Nil {
+			execErr = nil
 		}
 		return cmds, execErr
 	}
@@ -238,10 +252,11 @@ func (b *Backend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.C
 	return results, nil
 }
 
-// packAddArgs builds ARGV[1] of the add* commands: a msgpack array of
-// [keyPrefix, customId, name, timestamp, parentKey, parentDepsKey, parent,
-// repeatJobKey, deduplicationKey].
-func (b *Backend) packAddArgs(opts *bullmq.JobOptions, name string, timestamp int64) ([]byte, error) {
+// addArgs builds the entries of ARGV[1] of the add* commands, which is
+// msgpack encoded: [keyPrefix, customId, name, timestamp, parentKey,
+// parentDepsKey, parent, repeatJobKey, deduplicationKey]. Flow inserts add a
+// tenth entry (see AddFlow).
+func (b *Backend) addArgs(opts *bullmq.JobOptions, name string, timestamp int64) ([]any, error) {
 	// Unset entries stay nil: index 7 is the repeat job key, which this port
 	// does not support yet.
 	args := make([]any, 9)
@@ -279,7 +294,7 @@ func (b *Backend) packAddArgs(opts *bullmq.JobOptions, name string, timestamp in
 	if opts.Deduplication != nil {
 		args[8] = b.keys.Base() + ":de:" + opts.Deduplication.ID
 	}
-	return packMsgpack(args)
+	return args, nil
 }
 
 // packJobOptions builds ARGV[3] of the add* commands.
