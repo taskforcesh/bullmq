@@ -75,6 +75,8 @@ which used a `bullmq_migration` ledger, are adopted.
   `max_connections` for the pool plus one connection per worker and listener.
 - The `application_name` of a worker's dedicated connection is `<queue>` or
   `<queue>:w:<worker name>`, as in Node.js; `queue.Workers` lists them.
+  PostgreSQL truncates it to 63 bytes, so the workers of a queue with a long
+  name may be missing, and long worker names are truncated.
 
 To use your own pool, set its `search_path` to the schema, since BullMQ
 doesn't change the session of connections it doesn't own:

@@ -480,24 +480,81 @@ func (q *Queue) Metrics(ctx context.Context, state JobState, start, end int64) (
 	return q.backend.GetMetrics(ctx, state, start, end)
 }
 
-// Workers returns the client names of the workers currently connected to this queue.
-func (q *Queue) Workers(ctx context.Context) ([]string, error) {
+// WorkerInfo describes a worker connected to a queue, as listed by
+// Queue.Workers.
+type WorkerInfo struct {
+	// Name is the worker's name (WorkerOptions.Name), or "" for a worker
+	// without one.
+	Name string
+	// Fields holds what the datastore reports about the worker's
+	// connection: every field of its CLIENT LIST entry on Redis (id, addr,
+	// age, idle, ...), only name on PostgreSQL. Fields["name"] is the raw
+	// connection name, which encodes the queue: `{prefix}:{base64(queue)}`
+	// followed by `:w:{name}` for a named worker on Redis, `{queue}` and
+	// `:w:{name}` on PostgreSQL.
+	Fields map[string]string
+}
+
+// Workers lists the workers connected to this queue, as Node's getWorkers
+// does. Workers are found by the name of their dedicated connection, in
+// CLIENT LIST on Redis and in pg_stat_activity on PostgreSQL. PostgreSQL
+// truncates connection names to 63 bytes, so there the workers of a queue
+// with a long name may be missing, and long worker names are truncated.
+func (q *Queue) Workers(ctx context.Context) ([]WorkerInfo, error) {
 	lists, err := q.backend.GetClientList(ctx)
 	if err != nil {
 		return nil, err
 	}
 	unnamed := q.backend.ClientName("")
 	namedPrefix := q.backend.ClientName(":w:")
-	var names []string
-	for _, raw := range lists {
-		for _, line := range strings.Split(raw, "\n") {
-			for _, field := range strings.Fields(line) {
-				name, ok := strings.CutPrefix(field, "name=")
-				if ok && (name == unnamed || strings.HasPrefix(name, namedPrefix)) {
-					names = append(names, name)
-				}
+	var workers []WorkerInfo
+	// A clustered datastore reports one list per node, each with the
+	// connections to that node; the node with the most workers lists them
+	// all, as in Node.js.
+	for _, list := range lists {
+		var found []WorkerInfo
+		for _, fields := range parseClientList(list) {
+			raw := fields["name"]
+			switch {
+			case raw == unnamed:
+				found = append(found, WorkerInfo{Fields: fields})
+			case strings.HasPrefix(raw, namedPrefix):
+				found = append(found, WorkerInfo{Name: raw[len(namedPrefix):], Fields: fields})
 			}
 		}
+		if len(found) > len(workers) {
+			workers = found
+		}
 	}
-	return names, nil
+	if workers == nil {
+		workers = []WorkerInfo{}
+	}
+	return workers, nil
+}
+
+// parseClientList parses connection lists in the `CLIENT LIST` format: one
+// connection per line, as space-separated key=value fields. A word without
+// `=` continues the previous value, so a PostgreSQL application_name that
+// contains spaces is read whole.
+func parseClientList(list string) []map[string]string {
+	var clients []map[string]string
+	for _, line := range strings.Split(list, "\n") {
+		line = strings.TrimSuffix(line, "\r")
+		if line == "" {
+			continue
+		}
+		fields := make(map[string]string)
+		last := ""
+		for _, word := range strings.Split(line, " ") {
+			key, value, ok := strings.Cut(word, "=")
+			if !ok && last != "" {
+				fields[last] += " " + word
+				continue
+			}
+			fields[key] = value
+			last = key
+		}
+		clients = append(clients, fields)
+	}
+	return clients
 }

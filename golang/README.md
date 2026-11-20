@@ -431,8 +431,20 @@ drained. Run as many workers as you like, in one process or many; to cap the
 number of jobs processed at once across all of them, use
 `Queue.SetGlobalConcurrency`.
 
-`Name` is stored on every job the worker processes and appears in the
-connection name that `Queue.Workers` lists.
+`Name` is stored on every job the worker processes and is part of the name
+of the worker's connection, which is how `Queue.Workers` finds it:
+
+```go
+workers, err := queue.Workers(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+for _, w := range workers {
+	// Name is "" for a worker without one. Fields holds what the datastore
+	// reports about the connection: addr, age, idle... on Redis.
+	log.Printf("worker %q connected from %s", w.Name, w.Fields["addr"])
+}
+```
 
 ### Worker events
 
@@ -748,7 +760,7 @@ A `Queue` is safe for concurrent use. Its methods mirror Node's `Queue`:
 | `RetryJobs`, `PromoteJobs`                                                        | Move failed or completed jobs back to wait; make delayed jobs ready                          |
 | `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency`, `IsMaxed` | Cap how many jobs are active across all workers                                              |
 | `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Rate limit every worker of the queue                                                         |
-| `Metrics`, `Workers`                                                              | Completed and failed metrics; the names of the connected workers                             |
+| `Metrics`, `Workers`                                                              | Completed and failed metrics; the connected workers (`[]WorkerInfo`)                         |
 | `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](#job-schedulers)                                                            |
 
 ```go
@@ -1003,7 +1015,9 @@ Python, Elixir and .NET ports use, so they all work on the same schema.
   connection per worker and listener.
 - **Worker discovery.** The `application_name` of a worker's dedicated
   connection is `<queue>` or `<queue>:w:<name>`, as in Node.js, and is what
-  `Queue.Workers` lists.
+  `Queue.Workers` finds. PostgreSQL truncates it to 63 bytes, so the workers
+  of a queue with a long name may be missing, and long worker names are
+  truncated.
 - The backend of a queue built with `postgresbackend.New` is a
   `*postgresbackend.Backend`, which exposes `Pool()` and `Schema()`.
 - Job data, return values and progress are stored as `jsonb`, so a job read
@@ -1143,6 +1157,7 @@ drafts of this port needs these changes:
 | `EventStalled` reported lost locks                                             | `EventLockRenewalFailed` and `EventLocksRenewed`, with `Event.JobIDs`; `EventStalled` is only for the stalled check |
 | Full event channel dropped events silently                                     | `Worker.DroppedEvents` counts them; `WorkerOptions.OnEvent` sees every event                                        |
 | Cancelling `Run`'s context failed in-flight jobs                               | They stay active, without using up an attempt, for the stalled check to recover                                     |
+| `Queue.Workers` returned connection names                                      | It returns `[]bullmq.WorkerInfo`, with the worker name and the connection's fields                                  |
 | `RemoveAll()` was stored as `{"count":0}`                                      | Stored as `true`, as in the other ports                                                                             |
 | `Worker.Run` and `QueueEvents.Run` returned `context.Canceled` after `Close`   | They return nil after `Close`, and still return the context's error when their context is done                      |
 

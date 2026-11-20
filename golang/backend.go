@@ -81,7 +81,7 @@ type Backend interface {
 	ResolveParent(parent *ParentOptions) (*ParentKeys, string, error)
 
 	// ClientName builds the connection name used for worker discovery. Redis:
-	// `{prefix}:{base64(queue)}{suffix}`.
+	// `{prefix}:{base64(queue)}{suffix}`; PostgreSQL: `{queue}{suffix}`.
 	ClientName(suffix string) string
 
 	// ------------------------------------------------------------------
@@ -253,10 +253,13 @@ type Backend interface {
 	// state.
 	GetMetrics(ctx context.Context, state JobState, start, end int64) (*Metrics, error)
 
-	// GetClientList returns the raw connection list(s) of the datastore, used
-	// for worker discovery: `CLIENT LIST` text on Redis, which Queue.Workers
-	// parses for `name=` fields. Other backends report their connections as
-	// `name=<name>` lines (PostgreSQL: one per application_name), or nothing.
+	// GetClientList returns the connection list(s) of the datastore, used
+	// for worker discovery, in the `CLIENT LIST` format: one string per
+	// server (a cluster has several), with one connection per line as
+	// space-separated key=value fields, including `name`. Queue.Workers
+	// parses them. Redis returns CLIENT LIST itself; other backends report
+	// their named connections as `name=<name>` lines (PostgreSQL: one per
+	// application_name), or nothing.
 	GetClientList(ctx context.Context) ([]string, error)
 
 	// ------------------------------------------------------------------

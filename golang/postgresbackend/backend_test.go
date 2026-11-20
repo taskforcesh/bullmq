@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -440,14 +441,17 @@ func TestDiscoveryNamesOnlyTheDedicatedConnections(t *testing.T) {
 	runWorker("")
 	runWorker("named")
 
-	want := []string{queue, queue + ":w:named"}
 	eventually(t, "both workers to be discovered", func() bool {
-		names, err := q.Workers(ctx)
-		return err == nil && len(names) == 2
+		workers, err := q.Workers(ctx)
+		return err == nil && len(workers) == 2
 	})
-	names, _ := q.Workers(ctx)
-	if !(names[0] == want[0] && names[1] == want[1]) && !(names[0] == want[1] && names[1] == want[0]) {
-		t.Fatalf("Workers = %v, want %v", names, want)
+	workers, _ := q.Workers(ctx)
+	got := map[string]string{}
+	for _, w := range workers {
+		got[w.Name] = w.Fields["name"]
+	}
+	if want := map[string]string{"": queue, "named": queue + ":w:named"}; !maps.Equal(got, want) {
+		t.Fatalf("Workers = %+v, want the names and raw names %v", workers, want)
 	}
 
 	qe, err := bullmq.NewQueueEvents(queue, &bullmq.QueueEventsOptions{Backend: factory, BlockingTimeout: 200 * time.Millisecond})
@@ -481,8 +485,8 @@ func TestDiscoveryNamesOnlyTheDedicatedConnections(t *testing.T) {
 	if n := countNamed(queue); n != 1 {
 		t.Fatalf("%d sessions are named %q, want only the unnamed worker's", n, queue)
 	}
-	if names, err := q.Workers(ctx); err != nil || len(names) != 2 {
-		t.Fatalf("Workers with queue events running = %v, %v; want 2 workers", names, err)
+	if workers, err := q.Workers(ctx); err != nil || len(workers) != 2 {
+		t.Fatalf("Workers with queue events running = %+v, %v; want 2 workers", workers, err)
 	}
 }
 

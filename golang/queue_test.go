@@ -3,6 +3,7 @@ package bullmq_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -399,6 +400,48 @@ func testQueueObliterateRefusesActiveJobsWithoutForce(t *testing.T, be testBacke
 		t.Error("Obliterate should refuse to run while there are active jobs")
 	}
 	close(release)
+}
+
+func TestQueueWorkersListsTheConnectedWorkers(t *testing.T) {
+	forEachBackend(t, testQueueWorkersListsTheConnectedWorkers)
+}
+
+func testQueueWorkersListsTheConnectedWorkers(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	// PostgreSQL truncates connection names to 63 bytes, which the usual
+	// test queue names would exceed.
+	q := newNamedTestQueue(t, be, fmt.Sprintf("go-workers-%d", time.Now().UnixNano()), nil)
+	noop := func(context.Context, *bullmq.Job) (any, error) { return nil, nil }
+
+	if workers, err := q.Workers(ctx); err != nil || workers == nil || len(workers) != 0 {
+		t.Fatalf("Workers without workers = %#v, %v; want an empty list", workers, err)
+	}
+	runWorker(t, newTestWorker(t, be, q.Name(), noop, nil))
+	runWorker(t, newTestWorker(t, be, q.Name(), noop, &bullmq.WorkerOptions{Name: "mailer-1"}))
+	// A queue events listener is connected too, but isn't a worker.
+	collectEvents(t, be, q.Name())
+
+	var workers []bullmq.WorkerInfo
+	waitFor(t, 10*time.Second, "both workers to be listed", func() bool {
+		var err error
+		workers, err = q.Workers(ctx)
+		return err == nil && len(workers) == 2
+	})
+	byName := map[string]bullmq.WorkerInfo{}
+	for _, w := range workers {
+		byName[w.Name] = w
+	}
+	unnamed, ok := byName[""]
+	if !ok || unnamed.Fields["name"] != q.Backend().ClientName("") {
+		t.Errorf("unnamed worker = %+v, want raw name %q", unnamed, q.Backend().ClientName(""))
+	}
+	named, ok := byName["mailer-1"]
+	if !ok || named.Fields["name"] != q.Backend().ClientName(":w:mailer-1") {
+		t.Errorf("named worker = %+v, want raw name %q", named, q.Backend().ClientName(":w:mailer-1"))
+	}
+	if be.Name == "redis" && (named.Fields["addr"] == "" || named.Fields["id"] == "") {
+		t.Errorf("named worker fields = %v, want the CLIENT LIST fields", named.Fields)
+	}
 }
 
 func TestQueueGlobalConcurrency(t *testing.T) {

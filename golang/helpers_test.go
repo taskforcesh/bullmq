@@ -35,13 +35,20 @@ func testQueueName(t *testing.T) string {
 // newTestQueue creates a queue on be that is obliterated when the test ends.
 func newTestQueue(t *testing.T, be testBackend, opts *bullmq.QueueOptions) *bullmq.Queue {
 	t.Helper()
+	return newNamedTestQueue(t, be, testQueueName(t), opts)
+}
+
+// newNamedTestQueue creates the queue name on be, which is obliterated when
+// the test ends.
+func newNamedTestQueue(t *testing.T, be testBackend, name string, opts *bullmq.QueueOptions) *bullmq.Queue {
+	t.Helper()
 	if opts == nil {
 		opts = &bullmq.QueueOptions{}
 	}
 	if opts.Backend == nil {
 		opts.Backend = be.Factory
 	}
-	q, err := bullmq.NewQueue(testQueueName(t), opts)
+	q, err := bullmq.NewQueue(name, opts)
 	if err != nil {
 		t.Fatalf("NewQueue: %v", err)
 	}
