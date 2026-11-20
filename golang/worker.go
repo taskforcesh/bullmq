@@ -87,6 +87,11 @@ type Worker struct {
 	tokens atomic.Uint64
 
 	events chan Event
+	// eventsMu guards eventsClosed against closing the events channel
+	// while an event is being sent on it.
+	eventsMu      sync.RWMutex
+	eventsClosed  bool
+	droppedEvents atomic.Uint64
 
 	runOnce   sync.Once
 	stopOnce  sync.Once
@@ -197,11 +202,17 @@ func (w *Worker) Name() string {
 // ID returns the unique id of this worker instance.
 func (w *Worker) ID() string { return w.id }
 
-// Events returns the channel on which lifecycle events are published.
+// Events returns the channel on which lifecycle events are published. It is
+// closed by Close.
 //
 // The channel is buffered; events are dropped when the consumer falls behind,
-// so a worker never blocks on event delivery.
+// so a worker never blocks on event delivery. DroppedEvents counts them. Use
+// WorkerOptions.OnEvent to observe every event.
 func (w *Worker) Events() <-chan Event { return w.events }
+
+// DroppedEvents returns how many events could not be delivered on the
+// Events channel because its buffer was full.
+func (w *Worker) DroppedEvents() uint64 { return w.droppedEvents.Load() }
 
 // Pause stops fetching new jobs. Jobs already active keep running.
 func (w *Worker) Pause() {
@@ -669,7 +680,6 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 			delete(w.active, job.ID)
 		}
 		w.mu.Unlock()
-		job.worker = nil
 		cancel(nil)
 	}()
 
@@ -1152,15 +1162,38 @@ func (w *Worker) Close() error {
 		// below. Either way, it is safe to close them once this returns.
 		w.runOnce.Do(func() {})
 		w.closeErr = w.backend.Close()
+		w.eventsMu.Lock()
+		w.eventsClosed = true
 		close(w.events)
+		w.eventsMu.Unlock()
 	})
 	return w.closeErr
 }
 
+// emit publishes ev to OnEvent and the Events channel. Events emitted once
+// the worker is closed, for example progress reported by a goroutine that
+// outlived its job, are discarded.
 func (w *Worker) emit(ev Event) {
+	w.eventsMu.RLock()
+	closed := w.eventsClosed
+	w.eventsMu.RUnlock()
+	if closed {
+		return
+	}
+	// The callback runs without the lock held, so it may emit events itself
+	// (for example by updating a job's progress).
+	if onEvent := w.opts.OnEvent; onEvent != nil {
+		onEvent(ev)
+	}
+	w.eventsMu.RLock()
+	defer w.eventsMu.RUnlock()
+	if w.eventsClosed {
+		return
+	}
 	select {
 	case w.events <- ev:
 	default:
+		w.droppedEvents.Add(1)
 	}
 }
 
