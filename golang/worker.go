@@ -893,6 +893,8 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 	// The processor succeeded, so a failure to record that is never turned
 	// into a job failure: transient errors are retried, and anything else
 	// (e.g. the lock was lost) is reported and left to the stalled check.
+	// The exception, as in Node.js, is a parent that cannot complete because
+	// of its children: it fails.
 	fetchNext := w.canFetchNext(runCtx)
 	var finished *FinishResult
 	cerr := w.retryTransition(runCtx, func(c context.Context) error {
@@ -900,6 +902,9 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 		finished, err = w.moveToCompleted(c, job, raw, fetchNext)
 		return err
 	})
+	if blocked := completionBlockedByChildren(job.ID, cerr); blocked != nil {
+		return w.fail(runCtx, job, blocked, release)
+	}
 	release()
 	if cerr != nil {
 		w.emitError(cerr)

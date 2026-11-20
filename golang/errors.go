@@ -16,6 +16,10 @@ const (
 	ErrCodeJobHasFailedChildren = -9
 )
 
+// ErrCodeParentJobCannotBeReplaced is the script error code returned when a
+// job that already belongs to a parent is added under another one.
+const ErrCodeParentJobCannotBeReplaced = -7
+
 // Script error codes of job schedulers.
 const (
 	ErrCodeJobBelongsToJobScheduler = -8
@@ -37,6 +41,9 @@ var (
 	ErrParentJobNotExist = errors.New("bullmq: parent job does not exist")
 	// ErrJobLockMismatch is returned when the lock is owned by another client.
 	ErrJobLockMismatch = errors.New("bullmq: lock is not owned by this client")
+	// ErrParentJobCannotBeReplaced is returned when a job that already
+	// belongs to a parent is added again under another one.
+	ErrParentJobCannotBeReplaced = errors.New("bullmq: the parent of a job cannot be replaced")
 	// ErrJobHasFailedChildren is returned when a parent cannot complete because a child failed.
 	ErrJobHasFailedChildren = errors.New("bullmq: job has failed children")
 	// ErrJobBelongsToJobScheduler is returned when removing the pending job
@@ -134,6 +141,8 @@ func (e *ScriptError) Unwrap() error {
 		return ErrParentJobNotExist
 	case ErrCodeJobLockMismatch:
 		return ErrJobLockMismatch
+	case ErrCodeParentJobCannotBeReplaced:
+		return ErrParentJobCannotBeReplaced
 	case ErrCodeJobHasFailedChildren:
 		return ErrJobHasFailedChildren
 	case ErrCodeJobBelongsToJobScheduler:
