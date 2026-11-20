@@ -297,8 +297,20 @@ if err != nil {
 
 `WorkerOptions.MaxStartedAttempts` fails a job that was started more than
 that many times, for example because it keeps stalling, and
-`JobOptions.StackTraceLimit` bounds the failure traces kept on a job. See
-[Retrying failing jobs](../guide/retrying-failing-jobs.md).
+`JobOptions.StackTraceLimit` bounds the failure traces kept on a job.
+
+`Job.Retry` moves a failed (or completed) job back to wait. It keeps the
+attempt counters, so a job that used up its attempts fails for good after one
+more failure, unless you reset them:
+
+```go
+err := job.Retry(ctx, bullmq.StateFailed, &bullmq.RetryOptions{ResetAttemptsMade: true})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+See [Retrying failing jobs](../guide/retrying-failing-jobs.md).
 
 ## Stalled jobs and locks
 

@@ -213,7 +213,7 @@ func pushCommand(lifo bool) string {
 }
 
 // RetryFinishedJob moves a completed or failed job back to the wait list.
-func (b *Backend) RetryFinishedJob(ctx context.Context, jobID string, state bullmq.JobState, lifo bool) error {
+func (b *Backend) RetryFinishedJob(ctx context.Context, jobID string, state bullmq.JobState, lifo bool, opts bullmq.RetryOptions) error {
 	k := b.keys
 	propVal := "returnvalue"
 	if state == bullmq.StateFailed {
@@ -222,7 +222,8 @@ func (b *Backend) RetryFinishedJob(ctx context.Context, jobID string, state bull
 	res, err := b.runScript(ctx, "reprocessJob", []string{
 		k.Job(jobID), k.Events(), k.Get(string(state)),
 		k.Wait(), k.Meta(), k.Active(), k.Marker(), k.Prioritized(), k.PC(),
-	}, jobID, pushCommand(lifo), propVal, string(state), "0", "0")
+	}, jobID, pushCommand(lifo), propVal, string(state),
+		boolToStr(opts.ResetAttemptsMade), boolToStr(opts.ResetAttemptsStarted))
 	if err != nil {
 		return err
 	}

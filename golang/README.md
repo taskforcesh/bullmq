@@ -756,7 +756,16 @@ without a `BackoffStrategy`, and an `EventError` says why.
 `WorkerOptions.MaxStartedAttempts` fails a job that was started more than that
 many times, for example because it keeps stalling. `JobOptions.StackTraceLimit`
 bounds the failure traces kept on the job. `Job.Retry` and `Queue.RetryJobs`
-move failed (or completed) jobs back to wait.
+move failed (or completed) jobs back to wait. `Job.Retry` keeps the attempt
+counters, so a job that used up its attempts fails for good after one more
+failure, unless you reset them:
+
+```go
+err := job.Retry(ctx, bullmq.StateFailed, &bullmq.RetryOptions{ResetAttemptsMade: true})
+if err != nil {
+	log.Fatal(err)
+}
+```
 
 ### Stalled jobs and locks
 

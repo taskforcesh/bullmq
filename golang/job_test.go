@@ -293,7 +293,7 @@ func testJobRetryMovesAFailedJobBackToWait(t *testing.T, be testBackend) {
 	if err != nil {
 		t.Fatalf("Job: %v", err)
 	}
-	if err := stored.Retry(ctx, bullmq.StateFailed); err != nil {
+	if err := stored.Retry(ctx, bullmq.StateFailed, nil); err != nil {
 		t.Fatalf("Retry: %v", err)
 	}
 
@@ -348,7 +348,7 @@ func testJobRetryMovesAFailedPriorityJobBackToPrioritized(t *testing.T, be testB
 	if err != nil {
 		t.Fatalf("Job: %v", err)
 	}
-	if err := stored.Retry(ctx, bullmq.StateFailed); err != nil {
+	if err := stored.Retry(ctx, bullmq.StateFailed, nil); err != nil {
 		t.Fatalf("Retry: %v", err)
 	}
 

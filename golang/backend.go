@@ -141,8 +141,9 @@ type Backend interface {
 	// RetryJob puts an active job straight back into the wait list.
 	RetryJob(ctx context.Context, jobID, token string, lifo bool, failure *FailureInfo) error
 
-	// RetryFinishedJob reprocesses a completed or failed job.
-	RetryFinishedJob(ctx context.Context, jobID string, state JobState, lifo bool) error
+	// RetryFinishedJob reprocesses a completed or failed job, resetting its
+	// attempt counters as opts asks.
+	RetryFinishedJob(ctx context.Context, jobID string, state JobState, lifo bool, opts RetryOptions) error
 
 	// Promote makes a delayed job available immediately.
 	Promote(ctx context.Context, jobID string) error
