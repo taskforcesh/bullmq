@@ -323,7 +323,7 @@ func (j *Job) moveToDelayed(ctx context.Context, delay time.Duration, skipAttemp
 	if j.token == "" {
 		return ErrJobLockNotExist
 	}
-	if err := b.MoveToDelayed(ctx, j.ID, j.token, delay, MoveToDelayedOptions{
+	if _, err := b.MoveToDelayed(ctx, j.ID, j.token, delay, MoveToDelayedOptions{
 		SkipAttempt: skipAttempt,
 		Failure:     failure,
 	}); err != nil {

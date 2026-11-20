@@ -28,8 +28,21 @@ import (
 //     a transaction through an operation.
 //   - Operations that fail because of queue semantics return the sentinel
 //     errors of this package (for example [ErrJobNotFound] or
-//     [ErrJobLockNotExist]), directly or wrapped in a [ScriptError].
+//     [ErrJobLockNotExist]), directly or wrapped in a [ScriptError] whose
+//     Code is one of the ErrCode constants (-1 to -9), whatever the datastore
+//     reports natively. The shared PostgreSQL commands raise SQLSTATE BM001
+//     with the same code in the detail.
 //   - All methods must be safe for concurrent use.
+//   - Times are Unix milliseconds and durations have millisecond precision,
+//     as in every other BullMQ port.
+//
+// Fetching jobs follows Node's protocol. [Backend.MoveToActive] moves the
+// next job to active and locks it with a token chosen by the worker. When no
+// job can be fetched, the [FetchResult] says why, so the worker knows how
+// long it may sleep. A worker finishing a job can ask for the next one in the
+// same operation ([FinishOptions.FetchNext]), which saves a round trip per
+// job; the next job is then locked with the same token. Between fetches an
+// idle worker blocks in [Backend.WaitForJob].
 type Backend interface {
 	// ------------------------------------------------------------------
 	// Connection lifecycle
@@ -55,7 +68,9 @@ type Backend interface {
 	QueueName() string
 
 	// QualifiedName returns the cross-backend logical identifier of the queue,
-	// used for example as a flow parent reference. Redis: `{prefix}:{queue}`.
+	// used for example as a flow parent reference. Redis: `{prefix}:{queue}`;
+	// backends without a prefix (PostgreSQL) return the bare queue name, as
+	// Node does.
 	QualifiedName() string
 
 	// ResolveParent resolves the parent a job is added under into the
@@ -86,20 +101,37 @@ type Backend interface {
 	// Job state transitions
 	// ------------------------------------------------------------------
 
-	// MoveToActive atomically moves the next eligible job to active and locks
-	// it. When no job is ready the result carries how long to wait.
+	// MoveToActive atomically moves the next eligible job to active, locks
+	// it with opts.Token for opts.LockDuration and returns it. When no job can
+	// be fetched it returns a result with a nil Job and the reason, as
+	// described on [FetchResult]. It never blocks waiting for a job.
 	MoveToActive(ctx context.Context, opts MoveToActiveOptions) (*FetchResult, error)
 
-	// MoveToCompleted moves an active job to completed and returns the
-	// recorded finishedOn timestamp (Unix milliseconds).
-	MoveToCompleted(ctx context.Context, jobID string, returnValue []byte, opts FinishOptions) (int64, error)
+	// MoveToCompleted moves an active job owned by opts.Token to completed
+	// and records returnValue. When opts.FetchNext is set it then fetches the
+	// next job exactly as MoveToActive would, locked with the same token, and
+	// reports it in [FinishResult.Next].
+	MoveToCompleted(ctx context.Context, jobID string, returnValue []byte, opts FinishOptions) (*FinishResult, error)
 
-	// MoveToFailed moves an active job to failed and returns the recorded
-	// finishedOn timestamp (Unix milliseconds).
-	MoveToFailed(ctx context.Context, jobID string, failure FailureInfo, opts FinishOptions) (int64, error)
+	// MoveToFailed moves an active job owned by opts.Token to failed and
+	// records failure. Fetching the next job works as in MoveToCompleted.
+	MoveToFailed(ctx context.Context, jobID string, failure FailureInfo, opts FinishOptions) (*FinishResult, error)
 
-	// MoveToDelayed reschedules an active job to run after delay.
-	MoveToDelayed(ctx context.Context, jobID, token string, delay time.Duration, opts MoveToDelayedOptions) error
+	// MoveToDelayed reschedules an active job owned by token to run after
+	// delay. When opts.FetchNext is set it then tries to fetch the next job,
+	// locked with the same token, and returns the outcome; otherwise it
+	// returns nil. Unlike the finishing operations it may report only a
+	// fetched job, without the rate-limit or delayed-job hints (Redis does
+	// so), so a result with a nil Job means "fetch again", not "drained".
+	MoveToDelayed(ctx context.Context, jobID, token string, delay time.Duration, opts MoveToDelayedOptions) (*FetchResult, error)
+
+	// MoveJobFromActiveToWait puts an active job back in the wait list (or
+	// the prioritized set, keeping its priority) without counting an attempt,
+	// and releases its lock. Workers use it when a processor reports that the
+	// queue is rate limited. An empty token skips the lock check, as Node's
+	// default token "0" does. It returns the remaining rate-limit time, or 0
+	// when the queue is not rate limited.
+	MoveJobFromActiveToWait(ctx context.Context, jobID, token string) (time.Duration, error)
 
 	// MoveToWaitingChildren parks an active parent job until its children
 	// finish. It returns true when the job was moved and false when there were
@@ -210,12 +242,21 @@ type Backend interface {
 	// rate limit window.
 	GetRateLimitTTL(ctx context.Context, maxJobs int64) (int64, error)
 
+	// SetRateLimit rate limits the whole queue for ttl, as if the limiter's
+	// window were full: until it expires, fetching reports a rate limit
+	// instead of a job. Like the shared commands, the limit only applies to
+	// fetches made with a limiter (a worker Limiter or a global rate limit).
+	// ttl must be at least 1ms.
+	SetRateLimit(ctx context.Context, ttl time.Duration) error
+
 	// GetMetrics returns the metrics collected for the completed or failed
 	// state.
 	GetMetrics(ctx context.Context, state JobState, start, end int64) (*Metrics, error)
 
 	// GetClientList returns the raw connection list(s) of the datastore, used
-	// for worker discovery. Backends with no such concept may return nothing.
+	// for worker discovery: `CLIENT LIST` text on Redis, which Queue.Workers
+	// parses for `name=` fields. Other backends report their connections as
+	// `name=<name>` lines (PostgreSQL: one per application_name), or nothing.
 	GetClientList(ctx context.Context) ([]string, error)
 
 	// ------------------------------------------------------------------
@@ -236,18 +277,27 @@ type Backend interface {
 	// Events and the worker blocking primitive
 	// ------------------------------------------------------------------
 
-	// LastEventID returns the id of the newest event, or "0-0" when the stream
-	// is empty. Reading from it only yields events produced afterwards.
+	// LastEventID returns the id of the newest event, or "0-0" when there is
+	// none (the Redis stream syntax, which other backends reuse for "before
+	// the first event"). Reading from it only yields events produced
+	// afterwards. Event ids are opaque to callers.
 	LastEventID(ctx context.Context) (string, error)
 
 	// ReadEvents blocks up to block waiting for events newer than lastID. It
 	// returns no events when the wait times out.
 	ReadEvents(ctx context.Context, lastID string, block time.Duration) ([]QueueEvent, error)
 
-	// WaitForJob blocks up to timeout until the queue signals that a job may be
-	// available, a delayed job came due, or ctx is done. A timeout is not an
-	// error. It uses the connection dedicated to blocking reads.
-	WaitForJob(ctx context.Context, timeout time.Duration) error
+	// WaitForJob blocks up to timeout until the queue signals that a job may
+	// be available or that a delayed job was scheduled, then reports it in a
+	// [WaitResult]. A timeout is not an error: it returns a zero WaitResult.
+	// When ctx is done it returns promptly with ctx's error. It uses the
+	// connection dedicated to blocking reads.
+	//
+	// A backend MAY return early, with or without Woken, for example when a
+	// signal was meant for another worker or its blocking primitive cannot
+	// wait that long. The caller must cope by fetching again (and finding
+	// nothing) or waiting again; it must never rely on WaitForJob for timing.
+	WaitForJob(ctx context.Context, timeout time.Duration) (WaitResult, error)
 
 	// SignalWork wakes workers blocked in WaitForJob so they look for work
 	// again. The signal is level-triggered: it is kept until a waiter consumes
@@ -356,14 +406,47 @@ type MoveToActiveOptions struct {
 	Limiter *RateLimiter
 }
 
-// FetchResult is the outcome of [Backend.MoveToActive].
+// FetchResult is the outcome of fetching a job, with [Backend.MoveToActive]
+// or as the next job of a finishing operation. It mirrors the
+// `[jobData, id, rateLimitDelay, delayUntil]` tuple of the other ports.
+//
+// When Job is nil, the other fields say why no job was fetched:
+//
+//   - RateLimitDelay > 0: the queue is rate limited for that long, and no
+//     job may be fetched before it lifts.
+//   - NextDelayedAt > 0: nothing is ready, but a delayed job is due then.
+//   - both zero: the queue is empty, paused or at its global concurrency
+//     limit.
 type FetchResult struct {
-	// Job is the job that was moved to active, or nil when none was ready.
+	// Job is the job that was moved to active, or nil when none was fetched.
 	Job *JobRecord
-	// Wait is how long to wait before the next fetch when Job is nil: the time
-	// until the rate limit lifts or the next delayed job comes due. Zero means
-	// no hint.
-	Wait time.Duration
+	// RateLimitDelay is how long the queue stays rate limited when Job is nil
+	// because of the rate limit.
+	RateLimitDelay time.Duration
+	// NextDelayedAt is when the next delayed job is due (Unix milliseconds)
+	// when Job is nil; 0 means none, or unknown.
+	NextDelayedAt int64
+}
+
+// FinishResult is the outcome of [Backend.MoveToCompleted] and
+// [Backend.MoveToFailed].
+type FinishResult struct {
+	// FinishedOn is the recorded finishedOn timestamp (Unix milliseconds).
+	FinishedOn int64
+	// Next is the outcome of fetching the next job. It is nil when
+	// [FinishOptions.FetchNext] was not set, so callers can tell "not
+	// requested" from "nothing to fetch" (a non-nil result with a nil Job).
+	Next *FetchResult
+}
+
+// WaitResult is the outcome of [Backend.WaitForJob].
+type WaitResult struct {
+	// Woken is true when the wait ended because the queue signalled work,
+	// and false when it timed out. Signals may be spurious.
+	Woken bool
+	// NextDelayedAt is when the next delayed job is due (Unix milliseconds),
+	// when the signal says so; 0 means a job may be ready now, or unknown.
+	NextDelayedAt int64
 }
 
 // FailureInfo describes why an attempt failed.
@@ -374,9 +457,11 @@ type FailureInfo struct {
 	Stacktrace []string
 }
 
-// FinishOptions carries the settings needed to move a job to a finished state.
+// FinishOptions carries the settings needed to move a job to a finished state
+// and, optionally, to fetch the next one.
 type FinishOptions struct {
-	// Token is the lock token held on the job.
+	// Token is the lock token held on the job. The next job, when fetched,
+	// is locked with the same token.
 	Token string
 	// JobOpts are the options of the job being finished.
 	JobOpts *JobOptions
@@ -390,6 +475,9 @@ type FinishOptions struct {
 	Limiter *RateLimiter
 	// Metrics enables metrics collection.
 	Metrics *MetricsOptions
+	// FetchNext fetches the next job in the same operation, as MoveToActive
+	// would with Token, LockDuration, WorkerName and Limiter.
+	FetchNext bool
 }
 
 // MoveToDelayedOptions tunes [Backend.MoveToDelayed].
@@ -398,6 +486,15 @@ type MoveToDelayedOptions struct {
 	SkipAttempt bool
 	// Failure is recorded on the job when the delay is a retry backoff.
 	Failure *FailureInfo
+	// FetchNext fetches the next job in the same operation, as MoveToActive
+	// would with the job's token and the settings below.
+	FetchNext bool
+	// LockDuration is how long the next job's lock is held.
+	LockDuration time.Duration
+	// WorkerName is stored on the next job as the processing worker.
+	WorkerName string
+	// Limiter throttles fetching the next job.
+	Limiter *RateLimiter
 }
 
 // StalledOptions configures [Backend.MoveStalledJobsToWait].

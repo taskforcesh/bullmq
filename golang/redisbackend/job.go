@@ -244,8 +244,10 @@ func (b *Backend) RetryJob(ctx context.Context, jobID, token string, lifo bool, 
 	}, k.KeyPrefix(), nowMillis(), pushCommand(lifo), jobID, token, fieldsArg(fields))
 }
 
-// MoveToDelayed reschedules an active job.
-func (b *Backend) MoveToDelayed(ctx context.Context, jobID, token string, delay time.Duration, opts bullmq.MoveToDelayedOptions) error {
+// MoveToDelayed reschedules an active job and, when requested, fetches the
+// next one. The command only replies with a job it fetched, so the result
+// never carries the rate-limit or delayed-job hints.
+func (b *Backend) MoveToDelayed(ctx context.Context, jobID, token string, delay time.Duration, opts bullmq.MoveToDelayedOptions) (*bullmq.FetchResult, error) {
 	k := b.keys
 	ms := delay.Milliseconds()
 	if ms < 0 {
@@ -253,9 +255,22 @@ func (b *Backend) MoveToDelayed(ctx context.Context, jobID, token string, delay 
 	}
 	fields, err := packFailureFields(opts.Failure)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return b.runScriptStatus(ctx, "moveToDelayed", []string{
+	var fetchOpts any = ""
+	if opts.FetchNext {
+		packed, err := packMoveToActiveOpts(bullmq.MoveToActiveOptions{
+			Token:        token,
+			LockDuration: opts.LockDuration,
+			WorkerName:   opts.WorkerName,
+			Limiter:      opts.Limiter,
+		})
+		if err != nil {
+			return nil, err
+		}
+		fetchOpts = packed
+	}
+	res, err := b.runScript(ctx, "moveToDelayed", []string{
 		k.Marker(), k.Active(), k.Prioritized(), k.Delayed(),
 		k.Job(jobID), k.Events(), k.Meta(), k.Stalled(),
 		k.Wait(), k.Limiter(), k.PC(),
@@ -263,9 +278,40 @@ func (b *Backend) MoveToDelayed(ctx context.Context, jobID, token string, delay 
 		k.KeyPrefix(), nowMillis(), jobID, token, ms,
 		boolToStr(opts.SkipAttempt),
 		fieldsArg(fields),
-		"0", // do not fetch the next job
-		"",  // unused when not fetching
+		boolToStr(opts.FetchNext),
+		fetchOpts,
 	)
+	if err != nil {
+		return nil, err
+	}
+	if code, ok := asInt64(res); ok && code < 0 {
+		return nil, scriptError("moveToDelayed", code)
+	}
+	if !opts.FetchNext {
+		return nil, nil
+	}
+	return parseFetchResult(res), nil
+}
+
+// MoveJobFromActiveToWait puts an active job back in the wait list without
+// counting an attempt and returns the remaining rate-limit time.
+func (b *Backend) MoveJobFromActiveToWait(ctx context.Context, jobID, token string) (time.Duration, error) {
+	k := b.keys
+	if token == "" {
+		token = "0"
+	}
+	res, err := b.runScript(ctx, "moveJobFromActiveToWait", []string{
+		k.Active(), k.Wait(), k.Stalled(), k.Paused(), k.Meta(),
+		k.Limiter(), k.Prioritized(), k.Marker(), k.Events(),
+	}, jobID, token, k.Job(jobID))
+	if err != nil {
+		return 0, err
+	}
+	pttl, _ := asInt64(res)
+	if pttl < 0 {
+		return 0, scriptError("moveJobFromActiveToWait", pttl)
+	}
+	return time.Duration(pttl) * time.Millisecond, nil
 }
 
 // MoveToWaitingChildren parks an active parent job until its children finish.

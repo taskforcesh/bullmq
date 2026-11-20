@@ -12,8 +12,8 @@ import (
 const blockingPollInterval = time.Second
 
 // MoveToActive atomically moves the next job to the active list and locks it.
-// The result carries a nil Job when none is available; Wait is then how long
-// to wait before the next attempt (rate limit or next delayed job).
+// The result carries a nil Job when none is available, with the rate limit or
+// the next delayed job that explains why.
 func (b *Backend) MoveToActive(ctx context.Context, opts bullmq.MoveToActiveOptions) (*bullmq.FetchResult, error) {
 	k := b.keys
 	packed, err := packMoveToActiveOpts(opts)
@@ -30,8 +30,10 @@ func (b *Backend) MoveToActive(ctx context.Context, opts bullmq.MoveToActiveOpti
 	return parseFetchResult(res), nil
 }
 
-// parseFetchResult decodes the `{jobData, jobId, limitUntil, delayUntil}` reply
-// of the moveToActive command.
+// parseFetchResult decodes the `{jobData, jobId, rateLimitDelay, delayUntil}`
+// reply of the moveToActive command and of the commands that fetch the next
+// job. Any other reply, such as the 0 returned when there is nothing to fetch,
+// is an empty result.
 func parseFetchResult(res any) *bullmq.FetchResult {
 	arr, ok := res.([]any)
 	if !ok || len(arr) < 2 {
@@ -39,23 +41,21 @@ func parseFetchResult(res any) *bullmq.FetchResult {
 	}
 	fields := flatToMap(arr[0])
 	jobID, _ := asString(arr[1])
-	if len(fields) == 0 || jobID == "" {
-		var wait time.Duration
-		if len(arr) > 2 {
-			if ms, _ := asInt64(arr[2]); ms > 0 {
-				wait = time.Duration(ms) * time.Millisecond
-			}
-		}
-		if len(arr) > 3 && wait == 0 {
-			if ts, _ := asInt64(arr[3]); ts > 0 {
-				if d := time.Until(time.UnixMilli(ts)); d > 0 {
-					wait = d
-				}
-			}
-		}
-		return &bullmq.FetchResult{Wait: wait}
+	if len(fields) > 0 && jobID != "" {
+		return &bullmq.FetchResult{Job: jobRecordFromHash(jobID, fields)}
 	}
-	return &bullmq.FetchResult{Job: jobRecordFromHash(jobID, fields)}
+	r := &bullmq.FetchResult{}
+	if len(arr) > 2 {
+		if ms, _ := asInt64(arr[2]); ms > 0 {
+			r.RateLimitDelay = time.Duration(ms) * time.Millisecond
+		}
+	}
+	if len(arr) > 3 {
+		if ts, _ := asInt64(arr[3]); ts > 0 {
+			r.NextDelayedAt = ts
+		}
+	}
+	return r
 }
 
 func packMoveToActiveOpts(opts bullmq.MoveToActiveOptions) ([]byte, error) {
@@ -72,23 +72,26 @@ func packMoveToActiveOpts(opts bullmq.MoveToActiveOptions) ([]byte, error) {
 	return packMsgpack(m)
 }
 
-// MoveToCompleted moves an active job into the completed set.
-func (b *Backend) MoveToCompleted(ctx context.Context, jobID string, returnValue []byte, opts bullmq.FinishOptions) (int64, error) {
+// MoveToCompleted moves an active job into the completed set and, when
+// requested, fetches the next job.
+func (b *Backend) MoveToCompleted(ctx context.Context, jobID string, returnValue []byte, opts bullmq.FinishOptions) (*bullmq.FinishResult, error) {
 	return b.moveToFinished(ctx, jobID, "completed", "returnvalue", string(returnValue), nil, opts)
 }
 
-// MoveToFailed moves an active job into the failed set.
-func (b *Backend) MoveToFailed(ctx context.Context, jobID string, failure bullmq.FailureInfo, opts bullmq.FinishOptions) (int64, error) {
+// MoveToFailed moves an active job into the failed set and, when requested,
+// fetches the next job.
+func (b *Backend) MoveToFailed(ctx context.Context, jobID string, failure bullmq.FailureInfo, opts bullmq.FinishOptions) (*bullmq.FinishResult, error) {
 	fields, err := packFailureFields(&failure)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	return b.moveToFinished(ctx, jobID, "failed", "failedReason", failure.Reason, fields, opts)
 }
 
-// moveToFinished moves an active job into the completed or failed set. The
-// fetch-next flag is never set: the worker's fetch loop owns fetching.
-func (b *Backend) moveToFinished(ctx context.Context, jobID, target, field, value string, fieldsToUpdate []byte, opts bullmq.FinishOptions) (int64, error) {
+// moveToFinished moves an active job into the completed or failed set. With
+// fetch-next the command locks the next job with the same token, using the
+// lock settings packed in its options.
+func (b *Backend) moveToFinished(ctx context.Context, jobID, target, field, value string, fieldsToUpdate []byte, opts bullmq.FinishOptions) (*bullmq.FinishResult, error) {
 	k := b.keys
 	keys := []string{
 		k.Wait(), k.Active(), k.Prioritized(), k.Events(), k.Stalled(),
@@ -99,22 +102,26 @@ func (b *Backend) moveToFinished(ctx context.Context, jobID, target, field, valu
 	finishedOn := nowMillis()
 	packed, err := packMoveToFinishedOpts(opts)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	res, err := b.runScript(ctx, "moveToFinished", keys,
 		jobID, finishedOn, field, value, target,
-		"0",
+		boolToStr(opts.FetchNext),
 		k.KeyPrefix(),
 		packed,
 		fieldsArg(fieldsToUpdate),
 	)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	if code, ok := asInt64(res); ok && code < 0 {
-		return 0, scriptError("moveToFinished", code)
+		return nil, scriptError("moveToFinished", code)
 	}
-	return finishedOn, nil
+	result := &bullmq.FinishResult{FinishedOn: finishedOn}
+	if opts.FetchNext {
+		result.Next = parseFetchResult(res)
+	}
+	return result, nil
 }
 
 func packMoveToFinishedOpts(opts bullmq.FinishOptions) ([]byte, error) {
@@ -173,9 +180,11 @@ func (b *Backend) MoveStalledJobsToWait(ctx context.Context, opts bullmq.Stalled
 	return asStrings(res), nil
 }
 
-// WaitForJob blocks on the marker key until a job shows up, a delayed job comes
-// due, or timeout elapses.
-func (b *Backend) WaitForJob(ctx context.Context, timeout time.Duration) error {
+// WaitForJob blocks on the marker key until a job shows up, a delayed job is
+// scheduled, or timeout elapses. The popped marker tells which: its score is
+// 0 for "a job may be ready" and the due time of the next delayed job
+// otherwise.
+func (b *Backend) WaitForJob(ctx context.Context, timeout time.Duration) (bullmq.WaitResult, error) {
 	if timeout < time.Millisecond {
 		timeout = time.Millisecond
 	}
@@ -184,23 +193,28 @@ func (b *Backend) WaitForJob(ctx context.Context, timeout time.Duration) error {
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return err
+			return bullmq.WaitResult{}, err
 		}
 		wait := time.Until(deadline)
 		if wait <= 0 {
-			return nil
+			return bullmq.WaitResult{}, nil
 		}
 		if wait > blockingPollInterval {
 			wait = blockingPollInterval
 		}
 
+		var score float64
 		var err error
 		if b.blockingOwned {
 			// BZPOPMIN is issued through Do so that sub-second timeouts are
 			// preserved; the typed helper in go-redis rounds them up to a full
 			// second. The dedicated client's read timeout outlasts the block while
 			// still guarding against a dead socket.
-			err = b.blocking.Do(ctx, "bzpopmin", marker, wait.Seconds()).Err()
+			var reply any
+			reply, err = b.blocking.Do(ctx, "bzpopmin", marker, wait.Seconds()).Result()
+			if err == nil {
+				score = markerScore(reply)
+			}
 		} else {
 			// A caller-supplied client we could not clone has its own read
 			// timeout, which raw commands would be subject to. The typed command
@@ -209,18 +223,63 @@ func (b *Backend) WaitForJob(ctx context.Context, timeout time.Duration) error {
 			whole := wait.Truncate(time.Second)
 			if whole < time.Second {
 				if !sleepCtx(ctx, wait) {
-					return ctx.Err()
+					return bullmq.WaitResult{}, ctx.Err()
 				}
-				return nil
+				return bullmq.WaitResult{}, nil
 			}
-			err = b.blocking.BZPopMin(ctx, whole, marker).Err()
+			var z *redis.ZWithKey
+			z, err = b.blocking.BZPopMin(ctx, whole, marker).Result()
+			if err == nil {
+				score = z.Score
+			}
 		}
 		if err == redis.Nil {
 			continue
 		}
-		return err
+		if err != nil {
+			return bullmq.WaitResult{}, err
+		}
+		res := bullmq.WaitResult{Woken: true}
+		if score > 0 {
+			res.NextDelayedAt = int64(score)
+		}
+		return res, nil
 	}
 }
+
+// markerScore extracts the score of a raw `[key, member, score]` BZPOPMIN
+// reply. The score is a string over RESP2 and a double over RESP3.
+func markerScore(reply any) float64 {
+	arr, ok := reply.([]any)
+	if !ok || len(arr) < 3 {
+		return 0
+	}
+	switch v := arr[2].(type) {
+	case float64:
+		return v
+	case int64:
+		return float64(v)
+	case string:
+		f, _ := strconv.ParseFloat(v, 64)
+		return f
+	default:
+		return 0
+	}
+}
+
+// SetRateLimit makes the limiter key report a full window for ttl, as Node's
+// setRateLimit does.
+func (b *Backend) SetRateLimit(ctx context.Context, ttl time.Duration) error {
+	ms := ttl.Milliseconds()
+	if ms < 1 {
+		return configError("rate limit ttl must be at least 1ms, got %v", ttl)
+	}
+	return b.rdb.Set(ctx, b.keys.Limiter(), maxSafeInteger, time.Duration(ms)*time.Millisecond).Err()
+}
+
+// maxSafeInteger is the limiter counter Node stores to saturate the window
+// (Number.MAX_SAFE_INTEGER), so every port reads the same value.
+const maxSafeInteger int64 = 1<<53 - 1
 
 // SignalWork adds the base marker that WaitForJob blocks on.
 func (b *Backend) SignalWork(ctx context.Context) error {

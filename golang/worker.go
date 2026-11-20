@@ -340,7 +340,7 @@ func (w *Worker) waitForJob(ctx context.Context, waitFor time.Duration) bool {
 	if waitFor > 0 && waitFor < timeout {
 		timeout = waitFor
 	}
-	if err := w.backend.WaitForJob(ctx, timeout); err != nil {
+	if _, err := w.backend.WaitForJob(ctx, timeout); err != nil {
 		if ctx.Err() != nil {
 			return false
 		}
@@ -365,17 +365,31 @@ func (w *Worker) moveToActive(ctx context.Context) (*Job, time.Duration, error) 
 		return nil, 0, err
 	}
 	if res == nil || res.Job == nil {
-		var wait time.Duration
-		if res != nil {
-			wait = res.Wait
-		}
-		return nil, wait, nil
+		return nil, fetchWait(res), nil
 	}
 	job := newJob(w.backend, res.Job)
 	job.token = token
 	job.lockDuration = w.opts.LockDuration
 	job.worker = w
 	return job, 0, nil
+}
+
+// fetchWait is how long to wait before fetching again after an empty fetch:
+// the rate limit if any, otherwise the time until the next delayed job is
+// due. Zero means no hint.
+func fetchWait(res *FetchResult) time.Duration {
+	if res == nil {
+		return 0
+	}
+	if res.RateLimitDelay > 0 {
+		return res.RateLimitDelay
+	}
+	if res.NextDelayedAt > 0 {
+		if d := time.Until(time.UnixMilli(res.NextDelayedAt)); d > 0 {
+			return d
+		}
+	}
+	return 0
 }
 
 func (w *Worker) nextToken() string {
@@ -521,12 +535,12 @@ func (w *Worker) safeProcess(ctx context.Context, job *Job) (result any, err err
 }
 
 func (w *Worker) moveToCompleted(ctx context.Context, job *Job, raw []byte) error {
-	finishedOn, err := w.backend.MoveToCompleted(ctx, job.ID, raw, w.finishOptions(job, StateCompleted))
+	res, err := w.backend.MoveToCompleted(ctx, job.ID, raw, w.finishOptions(job, StateCompleted))
 	if err != nil {
 		return err
 	}
 	job.ReturnValue = raw
-	job.FinishedOn = finishedOn
+	job.FinishedOn = res.FinishedOn
 	job.AttemptsMade++
 	return nil
 }
@@ -557,11 +571,11 @@ func (w *Worker) moveToFailed(ctx context.Context, job *Job, cause error) error 
 		}
 	}
 
-	finishedOn, err := w.backend.MoveToFailed(ctx, job.ID, failure, w.finishOptions(job, StateFailed))
+	res, err := w.backend.MoveToFailed(ctx, job.ID, failure, w.finishOptions(job, StateFailed))
 	if err != nil {
 		return err
 	}
-	job.FinishedOn = finishedOn
+	job.FinishedOn = res.FinishedOn
 	job.AttemptsMade++
 	return nil
 }
