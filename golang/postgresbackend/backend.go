@@ -13,7 +13,8 @@
 //
 // The schema (default "bullmq") namespaces every queue, as the key prefix
 // does on Redis. It is created and migrated on first use, with the migration
-// ledger every runtime shares. Queries run on a pgxpool pool shared by the
+// ledger every runtime shares, unless the ledger is up to date or
+// Options.SkipMigrations is set; [Migrate] migrates it as a deployment step. Queries run on a pgxpool pool shared by the
 // backends of the process with the same settings; workers and queue events
 // listeners also hold a dedicated connection for LISTEN.
 //
@@ -80,6 +81,13 @@ type Options struct {
 	// SkipVersionCheck skips the check that the server runs PostgreSQL 13 or
 	// newer.
 	SkipVersionCheck bool
+	// SkipMigrations stops the backends from migrating the schema: it must
+	// already be up to date, migrated with [Migrate] or by another runtime,
+	// or the first operation fails. The backends then only read the
+	// migration ledger, which suits a role that does not own the schema.
+	// Without it, the schema is migrated on first use, which skips every
+	// DDL statement when the ledger is up to date.
+	SkipMigrations bool
 }
 
 // Backend is the [bullmq.Backend] implementation that stores queues in
@@ -94,6 +102,7 @@ type Backend struct {
 	shared           *sharedPool
 	migrateKey       string
 	skipVersionCheck bool
+	skipMigrations   bool
 
 	ready   atomic.Bool
 	readyMu sync.Mutex
@@ -148,6 +157,7 @@ func NewBackend(name string, opts Options, bo bullmq.BackendOptions) (*Backend, 
 		name:             name,
 		schema:           schema,
 		skipVersionCheck: opts.SkipVersionCheck,
+		skipMigrations:   opts.SkipMigrations,
 		closing:          make(chan struct{}),
 		meta:             queuemeta.New(bo.QueueMeta),
 	}

@@ -1091,14 +1091,21 @@ Python, Elixir and .NET ports use, so they all work on the same schema.
 | `PoolSize`         | 20       | Size of the query pool (or the connection string's `pool_max_conns`)                                                                                                                                                                                                 |
 | `Pool`             |          | A `*pgxpool.Pool` to use instead; BullMQ never closes it. Its connections must use the schema as `search_path` (`config.ConnConfig.RuntimeParams["search_path"] = "bullmq"`). Its `OnNotification`/`OnNotice` callbacks aren't used on BullMQ's `LISTEN` connections |
 | `SkipVersionCheck` | `false`  | Skip the PostgreSQL 13 check                                                                                                                                                                                                                                         |
+| `SkipMigrations`   | `false`  | Don't migrate: the schema must already be up to date (see `postgresbackend.Migrate`)                                                                                                                                                                                 |
 
-- **Migrations.** The first operation of the process creates or migrates the
-  schema, in one transaction under the advisory lock every runtime uses, and
-  records it in the shared `migration` ledger. Every new backend checks that
-  ledger: a schema that requires a newer BullMQ major version is refused with
-  a `*postgresbackend.SchemaVersionError`. (The Node.js backend migrates only
-  when asked to, with `runMigrations`; a schema migrated by either is usable
-  by both.)
+- **Migrations.** The first operation of the process reads the shared
+  `migration` ledger and, unless it is up to date, creates or migrates the
+  schema, in one transaction under the advisory lock every runtime uses. Every
+  new backend checks that ledger: a schema that requires a newer BullMQ major
+  version is refused with a `*postgresbackend.SchemaVersionError`. An up-to-date
+  schema needs no DDL, so the application's role doesn't need to own it: it
+  needs `USAGE` and `CREATE` on the schema (each queue gets a job id sequence
+  on first use) and `SELECT`, `INSERT`, `UPDATE` and `DELETE` on its tables
+  and sequences. To migrate as a deployment step instead, as Node.js does with
+  `runMigrations`, call `postgresbackend.Migrate(ctx, opts)` with the owner's
+  role and set `SkipMigrations` in the application, which then refuses a
+  schema that isn't up to date. A schema migrated by any runtime is usable by
+  the others.
 - **Connections.** Backends built with the same `ConnString`, `Schema` and
   `PoolSize` share one pgxpool pool per process. It opens connections on
   demand (`pool_min_conns` and `pool_min_idle_conns` are ignored for these

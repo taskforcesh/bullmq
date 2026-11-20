@@ -30,6 +30,7 @@ func (b *Backend) ForQueue(name string) (bullmq.Backend, error) {
 		shared:           b.shared,
 		migrateKey:       b.migrateKey,
 		skipVersionCheck: b.skipVersionCheck,
+		skipMigrations:   b.skipMigrations,
 		closing:          b.closing,
 	}
 	s.ready.Store(b.ready.Load())

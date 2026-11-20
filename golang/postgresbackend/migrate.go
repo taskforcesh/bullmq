@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/jackc/pgx/v5"
+	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 const (
@@ -141,15 +142,54 @@ func (b *Backend) checkSearchPath(ctx context.Context) error {
 	return nil
 }
 
+// Migrate brings the schema of opts up to date, as the backends do on first
+// use unless Options.SkipMigrations is set. Run it as a deployment step,
+// with a role that may create the schema and own its objects, so that the
+// application can use a role with less privilege and SkipMigrations.
+func Migrate(ctx context.Context, opts Options) error {
+	opts.SkipMigrations = false
+	b, err := NewBackend("migrate", opts, bullmq.BackendOptions{})
+	if err != nil {
+		return err
+	}
+	defer b.Close()
+	return b.ensureReady(ctx)
+}
+
 // migrate brings the schema up to the latest bundled migration, as the other
 // runtimes do: in one transaction, so the migrations and their ledger rows
 // commit together or not at all, serialized per schema by an advisory lock,
-// and recorded in the shared `migration` ledger.
+// and recorded in the shared `migration` ledger. It first reads the ledger,
+// and runs no DDL when it is up to date, so a role that does not own the
+// schema can start.
 func (b *Backend) migrate(ctx context.Context) error {
 	bundled, err := bundledMigrations()
 	if err != nil {
 		return err
 	}
+	if !b.skipVersionCheck {
+		var num string
+		if err := b.pool.QueryRow(ctx, "SELECT current_setting('server_version_num')").Scan(&num); err != nil {
+			return err
+		}
+		n, _ := strconv.Atoi(num)
+		if major := n / 10000; major < minimumServerMajor {
+			return configError("the PostgreSQL backend requires server version %d or newer, but the server reports major version %d; set SkipVersionCheck to bypass this check at your own risk",
+				minimumServerMajor, major)
+		}
+	}
+	latest := 0
+	if len(bundled) > 0 {
+		latest = bundled[len(bundled)-1].version
+	}
+	upToDate, err := b.ledgerUpToDate(ctx, latest)
+	if err != nil || upToDate {
+		return err
+	}
+	if b.skipMigrations {
+		return configError("the PostgreSQL schema %q is not migrated to version %d, and SkipMigrations is set: run postgresbackend.Migrate first", b.schema, latest)
+	}
+
 	conn, err := b.pool.Acquire(ctx)
 	if err != nil {
 		return err
@@ -160,18 +200,6 @@ func (b *Backend) migrate(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback(context.Background()) }()
-
-	if !b.skipVersionCheck {
-		var num string
-		if err := tx.QueryRow(ctx, "SELECT current_setting('server_version_num')").Scan(&num); err != nil {
-			return err
-		}
-		n, _ := strconv.Atoi(num)
-		if major := n / 10000; major < minimumServerMajor {
-			return configError("the PostgreSQL backend requires server version %d or newer, but the server reports major version %d; set SkipVersionCheck to bypass this check at your own risk",
-				minimumServerMajor, major)
-		}
-	}
 
 	quoted := quoteIdent(b.schema)
 	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1, hashtext($2))", migrationLockKey, b.schema); err != nil {
@@ -228,6 +256,29 @@ func (b *Backend) migrate(ctx context.Context) error {
 		}
 	}
 	return tx.Commit(ctx)
+}
+
+// ledgerUpToDate reads the ledger, without DDL, and reports whether it
+// records every migration up to latest, with no ledger upgrade pending. It
+// returns a SchemaVersionError when the schema requires a newer client, and
+// false when the schema or the ledger does not exist yet.
+func (b *Backend) ledgerUpToDate(ctx context.Context, latest int) (bool, error) {
+	var current, required int
+	var pending bool
+	err := b.pool.QueryRow(ctx,
+		"SELECT COALESCE(MAX(version), 0)::int, COALESCE(MAX(min_client_version), $1)::int, "+
+			"COALESCE(bool_or(min_client_version IS NULL), false) FROM "+quoteIdent(b.schema)+".migration",
+		bullmqMajorVersion).Scan(&current, &required, &pending)
+	if isUndefinedTable(err) || isUndefinedColumn(err) || isUndefinedSchema(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if required > bullmqMajorVersion {
+		return false, &SchemaVersionError{Schema: b.schema, Required: required, Supported: bullmqMajorVersion}
+	}
+	return current >= latest && !pending, nil
 }
 
 // ensureLedger creates the shared ledger with the same DDL as the other
