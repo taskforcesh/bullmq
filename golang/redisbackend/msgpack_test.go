@@ -200,6 +200,14 @@ func TestBackoffValueJitter(t *testing.T) {
 	}
 }
 
+// Node.js leaves out a backoff delay that is not set, so Go does too.
+func TestBackoffValueOmitsAnUnsetDelay(t *testing.T) {
+	got := backoffValue(&bullmq.Backoff{Type: bullmq.BackoffExponential})
+	if want := map[string]any{"type": string(bullmq.BackoffExponential)}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("backoffValue = %v, want %v", got, want)
+	}
+}
+
 func TestPackJobOptionsStoresRemovalPoliciesInTheirForm(t *testing.T) {
 	for _, tc := range []struct {
 		policy *bullmq.RemoveOnFinish

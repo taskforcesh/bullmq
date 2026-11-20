@@ -58,6 +58,24 @@ func TestEncodeOptsStoresTheLongNames(t *testing.T) {
 	}
 }
 
+// Node.js leaves out a backoff delay that is not set; so does the stored
+// JSON, as on Redis.
+func TestEncodeOptsOmitsAnUnsetBackoffDelay(t *testing.T) {
+	raw, err := encodeOpts(&bullmq.JobOptions{Backoff: &bullmq.Backoff{Type: bullmq.BackoffExponential}})
+	if err != nil {
+		t.Fatalf("encodeOpts: %v", err)
+	}
+	var stored struct {
+		Backoff map[string]any `json:"backoff"`
+	}
+	if err := json.Unmarshal(raw, &stored); err != nil {
+		t.Fatalf("stored opts are not JSON: %v", err)
+	}
+	if want := map[string]any{"type": "exponential"}; !reflect.DeepEqual(stored.Backoff, want) {
+		t.Fatalf("stored backoff = %v, want %v", stored.Backoff, want)
+	}
+}
+
 func TestDecodeOptsReadsOptionsWrittenByNode(t *testing.T) {
 	// The shape the Node.js PostgreSQL backend stores: JobsOptions as is.
 	raw := []byte(`{"attempts":2,"keepLogs":4,"deduplication":{"id":"x","ttl":1000},` +

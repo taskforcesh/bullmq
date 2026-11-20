@@ -34,12 +34,14 @@ func packMsgpack(v any) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// backoffValue builds the `{type, delay}` map the Lua commands expect, with
-// `jitter` added only when it is enabled.
+// backoffValue builds the stored `{type, delay, jitter}` backoff map. As in
+// Node.js, which leaves out an undefined delay, `delay` and `jitter` are only
+// added when they are set; the PostgreSQL backend's JSON encoding omits them
+// too.
 func backoffValue(b *bullmq.Backoff) map[string]any {
-	m := map[string]any{
-		"type":  string(b.Type),
-		"delay": b.Delay,
+	m := map[string]any{"type": string(b.Type)}
+	if b.Delay != 0 {
+		m["delay"] = b.Delay
 	}
 	if b.Jitter > 0 {
 		m["jitter"] = b.Jitter
