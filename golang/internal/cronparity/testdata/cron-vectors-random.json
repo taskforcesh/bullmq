@@ -1,0 +1,5209 @@
+{
+  "generatedBy": "cron-parser@5.10.5",
+  "generator": "random DST-focused cases (seed 7), a stratified sample of 20000 that all matched",
+  "vectors": [
+    {
+      "id": "r147",
+      "pattern": "4 19 5,13,1 */3 3,7,0,2",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2027-04-02T20:37:38.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "CronDayOfWeek Validation error, duplicate values found: 0"
+    },
+    {
+      "id": "r183",
+      "pattern": "12-56 * 5-24/2 * 7,0,4,5",
+      "tz": "Europe/Berlin",
+      "currentDate": "2027-03-29T11:59:26.924Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "CronDayOfWeek Validation error, duplicate values found: 0"
+    },
+    {
+      "id": "r364",
+      "pattern": "48 */24 23-23/3 8 3/1 1,0,5,7",
+      "tz": "Europe/London",
+      "currentDate": "2026-10-24T12:02:05.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "CronDayOfWeek Validation error, duplicate values found: 0"
+    },
+    {
+      "id": "r558",
+      "pattern": "0 40 * * mar-oct 7,2,0",
+      "tz": "Asia/Gaza",
+      "currentDate": "2027-10-28T11:48:21.568Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "CronDayOfWeek Validation error, duplicate values found: 0"
+    },
+    {
+      "id": "r564",
+      "pattern": "43 * * JAN 0,4,1,7",
+      "tz": "Asia/Gaza",
+      "currentDate": "2018-10-26T22:11:38.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "CronDayOfWeek Validation error, duplicate values found: 0"
+    },
+    {
+      "id": "r1860",
+      "pattern": "6,32 22 * JAN 0,1,7,5",
+      "tz": "America/Mexico_City",
+      "currentDate": "2026-10-11T22:24:06.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "CronDayOfWeek Validation error, duplicate values found: 0"
+    },
+    {
+      "id": "r1959",
+      "pattern": "25-53 53 * * * 6,0,7,3",
+      "tz": "Australia/Sydney",
+      "currentDate": "2027-10-03T16:51:11.858Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "CronDayOfWeek Validation error, duplicate values found: 0"
+    },
+    {
+      "id": "r1967",
+      "pattern": "13-24 14-19 * * 6,7,0",
+      "tz": "Asia/Gaza",
+      "currentDate": "2027-10-29T22:39:08.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "CronDayOfWeek Validation error, duplicate values found: 0"
+    },
+    {
+      "id": "r17050",
+      "pattern": "39 45 * 31 9-9 *",
+      "tz": "Europe/Berlin",
+      "currentDate": "2026-04-30T16:41:48.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Invalid explicit day of month definition"
+    },
+    {
+      "id": "r89",
+      "pattern": "2 14,4,10,11 */9 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2018-03-30T08:14:21.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r193",
+      "pattern": "42 3 2 4 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-10-02T12:23:01.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793718222000 },
+        { "epochMs": 1796310222000 },
+        { "epochMs": 1798988622000 },
+        { "epochMs": 1801667022000 },
+        { "epochMs": 1804086222000 }
+      ],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r1157",
+      "pattern": "26 13,8,5,6 * * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2027-04-02T18:28:11.181Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1806693960000 },
+        { "epochMs": 1806701160000 },
+        { "epochMs": 1806719160000 }
+      ],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r1822",
+      "pattern": "7 * 26,5,1,28 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-04-04T12:44:24.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1775308020000 },
+        { "epochMs": 1775311620000 }
+      ],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r1825",
+      "pattern": "53 * * * *",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2018-03-31T08:13:01.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522487280000 },
+        { "epochMs": 1522490880000 },
+        { "epochMs": 1522494480000 },
+        { "epochMs": 1522498080000 },
+        { "epochMs": 1522501680000 }
+      ],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r2094",
+      "pattern": "*/21 8 14-21 */10 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2018-03-31T09:39:41.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522490880000 },
+        { "epochMs": 1522490901000 },
+        { "epochMs": 1522490922000 }
+      ],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r3616",
+      "pattern": "33 17 * */3 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2027-04-03T01:49:18.000Z",
+      "startDate": null,
+      "endDate": "2027-04-04T12:49:18.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1806758253000 },
+        { "epochMs": 1806761853000 }
+      ],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r5338",
+      "pattern": "*/7 16-22/3 */2 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-04-03T21:44:02.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r5460",
+      "pattern": "*/23 11/3 26-28 9,4 0",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-10-02T13:35:40.680Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r6276",
+      "pattern": "14 */10 */12 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2018-03-31T10:16:07.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [{ "epochMs": 1522502040000 }],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r6860",
+      "pattern": "29 8 */2 * * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2027-04-03T09:23:40.443Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1806750509000 },
+        { "epochMs": 1806757709000 }
+      ],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r7089",
+      "pattern": "0,4,46,32 */6 * * 7-7",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-04-02T08:55:37.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1775307600000 },
+        { "epochMs": 1775307840000 },
+        { "epochMs": 1775309520000 },
+        { "epochMs": 1775310360000 }
+      ],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r11108",
+      "pattern": "* 9,16 * * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2018-03-31T06:24:18.824Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r11359",
+      "pattern": "16 4 * mar-oct sat,sun",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2027-04-02T14:40:54.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [{ "epochMs": 1806686160000 }],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r15320",
+      "pattern": "3 19 * 4 1-7/2",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-10-04T00:22:54.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [{ "epochMs": 1806652980000 }],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r18430",
+      "pattern": "18 22 * * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2027-04-03T10:56:09.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [{ "epochMs": 1806751080000 }],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r18483",
+      "pattern": "21 43,19,59,41 */10 */6 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2018-03-31T13:12:50.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522502361000 },
+        { "epochMs": 1522503681000 },
+        { "epochMs": 1522503801000 },
+        { "epochMs": 1522504761000 }
+      ],
+      "expectedError": "Invalid expression, loop limit exceeded"
+    },
+    {
+      "id": "r13",
+      "pattern": "*/21 */16 * * * 5#3",
+      "tz": "America/New_York",
+      "currentDate": "2027-11-05T23:55:51.381Z",
+      "startDate": null,
+      "endDate": "2027-11-09T00:55:51.381Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r34",
+      "pattern": "13 47 12-23/1 * * fri#2",
+      "tz": "Europe/Madrid",
+      "currentDate": "2026-03-28T06:16:36.000Z",
+      "startDate": null,
+      "endDate": "2026-03-30T21:16:36.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r70",
+      "pattern": "0/10 * 29,27 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2027-04-02T10:16:50.746Z",
+      "startDate": null,
+      "endDate": "2027-04-06T00:16:50.746Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r84",
+      "pattern": "26 */3 * * * 4L",
+      "tz": "Europe/Madrid",
+      "currentDate": "2027-10-31T11:03:50.201Z",
+      "startDate": null,
+      "endDate": "2027-11-14T13:03:50.201Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r92",
+      "pattern": "41 8 L * *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2027-03-28T00:41:38.000Z",
+      "startDate": null,
+      "endDate": "2027-03-28T22:41:38.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r114",
+      "pattern": "*/19 22 L * *",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-12-23T09:10:12.000Z",
+      "startDate": null,
+      "endDate": "2027-01-08T06:10:12.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1798734600000 },
+        { "epochMs": 1798735740000 },
+        { "epochMs": 1798736880000 },
+        { "epochMs": 1798738020000 }
+      ],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r127",
+      "pattern": "4 */4 L * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-10-02T04:02:41.643Z",
+      "startDate": null,
+      "endDate": "2026-10-05T17:02:41.643Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r142",
+      "pattern": "53-57 19 * * * 4L",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-10-02T20:23:41.000Z",
+      "startDate": null,
+      "endDate": "2026-10-11T23:23:41.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r145",
+      "pattern": "27 14-15 * * 5-6/4",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2026-04-05T16:25:35.000Z",
+      "startDate": null,
+      "endDate": "2026-04-13T20:25:35.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1775785320000 },
+        { "epochMs": 1775788920000 }
+      ],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r191",
+      "pattern": "* 1 26,15 * *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2026-03-27T01:51:48.000Z",
+      "startDate": null,
+      "endDate": "2026-04-01T15:51:48.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r218",
+      "pattern": "15 */9 L * *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2026-03-29T01:40:06.764Z",
+      "startDate": null,
+      "endDate": "2026-04-09T02:40:06.764Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774905300000 },
+        { "epochMs": 1774937700000 },
+        { "epochMs": 1774970100000 }
+      ],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r219",
+      "pattern": "18 7 22/9 * mar-oct MON-FRI",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-11-10T03:22:58.000Z",
+      "startDate": null,
+      "endDate": "2026-11-21T03:22:58.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r224",
+      "pattern": "27,2 7 * * 2L",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-11-22T17:36:24.000Z",
+      "startDate": null,
+      "endDate": "2026-11-27T09:36:24.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1795483920000 },
+        { "epochMs": 1795485420000 }
+      ],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r255",
+      "pattern": "*/26 * 10-17 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2027-10-01T18:50:31.000Z",
+      "startDate": null,
+      "endDate": "2027-10-03T03:50:31.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r268",
+      "pattern": "12 13-17 * * 0L",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-09-21T11:29:01.000Z",
+      "startDate": null,
+      "endDate": "2018-10-03T00:29:01.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1538300520000 },
+        { "epochMs": 1538304120000 },
+        { "epochMs": 1538307720000 },
+        { "epochMs": 1538311320000 },
+        { "epochMs": 1538314920000 }
+      ],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r273",
+      "pattern": "41-59/4 6 29-29 * *",
+      "tz": "Asia/Tehran",
+      "currentDate": "2026-02-08T08:08:53.000Z",
+      "startDate": null,
+      "endDate": "2026-02-22T01:08:53.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r275",
+      "pattern": "35 8-10 * * 3#1",
+      "tz": "Africa/Cairo",
+      "currentDate": "2027-04-28T19:47:30.116Z",
+      "startDate": null,
+      "endDate": "2027-05-04T00:47:30.116Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r298",
+      "pattern": "37 * * * fri#4",
+      "tz": "America/New_York",
+      "currentDate": "2026-10-30T23:59:53.000Z",
+      "startDate": null,
+      "endDate": "2026-11-08T17:59:53.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r301",
+      "pattern": "12/2 7 * mar-oct 7-7",
+      "tz": "Europe/Berlin",
+      "currentDate": "2018-10-28T23:06:22.000Z",
+      "startDate": null,
+      "endDate": "2018-11-10T05:06:22.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r309",
+      "pattern": "59 1 6 10-11 * *",
+      "tz": "Asia/Tehran",
+      "currentDate": "2026-04-23T06:54:30.000Z",
+      "startDate": null,
+      "endDate": "2026-05-05T08:54:30.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r374",
+      "pattern": "6 * 12 * * 6L",
+      "tz": "America/New_York",
+      "currentDate": "2018-03-09T21:06:01.000Z",
+      "startDate": null,
+      "endDate": "2018-03-26T04:06:01.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r378",
+      "pattern": "21 12,27 12,13,20,18 * * 1L",
+      "tz": "America/Santiago",
+      "currentDate": "2026-09-07T14:07:21.205Z",
+      "startDate": "2026-09-10T05:07:21.205Z",
+      "endDate": "2026-09-14T23:07:21.205Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r431",
+      "pattern": "12,37,51 */2 */3 8-11/1 *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-04-03T06:27:42.000Z",
+      "startDate": null,
+      "endDate": "2026-04-03T15:27:42.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r438",
+      "pattern": "18 * 15 * * fri#4",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-09-28T03:56:03.521Z",
+      "startDate": null,
+      "endDate": "2018-10-09T07:56:03.521Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r443",
+      "pattern": "21,2,57 17 L * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2027-03-27T02:56:38.449Z",
+      "startDate": "2027-03-27T22:56:38.449Z",
+      "endDate": "2027-04-04T17:56:38.449Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1806505320000 },
+        { "epochMs": 1806506460000 },
+        { "epochMs": 1806508620000 }
+      ],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r461",
+      "pattern": "* 57-59 * 16-29 * *",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-04-01T19:04:25.000Z",
+      "startDate": null,
+      "endDate": "2018-04-10T02:04:25.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r470",
+      "pattern": "31 21,57 */11 L * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2027-11-01T08:27:45.000Z",
+      "startDate": null,
+      "endDate": "2027-11-14T22:27:45.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r478",
+      "pattern": "* 15,11,23 25 * *",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-10-30T05:32:42.000Z",
+      "startDate": null,
+      "endDate": "2026-11-04T16:32:42.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r481",
+      "pattern": "31 22-22 25-31 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2027-04-04T23:22:03.106Z",
+      "startDate": null,
+      "endDate": "2027-04-16T11:22:03.106Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r487",
+      "pattern": "34 19-20/2 L * *",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-10-29T07:34:47.000Z",
+      "startDate": null,
+      "endDate": "2026-11-04T01:34:47.000Z",
+      "requestedCount": 6,
+      "expectedNext": [{ "epochMs": 1793468040000 }],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r540",
+      "pattern": "* 18,59,4 16-23/3 * * 6L",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-04-01T12:46:17.000Z",
+      "startDate": "2018-04-03T13:46:17.000Z",
+      "endDate": "2018-04-10T02:46:17.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r541",
+      "pattern": "* 4,0,12 * JAN sat,sun",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-03-21T11:01:29.834Z",
+      "startDate": null,
+      "endDate": "2018-03-31T19:01:29.834Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r542",
+      "pattern": "50 */8 * 5 3,1,6",
+      "tz": "UTC",
+      "currentDate": "2026-12-18T02:04:38.000Z",
+      "startDate": null,
+      "endDate": "2027-01-02T08:04:38.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r614",
+      "pattern": "20 */6 * * MON#1",
+      "tz": "America/New_York",
+      "currentDate": "2026-10-31T12:11:20.587Z",
+      "startDate": null,
+      "endDate": "2026-11-11T19:11:20.587Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793596800000 },
+        { "epochMs": 1793618400000 },
+        { "epochMs": 1793640000000 },
+        { "epochMs": 1793661600000 }
+      ],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r629",
+      "pattern": "45 0,3,14,20 */10 * *",
+      "tz": "Europe/Berlin",
+      "currentDate": "2026-03-28T12:05:49.000Z",
+      "startDate": null,
+      "endDate": "2026-03-31T16:05:49.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774910700000 },
+        { "epochMs": 1774921500000 },
+        { "epochMs": 1774961100000 }
+      ],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r641",
+      "pattern": "56 * * * 5L",
+      "tz": "UTC",
+      "currentDate": "2026-09-19T21:54:34.000Z",
+      "startDate": null,
+      "endDate": "2026-09-21T08:54:34.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r652",
+      "pattern": "47 */2 * * 0L",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-03-31T20:20:51.032Z",
+      "startDate": null,
+      "endDate": "2018-04-10T18:20:51.032Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r662",
+      "pattern": "40 46 * * mar-oct 4",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-10-28T00:38:50.000Z",
+      "startDate": null,
+      "endDate": "2018-11-10T20:38:50.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r669",
+      "pattern": "* 20-20 1/6 * *",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-03-14T11:09:45.000Z",
+      "startDate": null,
+      "endDate": "2026-03-17T16:09:45.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r680",
+      "pattern": "30 2 * 11-11/2 4/2",
+      "tz": "Europe/London",
+      "currentDate": "2026-03-28T19:55:25.759Z",
+      "startDate": null,
+      "endDate": "2026-04-04T05:55:25.759Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r686",
+      "pattern": "* */9 15,26 * *",
+      "tz": "America/Santiago",
+      "currentDate": "2026-04-05T09:06:37.000Z",
+      "startDate": "2026-04-06T13:06:37.000Z",
+      "endDate": "2026-04-14T22:06:37.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r696",
+      "pattern": "6 11/3 * * 7L",
+      "tz": "Europe/Dublin",
+      "currentDate": "2026-10-23T18:05:33.000Z",
+      "startDate": null,
+      "endDate": "2026-11-01T13:05:33.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1792926360000 },
+        { "epochMs": 1792937160000 },
+        { "epochMs": 1792947960000 },
+        { "epochMs": 1792958760000 },
+        { "epochMs": 1792969560000 }
+      ],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r724",
+      "pattern": "17 */5 * mar-oct *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2018-10-26T05:13:56.842Z",
+      "startDate": null,
+      "endDate": "2018-10-26T20:13:56.842Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1540538220000 },
+        { "epochMs": 1540556220000 },
+        { "epochMs": 1540574220000 }
+      ],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r731",
+      "pattern": "* * */2 1 3/7",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2018-10-05T14:01:30.000Z",
+      "startDate": null,
+      "endDate": "2018-10-08T22:01:30.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r738",
+      "pattern": "34 31 */7 * * *#5",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-09-21T16:13:59.000Z",
+      "startDate": null,
+      "endDate": "2018-09-29T02:13:59.000Z",
+      "requestedCount": 6,
+      "expectedNext": [{ "epochMs": 1538168494000 }],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r748",
+      "pattern": "17 20 * 26 * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2018-10-27T10:36:02.000Z",
+      "startDate": null,
+      "endDate": "2018-11-08T22:36:02.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r764",
+      "pattern": "*/6 8-16/3 * * 0L",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-04-28T14:54:02.000Z",
+      "startDate": null,
+      "endDate": "2026-05-03T02:54:02.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r774",
+      "pattern": "22 * 8,3,19 * *",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-09-28T02:49:11.051Z",
+      "startDate": null,
+      "endDate": "2018-09-30T07:49:11.051Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r785",
+      "pattern": "* */9 * * *#3",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-06-03T17:24:55.000Z",
+      "startDate": null,
+      "endDate": "2026-06-05T14:24:55.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r871",
+      "pattern": "19 13 * L * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-04-05T23:28:03.000Z",
+      "startDate": null,
+      "endDate": "2026-04-09T05:28:03.000Z",
+      "requestedCount": 6,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "r6",
+      "pattern": "31-36 20/2 * * 7#2",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-08-11T09:33:19.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1789320660000 },
+        { "epochMs": 1789320720000 },
+        { "epochMs": 1789320780000 },
+        { "epochMs": 1789320840000 },
+        { "epochMs": 1789320900000 },
+        { "epochMs": 1789320960000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r30",
+      "pattern": "4 1 L * *",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-10-29T10:24:34.322Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793401440000 },
+        { "epochMs": 1795993440000 },
+        { "epochMs": 1798671840000 },
+        { "epochMs": 1801350240000 },
+        { "epochMs": 1803769440000 },
+        { "epochMs": 1806447840000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r47",
+      "pattern": "18 * L * *",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-07-14T21:40:34.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1785446280000 },
+        { "epochMs": 1785449880000 },
+        { "epochMs": 1785453480000 },
+        { "epochMs": 1785457080000 },
+        { "epochMs": 1785460680000 },
+        { "epochMs": 1785464280000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r86",
+      "pattern": "* */7 * * *#4",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-04-24T06:12:10.000Z",
+      "startDate": null,
+      "endDate": "2026-04-26T00:12:10.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1777028400000 },
+        { "epochMs": 1777028460000 },
+        { "epochMs": 1777028520000 },
+        { "epochMs": 1777028580000 },
+        { "epochMs": 1777028640000 },
+        { "epochMs": 1777028700000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r130",
+      "pattern": "51 28 5,0,17,22 * * MON#5",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-04-24T04:54:45.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1782682131000 },
+        { "epochMs": 1782700131000 },
+        { "epochMs": 1782743331000 },
+        { "epochMs": 1782761331000 },
+        { "epochMs": 1788125331000 },
+        { "epochMs": 1788143331000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r134",
+      "pattern": "31 37 10,16,11 * * *#2",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-07-15T22:55:45.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1786174651000 },
+        { "epochMs": 1786178251000 },
+        { "epochMs": 1786196251000 },
+        { "epochMs": 1786261051000 },
+        { "epochMs": 1786264651000 },
+        { "epochMs": 1786282651000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r149",
+      "pattern": "25 23-42 11-19/4 * * 1L",
+      "tz": "Africa/Cairo",
+      "currentDate": "2027-10-28T05:45:22.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1827480205000 },
+        { "epochMs": 1827480265000 },
+        { "epochMs": 1827480325000 },
+        { "epochMs": 1827480385000 },
+        { "epochMs": 1827480445000 },
+        { "epochMs": 1827480505000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r159",
+      "pattern": "17 */9 * * fri#4",
+      "tz": "Africa/Cairo",
+      "currentDate": "2027-04-29T05:56:46.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1811452620000 },
+        { "epochMs": 1811485020000 },
+        { "epochMs": 1811517420000 },
+        { "epochMs": 1813871820000 },
+        { "epochMs": 1813904220000 },
+        { "epochMs": 1813936620000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r160",
+      "pattern": "47 * * */1 * *",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-04-24T17:04:54.000Z",
+      "startDate": null,
+      "endDate": "2026-05-06T14:04:54.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1777050347000 },
+        { "epochMs": 1777050407000 },
+        { "epochMs": 1777050467000 },
+        { "epochMs": 1777050527000 },
+        { "epochMs": 1777050587000 },
+        { "epochMs": 1777050647000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r161",
+      "pattern": "27 39 12/10 1-6/1 3/7 6,5,7",
+      "tz": "Africa/Cairo",
+      "currentDate": "2027-04-29T13:50:07.989Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1822383567000 },
+        { "epochMs": 1822419567000 },
+        { "epochMs": 1822469967000 },
+        { "epochMs": 1822505967000 },
+        { "epochMs": 1822556367000 },
+        { "epochMs": 1822592367000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r172",
+      "pattern": "10 19 3,1,17,16 * *",
+      "tz": "Africa/Cairo",
+      "currentDate": "2027-10-27T21:18:17.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1825089000000 },
+        { "epochMs": 1825261800000 },
+        { "epochMs": 1826385000000 },
+        { "epochMs": 1826471400000 },
+        { "epochMs": 1827681000000 },
+        { "epochMs": 1827853800000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r181",
+      "pattern": "*/24 * 31,29,18 * *",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-03-19T00:40:06.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774735200000 },
+        { "epochMs": 1774736640000 },
+        { "epochMs": 1774738080000 },
+        { "epochMs": 1774738800000 },
+        { "epochMs": 1774740240000 },
+        { "epochMs": 1774741680000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r182",
+      "pattern": "32 22,9,21,7 * * 6L",
+      "tz": "Africa/Cairo",
+      "currentDate": "2027-04-28T10:28:06.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1811565120000 },
+        { "epochMs": 1811572320000 },
+        { "epochMs": 1811615520000 },
+        { "epochMs": 1811619120000 },
+        { "epochMs": 1813984320000 },
+        { "epochMs": 1813991520000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r196",
+      "pattern": "28-30/3 * * * *",
+      "tz": "Africa/Cairo",
+      "currentDate": "2026-10-29T08:19:07.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793262480000 },
+        { "epochMs": 1793266080000 },
+        { "epochMs": 1793269680000 },
+        { "epochMs": 1793273280000 },
+        { "epochMs": 1793276880000 },
+        { "epochMs": 1793280480000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r19",
+      "pattern": "* * 25,17,24 8,9,10 6,5,1,2",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-10-28T03:38:49.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1540697940000 },
+        { "epochMs": 1540698000000 },
+        { "epochMs": 1540698060000 },
+        { "epochMs": 1540698120000 },
+        { "epochMs": 1540698180000 },
+        { "epochMs": 1540698240000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r27",
+      "pattern": "9 12/5 * * *#3",
+      "tz": "America/Mexico_City",
+      "currentDate": "2026-01-31T16:37:07.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1771178940000 },
+        { "epochMs": 1771196940000 },
+        { "epochMs": 1771214940000 },
+        { "epochMs": 1771265340000 },
+        { "epochMs": 1771283340000 },
+        { "epochMs": 1771301340000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r32",
+      "pattern": "19-34 23 * * *",
+      "tz": "America/Mexico_City",
+      "currentDate": "2026-02-05T13:28:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1770355140000 },
+        { "epochMs": 1770355200000 },
+        { "epochMs": 1770355260000 },
+        { "epochMs": 1770355320000 },
+        { "epochMs": 1770355380000 },
+        { "epochMs": 1770355440000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r49",
+      "pattern": "* */4 * * 1#5",
+      "tz": "America/Mexico_City",
+      "currentDate": "2026-09-07T22:55:53.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1796018400000 },
+        { "epochMs": 1796018460000 },
+        { "epochMs": 1796018520000 },
+        { "epochMs": 1796018580000 },
+        { "epochMs": 1796018640000 },
+        { "epochMs": 1796018700000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r96",
+      "pattern": "* 30 6-14 2 * *",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-04-02T09:11:38.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522668600000 },
+        { "epochMs": 1522668601000 },
+        { "epochMs": 1522668602000 },
+        { "epochMs": 1522668603000 },
+        { "epochMs": 1522668604000 },
+        { "epochMs": 1522668605000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r111",
+      "pattern": "32 * 4 10,8,11 3/2",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-10-27T18:05:58.643Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1540704720000 },
+        { "epochMs": 1540708320000 },
+        { "epochMs": 1540711920000 },
+        { "epochMs": 1540715520000 },
+        { "epochMs": 1540719120000 },
+        { "epochMs": 1540722720000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r137",
+      "pattern": "*/18 */9 L * *",
+      "tz": "America/Mexico_City",
+      "currentDate": "2026-03-13T00:50:35.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774936800000 },
+        { "epochMs": 1774937880000 },
+        { "epochMs": 1774938960000 },
+        { "epochMs": 1774940040000 },
+        { "epochMs": 1774969200000 },
+        { "epochMs": 1774970280000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r141",
+      "pattern": "* 7 */9 * * *",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-04-01T23:45:44.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522645620000 },
+        { "epochMs": 1522645621000 },
+        { "epochMs": 1522645622000 },
+        { "epochMs": 1522645623000 },
+        { "epochMs": 1522645624000 },
+        { "epochMs": 1522645625000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r176",
+      "pattern": "3 * * * *",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-04-02T07:15:05.000Z",
+      "startDate": null,
+      "endDate": "2018-04-18T10:15:05.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522656180000 },
+        { "epochMs": 1522659780000 },
+        { "epochMs": 1522663380000 },
+        { "epochMs": 1522666980000 },
+        { "epochMs": 1522670580000 },
+        { "epochMs": 1522674180000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r185",
+      "pattern": "*/28 * 21 * *",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-04-01T02:02:35.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1524286800000 },
+        { "epochMs": 1524288480000 },
+        { "epochMs": 1524290160000 },
+        { "epochMs": 1524290400000 },
+        { "epochMs": 1524292080000 },
+        { "epochMs": 1524293760000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r253",
+      "pattern": "13,12 */5 * mar-oct MON-FRI",
+      "tz": "America/Mexico_City",
+      "currentDate": "2026-07-30T06:56:29.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1785409920000 },
+        { "epochMs": 1785409980000 },
+        { "epochMs": 1785427920000 },
+        { "epochMs": 1785427980000 },
+        { "epochMs": 1785445920000 },
+        { "epochMs": 1785445980000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r283",
+      "pattern": "*/18 * * * *",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-04-01T03:40:44.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522554840000 },
+        { "epochMs": 1522555200000 },
+        { "epochMs": 1522556280000 },
+        { "epochMs": 1522557360000 },
+        { "epochMs": 1522558440000 },
+        { "epochMs": 1522558800000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r300",
+      "pattern": "16 30 0-9 * 5 */3",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-10-28T22:27:01.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1556688616000 },
+        { "epochMs": 1556692216000 },
+        { "epochMs": 1556695816000 },
+        { "epochMs": 1556699416000 },
+        { "epochMs": 1556703016000 },
+        { "epochMs": 1556706616000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r347",
+      "pattern": "12-45 * * * */1",
+      "tz": "America/Mexico_City",
+      "currentDate": "2018-04-02T07:57:06.000Z",
+      "startDate": "2018-04-04T14:57:06.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522854720000 },
+        { "epochMs": 1522854780000 },
+        { "epochMs": 1522854840000 },
+        { "epochMs": 1522854900000 },
+        { "epochMs": 1522854960000 },
+        { "epochMs": 1522855020000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r0",
+      "pattern": "11-29 * 8-21/2 * *",
+      "tz": "America/New_York",
+      "currentDate": "2027-11-07T20:19:48.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1825650660000 },
+        { "epochMs": 1825650720000 },
+        { "epochMs": 1825650780000 },
+        { "epochMs": 1825650840000 },
+        { "epochMs": 1825650900000 },
+        { "epochMs": 1825650960000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r7",
+      "pattern": "31 */9 * * 1-7/2",
+      "tz": "America/New_York",
+      "currentDate": "2018-03-10T02:43:13.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1520746260000 },
+        { "epochMs": 1520775060000 },
+        { "epochMs": 1520807460000 },
+        { "epochMs": 1520829060000 },
+        { "epochMs": 1520861460000 },
+        { "epochMs": 1520893860000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r41",
+      "pattern": "35 26 * 24-27/3 * *",
+      "tz": "America/New_York",
+      "currentDate": "2026-07-12T05:50:59.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1784867195000 },
+        { "epochMs": 1784870795000 },
+        { "epochMs": 1784874395000 },
+        { "epochMs": 1784877995000 },
+        { "epochMs": 1784881595000 },
+        { "epochMs": 1784885195000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r66",
+      "pattern": "14-53 */4 30-30 * *",
+      "tz": "America/New_York",
+      "currentDate": "2026-03-07T15:34:24.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774844040000 },
+        { "epochMs": 1774844100000 },
+        { "epochMs": 1774844160000 },
+        { "epochMs": 1774844220000 },
+        { "epochMs": 1774844280000 },
+        { "epochMs": 1774844340000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r72",
+      "pattern": "25 9,22,12,3 * * *",
+      "tz": "America/New_York",
+      "currentDate": "2027-03-14T14:19:10.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1805041500000 },
+        { "epochMs": 1805077500000 },
+        { "epochMs": 1805095500000 },
+        { "epochMs": 1805117100000 },
+        { "epochMs": 1805127900000 },
+        { "epochMs": 1805163900000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r76",
+      "pattern": "24-24/1 */5 * mar-oct 1-7/2",
+      "tz": "America/New_York",
+      "currentDate": "2018-03-10T09:09:49.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1520745840000 },
+        { "epochMs": 1520760240000 },
+        { "epochMs": 1520778240000 },
+        { "epochMs": 1520796240000 },
+        { "epochMs": 1520814240000 },
+        { "epochMs": 1520828640000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r88",
+      "pattern": "*/6 * 10,17 * *",
+      "tz": "America/New_York",
+      "currentDate": "2026-11-29T16:55:32.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1796878800000 },
+        { "epochMs": 1796879160000 },
+        { "epochMs": 1796879520000 },
+        { "epochMs": 1796879880000 },
+        { "epochMs": 1796880240000 },
+        { "epochMs": 1796880600000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r110",
+      "pattern": "58 * 21-28 * *",
+      "tz": "America/New_York",
+      "currentDate": "2026-03-07T23:59:41.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774069080000 },
+        { "epochMs": 1774072680000 },
+        { "epochMs": 1774076280000 },
+        { "epochMs": 1774079880000 },
+        { "epochMs": 1774083480000 },
+        { "epochMs": 1774087080000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r116",
+      "pattern": "13 * * * MON#1",
+      "tz": "America/New_York",
+      "currentDate": "2027-03-14T22:28:08.000Z",
+      "startDate": "2027-03-15T04:28:08.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1806898380000 },
+        { "epochMs": 1806901980000 },
+        { "epochMs": 1806905580000 },
+        { "epochMs": 1806909180000 },
+        { "epochMs": 1806912780000 },
+        { "epochMs": 1806916380000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r118",
+      "pattern": "29 * * * fri#5",
+      "tz": "America/New_York",
+      "currentDate": "2027-11-08T17:44:53.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1830230940000 },
+        { "epochMs": 1830234540000 },
+        { "epochMs": 1830238140000 },
+        { "epochMs": 1830241740000 },
+        { "epochMs": 1830245340000 },
+        { "epochMs": 1830248940000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r121",
+      "pattern": "19,2,58 5 20,8,9 * *",
+      "tz": "America/New_York",
+      "currentDate": "2018-03-12T12:30:30.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1521536520000 },
+        { "epochMs": 1521537540000 },
+        { "epochMs": 1521539880000 },
+        { "epochMs": 1523178120000 },
+        { "epochMs": 1523179140000 },
+        { "epochMs": 1523181480000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r128",
+      "pattern": "23 52 */3 * * *",
+      "tz": "America/New_York",
+      "currentDate": "2026-10-27T09:38:22.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793098343000 },
+        { "epochMs": 1793109143000 },
+        { "epochMs": 1793119943000 },
+        { "epochMs": 1793130743000 },
+        { "epochMs": 1793141543000 },
+        { "epochMs": 1793152343000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r129",
+      "pattern": "* 1 * * 1#5",
+      "tz": "America/New_York",
+      "currentDate": "2026-11-02T16:36:14.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1796018400000 },
+        { "epochMs": 1796018460000 },
+        { "epochMs": 1796018520000 },
+        { "epochMs": 1796018580000 },
+        { "epochMs": 1796018640000 },
+        { "epochMs": 1796018700000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r138",
+      "pattern": "41 * 2,10,14 * *",
+      "tz": "America/New_York",
+      "currentDate": "2018-03-10T17:25:05.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1520703660000 },
+        { "epochMs": 1520707260000 },
+        { "epochMs": 1520710860000 },
+        { "epochMs": 1520714460000 },
+        { "epochMs": 1520718060000 },
+        { "epochMs": 1520721660000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r57",
+      "pattern": "42 */10 * * 3L",
+      "tz": "America/Santiago",
+      "currentDate": "2027-09-06T08:05:15.559Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1822189320000 },
+        { "epochMs": 1822225320000 },
+        { "epochMs": 1822261320000 },
+        { "epochMs": 1824608520000 },
+        { "epochMs": 1824644520000 },
+        { "epochMs": 1824680520000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r102",
+      "pattern": "52-54/3 * * * MON#1",
+      "tz": "America/Santiago",
+      "currentDate": "2026-09-05T07:18:28.330Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1788753120000 },
+        { "epochMs": 1788756720000 },
+        { "epochMs": 1788760320000 },
+        { "epochMs": 1788763920000 },
+        { "epochMs": 1788767520000 },
+        { "epochMs": 1788771120000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r112",
+      "pattern": "6 30 * L * *",
+      "tz": "America/Santiago",
+      "currentDate": "2018-05-13T04:49:08.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1527741006000 },
+        { "epochMs": 1527744606000 },
+        { "epochMs": 1527748206000 },
+        { "epochMs": 1527751806000 },
+        { "epochMs": 1527755406000 },
+        { "epochMs": 1527759006000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r139",
+      "pattern": "51 */1 17 * *",
+      "tz": "America/Santiago",
+      "currentDate": "2027-09-06T04:40:49.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1821153060000 },
+        { "epochMs": 1821156660000 },
+        { "epochMs": 1821160260000 },
+        { "epochMs": 1821163860000 },
+        { "epochMs": 1821167460000 },
+        { "epochMs": 1821171060000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r150",
+      "pattern": "18 */4 */7 * *",
+      "tz": "America/Santiago",
+      "currentDate": "2018-08-13T09:22:01.000Z",
+      "startDate": null,
+      "endDate": "2018-08-19T06:22:01.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1534303080000 },
+        { "epochMs": 1534317480000 },
+        { "epochMs": 1534331880000 },
+        { "epochMs": 1534346280000 },
+        { "epochMs": 1534360680000 },
+        { "epochMs": 1534375080000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r174",
+      "pattern": "* * 5/5 * *",
+      "tz": "America/Santiago",
+      "currentDate": "2018-08-10T16:14:45.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1533917700000 },
+        { "epochMs": 1533917760000 },
+        { "epochMs": 1533917820000 },
+        { "epochMs": 1533917880000 },
+        { "epochMs": 1533917940000 },
+        { "epochMs": 1533918000000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r207",
+      "pattern": "41/7 * * JAN 1-7/2",
+      "tz": "America/Santiago",
+      "currentDate": "2026-03-31T05:24:35.000Z",
+      "startDate": "2026-03-31T19:24:35.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1798774860000 },
+        { "epochMs": 1798775280000 },
+        { "epochMs": 1798775700000 },
+        { "epochMs": 1798778460000 },
+        { "epochMs": 1798778880000 },
+        { "epochMs": 1798779300000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r216",
+      "pattern": "*/6 * L * *",
+      "tz": "America/Santiago",
+      "currentDate": "2027-09-06T02:43:49.117Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1822273200000 },
+        { "epochMs": 1822273560000 },
+        { "epochMs": 1822273920000 },
+        { "epochMs": 1822274280000 },
+        { "epochMs": 1822274640000 },
+        { "epochMs": 1822275000000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r222",
+      "pattern": "24 * * * *",
+      "tz": "America/Santiago",
+      "currentDate": "2018-08-10T21:24:17.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1533939840000 },
+        { "epochMs": 1533943440000 },
+        { "epochMs": 1533947040000 },
+        { "epochMs": 1533950640000 },
+        { "epochMs": 1533954240000 },
+        { "epochMs": 1533957840000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r238",
+      "pattern": "34 26 */4 8 * *",
+      "tz": "America/Santiago",
+      "currentDate": "2026-09-06T18:33:42.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1788837994000 },
+        { "epochMs": 1788852394000 },
+        { "epochMs": 1788866794000 },
+        { "epochMs": 1788881194000 },
+        { "epochMs": 1788895594000 },
+        { "epochMs": 1788909994000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r242",
+      "pattern": "*/26 * */2 7 * *",
+      "tz": "America/Santiago",
+      "currentDate": "2026-04-06T07:16:56.089Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1775534400000 },
+        { "epochMs": 1775534426000 },
+        { "epochMs": 1775534452000 },
+        { "epochMs": 1775534460000 },
+        { "epochMs": 1775534486000 },
+        { "epochMs": 1775534512000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r246",
+      "pattern": "16 29-45 * * * MON#4",
+      "tz": "America/Santiago",
+      "currentDate": "2026-09-07T02:58:09.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1790566156000 },
+        { "epochMs": 1790566216000 },
+        { "epochMs": 1790566276000 },
+        { "epochMs": 1790566336000 },
+        { "epochMs": 1790566396000 },
+        { "epochMs": 1790566456000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r260",
+      "pattern": "55 * * * MON#3",
+      "tz": "America/Santiago",
+      "currentDate": "2026-09-06T19:16:11.043Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1789962900000 },
+        { "epochMs": 1789966500000 },
+        { "epochMs": 1789970100000 },
+        { "epochMs": 1789973700000 },
+        { "epochMs": 1789977300000 },
+        { "epochMs": 1789980900000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r271",
+      "pattern": "57 * * * *",
+      "tz": "America/Santiago",
+      "currentDate": "2027-09-04T20:01:58.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1820091420000 },
+        { "epochMs": 1820095020000 },
+        { "epochMs": 1820098620000 },
+        { "epochMs": 1820102220000 },
+        { "epochMs": 1820105820000 },
+        { "epochMs": 1820109420000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r14",
+      "pattern": "* */23 * 3,4 9 *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2026-04-13T21:21:13.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1788404400000 },
+        { "epochMs": 1788404401000 },
+        { "epochMs": 1788404402000 },
+        { "epochMs": 1788404403000 },
+        { "epochMs": 1788404404000 },
+        { "epochMs": 1788404405000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r56",
+      "pattern": "37 13,0,23,18 * * *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2018-11-03T06:31:23.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1541263020000 },
+        { "epochMs": 1541281020000 },
+        { "epochMs": 1541299020000 },
+        { "epochMs": 1541302620000 },
+        { "epochMs": 1541345820000 },
+        { "epochMs": 1541363820000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r58",
+      "pattern": "44,9,11 * L * *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2018-11-04T23:58:23.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1543543740000 },
+        { "epochMs": 1543543860000 },
+        { "epochMs": 1543545840000 },
+        { "epochMs": 1543547340000 },
+        { "epochMs": 1543547460000 },
+        { "epochMs": 1543549440000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r59",
+      "pattern": "8 * * * *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2018-11-04T01:47:40.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1541297280000 },
+        { "epochMs": 1541300880000 },
+        { "epochMs": 1541304480000 },
+        { "epochMs": 1541308080000 },
+        { "epochMs": 1541311680000 },
+        { "epochMs": 1541315280000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r64",
+      "pattern": "38 17 23-24/1 * *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2018-02-18T17:36:03.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1519418280000 },
+        { "epochMs": 1519504680000 },
+        { "epochMs": 1521837480000 },
+        { "epochMs": 1521923880000 },
+        { "epochMs": 1524515880000 },
+        { "epochMs": 1524602280000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r67",
+      "pattern": "* */6 * * *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2018-11-05T08:13:40.000Z",
+      "startDate": null,
+      "endDate": "2018-11-14T17:13:40.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1541405640000 },
+        { "epochMs": 1541405700000 },
+        { "epochMs": 1541405760000 },
+        { "epochMs": 1541405820000 },
+        { "epochMs": 1541405880000 },
+        { "epochMs": 1541405940000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r77",
+      "pattern": "* * * * *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2018-11-03T19:39:32.486Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1541274000000 },
+        { "epochMs": 1541274060000 },
+        { "epochMs": 1541274120000 },
+        { "epochMs": 1541274180000 },
+        { "epochMs": 1541274240000 },
+        { "epochMs": 1541274300000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r79",
+      "pattern": "52 */22 */10 26-30/2 * *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2018-11-03T16:27:40.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1543197652000 },
+        { "epochMs": 1543198972000 },
+        { "epochMs": 1543200292000 },
+        { "epochMs": 1543233652000 },
+        { "epochMs": 1543234972000 },
+        { "epochMs": 1543236292000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r106",
+      "pattern": "27 */10 8 * *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2018-11-05T05:41:25.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1541644020000 },
+        { "epochMs": 1541680020000 },
+        { "epochMs": 1541716020000 },
+        { "epochMs": 1544236020000 },
+        { "epochMs": 1544272020000 },
+        { "epochMs": 1544308020000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r143",
+      "pattern": "43 47 16 4 * *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2026-04-09T17:45:49.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1777924063000 },
+        { "epochMs": 1780602463000 },
+        { "epochMs": 1783194463000 },
+        { "epochMs": 1785872863000 },
+        { "epochMs": 1788551263000 },
+        { "epochMs": 1791143263000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r152",
+      "pattern": "34 57 * 7 * *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2026-10-31T01:22:46.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1794023854000 },
+        { "epochMs": 1794027454000 },
+        { "epochMs": 1794031054000 },
+        { "epochMs": 1794034654000 },
+        { "epochMs": 1794038254000 },
+        { "epochMs": 1794041854000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r186",
+      "pattern": "9-49/5 5 */3 * *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2018-11-03T05:11:16.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1541315340000 },
+        { "epochMs": 1541315640000 },
+        { "epochMs": 1541315940000 },
+        { "epochMs": 1541316240000 },
+        { "epochMs": 1541316540000 },
+        { "epochMs": 1541316840000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r194",
+      "pattern": "5 */15 */4 * 7 5,3,0",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2018-02-16T17:29:02.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1530414005000 },
+        { "epochMs": 1530414905000 },
+        { "epochMs": 1530415805000 },
+        { "epochMs": 1530416705000 },
+        { "epochMs": 1530428405000 },
+        { "epochMs": 1530429305000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r197",
+      "pattern": "10 * L * *",
+      "tz": "America/Sao_Paulo",
+      "currentDate": "2018-11-05T10:21:35.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1543543800000 },
+        { "epochMs": 1543547400000 },
+        { "epochMs": 1543551000000 },
+        { "epochMs": 1543554600000 },
+        { "epochMs": 1543558200000 },
+        { "epochMs": 1543561800000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r26",
+      "pattern": "45 17 * * *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2027-10-30T20:16:02.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1824997500000 },
+        { "epochMs": 1825083900000 },
+        { "epochMs": 1825170300000 },
+        { "epochMs": 1825256700000 },
+        { "epochMs": 1825343100000 },
+        { "epochMs": 1825429500000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r109",
+      "pattern": "* 7/4 * * 7#3",
+      "tz": "Asia/Gaza",
+      "currentDate": "2027-10-30T17:07:42.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1826773200000 },
+        { "epochMs": 1826773260000 },
+        { "epochMs": 1826773320000 },
+        { "epochMs": 1826773380000 },
+        { "epochMs": 1826773440000 },
+        { "epochMs": 1826773500000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r221",
+      "pattern": "37 * * * MON#4",
+      "tz": "Asia/Gaza",
+      "currentDate": "2026-10-23T02:05:27.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1792967820000 },
+        { "epochMs": 1792971420000 },
+        { "epochMs": 1792975020000 },
+        { "epochMs": 1792978620000 },
+        { "epochMs": 1792982220000 },
+        { "epochMs": 1792985820000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r239",
+      "pattern": "54 * 13 * *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2026-07-27T10:12:45.000Z",
+      "startDate": "2026-07-30T05:12:45.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1786571640000 },
+        { "epochMs": 1786575240000 },
+        { "epochMs": 1786578840000 },
+        { "epochMs": 1786582440000 },
+        { "epochMs": 1786586040000 },
+        { "epochMs": 1786589640000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r249",
+      "pattern": "41 * * 6 sat,sun",
+      "tz": "Asia/Gaza",
+      "currentDate": "2018-03-23T17:10:15.674Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1527889260000 },
+        { "epochMs": 1527892860000 },
+        { "epochMs": 1527896460000 },
+        { "epochMs": 1527900060000 },
+        { "epochMs": 1527903660000 },
+        { "epochMs": 1527907260000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r254",
+      "pattern": "25,15,1 */29 17-22 * * 2#4",
+      "tz": "Asia/Gaza",
+      "currentDate": "2026-10-23T02:32:05.527Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793113201000 },
+        { "epochMs": 1793113215000 },
+        { "epochMs": 1793113225000 },
+        { "epochMs": 1793114941000 },
+        { "epochMs": 1793114955000 },
+        { "epochMs": 1793114965000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r258",
+      "pattern": "* * 20 * *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2026-03-29T08:44:53.527Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1776632400000 },
+        { "epochMs": 1776632460000 },
+        { "epochMs": 1776632520000 },
+        { "epochMs": 1776632580000 },
+        { "epochMs": 1776632640000 },
+        { "epochMs": 1776632700000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r279",
+      "pattern": "18 * 24/3 * *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2026-10-22T11:06:08.667Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1792790280000 },
+        { "epochMs": 1792793880000 },
+        { "epochMs": 1792797480000 },
+        { "epochMs": 1792801080000 },
+        { "epochMs": 1792804680000 },
+        { "epochMs": 1792808280000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r340",
+      "pattern": "30-45 * 18-19/2 * *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2026-10-24T15:07:04.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1794954600000 },
+        { "epochMs": 1794954660000 },
+        { "epochMs": 1794954720000 },
+        { "epochMs": 1794954780000 },
+        { "epochMs": 1794954840000 },
+        { "epochMs": 1794954900000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r366",
+      "pattern": "44 20,13,2,21 27/4 * *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2027-10-28T11:45:31.152Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1824943440000 },
+        { "epochMs": 1824983040000 },
+        { "epochMs": 1825008240000 },
+        { "epochMs": 1825011840000 },
+        { "epochMs": 1827276240000 },
+        { "epochMs": 1827315840000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r375",
+      "pattern": "45-59/4 18-19/2 15 * *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2027-03-27T13:52:17.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1807803900000 },
+        { "epochMs": 1807804140000 },
+        { "epochMs": 1807804380000 },
+        { "epochMs": 1807804620000 },
+        { "epochMs": 1810395900000 },
+        { "epochMs": 1810396140000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r383",
+      "pattern": "23 */2 * * 5#2",
+      "tz": "Asia/Gaza",
+      "currentDate": "2026-10-22T23:28:35.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1794522180000 },
+        { "epochMs": 1794529380000 },
+        { "epochMs": 1794536580000 },
+        { "epochMs": 1794543780000 },
+        { "epochMs": 1794550980000 },
+        { "epochMs": 1794558180000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r399",
+      "pattern": "38 * 22,15 * *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2018-03-23T23:08:18.411Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1523741880000 },
+        { "epochMs": 1523745480000 },
+        { "epochMs": 1523749080000 },
+        { "epochMs": 1523752680000 },
+        { "epochMs": 1523756280000 },
+        { "epochMs": 1523759880000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r409",
+      "pattern": "51 * 11-18/5 * *",
+      "tz": "Asia/Gaza",
+      "currentDate": "2026-10-23T07:01:03.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1794351060000 },
+        { "epochMs": 1794354660000 },
+        { "epochMs": 1794358260000 },
+        { "epochMs": 1794361860000 },
+        { "epochMs": 1794365460000 },
+        { "epochMs": 1794369060000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r4",
+      "pattern": "43-59 37 * 18,10,8,1 * *",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-10-28T10:52:38.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793473663000 },
+        { "epochMs": 1793473664000 },
+        { "epochMs": 1793473665000 },
+        { "epochMs": 1793473666000 },
+        { "epochMs": 1793473667000 },
+        { "epochMs": 1793473668000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r9",
+      "pattern": "4 7 14-26/3 9,5 3,2,0,5",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-12-26T21:42:35.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1809221640000 },
+        { "epochMs": 1809394440000 },
+        { "epochMs": 1809480840000 },
+        { "epochMs": 1809653640000 },
+        { "epochMs": 1809826440000 },
+        { "epochMs": 1809999240000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r11",
+      "pattern": "16 20 * * 1-7/2",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-11-21T03:08:05.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1795358760000 },
+        { "epochMs": 1795445160000 },
+        { "epochMs": 1795617960000 },
+        { "epochMs": 1795790760000 },
+        { "epochMs": 1795963560000 },
+        { "epochMs": 1796049960000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r37",
+      "pattern": "13 * 27,15,24 */1 1",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-10-14T09:50:46.000Z",
+      "startDate": "2026-10-16T00:50:46.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1792348980000 },
+        { "epochMs": 1792352580000 },
+        { "epochMs": 1792356180000 },
+        { "epochMs": 1792359780000 },
+        { "epochMs": 1792363380000 },
+        { "epochMs": 1792366980000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r38",
+      "pattern": "39 * * * *",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-02-10T16:20:02.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1770743340000 },
+        { "epochMs": 1770746940000 },
+        { "epochMs": 1770750540000 },
+        { "epochMs": 1770754140000 },
+        { "epochMs": 1770757740000 },
+        { "epochMs": 1770761340000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r48",
+      "pattern": "7 * 5/1 * 12 sat,sun",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-11-22T19:14:21.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1796427007000 },
+        { "epochMs": 1796427067000 },
+        { "epochMs": 1796427127000 },
+        { "epochMs": 1796427187000 },
+        { "epochMs": 1796427247000 },
+        { "epochMs": 1796427307000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r50",
+      "pattern": "*/6 12,5,17 * * *#1",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-03-31T14:19:23.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774999800000 },
+        { "epochMs": 1775000160000 },
+        { "epochMs": 1775000520000 },
+        { "epochMs": 1775000880000 },
+        { "epochMs": 1775001240000 },
+        { "epochMs": 1775001600000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r62",
+      "pattern": "43 * * * *",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-04-11T21:16:13.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1775945580000 },
+        { "epochMs": 1775949180000 },
+        { "epochMs": 1775952780000 },
+        { "epochMs": 1775956380000 },
+        { "epochMs": 1775959980000 },
+        { "epochMs": 1775963580000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r95",
+      "pattern": "*/13 14 * * * *",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-01-09T09:17:06.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1767951840000 },
+        { "epochMs": 1767951853000 },
+        { "epochMs": 1767951866000 },
+        { "epochMs": 1767951879000 },
+        { "epochMs": 1767951892000 },
+        { "epochMs": 1767955440000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r103",
+      "pattern": "31 33 15-20 * 4/7 1/10",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-02-15T01:42:09.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1775469811000 },
+        { "epochMs": 1775473411000 },
+        { "epochMs": 1775477011000 },
+        { "epochMs": 1775480611000 },
+        { "epochMs": 1775484211000 },
+        { "epochMs": 1775487811000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r105",
+      "pattern": "* * 18-29 * *",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-12-30T21:45:19.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1800210600000 },
+        { "epochMs": 1800210660000 },
+        { "epochMs": 1800210720000 },
+        { "epochMs": 1800210780000 },
+        { "epochMs": 1800210840000 },
+        { "epochMs": 1800210900000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r126",
+      "pattern": "18 * * * 3L",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-06-08T00:30:01.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1782240480000 },
+        { "epochMs": 1782244080000 },
+        { "epochMs": 1782247680000 },
+        { "epochMs": 1782251280000 },
+        { "epochMs": 1782254880000 },
+        { "epochMs": 1782258480000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r136",
+      "pattern": "38-40 * 8,18,21,19 * *",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-06-06T08:23:05.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1780859280000 },
+        { "epochMs": 1780859340000 },
+        { "epochMs": 1780859400000 },
+        { "epochMs": 1780862880000 },
+        { "epochMs": 1780862940000 },
+        { "epochMs": 1780863000000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r156",
+      "pattern": "4-33/1 */6 * * 5L",
+      "tz": "Asia/Kolkata",
+      "currentDate": "2026-08-17T11:18:45.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1787855640000 },
+        { "epochMs": 1787855700000 },
+        { "epochMs": 1787855760000 },
+        { "epochMs": 1787855820000 },
+        { "epochMs": 1787855880000 },
+        { "epochMs": 1787855940000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r3",
+      "pattern": "*/22 * 4,17,21,28 11 7-7/5",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-09-23T01:50:20.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1541277000000 },
+        { "epochMs": 1541278320000 },
+        { "epochMs": 1541279640000 },
+        { "epochMs": 1541280600000 },
+        { "epochMs": 1541281920000 },
+        { "epochMs": 1541283240000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r33",
+      "pattern": "8 22/9 * 1 5",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-03-22T06:07:27.000Z",
+      "startDate": "2018-03-22T07:07:27.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1546627080000 },
+        { "epochMs": 1547231880000 },
+        { "epochMs": 1547836680000 },
+        { "epochMs": 1548441480000 },
+        { "epochMs": 1578076680000 },
+        { "epochMs": 1578681480000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r68",
+      "pattern": "50-59 * * * 7L",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-09-22T19:14:44.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1538256000000 },
+        { "epochMs": 1538256060000 },
+        { "epochMs": 1538256120000 },
+        { "epochMs": 1538256180000 },
+        { "epochMs": 1538256240000 },
+        { "epochMs": 1538256300000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r82",
+      "pattern": "44 20 6 * * 5L",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-03-22T15:47:42.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522374644000 },
+        { "epochMs": 1524793844000 },
+        { "epochMs": 1527213044000 },
+        { "epochMs": 1530237044000 },
+        { "epochMs": 1532656244000 },
+        { "epochMs": 1535680244000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r83",
+      "pattern": "59 * * * 5L",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-03-21T19:02:37.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522355340000 },
+        { "epochMs": 1522358940000 },
+        { "epochMs": 1522362540000 },
+        { "epochMs": 1522366140000 },
+        { "epochMs": 1522369740000 },
+        { "epochMs": 1522373340000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r87",
+      "pattern": "4 21,2,0,11 L * *",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-03-20T22:12:12.553Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522438440000 },
+        { "epochMs": 1522445640000 },
+        { "epochMs": 1522478040000 },
+        { "epochMs": 1522514040000 },
+        { "epochMs": 1525030440000 },
+        { "epochMs": 1525037640000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r104",
+      "pattern": "11 * 20,16 * * *",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-03-22T05:16:25.944Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1521718211000 },
+        { "epochMs": 1521718271000 },
+        { "epochMs": 1521718331000 },
+        { "epochMs": 1521718391000 },
+        { "epochMs": 1521718451000 },
+        { "epochMs": 1521718511000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r107",
+      "pattern": "19,24,37 50 * * * *",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-09-22T19:27:26.599Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1537647619000 },
+        { "epochMs": 1537647624000 },
+        { "epochMs": 1537647637000 },
+        { "epochMs": 1537651219000 },
+        { "epochMs": 1537651224000 },
+        { "epochMs": 1537651237000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r122",
+      "pattern": "27 42-48 * 2/4 * *",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-03-22T09:04:51.080Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1521709947000 },
+        { "epochMs": 1521710007000 },
+        { "epochMs": 1521710067000 },
+        { "epochMs": 1521710127000 },
+        { "epochMs": 1521710187000 },
+        { "epochMs": 1521710247000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r140",
+      "pattern": "41 11,0,19,4 * * 1-7/2",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-03-22T16:35:28.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1521749460000 },
+        { "epochMs": 1521763860000 },
+        { "epochMs": 1521789060000 },
+        { "epochMs": 1521817860000 },
+        { "epochMs": 1521922260000 },
+        { "epochMs": 1521936660000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r148",
+      "pattern": "24-37/2 11/9 */1 * *",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-03-21T10:23:24.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1521651240000 },
+        { "epochMs": 1521651360000 },
+        { "epochMs": 1521651480000 },
+        { "epochMs": 1521651600000 },
+        { "epochMs": 1521651720000 },
+        { "epochMs": 1521651840000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r155",
+      "pattern": "0 * */6 * */3",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-03-20T20:54:51.586Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1521581400000 },
+        { "epochMs": 1521585000000 },
+        { "epochMs": 1521588600000 },
+        { "epochMs": 1521592200000 },
+        { "epochMs": 1521595800000 },
+        { "epochMs": 1521599400000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r198",
+      "pattern": "* * 21 * *",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-03-21T22:21:04.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1524252600000 },
+        { "epochMs": 1524252660000 },
+        { "epochMs": 1524252720000 },
+        { "epochMs": 1524252780000 },
+        { "epochMs": 1524252840000 },
+        { "epochMs": 1524252900000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r208",
+      "pattern": "35 * * * */2",
+      "tz": "Asia/Tehran",
+      "currentDate": "2018-03-21T08:15:57.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1521666300000 },
+        { "epochMs": 1521669900000 },
+        { "epochMs": 1521673500000 },
+        { "epochMs": 1521677100000 },
+        { "epochMs": 1521680700000 },
+        { "epochMs": 1521684300000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r43",
+      "pattern": "9,59 * 30-31/1 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-04-03T12:13:57.389Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1777469940000 },
+        { "epochMs": 1777472940000 },
+        { "epochMs": 1777473540000 },
+        { "epochMs": 1777476540000 },
+        { "epochMs": 1777477140000 },
+        { "epochMs": 1777480140000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r51",
+      "pattern": "* * * 8 0/1",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2027-10-02T16:41:32.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1848663000000 },
+        { "epochMs": 1848663060000 },
+        { "epochMs": 1848663120000 },
+        { "epochMs": 1848663180000 },
+        { "epochMs": 1848663240000 },
+        { "epochMs": 1848663300000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r52",
+      "pattern": "*/9 15-21/4 L * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-04-05T09:06:59.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1777523400000 },
+        { "epochMs": 1777523940000 },
+        { "epochMs": 1777524480000 },
+        { "epochMs": 1777525020000 },
+        { "epochMs": 1777525560000 },
+        { "epochMs": 1777526100000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r63",
+      "pattern": "*/21 * 5/4 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2018-04-01T10:30:02.000Z",
+      "startDate": null,
+      "endDate": "2018-04-05T17:30:02.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522848600000 },
+        { "epochMs": 1522849860000 },
+        { "epochMs": 1522851120000 },
+        { "epochMs": 1522852200000 },
+        { "epochMs": 1522853460000 },
+        { "epochMs": 1522854720000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r74",
+      "pattern": "36 * * * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-10-03T18:07:04.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1791052560000 },
+        { "epochMs": 1791056160000 },
+        { "epochMs": 1791059760000 },
+        { "epochMs": 1791063360000 },
+        { "epochMs": 1791066960000 },
+        { "epochMs": 1791070560000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r101",
+      "pattern": "37 1,10 */11 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-03-24T17:06:11.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774967820000 },
+        { "epochMs": 1775000220000 },
+        { "epochMs": 1775920020000 },
+        { "epochMs": 1775952420000 },
+        { "epochMs": 1776870420000 },
+        { "epochMs": 1776902820000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r180",
+      "pattern": "16 47 * 12/10 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2027-04-02T20:52:37.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1807453036000 },
+        { "epochMs": 1807456636000 },
+        { "epochMs": 1807460236000 },
+        { "epochMs": 1807463836000 },
+        { "epochMs": 1807467436000 },
+        { "epochMs": 1807471036000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r184",
+      "pattern": "10 * 21,10,16 * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-10-03T13:49:27.500Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1791551400000 },
+        { "epochMs": 1791555000000 },
+        { "epochMs": 1791558600000 },
+        { "epochMs": 1791562200000 },
+        { "epochMs": 1791565800000 },
+        { "epochMs": 1791569400000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r212",
+      "pattern": "21 6,24 * * * *#1",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-10-04T09:23:38.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1791105861000 },
+        { "epochMs": 1791108381000 },
+        { "epochMs": 1791109461000 },
+        { "epochMs": 1791111981000 },
+        { "epochMs": 1791113061000 },
+        { "epochMs": 1791115581000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r220",
+      "pattern": "41 17,6,0 24,20 2,8,4,3 4",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2027-10-02T05:55:45.000Z",
+      "startDate": "2027-10-03T13:55:45.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1833111660000 },
+        { "epochMs": 1833133260000 },
+        { "epochMs": 1833172860000 },
+        { "epochMs": 1833716460000 },
+        { "epochMs": 1833738060000 },
+        { "epochMs": 1833777660000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r228",
+      "pattern": "8,44 7,4 * * 1",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-09-27T05:51:39.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1790530680000 },
+        { "epochMs": 1790532840000 },
+        { "epochMs": 1790541480000 },
+        { "epochMs": 1790543640000 },
+        { "epochMs": 1791133680000 },
+        { "epochMs": 1791135840000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r229",
+      "pattern": "33 47 * * 3 7-7/3",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2027-04-03T15:33:23.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1835790453000 },
+        { "epochMs": 1835794053000 },
+        { "epochMs": 1835797653000 },
+        { "epochMs": 1835801253000 },
+        { "epochMs": 1835804853000 },
+        { "epochMs": 1835808453000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r232",
+      "pattern": "17-22/2 */5 * * *",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-09-30T00:06:21.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1790743620000 },
+        { "epochMs": 1790743740000 },
+        { "epochMs": 1790743860000 },
+        { "epochMs": 1790761620000 },
+        { "epochMs": 1790761740000 },
+        { "epochMs": 1790761860000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r251",
+      "pattern": "* */7 * 3 MON-FRI",
+      "tz": "Australia/Lord_Howe",
+      "currentDate": "2026-10-04T12:17:02.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1803819600000 },
+        { "epochMs": 1803819660000 },
+        { "epochMs": 1803819720000 },
+        { "epochMs": 1803819780000 },
+        { "epochMs": 1803819840000 },
+        { "epochMs": 1803819900000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r1",
+      "pattern": "25 37,55,49,2 18-18/3 * * *",
+      "tz": "Australia/Sydney",
+      "currentDate": "2026-03-11T15:20:07.000Z",
+      "startDate": "2026-03-11T21:20:07.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1773298945000 },
+        { "epochMs": 1773301045000 },
+        { "epochMs": 1773301765000 },
+        { "epochMs": 1773302125000 },
+        { "epochMs": 1773385345000 },
+        { "epochMs": 1773387445000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r8",
+      "pattern": "*/10 */11 14/4 4 */2",
+      "tz": "Australia/Sydney",
+      "currentDate": "2027-04-02T09:45:39.827Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1806670800000 },
+        { "epochMs": 1806671400000 },
+        { "epochMs": 1806672000000 },
+        { "epochMs": 1806672600000 },
+        { "epochMs": 1806673200000 },
+        { "epochMs": 1806673800000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r20",
+      "pattern": "15 2 * * *",
+      "tz": "Australia/Sydney",
+      "currentDate": "2018-10-07T06:26:19.000Z",
+      "startDate": "2018-10-09T10:26:19.000Z",
+      "endDate": "2018-10-23T13:26:19.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1539098100000 },
+        { "epochMs": 1539184500000 },
+        { "epochMs": 1539270900000 },
+        { "epochMs": 1539357300000 },
+        { "epochMs": 1539443700000 },
+        { "epochMs": 1539530100000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r25",
+      "pattern": "46,30,55,54 24 * L * *",
+      "tz": "Australia/Sydney",
+      "currentDate": "2026-10-04T21:09:22.015Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793366670000 },
+        { "epochMs": 1793366686000 },
+        { "epochMs": 1793366694000 },
+        { "epochMs": 1793366695000 },
+        { "epochMs": 1793370270000 },
+        { "epochMs": 1793370286000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r40",
+      "pattern": "*/17 13,2,4 29 * *",
+      "tz": "Australia/Sydney",
+      "currentDate": "2026-10-02T22:41:20.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793199600000 },
+        { "epochMs": 1793200620000 },
+        { "epochMs": 1793201640000 },
+        { "epochMs": 1793202660000 },
+        { "epochMs": 1793206800000 },
+        { "epochMs": 1793207820000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r71",
+      "pattern": "9 13-22 L * *",
+      "tz": "Australia/Sydney",
+      "currentDate": "2026-10-03T09:52:44.000Z",
+      "startDate": "2026-10-06T01:52:44.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793412540000 },
+        { "epochMs": 1793416140000 },
+        { "epochMs": 1793419740000 },
+        { "epochMs": 1793423340000 },
+        { "epochMs": 1793426940000 },
+        { "epochMs": 1793430540000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r97",
+      "pattern": "* 0-10/3 * * fri#2",
+      "tz": "Australia/Sydney",
+      "currentDate": "2026-12-24T09:40:26.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1799326800000 },
+        { "epochMs": 1799326860000 },
+        { "epochMs": 1799326920000 },
+        { "epochMs": 1799326980000 },
+        { "epochMs": 1799327040000 },
+        { "epochMs": 1799327100000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r124",
+      "pattern": "30 * 26 * *",
+      "tz": "Australia/Sydney",
+      "currentDate": "2026-04-04T21:39:40.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1777127400000 },
+        { "epochMs": 1777131000000 },
+        { "epochMs": 1777134600000 },
+        { "epochMs": 1777138200000 },
+        { "epochMs": 1777141800000 },
+        { "epochMs": 1777145400000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r144",
+      "pattern": "19,37,59,11 10 * * * *#5",
+      "tz": "Australia/Sydney",
+      "currentDate": "2027-04-04T14:37:58.000Z",
+      "startDate": "2027-04-05T07:37:58.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1808921411000 },
+        { "epochMs": 1808921419000 },
+        { "epochMs": 1808921437000 },
+        { "epochMs": 1808921459000 },
+        { "epochMs": 1808925011000 },
+        { "epochMs": 1808925019000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r167",
+      "pattern": "* 4-12 11-11/3 * *",
+      "tz": "Australia/Sydney",
+      "currentDate": "2026-10-02T13:08:23.102Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1791651600000 },
+        { "epochMs": 1791651660000 },
+        { "epochMs": 1791651720000 },
+        { "epochMs": 1791651780000 },
+        { "epochMs": 1791651840000 },
+        { "epochMs": 1791651900000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r190",
+      "pattern": "42 40 */1 * JAN 1",
+      "tz": "Australia/Sydney",
+      "currentDate": "2026-10-03T12:38:10.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1798983642000 },
+        { "epochMs": 1798987242000 },
+        { "epochMs": 1798990842000 },
+        { "epochMs": 1798994442000 },
+        { "epochMs": 1798998042000 },
+        { "epochMs": 1799001642000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r202",
+      "pattern": "0 54 * 15/1 * *",
+      "tz": "Australia/Sydney",
+      "currentDate": "2026-09-29T23:34:41.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1790726040000 },
+        { "epochMs": 1790729640000 },
+        { "epochMs": 1790733240000 },
+        { "epochMs": 1790736840000 },
+        { "epochMs": 1790740440000 },
+        { "epochMs": 1790744040000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r203",
+      "pattern": "15 31-44 14/8 4,7 * *",
+      "tz": "Australia/Sydney",
+      "currentDate": "2026-04-04T12:01:51.000Z",
+      "startDate": null,
+      "endDate": "2026-04-07T19:01:51.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1775536275000 },
+        { "epochMs": 1775536335000 },
+        { "epochMs": 1775536395000 },
+        { "epochMs": 1775536455000 },
+        { "epochMs": 1775536515000 },
+        { "epochMs": 1775536575000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r204",
+      "pattern": "4 14 L * *",
+      "tz": "Australia/Sydney",
+      "currentDate": "2026-11-22T20:33:25.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1796007840000 },
+        { "epochMs": 1798686240000 },
+        { "epochMs": 1801364640000 },
+        { "epochMs": 1803783840000 },
+        { "epochMs": 1806462240000 },
+        { "epochMs": 1809057840000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r10",
+      "pattern": "* 14,6,19 * mar-oct */3",
+      "tz": "Europe/Berlin",
+      "currentDate": "2026-03-24T16:14:15.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774414800000 },
+        { "epochMs": 1774414860000 },
+        { "epochMs": 1774414920000 },
+        { "epochMs": 1774414980000 },
+        { "epochMs": 1774415040000 },
+        { "epochMs": 1774415100000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r15",
+      "pattern": "47 9 1,13,8,22 22-23/1 * *",
+      "tz": "Europe/Berlin",
+      "currentDate": "2018-03-26T08:41:59.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1524352187000 },
+        { "epochMs": 1524377387000 },
+        { "epochMs": 1524395387000 },
+        { "epochMs": 1524427787000 },
+        { "epochMs": 1524438587000 },
+        { "epochMs": 1524463787000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r23",
+      "pattern": "38 */1 * * *",
+      "tz": "Europe/Berlin",
+      "currentDate": "2018-10-27T03:55:23.000Z",
+      "startDate": null,
+      "endDate": "2018-11-03T10:55:23.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1540615080000 },
+        { "epochMs": 1540618680000 },
+        { "epochMs": 1540622280000 },
+        { "epochMs": 1540625880000 },
+        { "epochMs": 1540629480000 },
+        { "epochMs": 1540633080000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r35",
+      "pattern": "27 * 29 * *",
+      "tz": "Europe/Berlin",
+      "currentDate": "2018-03-25T05:10:16.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522276020000 },
+        { "epochMs": 1522279620000 },
+        { "epochMs": 1522283220000 },
+        { "epochMs": 1522286820000 },
+        { "epochMs": 1522290420000 },
+        { "epochMs": 1522294020000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r53",
+      "pattern": "40-58 4-16 * * *",
+      "tz": "Europe/Berlin",
+      "currentDate": "2026-04-10T18:18:59.000Z",
+      "startDate": null,
+      "endDate": "2026-04-25T19:18:59.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1775875200000 },
+        { "epochMs": 1775875260000 },
+        { "epochMs": 1775875320000 },
+        { "epochMs": 1775875380000 },
+        { "epochMs": 1775875440000 },
+        { "epochMs": 1775875500000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r55",
+      "pattern": "* 46 * L * *",
+      "tz": "Europe/Berlin",
+      "currentDate": "2018-10-28T11:00:27.090Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1540943160000 },
+        { "epochMs": 1540943161000 },
+        { "epochMs": 1540943162000 },
+        { "epochMs": 1540943163000 },
+        { "epochMs": 1540943164000 },
+        { "epochMs": 1540943165000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r94",
+      "pattern": "0-19 16-20 * * fri#5",
+      "tz": "Europe/Berlin",
+      "currentDate": "2026-10-24T05:07:56.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793372400000 },
+        { "epochMs": 1793372460000 },
+        { "epochMs": 1793372520000 },
+        { "epochMs": 1793372580000 },
+        { "epochMs": 1793372640000 },
+        { "epochMs": 1793372700000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r98",
+      "pattern": "3 * * 11 *",
+      "tz": "Europe/Berlin",
+      "currentDate": "2018-03-24T08:30:30.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1541026980000 },
+        { "epochMs": 1541030580000 },
+        { "epochMs": 1541034180000 },
+        { "epochMs": 1541037780000 },
+        { "epochMs": 1541041380000 },
+        { "epochMs": 1541044980000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r123",
+      "pattern": "* 20-25/1 5 * * 3L",
+      "tz": "Europe/Berlin",
+      "currentDate": "2018-03-25T06:54:11.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522207200000 },
+        { "epochMs": 1522207201000 },
+        { "epochMs": 1522207202000 },
+        { "epochMs": 1522207203000 },
+        { "epochMs": 1522207204000 },
+        { "epochMs": 1522207205000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r125",
+      "pattern": "*/9 7 * * *",
+      "tz": "Europe/Berlin",
+      "currentDate": "2026-06-04T23:04:50.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1780635600000 },
+        { "epochMs": 1780636140000 },
+        { "epochMs": 1780636680000 },
+        { "epochMs": 1780637220000 },
+        { "epochMs": 1780637760000 },
+        { "epochMs": 1780638300000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r131",
+      "pattern": "42 16-21 3,2,8 * *",
+      "tz": "Europe/Berlin",
+      "currentDate": "2026-10-23T17:31:27.708Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793634120000 },
+        { "epochMs": 1793637720000 },
+        { "epochMs": 1793641320000 },
+        { "epochMs": 1793644920000 },
+        { "epochMs": 1793648520000 },
+        { "epochMs": 1793652120000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r153",
+      "pattern": "20/5 */4 * * *",
+      "tz": "Europe/Berlin",
+      "currentDate": "2018-03-23T22:31:51.590Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1521847200000 },
+        { "epochMs": 1521847500000 },
+        { "epochMs": 1521847800000 },
+        { "epochMs": 1521848100000 },
+        { "epochMs": 1521848400000 },
+        { "epochMs": 1521848700000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r158",
+      "pattern": "* 19,47 19-23/2 * * 3L",
+      "tz": "Europe/Berlin",
+      "currentDate": "2018-10-27T09:29:27.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1541009940000 },
+        { "epochMs": 1541009941000 },
+        { "epochMs": 1541009942000 },
+        { "epochMs": 1541009943000 },
+        { "epochMs": 1541009944000 },
+        { "epochMs": 1541009945000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r168",
+      "pattern": "18 */27 * * * 5L",
+      "tz": "Europe/Berlin",
+      "currentDate": "2027-10-29T19:36:22.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1824839658000 },
+        { "epochMs": 1824840018000 },
+        { "epochMs": 1824841638000 },
+        { "epochMs": 1824843258000 },
+        { "epochMs": 1824843618000 },
+        { "epochMs": 1824845238000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r29",
+      "pattern": "6 */5 * * 1-7/2",
+      "tz": "Europe/Dublin",
+      "currentDate": "2026-10-25T01:58:23.803Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1792904760000 },
+        { "epochMs": 1792922760000 },
+        { "epochMs": 1792940760000 },
+        { "epochMs": 1792958760000 },
+        { "epochMs": 1792973160000 },
+        { "epochMs": 1792991160000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r46",
+      "pattern": "42 8-17/4 * 20-22 * *",
+      "tz": "Europe/Dublin",
+      "currentDate": "2018-10-27T20:40:55.000Z",
+      "startDate": "2018-10-28T23:40:55.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1542672522000 },
+        { "epochMs": 1542672762000 },
+        { "epochMs": 1542673002000 },
+        { "epochMs": 1542676122000 },
+        { "epochMs": 1542676362000 },
+        { "epochMs": 1542676602000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r69",
+      "pattern": "9 * 7 * *",
+      "tz": "Europe/Dublin",
+      "currentDate": "2018-03-25T14:17:37.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1523056140000 },
+        { "epochMs": 1523059740000 },
+        { "epochMs": 1523063340000 },
+        { "epochMs": 1523066940000 },
+        { "epochMs": 1523070540000 },
+        { "epochMs": 1523074140000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r78",
+      "pattern": "*/7 */7 * 9,6,7 */3",
+      "tz": "Europe/Dublin",
+      "currentDate": "2018-10-28T08:33:41.946Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1559343600000 },
+        { "epochMs": 1559344020000 },
+        { "epochMs": 1559344440000 },
+        { "epochMs": 1559344860000 },
+        { "epochMs": 1559345280000 },
+        { "epochMs": 1559345700000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r113",
+      "pattern": "19 * */14 * *",
+      "tz": "Europe/Dublin",
+      "currentDate": "2018-10-27T11:41:11.000Z",
+      "startDate": null,
+      "endDate": "2018-11-03T17:41:11.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1540772340000 },
+        { "epochMs": 1540775940000 },
+        { "epochMs": 1540779540000 },
+        { "epochMs": 1540783140000 },
+        { "epochMs": 1540786740000 },
+        { "epochMs": 1540790340000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r146",
+      "pattern": "6 2,50,56 17,5,16 * 1 1-7/2",
+      "tz": "Europe/Dublin",
+      "currentDate": "2026-07-29T05:28:01.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1798779726000 },
+        { "epochMs": 1798782606000 },
+        { "epochMs": 1798782966000 },
+        { "epochMs": 1798819326000 },
+        { "epochMs": 1798822206000 },
+        { "epochMs": 1798822566000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r162",
+      "pattern": "45 * * * fri#1",
+      "tz": "Europe/Dublin",
+      "currentDate": "2026-10-01T04:54:15.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1790898300000 },
+        { "epochMs": 1790901900000 },
+        { "epochMs": 1790905500000 },
+        { "epochMs": 1790909100000 },
+        { "epochMs": 1790912700000 },
+        { "epochMs": 1790916300000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r171",
+      "pattern": "33 16 4,1 29,19,15 * *",
+      "tz": "Europe/Dublin",
+      "currentDate": "2026-10-24T17:24:06.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793236593000 },
+        { "epochMs": 1793247393000 },
+        { "epochMs": 1794705393000 },
+        { "epochMs": 1794716193000 },
+        { "epochMs": 1795050993000 },
+        { "epochMs": 1795061793000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r195",
+      "pattern": "18 42-56/4 * * * *",
+      "tz": "Europe/Dublin",
+      "currentDate": "2027-03-27T17:30:21.000Z",
+      "startDate": null,
+      "endDate": "2027-04-12T17:30:21.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1806169338000 },
+        { "epochMs": 1806169578000 },
+        { "epochMs": 1806169818000 },
+        { "epochMs": 1806170058000 },
+        { "epochMs": 1806172938000 },
+        { "epochMs": 1806173178000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r206",
+      "pattern": "27 * 21-29/2 * *",
+      "tz": "Europe/Dublin",
+      "currentDate": "2026-12-08T22:09:36.000Z",
+      "startDate": "2026-12-09T23:09:36.000Z",
+      "endDate": "2026-12-23T03:09:36.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1797812820000 },
+        { "epochMs": 1797816420000 },
+        { "epochMs": 1797820020000 },
+        { "epochMs": 1797823620000 },
+        { "epochMs": 1797827220000 },
+        { "epochMs": 1797830820000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r236",
+      "pattern": "54 */11 16 * 6",
+      "tz": "Europe/Dublin",
+      "currentDate": "2026-10-23T18:44:35.126Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1792799640000 },
+        { "epochMs": 1792839240000 },
+        { "epochMs": 1792878840000 },
+        { "epochMs": 1793408040000 },
+        { "epochMs": 1793447640000 },
+        { "epochMs": 1793487240000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r252",
+      "pattern": "51 4/2 26,13,8 * *",
+      "tz": "Europe/Dublin",
+      "currentDate": "2027-03-27T18:32:56.468Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1807156260000 },
+        { "epochMs": 1807163460000 },
+        { "epochMs": 1807170660000 },
+        { "epochMs": 1807177860000 },
+        { "epochMs": 1807185060000 },
+        { "epochMs": 1807192260000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r269",
+      "pattern": "12 * * * 3#5",
+      "tz": "Europe/Dublin",
+      "currentDate": "2026-10-24T23:45:35.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1798589520000 },
+        { "epochMs": 1798593120000 },
+        { "epochMs": 1798596720000 },
+        { "epochMs": 1798600320000 },
+        { "epochMs": 1798603920000 },
+        { "epochMs": 1798607520000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r304",
+      "pattern": "27 * * 12,2,29 * *",
+      "tz": "Europe/Dublin",
+      "currentDate": "2026-10-26T05:49:02.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793232027000 },
+        { "epochMs": 1793232087000 },
+        { "epochMs": 1793232147000 },
+        { "epochMs": 1793232207000 },
+        { "epochMs": 1793232267000 },
+        { "epochMs": 1793232327000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r28",
+      "pattern": "28 48 */8 * * 0",
+      "tz": "Europe/London",
+      "currentDate": "2026-03-29T13:48:46.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774799308000 },
+        { "epochMs": 1775346508000 },
+        { "epochMs": 1775375308000 },
+        { "epochMs": 1775404108000 },
+        { "epochMs": 1775951308000 },
+        { "epochMs": 1775980108000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r44",
+      "pattern": "41 21 23-28 * *",
+      "tz": "Europe/London",
+      "currentDate": "2026-08-28T06:37:13.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1787949660000 },
+        { "epochMs": 1790196060000 },
+        { "epochMs": 1790282460000 },
+        { "epochMs": 1790368860000 },
+        { "epochMs": 1790455260000 },
+        { "epochMs": 1790541660000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r45",
+      "pattern": "52 53/5 23-23/4 * mar-oct sat,sun",
+      "tz": "Europe/London",
+      "currentDate": "2026-10-24T14:16:10.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1792882432000 },
+        { "epochMs": 1792882732000 },
+        { "epochMs": 1792972432000 },
+        { "epochMs": 1792972732000 },
+        { "epochMs": 1793490832000 },
+        { "epochMs": 1793491132000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r61",
+      "pattern": "28 * 17,14 * mar-oct MON-FRI",
+      "tz": "Europe/London",
+      "currentDate": "2026-11-17T10:39:22.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1803909628000 },
+        { "epochMs": 1803909688000 },
+        { "epochMs": 1803909748000 },
+        { "epochMs": 1803909808000 },
+        { "epochMs": 1803909868000 },
+        { "epochMs": 1803909928000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r65",
+      "pattern": "16,32 * 6-6/5 * *",
+      "tz": "Europe/London",
+      "currentDate": "2018-03-24T20:01:16.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522970160000 },
+        { "epochMs": 1522971120000 },
+        { "epochMs": 1522973760000 },
+        { "epochMs": 1522974720000 },
+        { "epochMs": 1522977360000 },
+        { "epochMs": 1522978320000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r99",
+      "pattern": "25 15 * * *",
+      "tz": "Europe/London",
+      "currentDate": "2027-10-30T16:35:48.000Z",
+      "startDate": "2027-11-02T16:35:48.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1825255500000 },
+        { "epochMs": 1825341900000 },
+        { "epochMs": 1825428300000 },
+        { "epochMs": 1825514700000 },
+        { "epochMs": 1825601100000 },
+        { "epochMs": 1825687500000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r132",
+      "pattern": "59,2,15 10-15/2 * * *#3",
+      "tz": "Europe/London",
+      "currentDate": "2026-03-27T23:54:46.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1776243720000 },
+        { "epochMs": 1776244500000 },
+        { "epochMs": 1776247140000 },
+        { "epochMs": 1776250920000 },
+        { "epochMs": 1776251700000 },
+        { "epochMs": 1776254340000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r135",
+      "pattern": "* * 26-27/4 * *",
+      "tz": "Europe/London",
+      "currentDate": "2026-10-25T05:00:31.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1792972800000 },
+        { "epochMs": 1792972860000 },
+        { "epochMs": 1792972920000 },
+        { "epochMs": 1792972980000 },
+        { "epochMs": 1792973040000 },
+        { "epochMs": 1792973100000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r151",
+      "pattern": "24,42 * */4 * *",
+      "tz": "Europe/London",
+      "currentDate": "2026-12-11T01:36:13.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1797121440000 },
+        { "epochMs": 1797122520000 },
+        { "epochMs": 1797125040000 },
+        { "epochMs": 1797126120000 },
+        { "epochMs": 1797128640000 },
+        { "epochMs": 1797129720000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r211",
+      "pattern": "*/24 * L * *",
+      "tz": "Europe/London",
+      "currentDate": "2027-10-31T09:55:12.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1824976800000 },
+        { "epochMs": 1824978240000 },
+        { "epochMs": 1824979680000 },
+        { "epochMs": 1824980400000 },
+        { "epochMs": 1824981840000 },
+        { "epochMs": 1824983280000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r214",
+      "pattern": "10-27 56 * * * *",
+      "tz": "Europe/London",
+      "currentDate": "2026-10-25T09:11:30.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1792922170000 },
+        { "epochMs": 1792922171000 },
+        { "epochMs": 1792922172000 },
+        { "epochMs": 1792922173000 },
+        { "epochMs": 1792922174000 },
+        { "epochMs": 1792922175000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r248",
+      "pattern": "36 * * 28,3,8,31 * *",
+      "tz": "Europe/London",
+      "currentDate": "2026-03-30T04:42:15.058Z",
+      "startDate": "2026-03-31T18:42:15.058Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774982556000 },
+        { "epochMs": 1774982616000 },
+        { "epochMs": 1774982676000 },
+        { "epochMs": 1774982736000 },
+        { "epochMs": 1774982796000 },
+        { "epochMs": 1774982856000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r286",
+      "pattern": "36,57 6,11,22 */9 * *",
+      "tz": "Europe/London",
+      "currentDate": "2026-03-28T23:12:24.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1775021760000 },
+        { "epochMs": 1775023020000 },
+        { "epochMs": 1775039760000 },
+        { "epochMs": 1775041020000 },
+        { "epochMs": 1775079360000 },
+        { "epochMs": 1775080620000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r288",
+      "pattern": "28 3 14-24 * *",
+      "tz": "Europe/London",
+      "currentDate": "2026-10-24T14:49:46.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1794626880000 },
+        { "epochMs": 1794713280000 },
+        { "epochMs": 1794799680000 },
+        { "epochMs": 1794886080000 },
+        { "epochMs": 1794972480000 },
+        { "epochMs": 1795058880000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r31",
+      "pattern": "56 * 2-9/1 */4 4,6,5",
+      "tz": "Europe/Madrid",
+      "currentDate": "2027-10-30T21:22:58.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1830297360000 },
+        { "epochMs": 1830300960000 },
+        { "epochMs": 1830304560000 },
+        { "epochMs": 1830308160000 },
+        { "epochMs": 1830311760000 },
+        { "epochMs": 1830315360000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r42",
+      "pattern": "*/15 11 6/9 * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2027-10-29T23:26:41.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1825495200000 },
+        { "epochMs": 1825496100000 },
+        { "epochMs": 1825497000000 },
+        { "epochMs": 1825497900000 },
+        { "epochMs": 1826272800000 },
+        { "epochMs": 1826273700000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r54",
+      "pattern": "46 5-8 * * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2018-10-28T09:38:05.945Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1540788360000 },
+        { "epochMs": 1540791960000 },
+        { "epochMs": 1540795560000 },
+        { "epochMs": 1540799160000 },
+        { "epochMs": 1540874760000 },
+        { "epochMs": 1540878360000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r80",
+      "pattern": "28,29 * */5 * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2026-06-07T13:31:46.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1781130480000 },
+        { "epochMs": 1781130540000 },
+        { "epochMs": 1781134080000 },
+        { "epochMs": 1781134140000 },
+        { "epochMs": 1781137680000 },
+        { "epochMs": 1781137740000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r91",
+      "pattern": "0-46 * * * *#5",
+      "tz": "Europe/Madrid",
+      "currentDate": "2026-06-29T16:54:56.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1782752400000 },
+        { "epochMs": 1782752460000 },
+        { "epochMs": 1782752520000 },
+        { "epochMs": 1782752580000 },
+        { "epochMs": 1782752640000 },
+        { "epochMs": 1782752700000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r93",
+      "pattern": "* 27 * * * 0L",
+      "tz": "Europe/Madrid",
+      "currentDate": "2026-03-28T02:52:56.156Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774740420000 },
+        { "epochMs": 1774740421000 },
+        { "epochMs": 1774740422000 },
+        { "epochMs": 1774740423000 },
+        { "epochMs": 1774740424000 },
+        { "epochMs": 1774740425000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r120",
+      "pattern": "55 41 22 11 * */2",
+      "tz": "Europe/Madrid",
+      "currentDate": "2027-10-30T14:35:20.810Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1824928915000 },
+        { "epochMs": 1825018915000 },
+        { "epochMs": 1825191715000 },
+        { "epochMs": 1825364515000 },
+        { "epochMs": 1825537315000 },
+        { "epochMs": 1825623715000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r133",
+      "pattern": "54,56 16/3 */8 * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2026-03-29T11:00:42.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1775055240000 },
+        { "epochMs": 1775055360000 },
+        { "epochMs": 1775066040000 },
+        { "epochMs": 1775066160000 },
+        { "epochMs": 1775076840000 },
+        { "epochMs": 1775076960000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r163",
+      "pattern": "20 10 * * 2L",
+      "tz": "Europe/Madrid",
+      "currentDate": "2026-10-23T13:58:44.972Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793092800000 },
+        { "epochMs": 1795512000000 },
+        { "epochMs": 1798536000000 },
+        { "epochMs": 1800955200000 },
+        { "epochMs": 1803374400000 },
+        { "epochMs": 1806394800000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r179",
+      "pattern": "* 52 * * * 6L",
+      "tz": "Europe/Madrid",
+      "currentDate": "2018-10-26T20:26:42.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1540594320000 },
+        { "epochMs": 1540594321000 },
+        { "epochMs": 1540594322000 },
+        { "epochMs": 1540594323000 },
+        { "epochMs": 1540594324000 },
+        { "epochMs": 1540594325000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r189",
+      "pattern": "13-46/3 * */7 * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2027-10-31T12:05:55.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1825024380000 },
+        { "epochMs": 1825024560000 },
+        { "epochMs": 1825024740000 },
+        { "epochMs": 1825024920000 },
+        { "epochMs": 1825025100000 },
+        { "epochMs": 1825025280000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r217",
+      "pattern": "* 46 11/5 * * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2026-03-29T22:07:59.453Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774863960000 },
+        { "epochMs": 1774863961000 },
+        { "epochMs": 1774863962000 },
+        { "epochMs": 1774863963000 },
+        { "epochMs": 1774863964000 },
+        { "epochMs": 1774863965000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r247",
+      "pattern": "5 0,38,29 11-18 */2 * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2027-10-30T20:18:09.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1824976805000 },
+        { "epochMs": 1824978545000 },
+        { "epochMs": 1824979085000 },
+        { "epochMs": 1824980405000 },
+        { "epochMs": 1824982145000 },
+        { "epochMs": 1824982685000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r276",
+      "pattern": "9 11 * * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2026-10-26T02:57:32.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1793009340000 },
+        { "epochMs": 1793095740000 },
+        { "epochMs": 1793182140000 },
+        { "epochMs": 1793268540000 },
+        { "epochMs": 1793354940000 },
+        { "epochMs": 1793441340000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r5",
+      "pattern": "12 * L * *",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-09-28T12:00:45.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1538219520000 },
+        { "epochMs": 1538223120000 },
+        { "epochMs": 1538226720000 },
+        { "epochMs": 1538230320000 },
+        { "epochMs": 1538233920000 },
+        { "epochMs": 1538237520000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r12",
+      "pattern": "15 54 * * * *",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-09-30T23:48:46.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1538351655000 },
+        { "epochMs": 1538355255000 },
+        { "epochMs": 1538358855000 },
+        { "epochMs": 1538362455000 },
+        { "epochMs": 1538366055000 },
+        { "epochMs": 1538369655000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r16",
+      "pattern": "42,14,44 5,11 * * 2L",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-09-29T23:54:27.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1540826040000 },
+        { "epochMs": 1540827720000 },
+        { "epochMs": 1540827840000 },
+        { "epochMs": 1540847640000 },
+        { "epochMs": 1540849320000 },
+        { "epochMs": 1540849440000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r17",
+      "pattern": "58,3 17 * * 0L",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-09-29T16:53:47.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1538276580000 },
+        { "epochMs": 1538279880000 },
+        { "epochMs": 1540695780000 },
+        { "epochMs": 1540699080000 },
+        { "epochMs": 1543114980000 },
+        { "epochMs": 1543118280000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r24",
+      "pattern": "19,18,47,20 19 * * fri#2",
+      "tz": "Pacific/Apia",
+      "currentDate": "2026-07-17T15:58:56.000Z",
+      "startDate": "2026-07-19T09:58:56.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1786688280000 },
+        { "epochMs": 1786688340000 },
+        { "epochMs": 1786688400000 },
+        { "epochMs": 1786690020000 },
+        { "epochMs": 1789107480000 },
+        { "epochMs": 1789107540000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r81",
+      "pattern": "33 */1 5 * *",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-03-30T19:27:20.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522841580000 },
+        { "epochMs": 1522845180000 },
+        { "epochMs": 1522848780000 },
+        { "epochMs": 1522852380000 },
+        { "epochMs": 1522855980000 },
+        { "epochMs": 1522859580000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r90",
+      "pattern": "59 */11 30 * *",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-04-02T00:20:05.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1525003140000 },
+        { "epochMs": 1525042740000 },
+        { "epochMs": 1525082340000 },
+        { "epochMs": 1527595140000 },
+        { "epochMs": 1527634740000 },
+        { "epochMs": 1527674340000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r117",
+      "pattern": "56,47,21,45 * * * fri#1",
+      "tz": "Pacific/Apia",
+      "currentDate": "2026-12-17T08:36:41.000Z",
+      "startDate": "2026-12-18T10:36:41.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1798716060000 },
+        { "epochMs": 1798717500000 },
+        { "epochMs": 1798717620000 },
+        { "epochMs": 1798718160000 },
+        { "epochMs": 1798719660000 },
+        { "epochMs": 1798721100000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r164",
+      "pattern": "48 * * * * *",
+      "tz": "Pacific/Apia",
+      "currentDate": "2026-06-22T06:58:39.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1782111528000 },
+        { "epochMs": 1782111588000 },
+        { "epochMs": 1782111648000 },
+        { "epochMs": 1782111708000 },
+        { "epochMs": 1782111768000 },
+        { "epochMs": 1782111828000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r166",
+      "pattern": "36 */5 * * 4L",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-04-01T02:29:48.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1524656160000 },
+        { "epochMs": 1524674160000 },
+        { "epochMs": 1524692160000 },
+        { "epochMs": 1524710160000 },
+        { "epochMs": 1524728160000 },
+        { "epochMs": 1527680160000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r230",
+      "pattern": "5-32/4 30 */5 * * MON-FRI",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-09-29T07:03:56.000Z",
+      "startDate": null,
+      "endDate": "2018-10-01T13:03:56.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1538303405000 },
+        { "epochMs": 1538303409000 },
+        { "epochMs": 1538303413000 },
+        { "epochMs": 1538303417000 },
+        { "epochMs": 1538303421000 },
+        { "epochMs": 1538303425000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r257",
+      "pattern": "13-22 * */7 * * *#1",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-03-30T20:28:34.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522490413000 },
+        { "epochMs": 1522490414000 },
+        { "epochMs": 1522490415000 },
+        { "epochMs": 1522490416000 },
+        { "epochMs": 1522490417000 },
+        { "epochMs": 1522490418000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r264",
+      "pattern": "* * 6 * *",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-09-30T20:24:06.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1538733600000 },
+        { "epochMs": 1538733660000 },
+        { "epochMs": 1538733720000 },
+        { "epochMs": 1538733780000 },
+        { "epochMs": 1538733840000 },
+        { "epochMs": 1538733900000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r284",
+      "pattern": "* */10 27-27/2 * *",
+      "tz": "Pacific/Apia",
+      "currentDate": "2018-09-30T13:55:41.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1540548000000 },
+        { "epochMs": 1540548060000 },
+        { "epochMs": 1540548120000 },
+        { "epochMs": 1540548180000 },
+        { "epochMs": 1540548240000 },
+        { "epochMs": 1540548300000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r2",
+      "pattern": "54 * * * 2L",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2026-04-05T22:07:41.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1777291740000 },
+        { "epochMs": 1777295340000 },
+        { "epochMs": 1777298940000 },
+        { "epochMs": 1777302540000 },
+        { "epochMs": 1777306140000 },
+        { "epochMs": 1777309740000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r22",
+      "pattern": "56 * 6/4 * *",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2018-09-28T06:34:42.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1538223060000 },
+        { "epochMs": 1538226660000 },
+        { "epochMs": 1538233860000 },
+        { "epochMs": 1538237460000 },
+        { "epochMs": 1538241060000 },
+        { "epochMs": 1538244660000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r39",
+      "pattern": "*/1 19 28,10,24,18 * *",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2027-09-24T23:44:11.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1822108500000 },
+        { "epochMs": 1822108560000 },
+        { "epochMs": 1822108620000 },
+        { "epochMs": 1822108680000 },
+        { "epochMs": 1822108740000 },
+        { "epochMs": 1822108800000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r73",
+      "pattern": "29 * * * * 1-7/2",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2027-09-26T10:07:02.036Z",
+      "startDate": "2027-09-28T09:07:02.036Z",
+      "endDate": "2027-09-28T13:07:02.036Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1822126529000 },
+        { "epochMs": 1822126589000 },
+        { "epochMs": 1822126649000 },
+        { "epochMs": 1822126709000 },
+        { "epochMs": 1822126769000 },
+        { "epochMs": 1822126829000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r85",
+      "pattern": "3 * 18,31,2,22 * *",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2027-04-04T17:13:38.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1807960680000 },
+        { "epochMs": 1807964280000 },
+        { "epochMs": 1807967880000 },
+        { "epochMs": 1807971480000 },
+        { "epochMs": 1807975080000 },
+        { "epochMs": 1807978680000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r100",
+      "pattern": "35 28,7,3 * L * *",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2018-09-30T04:00:24.000Z",
+      "startDate": null,
+      "endDate": "2018-10-09T04:00:24.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1538281115000 },
+        { "epochMs": 1538281355000 },
+        { "epochMs": 1538282615000 },
+        { "epochMs": 1538284715000 },
+        { "epochMs": 1538284955000 },
+        { "epochMs": 1538286215000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r108",
+      "pattern": "28 * * * 1L",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2026-11-24T00:43:06.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1795948980000 },
+        { "epochMs": 1795952580000 },
+        { "epochMs": 1795956180000 },
+        { "epochMs": 1795959780000 },
+        { "epochMs": 1795963380000 },
+        { "epochMs": 1795966980000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r187",
+      "pattern": "26 2 23 * * 2#2",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2026-06-16T11:43:37.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1784024246000 },
+        { "epochMs": 1786443446000 },
+        { "epochMs": 1788862646000 },
+        { "epochMs": 1791883046000 },
+        { "epochMs": 1794302246000 },
+        { "epochMs": 1796721446000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r240",
+      "pattern": "18 27 * L * *",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2027-04-02T05:45:57.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1808998938000 },
+        { "epochMs": 1809002538000 },
+        { "epochMs": 1809006138000 },
+        { "epochMs": 1809009738000 },
+        { "epochMs": 1809013338000 },
+        { "epochMs": 1809016938000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r243",
+      "pattern": "18 * 4 * *",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2018-03-31T12:59:51.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1522755180000 },
+        { "epochMs": 1522758780000 },
+        { "epochMs": 1522762380000 },
+        { "epochMs": 1522765980000 },
+        { "epochMs": 1522769580000 },
+        { "epochMs": 1522773180000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r282",
+      "pattern": "34 18-22 1-4/2 * *",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2027-04-04T15:57:52.726Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1809150540000 },
+        { "epochMs": 1809154140000 },
+        { "epochMs": 1809157740000 },
+        { "epochMs": 1809161340000 },
+        { "epochMs": 1809164940000 },
+        { "epochMs": 1809323340000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r285",
+      "pattern": "24 */6 */3 * *",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2026-10-16T18:57:50.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1792319940000 },
+        { "epochMs": 1792341540000 },
+        { "epochMs": 1792363140000 },
+        { "epochMs": 1792384740000 },
+        { "epochMs": 1792579140000 },
+        { "epochMs": 1792600740000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r289",
+      "pattern": "41 14 * JAN sat,sun",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2026-04-05T18:02:06.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1798851360000 },
+        { "epochMs": 1798937760000 },
+        { "epochMs": 1799456160000 },
+        { "epochMs": 1799542560000 },
+        { "epochMs": 1800060960000 },
+        { "epochMs": 1800147360000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r305",
+      "pattern": "50 * 8,15,1 * *",
+      "tz": "Pacific/Chatham",
+      "currentDate": "2027-09-24T11:00:11.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1822302300000 },
+        { "epochMs": 1822305900000 },
+        { "epochMs": 1822309500000 },
+        { "epochMs": 1822313100000 },
+        { "epochMs": 1822316700000 },
+        { "epochMs": 1822320300000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r18",
+      "pattern": "41 32,56 * 17 2 1-1/4",
+      "tz": "UTC",
+      "currentDate": "2026-03-24T06:50:23.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1801441961000 },
+        { "epochMs": 1801443401000 },
+        { "epochMs": 1801445561000 },
+        { "epochMs": 1801447001000 },
+        { "epochMs": 1801449161000 },
+        { "epochMs": 1801450601000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r21",
+      "pattern": "39 * * * 3L",
+      "tz": "UTC",
+      "currentDate": "2026-12-21T14:09:57.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1798591140000 },
+        { "epochMs": 1798594740000 },
+        { "epochMs": 1798598340000 },
+        { "epochMs": 1798601940000 },
+        { "epochMs": 1798605540000 },
+        { "epochMs": 1798609140000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r36",
+      "pattern": "29 * * * *#4",
+      "tz": "UTC",
+      "currentDate": "2026-09-17T03:44:02.000Z",
+      "startDate": "2026-09-17T21:44:02.000Z",
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1790036940000 },
+        { "epochMs": 1790040540000 },
+        { "epochMs": 1790044140000 },
+        { "epochMs": 1790047740000 },
+        { "epochMs": 1790051340000 },
+        { "epochMs": 1790054940000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r60",
+      "pattern": "47 * L * *",
+      "tz": "UTC",
+      "currentDate": "2026-07-27T02:05:09.000Z",
+      "startDate": null,
+      "endDate": "2026-08-02T18:05:09.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1785458820000 },
+        { "epochMs": 1785462420000 },
+        { "epochMs": 1785466020000 },
+        { "epochMs": 1785469620000 },
+        { "epochMs": 1785473220000 },
+        { "epochMs": 1785476820000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r75",
+      "pattern": "43 * * * * 4L",
+      "tz": "UTC",
+      "currentDate": "2026-12-01T04:27:52.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1798675243000 },
+        { "epochMs": 1798675303000 },
+        { "epochMs": 1798675363000 },
+        { "epochMs": 1798675423000 },
+        { "epochMs": 1798675483000 },
+        { "epochMs": 1798675543000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r115",
+      "pattern": "22 */3 9-20/4 * *",
+      "tz": "UTC",
+      "currentDate": "2026-08-31T14:56:58.000Z",
+      "startDate": null,
+      "endDate": "2026-09-09T19:56:58.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1788913320000 },
+        { "epochMs": 1788924120000 },
+        { "epochMs": 1788934920000 },
+        { "epochMs": 1788945720000 },
+        { "epochMs": 1788956520000 },
+        { "epochMs": 1788967320000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r119",
+      "pattern": "34 49 4 30,9 * *",
+      "tz": "UTC",
+      "currentDate": "2026-02-01T11:11:20.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1770612574000 },
+        { "epochMs": 1773031774000 },
+        { "epochMs": 1774846174000 },
+        { "epochMs": 1775710174000 },
+        { "epochMs": 1777524574000 },
+        { "epochMs": 1778302174000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r178",
+      "pattern": "28 * * * *",
+      "tz": "UTC",
+      "currentDate": "2026-05-06T21:43:08.000Z",
+      "startDate": null,
+      "endDate": "2026-05-21T18:43:08.000Z",
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1778106480000 },
+        { "epochMs": 1778110080000 },
+        { "epochMs": 1778113680000 },
+        { "epochMs": 1778117280000 },
+        { "epochMs": 1778120880000 },
+        { "epochMs": 1778124480000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r213",
+      "pattern": "* * * * *",
+      "tz": "UTC",
+      "currentDate": "2026-08-15T07:05:29.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1786777560000 },
+        { "epochMs": 1786777620000 },
+        { "epochMs": 1786777680000 },
+        { "epochMs": 1786777740000 },
+        { "epochMs": 1786777800000 },
+        { "epochMs": 1786777860000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r259",
+      "pattern": "31 * * * 2L",
+      "tz": "UTC",
+      "currentDate": "2026-08-02T21:46:35.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1787617860000 },
+        { "epochMs": 1787621460000 },
+        { "epochMs": 1787625060000 },
+        { "epochMs": 1787628660000 },
+        { "epochMs": 1787632260000 },
+        { "epochMs": 1787635860000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r266",
+      "pattern": "41-55/2 20,22,1,3 * * 4#2",
+      "tz": "UTC",
+      "currentDate": "2026-11-14T01:18:23.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1796866860000 },
+        { "epochMs": 1796866980000 },
+        { "epochMs": 1796867100000 },
+        { "epochMs": 1796867220000 },
+        { "epochMs": 1796867340000 },
+        { "epochMs": 1796867460000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r281",
+      "pattern": "2 16,12,15,21 29-29 * *",
+      "tz": "UTC",
+      "currentDate": "2026-06-02T10:36:13.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1782734520000 },
+        { "epochMs": 1782745320000 },
+        { "epochMs": 1782748920000 },
+        { "epochMs": 1782766920000 },
+        { "epochMs": 1785326520000 },
+        { "epochMs": 1785337320000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r290",
+      "pattern": "9 * * */6 * *",
+      "tz": "UTC",
+      "currentDate": "2026-03-26T16:09:28.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1774915209000 },
+        { "epochMs": 1774915269000 },
+        { "epochMs": 1774915329000 },
+        { "epochMs": 1774915389000 },
+        { "epochMs": 1774915449000 },
+        { "epochMs": 1774915509000 }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "r292",
+      "pattern": "21 16-23 29 * *",
+      "tz": "UTC",
+      "currentDate": "2026-07-24T09:23:14.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        { "epochMs": 1785342060000 },
+        { "epochMs": 1785345660000 },
+        { "epochMs": 1785349260000 },
+        { "epochMs": 1785352860000 },
+        { "epochMs": 1785356460000 },
+        { "epochMs": 1785360060000 }
+      ],
+      "expectedError": null
+    }
+  ]
+}
