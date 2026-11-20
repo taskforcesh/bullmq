@@ -1084,7 +1084,9 @@ if _, err := queue.RemoveJobScheduler(ctx, "poll"); err != nil {
   `repeat:<scheduler id>:<due time in ms>`. The worker that fetches it adds
   the following one before processing it, so Go, Node.js and the other ports
   advance each other's schedulers. While no worker runs, a scheduler doesn't
-  pile up jobs.
+  pile up jobs. `RemoveJobScheduler` removes that job only while it is still
+  delayed: a job already waiting (such as the first job of an `Every`
+  scheduler) or being processed runs once more.
 - `Pattern` takes 5 fields, or 6 with leading seconds, with names, ranges,
   steps, `L` and `#`. It is evaluated exactly as cron-parser evaluates it in
   Node.js, including across DST changes, so every port computes the same due

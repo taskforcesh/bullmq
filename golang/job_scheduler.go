@@ -467,8 +467,10 @@ func newSchedulerJob(b Backend, jobID, name string, data []byte, opts *JobOption
 }
 
 // RemoveJobScheduler removes the job scheduler id and the job of its next
-// iteration, unless that job is already being processed. It reports whether
-// the scheduler existed.
+// iteration while that job is still delayed, as in Node.js: an iteration job
+// already waiting (such as the first job of an Every scheduler, or a due job
+// that was promoted) or being processed is kept, and runs once more. It
+// reports whether the scheduler existed.
 func (q *Queue) RemoveJobScheduler(ctx context.Context, id string) (bool, error) {
 	return q.backend.RemoveJobScheduler(ctx, id)
 }

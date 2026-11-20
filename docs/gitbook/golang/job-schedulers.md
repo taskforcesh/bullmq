@@ -112,8 +112,9 @@ log.Printf("removed: %v", existed)
 
 `JobSchedulers` lists them by the due time of their next job, `JobScheduler`
 reads one by id (or returns `nil`), and `JobSchedulersCount` counts them.
-`RemoveJobScheduler` also removes the job of the next iteration, unless a
-worker is already processing it. See
+`RemoveJobScheduler` also removes the job of the next iteration while it is
+still delayed; a job already waiting (such as the first job of an `Every`
+scheduler) or being processed is kept, and runs once more. See
 [Manage job schedulers](../guide/job-schedulers/manage-job-schedulers.md).
 
 {% hint style="info" %}
