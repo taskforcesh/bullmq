@@ -26,6 +26,7 @@ var commandsFS embed.FS
 type luaScript struct {
 	name    string
 	numKeys int
+	src     string
 	script  *redis.Script
 }
 
@@ -73,6 +74,7 @@ func loadScripts() (map[string]*luaScript, error) {
 			loaded[name] = &luaScript{
 				name:    name,
 				numKeys: numKeys,
+				src:     string(body),
 				script:  redis.NewScript(string(body)),
 			}
 		}
@@ -97,6 +99,14 @@ func getScript(name string) (*luaScript, error) {
 		return nil, fmt.Errorf("bullmq: unknown Lua command %q", name)
 	}
 	return s, nil
+}
+
+// load queues SCRIPT LOAD of the command on pipe. It must be used instead of
+// redis.Script.Load, which since go-redis v9.19 stores the reply as the
+// script's digest: on a pipeline the reply is still empty when Load returns,
+// so every later EVALSHA of the script would carry an empty digest.
+func (s *luaScript) load(ctx context.Context, pipe redis.Pipeliner) *redis.StringCmd {
+	return pipe.ScriptLoad(ctx, s.src)
 }
 
 // run evaluates the command, transparently falling back from EVALSHA to EVAL.

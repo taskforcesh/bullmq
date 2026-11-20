@@ -44,7 +44,7 @@ to.
 
 ## Requirements
 
-- Go 1.24 or newer.
+- Go 1.26 or newer.
 - Redis 6.2 or newer, or PostgreSQL 13 or newer.
 
 ## Installation

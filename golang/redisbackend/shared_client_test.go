@@ -109,3 +109,39 @@ func TestWorkerStopsPromptlyWithLongDrainDelayAndSharedClient(t *testing.T) {
 		}
 	}
 }
+
+// The dedicated blocking client derived from a caller's client must not share
+// its push notification processor, in which go-redis registers per-client
+// handlers, nor its client-side cache.
+func TestDedicatedBlockingClientDoesNotShareClientState(t *testing.T) {
+	requireRedis(t)
+	rdb := redis.NewClient(&redis.Options{
+		Addr:                  redisAddr(),
+		Protocol:              3,
+		ClientSideCacheConfig: &redis.ClientSideCacheConfig{},
+	})
+	defer rdb.Close()
+
+	b, err := NewBackend(testQueueName(t), Options{Client: rdb}, bullmq.BackendOptions{
+		WithBlockingConnection: true,
+		ClientNameSuffix:       ":w:clone-test",
+	})
+	if err != nil {
+		t.Fatalf("NewBackend: %v", err)
+	}
+	defer b.Close()
+	blocking, ok := b.blocking.(*redis.Client)
+	if !ok || b.blockingConn == nil {
+		t.Fatalf("no dedicated blocking client: %T", b.blocking)
+	}
+	opts := blocking.Options()
+	if opts.PushNotificationProcessor == rdb.Options().PushNotificationProcessor {
+		t.Error("the blocking client shares the caller's push notification processor")
+	}
+	if opts.ClientSideCache != nil || opts.ClientSideCacheConfig != nil {
+		t.Error("the blocking client uses client-side caching")
+	}
+	if err := blocking.Ping(context.Background()).Err(); err != nil {
+		t.Fatalf("Ping: %v", err)
+	}
+}

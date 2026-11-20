@@ -95,6 +95,14 @@ func (o Options) buildBlocking(name string, readTimeout time.Duration) (redis.Un
 		clone.ReadTimeout = readTimeout
 		clone.ContextTimeoutEnabled = true
 		clone.ClientName = name
+		// go-redis stores the client's push notification processor in its
+		// options; sharing it would make the clone fail to register its own
+		// maintenance notification handlers. Client-side caching has nothing to
+		// cache on a connection that only blocks, and its cache must not be
+		// shared either.
+		clone.PushNotificationProcessor = nil
+		clone.ClientSideCache = nil
+		clone.ClientSideCacheConfig = nil
 		opt = &clone
 	} else {
 		addr := o.Addr

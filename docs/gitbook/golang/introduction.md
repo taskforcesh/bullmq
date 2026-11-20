@@ -27,7 +27,7 @@ go get github.com/taskforcesh/bullmq-go
 
 BullMQ for Go requires:
 
-- Go 1.24 or newer
+- Go 1.26 or newer
 - Redis 6.2 or newer, **or** PostgreSQL 13 or newer
 
 Both backends ship in the module, but a program only links the driver of the
