@@ -1155,6 +1155,12 @@ if _, err := queue.RemoveJobScheduler(ctx, "poll"); err != nil {
 - `Every` schedulers accept an `Offset`; every scheduler a `Limit`, a
   `StartDate` and an `EndDate` (Unix milliseconds); `Pattern` schedulers
   `Immediately`, to produce their first job right away.
+- `QueueOptions.RepeatStrategy` and `WorkerOptions.RepeatStrategy` replace
+  cron for `Pattern` schedulers, as Node's `settings.repeatStrategy` does: it
+  returns the next due time (Unix milliseconds) after `millis`, or 0 for no
+  more runs, so `Pattern` can be any rule it understands. The queue that
+  upserts a scheduler and every worker that advances it, in any language,
+  need the same strategy; a worker without it fails the iteration.
 - Legacy repeatable jobs (Node's `repeat` option, BullMQ 5 and earlier) aren't
   supported: migrate them to job schedulers. A Go worker processes their jobs
   but can't schedule the next ones, and reports it with an `EventError`.

@@ -68,6 +68,46 @@ can't resolve fails that iteration with the reason and an `EventError`, so the
 schedule stops visibly instead of stalling.
 {% endhint %}
 
+## Custom repeat strategy
+
+`QueueOptions.RepeatStrategy` and `WorkerOptions.RepeatStrategy` replace cron
+for `Pattern` schedulers, as Node's `settings.repeatStrategy` does. The
+strategy returns when the next job is due (Unix milliseconds) after `millis`,
+or 0 when there is no next run; `Pattern` can then hold any rule it
+understands, such as an RRULE. `opts.Count` is the number of jobs produced so
+far.
+
+```go
+// The next run after millis, or 0 for none; Pattern holds the rule, parsed
+// here with github.com/teambition/rrule-go.
+strategy := func(millis int64, opts bullmq.RepeatOptions, jobName string) (int64, error) {
+	rule, err := rrule.StrToRRule(strings.TrimPrefix(opts.Pattern, "RRULE:"))
+	if err != nil {
+		return 0, err
+	}
+	next := rule.After(time.UnixMilli(millis), false)
+	if next.IsZero() {
+		return 0, nil
+	}
+	return next.UnixMilli(), nil
+}
+
+queue, err := bullmq.NewQueue("reports", &bullmq.QueueOptions{Backend: backend, RepeatStrategy: strategy})
+if err != nil {
+	log.Fatal(err)
+}
+worker, err := bullmq.NewWorker("reports", render, &bullmq.WorkerOptions{Backend: backend, RepeatStrategy: strategy})
+if err != nil {
+	log.Fatal(err)
+}
+_, err = queue.UpsertJobScheduler(ctx, "weekly",
+	bullmq.RepeatOptions{Pattern: "RRULE:FREQ=WEEKLY;BYDAY=MO;BYHOUR=9"}, nil)
+```
+
+The queue that upserts a scheduler and every worker that advances it, in any
+language, need the same strategy: a worker without it can't compute the next
+run, and fails the iteration it fetched.
+
 ## Job template
 
 `bullmq.JobTemplate` sets the name (the scheduler id by default), the data

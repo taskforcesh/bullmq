@@ -17,6 +17,7 @@ import (
 type Queue struct {
 	backend           Backend
 	defaultJobOptions *JobOptions
+	repeatStrategy    RepeatStrategy
 }
 
 // priorityLimit is the largest accepted priority (2^21-1). The shared scripts
@@ -33,7 +34,7 @@ func NewQueue(name string, opts *QueueOptions) (*Queue, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Queue{backend: backend, defaultJobOptions: opts.DefaultJobOptions}, nil
+	return &Queue{backend: backend, defaultJobOptions: opts.DefaultJobOptions, repeatStrategy: opts.RepeatStrategy}, nil
 }
 
 // Name returns the queue name.

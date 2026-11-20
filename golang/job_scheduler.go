@@ -114,6 +114,20 @@ func flexMillis(raw json.RawMessage, date bool) int64 {
 	return 0
 }
 
+// RepeatStrategy computes when the next job of a Pattern scheduler is due,
+// instead of evaluating Pattern as a cron expression, as Node's
+// settings.repeatStrategy does. It is set on QueueOptions and WorkerOptions,
+// and every queue and worker that schedules the iterations of a scheduler
+// needs the same one, whatever its language.
+//
+// millis is the time to compute the next run after (Unix milliseconds),
+// opts the scheduler's repeat options, whose Count is the number of jobs
+// produced so far, and jobName the name of its jobs. It returns when the next
+// job is due (Unix milliseconds; a time in the past means now), or 0 when
+// there is no next run, as Node's strategy returns undefined. Pattern can
+// then be any string the strategy understands, such as an RRULE.
+type RepeatStrategy func(millis int64, opts RepeatOptions, jobName string) (int64, error)
+
 // JobTemplate describes the jobs a job scheduler produces.
 type JobTemplate struct {
 	// Name is the name of every job. It defaults to the scheduler id.
@@ -264,7 +278,8 @@ func isDigits(s string) bool {
 // `repeat:<id>:<due time in Unix milliseconds>`.
 //
 // It returns nil, without error, when the schedule produces no job: its
-// limit is reached, or no time matching Pattern is left before EndDate.
+// limit is reached, or no time matching Pattern is left before EndDate (or
+// QueueOptions.RepeatStrategy returned 0).
 func (q *Queue) UpsertJobScheduler(ctx context.Context, id string, repeat RepeatOptions, template *JobTemplate) (*Job, error) {
 	if id == "" {
 		return nil, configError("job scheduler id must be provided")
@@ -306,14 +321,15 @@ func (q *Queue) UpsertJobScheduler(ctx context.Context, id string, repeat Repeat
 		return nil, configError("priority should be between 0 and %d", priorityLimit)
 	}
 	repeat.Count = 0
-	return upsertJobScheduler(ctx, q.backend, id, repeat, name, data, opts, true, "")
+	return upsertJobScheduler(ctx, q.backend, q.repeatStrategy, id, repeat, name, data, opts, true, "")
 }
 
 // upsertJobScheduler is Node's JobScheduler.upsertJobScheduler. With
 // override it (re)defines the scheduler from repeat and opts, the template
 // options; otherwise it advances the existing scheduler from the job
 // producerID, whose options are opts and whose repeat options are repeat.
-func upsertJobScheduler(ctx context.Context, b Backend, id string, repeat RepeatOptions, name string, data []byte, opts *JobOptions, override bool, producerID string) (*Job, error) {
+// strategy, when set, replaces the evaluation of a cron Pattern.
+func upsertJobScheduler(ctx context.Context, b Backend, strategy RepeatStrategy, id string, repeat RepeatOptions, name string, data []byte, opts *JobOptions, override bool, producerID string) (*Job, error) {
 	switch {
 	case repeat.Pattern != "" && repeat.Every != 0:
 		return nil, invalidRepeat("Both .pattern and .every options are defined for this repeatable job")
@@ -340,11 +356,23 @@ func upsertJobScheduler(ctx context.Context, b Backend, id string, repeat Repeat
 
 	var nextMillis int64
 	if repeat.Pattern != "" {
-		next, ok, err := nextPatternMillis(now, repeat)
-		if err != nil {
-			return nil, err
+		var next int64
+		if strategy != nil {
+			var err error
+			if next, err = strategy(now, repeat, name); err != nil {
+				return nil, fmt.Errorf("bullmq: the repeat strategy of job scheduler %q failed: %w", id, err)
+			}
+		} else {
+			var ok bool
+			var err error
+			if next, ok, err = nextPatternMillis(now, repeat); err != nil {
+				return nil, err
+			}
+			if !ok {
+				next = 0
+			}
 		}
-		if !ok {
+		if next == 0 {
 			return nil, nil
 		}
 		nextMillis = max(next, now)
@@ -554,7 +582,7 @@ func (w *Worker) scheduleNextIteration(ctx context.Context, job *Job) (ok bool, 
 		if job.Opts != nil && job.Opts.Repeat != nil {
 			repeat = *job.Opts.Repeat
 		}
-		_, err := upsertJobScheduler(c, w.backend, key, repeat, job.Name, job.Data, job.Opts, false, job.ID)
+		_, err := upsertJobScheduler(c, w.backend, w.opts.RepeatStrategy, key, repeat, job.Name, job.Data, job.Opts, false, job.ID)
 		return err
 	})
 	var invalid *repeatError

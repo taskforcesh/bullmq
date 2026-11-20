@@ -153,6 +153,10 @@ type QueueOptions struct {
 	Backend BackendFactory
 	// DefaultJobOptions are merged into every job added to this queue.
 	DefaultJobOptions *JobOptions
+	// RepeatStrategy, when set, computes the due times of the Pattern job
+	// schedulers this queue upserts, instead of cron (see [RepeatStrategy]).
+	// Set the same one on the workers.
+	RepeatStrategy RepeatStrategy
 }
 
 // WorkerOptions configures a Worker.
@@ -207,6 +211,11 @@ type WorkerOptions struct {
 	// BackoffStrategy computes a custom retry delay in milliseconds. Returning
 	// a negative value discards the job.
 	BackoffStrategy func(attemptsMade int64, backoffType BackoffType, err error, job *Job) int64
+	// RepeatStrategy, when set, computes the due time of the next iteration
+	// of a Pattern job scheduler when the worker fetches one of its jobs,
+	// instead of cron (see [RepeatStrategy]). It must match the one of the
+	// queue that upserted the scheduler.
+	RepeatStrategy RepeatStrategy
 	// OnEvent, when set, is called synchronously with every event the worker
 	// emits, including those dropped from a full Events channel. It runs on
 	// the worker's goroutines (a slow callback slows processing down), may
