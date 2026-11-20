@@ -20,6 +20,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -52,6 +53,10 @@ type Backend struct {
 	// blockTimeout is the longest blocking read requested by the owner
 	// (bullmq.BackendOptions.BlockTimeout).
 	blockTimeout time.Duration
+
+	// loadedScripts holds the names of the scripts this backend loaded with
+	// SCRIPT LOAD for bulk adds.
+	loadedScripts sync.Map
 }
 
 var _ bullmq.Backend = (*Backend)(nil)

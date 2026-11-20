@@ -131,37 +131,47 @@ func (b *Backend) AddJobs(ctx context.Context, jobs []bullmq.NewJob) ([]string, 
 	return ids, nil
 }
 
-// execAdds runs the prepared add* commands in one MULTI/EXEC. Each distinct
-// script is loaded once up front so the transaction carries only EVALSHA
-// calls instead of repeating the script text for every job.
+// execAdds runs the prepared add* commands in one MULTI/EXEC. The
+// transaction carries only EVALSHA calls instead of repeating the script
+// text for every job. Each distinct script is loaded the first time this
+// backend needs it, and only then, so a bulk add is a single round trip.
 //
-// A NOSCRIPT reply means the server dropped the cache between the load and
-// the EXEC (for example a failover); that command never ran, so only those
-// commands are resubmitted, with the full script text, in a second
-// transaction. Commands that already ran are never replayed.
+// A NOSCRIPT reply means the server does not have the script cached (it was
+// flushed, or the server failed over since it was loaded); that command never
+// ran, so only those commands are resubmitted, with the full script text, in
+// a second transaction, which also caches the script again. Commands that
+// already ran are never replayed.
 func (b *Backend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.Cmd, error) {
-	loaded := make(map[string]*luaScript)
-	var loadCmds []*redis.StringCmd
-	_, err := b.rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-		for _, a := range prepared {
-			if _, done := loaded[a.scriptName]; done {
-				continue
-			}
-			s, err := getScript(a.scriptName)
-			if err != nil {
-				return err
-			}
-			loaded[a.scriptName] = s
-			loadCmds = append(loadCmds, s.script.Load(ctx, pipe))
+	scripts := make(map[string]*luaScript)
+	var toLoad []*luaScript
+	for _, a := range prepared {
+		if _, seen := scripts[a.scriptName]; seen {
+			continue
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, c := range loadCmds {
-		if err := c.Err(); err != nil {
+		s, err := getScript(a.scriptName)
+		if err != nil {
 			return nil, err
+		}
+		scripts[a.scriptName] = s
+		if _, loaded := b.loadedScripts.Load(a.scriptName); !loaded {
+			toLoad = append(toLoad, s)
+		}
+	}
+	if len(toLoad) > 0 {
+		var loadCmds []*redis.StringCmd
+		if _, err := b.rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+			for _, s := range toLoad {
+				loadCmds = append(loadCmds, s.script.Load(ctx, pipe))
+			}
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+		for i, c := range loadCmds {
+			if err := c.Err(); err != nil {
+				return nil, err
+			}
+			b.loadedScripts.Store(toLoad[i].name, struct{}{})
 		}
 	}
 
@@ -170,7 +180,7 @@ func (b *Backend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.C
 		_, execErr := b.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 			for n, i := range indexes {
 				a := prepared[i]
-				s := loaded[a.scriptName]
+				s := scripts[a.scriptName]
 				if useSHA {
 					cmds[n] = s.script.EvalSha(ctx, pipe, a.keys, a.argv1, a.payload, a.opts)
 				} else {
