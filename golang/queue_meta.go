@@ -72,3 +72,25 @@ func metaNumber(s string) *int64 {
 	}
 	return &n
 }
+
+// DefaultEventsMaxLen is the default QueueOptions.EventsMaxLen.
+const DefaultEventsMaxLen int64 = 10000
+
+// metaValues returns the metadata a queue writes before its first command,
+// as Node's Queue does from its constructor, or nil with SkipMetasUpdate.
+func (o *QueueOptions) metaValues() (map[string]any, error) {
+	if o.EventsMaxLen < 0 {
+		return nil, configError("EventsMaxLen must not be negative, got %d", o.EventsMaxLen)
+	}
+	if o.SkipMetasUpdate {
+		return nil, nil
+	}
+	maxLen := o.EventsMaxLen
+	if maxLen == 0 {
+		maxLen = DefaultEventsMaxLen
+	}
+	return map[string]any{
+		"opts.maxLenEvents": maxLen,
+		"version":           "bullmq:" + Version,
+	}, nil
+}

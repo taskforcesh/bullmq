@@ -196,6 +196,17 @@ stage_version() {
     "$SRC_TREE/golang/" "$DEST/"
   cp "$SRC_TREE/LICENSE" "$DEST/LICENSE"
 
+  # The source tag is created before the release PR updates version.go, so
+  # set the version of the published module here.
+  if [ -f "$DEST/version.go" ]; then
+    sed -e "s/^const Version = \".*\"$/const Version = \"${version}\"/" "$DEST/version.go" > "$DEST/version.go.new"
+    mv "$DEST/version.go.new" "$DEST/version.go"
+    if ! grep -qx "const Version = \"${version}\"" "$DEST/version.go"; then
+      echo "::error::Could not set the version in version.go for ${source_tag}"
+      return 1
+    fi
+  fi
+
   # The changelog is updated by semantic-release in the working tree of the
   # release run and only reaches the tags through a later PR, so use the
   # current one and add this version's notes when it is not in there yet.

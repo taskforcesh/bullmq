@@ -24,12 +24,18 @@ type Queue struct {
 // the exact integer range of Redis/Lua and lose the counter.
 const priorityLimit int64 = 1<<21 - 1
 
-// NewQueue creates a queue named name.
+// NewQueue creates a queue named name. It does not reach the datastore: the
+// queue writes its metadata (see QueueOptions.SkipMetasUpdate) before its
+// first command.
 func NewQueue(name string, opts *QueueOptions) (*Queue, error) {
 	if opts == nil {
 		opts = &QueueOptions{}
 	}
-	backend, err := resolveBackend(opts.Backend, name, BackendOptions{})
+	meta, err := opts.metaValues()
+	if err != nil {
+		return nil, err
+	}
+	backend, err := resolveBackend(opts.Backend, name, BackendOptions{QueueMeta: meta})
 	if err != nil {
 		return nil, err
 	}

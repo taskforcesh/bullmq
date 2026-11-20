@@ -32,3 +32,15 @@ func (b *Backend) GetQueueMeta(ctx context.Context) (map[string]string, error) {
 	}
 	return meta, nil
 }
+
+// writeMeta writes the queue metadata of BackendOptions.QueueMeta. It runs
+// inside runSQL, once the schema is ready, so it uses the pool directly.
+func (b *Backend) writeMeta(ctx context.Context, values map[string]any) error {
+	sql, err := command("set_queue_meta")
+	if err != nil {
+		return err
+	}
+	fields, vals := metaArgs(values)
+	_, err = b.pool.Exec(ctx, sql, b.name, fields, vals)
+	return err
+}

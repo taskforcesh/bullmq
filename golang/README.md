@@ -873,6 +873,14 @@ can be changed and inspected: `UpdateData`, `UpdateProgress`, `Log` and
 `ChangePriority`, `Retry`, and `Remove` (which returns `bullmq.ErrJobLocked`
 while a worker holds the job).
 
+`NewQueue` doesn't reach the datastore. Before its first command, a queue
+writes its metadata, as Node's `Queue` does: `version`
+(`bullmq:<bullmq.Version>`) and `opts.maxLenEvents`, the approximate maximum
+length of the events stream, `QueueOptions.EventsMaxLen` (10,000 by default,
+Node's `streams.events.maxLen`). Set `QueueOptions.SkipMetasUpdate` for a
+role that may only read. After `Obliterate` or `Close`, the queue never
+writes it again, so an obliterated queue keeps no metadata.
+
 ## QueueEvents
 
 A `QueueEvents` reads the queue's shared event stream, so it sees what every

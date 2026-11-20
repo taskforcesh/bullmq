@@ -32,6 +32,7 @@ func (b *Backend) Drain(ctx context.Context, delayed bool) error {
 // Obliterate removes up to count jobs of the queue and returns 1 while more
 // remain, 0 once the queue is gone.
 func (b *Backend) Obliterate(ctx context.Context, force bool, count int64) (int64, error) {
+	b.meta.Stop()
 	var cursor int64
 	if err := b.queryRow(ctx, "obliterate", []any{b.name, clampInt32(count), force}, &cursor); err != nil {
 		return 0, err
@@ -218,13 +219,18 @@ func (b *Backend) SetQueueMeta(ctx context.Context, values map[string]any) error
 	if len(values) == 0 {
 		return nil
 	}
-	fields := make([]string, 0, len(values))
-	vals := make([]string, 0, len(values))
+	fields, vals := metaArgs(values)
+	return b.exec(ctx, "set_queue_meta", b.name, fields, vals)
+}
+
+func metaArgs(values map[string]any) (fields, vals []string) {
+	fields = make([]string, 0, len(values))
+	vals = make([]string, 0, len(values))
 	for f, v := range values {
 		fields = append(fields, f)
 		vals = append(vals, metaValue(v))
 	}
-	return b.exec(ctx, "set_queue_meta", b.name, fields, vals)
+	return fields, vals
 }
 
 func metaValue(v any) string {

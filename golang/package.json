@@ -48,6 +48,7 @@
       [
         "@semantic-release/exec",
         {
+          "prepareCmd": "sed -i 's/^const Version = \".*\"$/const Version = \"${nextRelease.version}\"/' version.go",
           "successCmd": "if [ -n \"$GITHUB_OUTPUT\" ]; then echo \"version=${nextRelease.version}\" >> \"$GITHUB_OUTPUT\"; fi"
         }
       ],

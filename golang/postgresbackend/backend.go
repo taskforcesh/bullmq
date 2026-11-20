@@ -36,6 +36,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/internal/queuemeta"
 )
 
 const (
@@ -105,6 +106,9 @@ type Backend struct {
 
 	closing   chan struct{}
 	closeOnce sync.Once
+
+	// meta writes the queue metadata before the first command.
+	meta *queuemeta.Writer
 }
 
 var _ bullmq.Backend = (*Backend)(nil)
@@ -145,6 +149,7 @@ func NewBackend(name string, opts Options, bo bullmq.BackendOptions) (*Backend, 
 		schema:           schema,
 		skipVersionCheck: opts.SkipVersionCheck,
 		closing:          make(chan struct{}),
+		meta:             queuemeta.New(bo.QueueMeta),
 	}
 	switch {
 	case opts.Pool != nil:
@@ -185,6 +190,7 @@ func (b *Backend) Schema() string { return b.schema }
 // backend is closed; a caller-supplied pool is left untouched.
 func (b *Backend) Close() error {
 	b.closeOnce.Do(func() {
+		b.meta.Stop()
 		close(b.closing)
 		b.jobs.close()
 		b.events.close()
@@ -262,6 +268,7 @@ func (b *Backend) runSQL(ctx context.Context, label, sql string, fn func(ctx con
 	if err := b.ensureReady(ctx); err != nil {
 		return err
 	}
+	b.meta.Write(ctx, b.writeMeta, isTransientError)
 	return mapError(label, fn(ctx, sql))
 }
 

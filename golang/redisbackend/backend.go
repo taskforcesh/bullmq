@@ -25,6 +25,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/internal/queuemeta"
 )
 
 // blockingReadSlack is added to the longest blocking read to size the socket
@@ -66,6 +67,9 @@ type Backend struct {
 	// SCRIPT LOAD for bulk adds. It is cleared when the server reports a
 	// script missing from its cache.
 	loadedScripts sync.Map
+
+	// meta writes the queue metadata before the first command.
+	meta *queuemeta.Writer
 }
 
 var _ bullmq.Backend = (*Backend)(nil)
@@ -97,7 +101,8 @@ func NewBackend(name string, redisOpts Options, opts bullmq.BackendOptions) (*Ba
 		}
 	}
 	rdb, owned := redisOpts.build()
-	b := &Backend{rdb: rdb, owned: owned, keys: keys, commands: rdb, blocking: rdb, blockTimeout: opts.BlockTimeout}
+	b := &Backend{rdb: rdb, owned: owned, keys: keys, commands: rdb, blocking: rdb, blockTimeout: opts.BlockTimeout,
+		meta: queuemeta.New(opts.QueueMeta)}
 	if redisOpts.AutoPipeline != nil {
 		ap, err := autoPipeliner(rdb, redisOpts.AutoPipeline)
 		if err != nil {
@@ -127,6 +132,7 @@ func (b *Backend) Keys() *Keys { return b.keys }
 // Close releases the connections the backend created. Clients supplied by the
 // caller, and their auto-pipeliner, are left open.
 func (b *Backend) Close() error {
+	b.meta.Stop()
 	var firstErr error
 	if b.blockingConn != nil {
 		firstErr = b.blocking.Close()
@@ -212,10 +218,25 @@ func (b *Backend) ClientName(suffix string) string { return b.keys.ClientName(su
 // the auto-pipeliner ignores the context, so every non-blocking command must
 // be issued through cmd.
 func (b *Backend) cmd(ctx context.Context) (redis.Cmdable, error) {
-	if err := ctx.Err(); err != nil {
+	if err := b.ready(ctx); err != nil {
 		return nil, err
 	}
 	return b.commands, nil
+}
+
+// ready returns ctx's error when ctx is done, and otherwise writes the queue
+// metadata unless that is done. Every command calls it first: through cmd,
+// or directly before a pipeline or a command on rdb.
+func (b *Backend) ready(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	b.meta.Write(ctx, b.writeMeta, isTransientRedisError)
+	return ctx.Err()
+}
+
+func (b *Backend) writeMeta(ctx context.Context, values map[string]any) error {
+	return b.commands.HSet(ctx, b.keys.Meta(), values).Err()
 }
 
 // runScript evaluates a shared Lua command.

@@ -141,6 +141,13 @@ type QueueOptions struct {
 	Backend BackendFactory
 	// DefaultJobOptions are merged into every job added to this queue.
 	DefaultJobOptions *JobOptions
+	// EventsMaxLen is the approximate maximum length of the queue's events
+	// stream, stored as the `opts.maxLenEvents` metadata, as Node's
+	// streams.events.maxLen. Defaults to 10000.
+	EventsMaxLen int64
+	// SkipMetasUpdate stops the queue from writing its metadata (version
+	// and opts.maxLenEvents), for example for a role that may only read.
+	SkipMetasUpdate bool
 }
 
 // WorkerOptions configures a Worker.

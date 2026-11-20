@@ -646,6 +646,7 @@ jobs:
 
             # Add and commit changes (only add files that exist)
             git add ../docs/gitbook/golang/changelog.md || true
+            git add version.go || true
 
             # Check if there are actually changes to commit after adding
             if [[ -n $(git diff --cached --name-only) ]]; then
@@ -660,6 +661,7 @@ jobs:
                 --body "Automated release PR for Go version vgo${VERSION}
 
               This PR contains:
+              - Updated golang/version.go
               - Updated docs/gitbook/golang/changelog.md
 
               Please review and merge to complete the release process." \

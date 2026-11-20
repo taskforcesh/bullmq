@@ -447,6 +447,13 @@ type BackendOptions struct {
 	// BlockTimeout is the longest blocking read the owner will request. It
 	// lets the backend size socket read timeouts.
 	BlockTimeout time.Duration
+	// QueueMeta holds queue metadata fields the backend writes, as
+	// SetQueueMeta does, once, before the first command it sends. A write
+	// that fails is not retried, unless it failed because its context was
+	// done or with a transient error. Obliterate and Close stop any later
+	// write, so the metadata never comes back after an Obliterate. Queue
+	// sets it unless QueueOptions.SkipMetasUpdate is set.
+	QueueMeta map[string]any
 }
 
 // BackendFactory builds a [Backend] for the queue called name. It is injected

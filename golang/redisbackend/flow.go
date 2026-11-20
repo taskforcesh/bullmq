@@ -123,6 +123,9 @@ func (b *Backend) dependencyKeys(jobID string) (processed, pending, ignored, fai
 // with a pipeline, or a page per requested group with HSCAN, SSCAN and
 // ZRANGE, as Node does.
 func (b *Backend) GetDependencies(ctx context.Context, jobID string, opts *bullmq.DependenciesOptions) (*bullmq.Dependencies, error) {
+	if err := b.ready(ctx); err != nil {
+		return nil, err
+	}
 	processedKey, pendingKey, ignoredKey, failedKey := b.dependencyKeys(jobID)
 	if opts == nil {
 		pipe := b.rdb.Pipeline()

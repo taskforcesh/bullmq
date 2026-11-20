@@ -57,6 +57,7 @@ func (b *Backend) Drain(ctx context.Context, delayed bool) error {
 // Obliterate removes up to count jobs of the queue and returns how many
 // batches remain: 0 once the queue is gone.
 func (b *Backend) Obliterate(ctx context.Context, force bool, count int64) (int64, error) {
+	b.meta.Stop()
 	forceArg := ""
 	if force {
 		forceArg = "force"
@@ -272,6 +273,9 @@ func (b *Backend) GetMetrics(ctx context.Context, state bullmq.JobState, start, 
 // A cluster client asks every node, masters and replicas, and a ring every
 // live shard, as Node's getClientList asks every cluster node.
 func (b *Backend) GetClientList(ctx context.Context) ([]string, error) {
+	if err := b.ready(ctx); err != nil {
+		return nil, err
+	}
 	if sharded, ok := b.rdb.(shardedClient); ok {
 		return clientLists(ctx, sharded)
 	}
