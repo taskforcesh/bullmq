@@ -75,6 +75,42 @@ let removed = queue.remove(job.id()).await?;
 
 {% endtab %}
 
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	job, err := queue.Add(ctx, "wall", map[string]int{"color": 1}, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := job.Remove(ctx, true); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -94,7 +130,8 @@ $queue->remove($job->id);
 
 {% hint style="warning" %}
 Locked jobs (in active state) cannot be removed. In TypeScript and Python, an
-error will be thrown, while the other SDKs report it in the return value (for
+error will be thrown, and in Go `Job.Remove` returns an error matching
+`bullmq.ErrJobLocked`, while the other SDKs report it in the return value (for
 example, in Rust `Queue::remove` returns `Ok(false)`).
 {% endhint %}
 

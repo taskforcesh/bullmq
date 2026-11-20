@@ -97,6 +97,46 @@ queue.add("wall", serde_json::json!({ "color": "blue" })).priority(7).await?;
 
 {% endtab %}
 
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("Paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	if _, err := queue.Add(ctx, "wall", map[string]string{"color": "pink"}, &bullmq.JobOptions{Priority: bullmq.Int64(10)}); err != nil {
+		log.Fatal(err)
+	}
+	if _, err := queue.Add(ctx, "wall", map[string]string{"color": "brown"}, &bullmq.JobOptions{Priority: bullmq.Int64(5)}); err != nil {
+		log.Fatal(err)
+	}
+	if _, err := queue.Add(ctx, "wall", map[string]string{"color": "blue"}, &bullmq.JobOptions{Priority: bullmq.Int64(7)}); err != nil {
+		log.Fatal(err)
+	}
+
+	// The wall will be painted first brown, then blue and
+	// finally pink.
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -170,6 +210,21 @@ job.change_priority(1, false).await?;
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+job, err := queue.Add(ctx, "test2", map[string]string{"foo": "bar"}, &bullmq.JobOptions{Priority: bullmq.Int64(16)})
+if err != nil {
+	log.Fatal(err)
+}
+
+if err := job.ChangePriority(ctx, 1, false); err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 or if you want to use the [LIFO (_Last In, First Out_)](lifo.md) option:
@@ -218,6 +273,21 @@ let job = queue
     .await?;
 
 job.change_priority(0, true).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+job, err := queue.Add(ctx, "test2", map[string]string{"foo": "bar"}, &bullmq.JobOptions{Priority: bullmq.Int64(16)})
+if err != nil {
+	log.Fatal(err)
+}
+
+if err := job.ChangePriority(ctx, 0, true); err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -272,6 +342,17 @@ var jobs = await queue.GetJobsAsync(new[] { "prioritized" });
 let jobs = queue.get_jobs(&["prioritized"], 0, -1, false).await?;
 
 let jobs2 = queue.get_prioritized(0, -1).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+jobs, err := queue.Jobs(ctx, bullmq.StatePrioritized, 0, -1, false)
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
