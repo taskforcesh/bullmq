@@ -97,6 +97,14 @@ type JobOptions struct {
 	// RemoveDependencyOnFailure removes the dependency when this job fails. A
 	// pointer so an explicit `false` can override a queue default of `true`.
 	RemoveDependencyOnFailure *bool `json:"rdof,omitempty"`
+
+	// Repeat, PrevMillis and RepeatJobKey are set by job schedulers on the
+	// jobs they produce: the schedule with the iteration count, the due time
+	// of the iteration (Unix milliseconds) and the scheduler id. Repeat
+	// cannot be set when adding a job; use Queue.UpsertJobScheduler.
+	Repeat       *RepeatOptions `json:"repeat,omitempty"`
+	PrevMillis   int64          `json:"prevMillis,omitempty"`
+	RepeatJobKey string         `json:"repeatJobKey,omitempty"`
 }
 
 // UnmarshalJSON decodes stored job options. A removal policy stored in a
@@ -351,12 +359,15 @@ func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 		return &clone
 	}
 	merged := *defaults
-	// The job id, parent and deduplication are per-job identifiers and are
-	// never inherited from queue defaults. Timestamp is inherited like any
+	// The job id, parent, deduplication and job scheduler fields are per-job
+	// and are never inherited from queue defaults. Timestamp is inherited like any
 	// other default.
 	merged.JobID = ""
 	merged.Parent = nil
 	merged.Deduplication = nil
+	merged.Repeat = nil
+	merged.PrevMillis = 0
+	merged.RepeatJobKey = ""
 
 	if opts == nil {
 		return &merged
@@ -407,6 +418,15 @@ func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 	}
 	if opts.Deduplication != nil {
 		merged.Deduplication = opts.Deduplication
+	}
+	if opts.Repeat != nil {
+		merged.Repeat = opts.Repeat
+	}
+	if opts.PrevMillis != 0 {
+		merged.PrevMillis = opts.PrevMillis
+	}
+	if opts.RepeatJobKey != "" {
+		merged.RepeatJobKey = opts.RepeatJobKey
 	}
 	// The four dependency-on-failure flags are pointers so a per-job value
 	// of `false` can override a queue default of `true`; only a nil pointer

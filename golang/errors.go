@@ -16,6 +16,13 @@ const (
 	ErrCodeJobHasFailedChildren = -9
 )
 
+// Script error codes of job schedulers.
+const (
+	ErrCodeJobBelongsToJobScheduler = -8
+	ErrCodeSchedulerJobIDCollision  = -10
+	ErrCodeSchedulerJobSlotsBusy    = -11
+)
+
 // Sentinel errors returned by the library.
 var (
 	// ErrJobNotFound is returned when a job key no longer exists in Redis.
@@ -32,6 +39,15 @@ var (
 	ErrJobLockMismatch = errors.New("bullmq: lock is not owned by this client")
 	// ErrJobHasFailedChildren is returned when a parent cannot complete because a child failed.
 	ErrJobHasFailedChildren = errors.New("bullmq: job has failed children")
+	// ErrJobBelongsToJobScheduler is returned when removing the pending job
+	// of a job scheduler, which only RemoveJobScheduler may remove.
+	ErrJobBelongsToJobScheduler = errors.New("bullmq: job belongs to a job scheduler and cannot be removed directly")
+	// ErrSchedulerJobIDCollision is returned when the job of a scheduler's
+	// next iteration already exists.
+	ErrSchedulerJobIDCollision = errors.New("bullmq: cannot create job scheduler iteration, job id already exists")
+	// ErrSchedulerJobSlotsBusy is returned when the jobs of the next
+	// iterations of an Every scheduler already exist.
+	ErrSchedulerJobSlotsBusy = errors.New("bullmq: cannot create job scheduler iteration, current and next time slots already have jobs")
 	// ErrJobLocked is returned by Job.Remove when the job (or a dependency) is
 	// currently locked by another worker and therefore cannot be removed.
 	ErrJobLocked = errors.New("bullmq: job is locked by another worker")
@@ -120,6 +136,12 @@ func (e *ScriptError) Unwrap() error {
 		return ErrJobLockMismatch
 	case ErrCodeJobHasFailedChildren:
 		return ErrJobHasFailedChildren
+	case ErrCodeJobBelongsToJobScheduler:
+		return ErrJobBelongsToJobScheduler
+	case ErrCodeSchedulerJobIDCollision:
+		return ErrSchedulerJobIDCollision
+	case ErrCodeSchedulerJobSlotsBusy:
+		return ErrSchedulerJobSlotsBusy
 	default:
 		return nil
 	}

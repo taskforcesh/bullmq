@@ -144,6 +144,9 @@ func (q *Queue) prepareJob(spec JobSpec) (NewJob, error) {
 			return NewJob{}, configError("custom job ID cannot contain ':'")
 		}
 	}
+	if opts.Repeat != nil {
+		return NewJob{}, configError("repeat is not a valid job option; use Queue.UpsertJobScheduler to repeat jobs")
+	}
 	if priority := opts.priorityVal(); priority < 0 || priority > priorityLimit {
 		return NewJob{}, configError("priority should be between 0 and %d", priorityLimit)
 	}

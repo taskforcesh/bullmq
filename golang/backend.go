@@ -302,6 +302,51 @@ type Backend interface {
 	// so it must not report work that cannot be claimed, for example while
 	// the queue is paused or at its global concurrency limit.
 	WaitForJob(ctx context.Context, timeout time.Duration) (WaitResult, error)
+
+	// ------------------------------------------------------------------
+	// Job schedulers
+	// ------------------------------------------------------------------
+
+	// AddJobScheduler creates the job scheduler s.ID, or replaces its
+	// schedule and template, and adds the job of its next iteration,
+	// removing the pending job of the previous one. For Every schedulers
+	// the backend computes the next iteration itself. It returns the id of
+	// the added job and its delay in milliseconds. It fails with
+	// [ErrSchedulerJobIDCollision] when a job of a Pattern scheduler with
+	// that id already exists, and with [ErrSchedulerJobSlotsBusy] when no
+	// free slot was found for an Every scheduler.
+	AddJobScheduler(ctx context.Context, s NewJobScheduler) (string, int64, error)
+
+	// UpdateJobSchedulerNextMillis advances the job scheduler schedulerID
+	// to the iteration due at nextMillis (computed by the backend for Every
+	// schedulers) and adds its job, with options jobOpts and the stored
+	// template data (templateData is a fallback). Only the job of the
+	// current iteration, producerID, may advance it. It returns the id of
+	// the added job, or "" when none was added: the scheduler is gone,
+	// producerID is not the current iteration, or the job already exists
+	// (a `duplicated` event is then emitted).
+	UpdateJobSchedulerNextMillis(ctx context.Context, schedulerID string, nextMillis int64, templateData []byte, jobOpts *JobOptions, producerID string) (string, error)
+
+	// RemoveJobScheduler removes a job scheduler and the job of its next
+	// iteration while that job is still delayed. It reports whether the
+	// scheduler existed.
+	RemoveJobScheduler(ctx context.Context, schedulerID string) (bool, error)
+
+	// GetJobScheduler returns a job scheduler with the due time of its next
+	// job, or nil when it does not exist or has no stored metadata.
+	GetJobScheduler(ctx context.Context, schedulerID string) (*JobScheduler, error)
+
+	// GetJobSchedulersRange returns the job schedulers ranked start to end
+	// (inclusive; a negative end counts from the last one) by the due time
+	// of their next job, latest first unless asc is set.
+	GetJobSchedulersRange(ctx context.Context, start, end int64, asc bool) ([]JobSchedulerNext, error)
+
+	// GetJobSchedulersCount returns the number of job schedulers.
+	GetJobSchedulersCount(ctx context.Context) (int64, error)
+
+	// IsJobScheduler reports whether id is a job scheduler, as opposed to a
+	// legacy repeatable job, which this port does not support.
+	IsJobScheduler(ctx context.Context, id string) (bool, error)
 }
 
 // BackendOptions describes the role of the backend being built by a

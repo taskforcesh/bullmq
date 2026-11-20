@@ -350,6 +350,15 @@ func packJobOptions(opts *bullmq.JobOptions) ([]byte, error) {
 		}
 		m["de"] = de
 	}
+	if opts.Repeat != nil {
+		m["repeat"] = repeatValue(opts.Repeat)
+	}
+	if opts.PrevMillis != 0 {
+		m["prevMillis"] = opts.PrevMillis
+	}
+	if opts.RepeatJobKey != "" {
+		m["repeatJobKey"] = opts.RepeatJobKey
+	}
 
 	return packMsgpack(m)
 }
