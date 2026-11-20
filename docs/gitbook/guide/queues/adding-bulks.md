@@ -97,6 +97,44 @@ let jobs = queue
 
 {% endtab %}
 
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+
+	queue, err := bullmq.NewQueue("paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	name := "jobName"
+	jobs, err := queue.AddBulk(ctx, []bullmq.JobSpec{
+		{Name: name, Data: map[string]string{"paint": "car"}},
+		{Name: name, Data: map[string]string{"paint": "house"}},
+		{Name: name, Data: map[string]string{"paint": "boat"}},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("added %d jobs", len(jobs))
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -116,9 +154,9 @@ $jobs = $queue->addBulk([
 {% endtab %}
 {% endtabs %}
 
-Bulk-add atomicity depends on the SDK and backend. On PostgreSQL, the TypeScript, Python, and .NET SDKs add a batch in a single database transaction, so a failed batch is rolled back. Elixir does this for standard jobs when `pipeline: true` (the default), but adds delayed or prioritized jobs individually. Setting `pipeline: false` also adds all jobs individually. If a later Elixir addition fails in these cases, earlier jobs may remain committed; check the queue before retrying.
+Bulk-add atomicity depends on the SDK and backend. On PostgreSQL, the TypeScript, Python, and .NET SDKs add a batch in a single database transaction, so a failed batch is rolled back. Elixir does this for standard jobs when `pipeline: true` (the default), but adds delayed or prioritized jobs individually. Setting `pipeline: false` also adds all jobs individually. If a later Elixir addition fails in these cases, earlier jobs may remain committed; check the queue before retrying. Go adds a batch in a single statement too, so a failed statement is rolled back; but if the database rejects one of the jobs, for example because its parent does not exist, `AddBulk` returns an error and the other jobs stay committed.
 
-On Redis, do not assume that a failed bulk call added no jobs. TypeScript, Rust, and .NET pipeline individual job additions; Elixir may split standard jobs across transactions and adds delayed or prioritized jobs sequentially. Python and PHP group additions in a Redis transaction, but Redis does not roll back commands that fail during execution. A failure can therefore leave some jobs added; check the queue before retrying.
+On Redis, do not assume that a failed bulk call added no jobs. TypeScript, Rust, and .NET pipeline individual job additions; Elixir may split standard jobs across transactions and adds delayed or prioritized jobs sequentially. Python, PHP, and Go group additions in a Redis transaction, but Redis does not roll back commands that fail during execution. A failure can therefore leave some jobs added; check the queue before retrying.
 
 ## Read more:
 
