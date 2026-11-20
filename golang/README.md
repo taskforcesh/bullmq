@@ -943,10 +943,15 @@ if _, err := queue.RemoveJobScheduler(ctx, "poll"); err != nil {
   steps, `L` and `#`. It is evaluated exactly as cron-parser evaluates it in
   Node.js, including across DST changes, so every port computes the same due
   times. `W` and `H` aren't supported.
-- `Tz` is an IANA time zone; without it, patterns use the process's local
-  time zone, as in Node.js. Time zones are read from the system's time zone
-  database: on systems without one (`scratch` or distroless containers), add
-  `import _ "time/tzdata"` to embed it in the binary.
+- `Tz` accepts the time zones Node.js accepts: IANA names in any case
+  (`america/new_york`), ICU's legacy ids (`PST`) and fixed offsets (`+03:00`,
+  `UTC+3`). Without it, patterns use the process's local time zone, as in
+  Node.js. Time zones are read from the system's time zone database: on
+  systems without one (`scratch` or distroless containers), add
+  `import _ "time/tzdata"` to embed it in the binary. A worker that can't
+  resolve a scheduler's time zone fails the iteration it fetched with the
+  reason and an `EventError`, without processing it or adding the next one, so
+  the schedule stops visibly instead of stalling.
 - `Every` schedulers accept an `Offset`; every scheduler a `Limit`, a
   `StartDate` and an `EndDate` (Unix milliseconds); `Pattern` schedulers
   `Immediately`, to produce their first job right away.

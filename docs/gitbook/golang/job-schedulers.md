@@ -40,16 +40,16 @@ scheduler doesn't pile up jobs.
 
 ## Repeat options
 
-| Option        | Meaning                                                                                  |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| `Pattern`     | A cron expression: 5 fields, or 6 with leading seconds                                   |
-| `Every`       | An interval in milliseconds, instead of `Pattern`                                        |
-| `Tz`          | IANA time zone of `Pattern`. Defaults to the process's local time zone, as in Node.js    |
-| `Offset`      | Shifts the runs of an `Every` scheduler, in milliseconds                                 |
-| `Limit`       | Maximum number of jobs to produce                                                        |
-| `StartDate`   | When the schedule starts, in Unix milliseconds                                           |
-| `EndDate`     | When the schedule ends, in Unix milliseconds                                             |
-| `Immediately` | Produce the first job of a `Pattern` scheduler right away (`Every` schedulers always do) |
+| Option        | Meaning                                                                                                                                               |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Pattern`     | A cron expression: 5 fields, or 6 with leading seconds                                                                                                |
+| `Every`       | An interval in milliseconds, instead of `Pattern`                                                                                                     |
+| `Tz`          | Time zone of `Pattern`: IANA names (any case), ICU ids like `PST`, or offsets like `+03:00`. Defaults to the process's local time zone, as in Node.js |
+| `Offset`      | Shifts the runs of an `Every` scheduler, in milliseconds                                                                                              |
+| `Limit`       | Maximum number of jobs to produce                                                                                                                     |
+| `StartDate`   | When the schedule starts, in Unix milliseconds                                                                                                        |
+| `EndDate`     | When the schedule ends, in Unix milliseconds                                                                                                          |
+| `Immediately` | Produce the first job of a `Pattern` scheduler right away (`Every` schedulers always do)                                                              |
 
 Patterns are evaluated exactly as cron-parser evaluates them in Node.js, with
 names, ranges, steps, `L`, `#` and Sunday as 0 or 7, including across DST
@@ -58,10 +58,14 @@ are rejected. See [Repeat strategies](../guide/job-schedulers/repeat-strategies.
 and [Repeat options](../guide/job-schedulers/repeat-options.md).
 
 {% hint style="warning" %}
-Time zones are read from the system's time zone database. Programs that run
-where there is none, such as `scratch` or distroless containers, must embed
-it with `import _ "time/tzdata"`; otherwise `UpsertJobScheduler` rejects
-patterns with a `Tz`.
+Time zones are resolved as Node.js resolves them: IANA names in any case, ICU's
+legacy ids such as `PST`, and fixed offsets (`+03:00`, `UTC+3`). Zones are read
+from the system's time zone database. Programs that run where there is none,
+such as `scratch` or distroless containers, must embed it with
+`import _ "time/tzdata"`; otherwise `UpsertJobScheduler` rejects patterns with
+a `Tz`, and a worker that fetches an iteration of a scheduler whose time zone it
+can't resolve fails that iteration with the reason and an `EventError`, so the
+schedule stops visibly instead of stalling.
 {% endhint %}
 
 ## Job template

@@ -2,10 +2,6 @@ package cronparity
 
 import (
 	"errors"
-	"fmt"
-	"regexp"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -19,38 +15,6 @@ var ErrLoopLimit = errors.New("cronparity: invalid expression, loop limit exceed
 
 // loopLimit is cron-parser's LOOP_LIMIT.
 const loopLimit = 10000
-
-var fixedZoneRe = regexp.MustCompile(`^utc(?:([+-]\d{1,2})(?::(\d{2}))?)?$`)
-
-// LoadLocation resolves a time zone name the way cron-parser (through Luxon)
-// does: an empty name, "local" or "system" is the local time zone, "utc" or
-// "gmt" is UTC, "UTC+3" or "UTC-05:30" is a fixed offset, and anything else is
-// an IANA time zone name.
-func LoadLocation(tz string) (*time.Location, error) {
-	lower := strings.ToLower(tz)
-	switch lower {
-	case "", "default", "local", "system":
-		return time.Local, nil
-	case "utc", "gmt":
-		return time.UTC, nil
-	}
-	if m := fixedZoneRe.FindStringSubmatch(lower); m != nil {
-		hours, _ := strconv.Atoi(m[1])
-		minutes, _ := strconv.Atoi(m[2])
-		offset := hours * 60
-		if strings.HasPrefix(m[1], "-") {
-			offset -= minutes
-		} else {
-			offset += minutes
-		}
-		return time.FixedZone(tz, offset*60), nil
-	}
-	loc, err := time.LoadLocation(tz)
-	if err != nil {
-		return nil, fmt.Errorf("cronparity: invalid time zone %q: %w", tz, err)
-	}
-	return loc, nil
-}
 
 // Options bound an iteration, as cron-parser's options do.
 type Options struct {
