@@ -433,7 +433,7 @@ func testBackendWaitForJobReturnsWhenTheContextIsCancelled(t *testing.T, be test
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("WaitForJob after cancellation: err = %v, want context.Canceled", err)
 		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("WaitForJob did not return after its context was cancelled")
+	case <-time.After(time.Second):
+		t.Fatal("WaitForJob did not return promptly after its context was cancelled")
 	}
 }

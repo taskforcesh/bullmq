@@ -1,6 +1,7 @@
 package bullmq
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -72,6 +73,9 @@ type JobOptions struct {
 	// SizeLimit rejects jobs whose serialized data exceeds this many bytes. A
 	// pointer so a per-job value of 0 can override a non-zero queue default.
 	SizeLimit *int64 `json:"sizeLimit,omitempty"`
+	// StackTraceLimit caps how many failure traces are kept on the job: the
+	// most recent ones. 0 keeps none; unset keeps them all, as in Node.js.
+	StackTraceLimit *int64 `json:"stackTraceLimit,omitempty"`
 	// Timestamp is the creation time in Unix milliseconds. Defaults to now.
 	Timestamp int64 `json:"timestamp,omitempty"`
 
@@ -93,6 +97,22 @@ type JobOptions struct {
 	// RemoveDependencyOnFailure removes the dependency when this job fails. A
 	// pointer so an explicit `false` can override a queue default of `true`.
 	RemoveDependencyOnFailure *bool `json:"rdof,omitempty"`
+}
+
+// UnmarshalJSON decodes stored job options. A removal policy stored in a
+// form no BullMQ port writes is dropped, so the worker default applies.
+func (opts *JobOptions) UnmarshalJSON(data []byte) error {
+	type plain JobOptions
+	if err := json.Unmarshal(data, (*plain)(opts)); err != nil {
+		return err
+	}
+	if opts.RemoveOnComplete != nil && opts.RemoveOnComplete.form == removeFormInvalid {
+		opts.RemoveOnComplete = nil
+	}
+	if opts.RemoveOnFail != nil && opts.RemoveOnFail.form == removeFormInvalid {
+		opts.RemoveOnFail = nil
+	}
+	return nil
 }
 
 // QueueOptions configures a Queue.
@@ -127,6 +147,11 @@ type WorkerOptions struct {
 	// A positive value must be at least 1ms unless SkipStalledCheck is set,
 	// since it is stored as a millisecond lock TTL.
 	StalledInterval time.Duration
+	// MaxStartedAttempts fails a job unrecoverably ("job started more than
+	// allowable limit") when it is started more than this many times, for
+	// example because it keeps stalling. 0, the default, means no limit.
+	// Negative values are rejected.
+	MaxStartedAttempts int
 	// MaxStalledCount is how many times a job may stall before failing. Defaults to 1.
 	// Use a pointer so an explicit 0 (fail on first stall) is distinguishable
 	// from unset. Negative values are rejected.
@@ -139,6 +164,10 @@ type WorkerOptions struct {
 	DrainDelay time.Duration
 	// Limiter throttles job processing.
 	Limiter *RateLimiter
+	// MaximumRateLimitDelay caps how long the worker sleeps in one go while
+	// the queue is rate limited, so delayed jobs keep being promoted during a
+	// long limit. Defaults to 30s.
+	MaximumRateLimitDelay time.Duration
 	// Metrics enables completed/failed metrics collection.
 	Metrics *MetricsOptions
 	// RemoveOnComplete is the default removal policy for completed jobs.
@@ -148,6 +177,12 @@ type WorkerOptions struct {
 	// BackoffStrategy computes a custom retry delay in milliseconds. Returning
 	// a negative value discards the job.
 	BackoffStrategy func(attemptsMade int64, backoffType BackoffType, err error, job *Job) int64
+	// OnEvent, when set, is called synchronously with every event the worker
+	// emits, including those dropped from a full Events channel. It runs on
+	// the worker's goroutines (a slow callback slows processing down), may
+	// be called concurrently, and must not call Worker.Close, which waits
+	// for those goroutines; start a goroutine for that instead.
+	OnEvent func(Event)
 	// OnError is called for background errors that cannot be returned to a caller.
 	// It runs on its own goroutine, so it may safely call Worker.Close, but
 	// calls can be concurrent and are not ordered; the callback must be safe
@@ -187,8 +222,14 @@ func (o *WorkerOptions) applyDefaults() error {
 	if o.MaxStalledCount != nil && *o.MaxStalledCount < 0 {
 		return configError("maxStalledCount must be greater or equal than 0")
 	}
+	if o.MaxStartedAttempts < 0 {
+		return configError("maxStartedAttempts must be greater or equal than 0")
+	}
 	if o.DrainDelay <= 0 {
 		o.DrainDelay = 5 * time.Second
+	}
+	if o.MaximumRateLimitDelay <= 0 {
+		o.MaximumRateLimitDelay = 30 * time.Second
 	}
 	if o.Limiter != nil {
 		if o.Limiter.Max <= 0 {
@@ -321,7 +362,8 @@ func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 	if opts.JobID != "" {
 		merged.JobID = opts.JobID
 	}
-	// Delay, Priority, LIFO, Attempts, KeepLogs and SizeLimit are pointers
+	// Delay, Priority, LIFO, Attempts, KeepLogs, SizeLimit and StackTraceLimit
+	// are pointers
 	// specifically so a per-job value that is present but zero/false can
 	// still override a non-zero/true queue default; only a nil pointer
 	// (option omitted) falls back to the default.
@@ -351,6 +393,9 @@ func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 	}
 	if opts.SizeLimit != nil {
 		merged.SizeLimit = opts.SizeLimit
+	}
+	if opts.StackTraceLimit != nil {
+		merged.StackTraceLimit = opts.StackTraceLimit
 	}
 	if opts.Timestamp != 0 {
 		merged.Timestamp = opts.Timestamp

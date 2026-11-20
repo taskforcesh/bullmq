@@ -2,6 +2,9 @@ package redisbackend
 
 import (
 	"bytes"
+	"encoding/json"
+	"strconv"
+	"strings"
 
 	bullmq "github.com/taskforcesh/bullmq-go"
 	"github.com/vmihailenco/msgpack/v5"
@@ -59,6 +62,26 @@ func keepJobsValue(r *bullmq.RemoveOnFinish) map[string]any {
 		m["limit"] = *r.Limit
 	}
 	return m
+}
+
+// removeOnFinishValue returns a removal policy as it is stored in the job
+// options, in the form it was given (its JSON form): true or false, a count,
+// or a {count, age, limit} map. It returns nil for a policy to leave out.
+func removeOnFinishValue(r *bullmq.RemoveOnFinish) (any, error) {
+	raw, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+	switch s := string(raw); {
+	case s == "true" || s == "false":
+		return s == "true", nil
+	case s == "null":
+		return nil, nil
+	case strings.HasPrefix(s, "{"):
+		return keepJobsValue(r), nil
+	default:
+		return strconv.ParseInt(s, 10, 64)
+	}
 }
 
 // limiterValue builds the `{max, duration}` map the Lua commands expect.

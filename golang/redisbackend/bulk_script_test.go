@@ -18,9 +18,10 @@ const unknownSHA = "0000000000000000000000000000000000000000"
 // that transaction instead of flushing the server's script cache, which other
 // clients of the shared test server rely on.
 type scriptHook struct {
-	evalSHAs atomic.Int32
-	evals    atomic.Int32
-	missNext atomic.Bool
+	evalSHAs    atomic.Int32
+	evals       atomic.Int32
+	scriptLoads atomic.Int32
+	missNext    atomic.Bool
 }
 
 func (h *scriptHook) DialHook(next redis.DialHook) redis.DialHook {
@@ -40,6 +41,8 @@ func (h *scriptHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.P
 				sha++
 			case "eval":
 				h.evals.Add(1)
+			case "script":
+				h.scriptLoads.Add(1)
 			}
 		}
 		h.evalSHAs.Add(int32(sha))
@@ -127,5 +130,28 @@ func TestAddBulkRecoversFromScriptCacheMissWithoutReplayingJobs(t *testing.T) {
 	// Retried commands fall back to full scripts; none are sent twice as EVALSHA.
 	if got := hook.evals.Load(); got != int32(len(specs)) {
 		t.Errorf("EVAL fallbacks = %d, want %d", got, len(specs))
+	}
+}
+
+// Scripts are loaded the first time a backend needs them, not on every bulk
+// add, so later bulk adds are a single round trip.
+func TestAddBulkLoadsEachScriptOnce(t *testing.T) {
+	requireRedis(t)
+	ctx := testContext(t)
+	q, hook := newHookedQueue(t)
+
+	specs := bulkSpecs(5)
+	for range 3 {
+		if _, err := q.AddBulk(ctx, specs); err != nil {
+			t.Fatalf("AddBulk: %v", err)
+		}
+	}
+	// One SCRIPT LOAD per distinct add command: standard, prioritized and
+	// delayed.
+	if got := hook.scriptLoads.Load(); got != 3 {
+		t.Errorf("SCRIPT LOAD commands = %d over three bulk adds, want 3", got)
+	}
+	if got := hook.evals.Load(); got != 0 {
+		t.Errorf("EVAL commands = %d, want 0", got)
 	}
 }

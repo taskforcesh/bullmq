@@ -112,3 +112,17 @@ func TestConstructorsValidateTheQueueNameBeforeBuildingTheBackend(t *testing.T) 
 		t.Error("the backend was built for an invalid queue name")
 	}
 }
+
+func TestApplyDefaultsValidatesWorkerLimits(t *testing.T) {
+	o := WorkerOptions{MaxStartedAttempts: -1}
+	if err := o.applyDefaults(); err == nil {
+		t.Fatal("MaxStartedAttempts -1: expected error, got nil")
+	}
+	o = WorkerOptions{}
+	if err := o.applyDefaults(); err != nil {
+		t.Fatalf("applyDefaults: %v", err)
+	}
+	if o.MaximumRateLimitDelay != 30*time.Second {
+		t.Errorf("default MaximumRateLimitDelay = %v, want 30s", o.MaximumRateLimitDelay)
+	}
+}

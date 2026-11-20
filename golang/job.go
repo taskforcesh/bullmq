@@ -147,6 +147,9 @@ func (j *Job) UpdateProgress(ctx context.Context, progress Progress) error {
 		return err
 	}
 	j.Progress = progress
+	// worker is set before the job is handed to the processor and never
+	// changes, so goroutines that outlive the processor may read it; emit
+	// discards events once the worker is closed.
 	if j.worker != nil {
 		j.worker.emit(Event{Type: EventProgress, Job: j, Result: progress})
 	}

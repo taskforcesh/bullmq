@@ -131,6 +131,7 @@ func TestPackJobOptionsEncodesEveryEffectiveOption(t *testing.T) {
 		LIFO:                    bullmq.Bool(false),
 		KeepLogs:                bullmq.Int64(0),
 		SizeLimit:               bullmq.Int64(0),
+		StackTraceLimit:         bullmq.Int64(0),
 		FailParentOnFailure:     bullmq.Bool(false),
 		ContinueParentOnFailure: bullmq.Bool(false),
 		Parent:                  &bullmq.ParentOptions{ID: "p1", Queue: "bull:parents"},
@@ -142,17 +143,18 @@ func TestPackJobOptionsEncodesEveryEffectiveOption(t *testing.T) {
 	// Options that were set explicitly are encoded even when they hold the
 	// zero value.
 	want := map[string]any{
-		"jobId":     "custom",
-		"timestamp": int64(1700000000000),
-		"delay":     int64(0),
-		"priority":  int64(0),
-		"attempts":  int64(0),
-		"lifo":      false,
-		"kl":        int64(0),
-		"sizeLimit": int64(0),
-		"fpof":      false,
-		"cpof":      false,
-		"parent":    map[string]any{"id": "p1", "queue": "bull:parents"},
+		"jobId":           "custom",
+		"timestamp":       int64(1700000000000),
+		"delay":           int64(0),
+		"priority":        int64(0),
+		"attempts":        int64(0),
+		"lifo":            false,
+		"kl":              int64(0),
+		"sizeLimit":       int64(0),
+		"fpof":            false,
+		"stackTraceLimit": int64(0),
+		"cpof":            false,
+		"parent":          map[string]any{"id": "p1", "queue": "bull:parents"},
 	}
 	if got := unpackMsgpackMap(t, packed); !reflect.DeepEqual(got, want) {
 		t.Fatalf("packed options = %v, want %v", got, want)
@@ -195,5 +197,39 @@ func TestBackoffValueJitter(t *testing.T) {
 	want["jitter"] = 0.5
 	if !reflect.DeepEqual(with, want) {
 		t.Fatalf("with jitter = %v, want %v", with, want)
+	}
+}
+
+func TestPackJobOptionsStoresRemovalPoliciesInTheirForm(t *testing.T) {
+	for _, tc := range []struct {
+		policy *bullmq.RemoveOnFinish
+		want   any
+	}{
+		{bullmq.RemoveAll(), true},
+		{bullmq.KeepCount(5), map[string]any{"count": int64(5)}},
+		{bullmq.KeepAge(60), map[string]any{"age": int64(60)}},
+	} {
+		packed, err := packJobOptions(&bullmq.JobOptions{RemoveOnComplete: tc.policy})
+		if err != nil {
+			t.Fatalf("packJobOptions: %v", err)
+		}
+		if got := unpackMsgpackMap(t, packed)["removeOnComplete"]; !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("stored removeOnComplete = %#v, want %#v", got, tc.want)
+		}
+	}
+
+	// A count read from a job written by another port is stored back as a
+	// count, and false as false.
+	var opts bullmq.JobOptions
+	if err := json.Unmarshal([]byte(`{"removeOnComplete":100,"removeOnFail":false}`), &opts); err != nil {
+		t.Fatal(err)
+	}
+	packed, err := packJobOptions(&opts)
+	if err != nil {
+		t.Fatalf("packJobOptions: %v", err)
+	}
+	got := unpackMsgpackMap(t, packed)
+	if got["removeOnComplete"] != int64(100) || got["removeOnFail"] != false {
+		t.Errorf("stored policies = %#v, %#v; want 100 and false", got["removeOnComplete"], got["removeOnFail"])
 	}
 }

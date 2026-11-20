@@ -184,12 +184,21 @@ func (b *Backend) MoveStalledJobsToWait(ctx context.Context, opts bullmq.Stalled
 // scheduled, or timeout elapses. The popped marker tells which: its score is
 // 0 for "a job may be ready" and the due time of the next delayed job
 // otherwise.
+//
+// On a dedicated blocking client the whole timeout is a single BZPOPMIN (in
+// chunks of the BlockTimeout the backend was built with), and cancelling ctx
+// interrupts it by closing the connection. A reused client cannot be
+// interrupted, so the wait is split into short BZPOPMIN calls instead.
 func (b *Backend) WaitForJob(ctx context.Context, timeout time.Duration) (bullmq.WaitResult, error) {
 	if timeout < time.Millisecond {
 		timeout = time.Millisecond
 	}
 	marker := b.keys.Marker()
 	deadline := time.Now().Add(timeout)
+	chunk := blockingPollInterval
+	if b.blockingConn != nil {
+		chunk = b.maxBlock()
+	}
 
 	for {
 		if err := ctx.Err(); err != nil {
@@ -199,19 +208,21 @@ func (b *Backend) WaitForJob(ctx context.Context, timeout time.Duration) (bullmq
 		if wait <= 0 {
 			return bullmq.WaitResult{}, nil
 		}
-		if wait > blockingPollInterval {
-			wait = blockingPollInterval
-		}
+		wait = min(wait, chunk)
 
 		var score float64
 		var err error
-		if b.blockingOwned {
+		if b.blockingConn != nil {
 			// BZPOPMIN is issued through Do so that sub-second timeouts are
 			// preserved; the typed helper in go-redis rounds them up to a full
 			// second. The dedicated client's read timeout outlasts the block while
 			// still guarding against a dead socket.
 			var reply any
-			reply, err = b.blocking.Do(ctx, "bzpopmin", marker, wait.Seconds()).Result()
+			err = b.interruptible(ctx, func() error {
+				var e error
+				reply, e = b.blocking.Do(ctx, "bzpopmin", marker, wait.Seconds()).Result()
+				return e
+			})
 			if err == nil {
 				score = markerScore(reply)
 			}
@@ -245,6 +256,33 @@ func (b *Backend) WaitForJob(ctx context.Context, timeout time.Duration) (bullmq
 		}
 		return res, nil
 	}
+}
+
+// maxBlock is the longest single blocking command the dedicated client's read
+// timeout allows.
+func (b *Backend) maxBlock() time.Duration {
+	if b.blockTimeout > 0 {
+		return b.blockTimeout
+	}
+	return blockingReadSlack / 2
+}
+
+// interruptible runs a blocking command on the dedicated blocking client.
+// When ctx is cancelled before the command returns, the client's connection
+// is closed so the command returns at once with ctx's error, as Node's
+// disconnectBlocking does; the next command dials a new connection.
+func (b *Backend) interruptible(ctx context.Context, run func() error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	stop := context.AfterFunc(ctx, b.blockingConn.interrupt)
+	err := run()
+	if !stop() {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+	}
+	return err
 }
 
 // markerScore extracts the score of a raw `[key, member, score]` BZPOPMIN
@@ -281,11 +319,6 @@ func (b *Backend) SetRateLimit(ctx context.Context, ttl time.Duration) error {
 // (Number.MAX_SAFE_INTEGER), so every port reads the same value.
 const maxSafeInteger int64 = 1<<53 - 1
 
-// SignalWork adds the base marker that WaitForJob blocks on.
-func (b *Backend) SignalWork(ctx context.Context) error {
-	return b.rdb.ZAdd(ctx, b.keys.Marker(), redis.Z{Score: 0, Member: "0"}).Err()
-}
-
 // LastEventID returns the id of the newest event stream entry, or "0-0" when
 // the stream is empty.
 func (b *Backend) LastEventID(ctx context.Context) (string, error) {
@@ -300,12 +333,25 @@ func (b *Backend) LastEventID(ctx context.Context) (string, error) {
 }
 
 // ReadEvents blocks up to block waiting for event stream entries newer than
-// lastID.
+// lastID. On a dedicated blocking client, cancelling ctx interrupts the read.
 func (b *Backend) ReadEvents(ctx context.Context, lastID string, block time.Duration) ([]bullmq.QueueEvent, error) {
-	streams, err := b.blocking.XRead(ctx, &redis.XReadArgs{
-		Streams: []string{b.keys.Events(), lastID},
-		Block:   block,
-	}).Result()
+	read := func() ([]redis.XStream, error) {
+		return b.blocking.XRead(ctx, &redis.XReadArgs{
+			Streams: []string{b.keys.Events(), lastID},
+			Block:   block,
+		}).Result()
+	}
+	var streams []redis.XStream
+	var err error
+	if b.blockingConn != nil {
+		err = b.interruptible(ctx, func() error {
+			var e error
+			streams, e = read()
+			return e
+		})
+	} else {
+		streams, err = read()
+	}
 	if err == redis.Nil {
 		return nil, nil
 	}
