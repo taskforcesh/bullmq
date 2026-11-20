@@ -453,3 +453,82 @@ func testWorkerFetchesADelayedJobLearnedWhileWaiting(t *testing.T, be testBacken
 		t.Fatal("the failed job was never retried")
 	}
 }
+
+// A wake-up for a job that is ready is acted on even when a slot has just
+// recorded the due time of a far-future delayed job: the wake-up consumed the
+// queue's signal, so skipping the fetch would leave the new job waiting for
+// the next wake-up (up to DrainDelay).
+func TestWorkerFetchesAReadyJobAfterASlotRecordedADelayedOne(t *testing.T) {
+	forEachBackend(t, testWorkerFetchesAReadyJobAfterASlotRecordedADelayedOne)
+}
+
+func testWorkerFetchesAReadyJobAfterASlotRecordedADelayedOne(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	if _, err := q.Add(ctx, "far-future", nil, &bullmq.JobOptions{Delay: bullmq.Int64(time.Hour.Milliseconds())}); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	hooks := &backendHooks{}
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseJ0 := func() { releaseOnce.Do(func() { close(release) }) }
+	j0Started := make(chan struct{})
+	j1Started := make(chan time.Time, 1)
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
+		switch job.Name {
+		case "j0":
+			close(j0Started)
+			<-release
+		case "j1":
+			j1Started <- time.Now()
+		}
+		return nil, nil
+	}, &bullmq.WorkerOptions{Backend: hooks.wrap(be.Factory), Concurrency: 2, DrainDelay: 10 * time.Second})
+	var log eventLog
+	log.collect(w)
+	runWorker(t, w)
+	t.Cleanup(releaseJ0)
+
+	waitFor(t, 5*time.Second, "the worker to see the queue drained", func() bool {
+		return log.count(bullmq.EventDrained) > 0
+	})
+	time.Sleep(200 * time.Millisecond)
+
+	// J0 wakes the worker up and runs in one slot; the other slot finds
+	// nothing and the worker waits again.
+	waits := hooks.waits.Load()
+	j0, err := q.Add(ctx, "j0", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	select {
+	case <-j0Started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("J0 did not start")
+	}
+	waitFor(t, 5*time.Second, "the worker to wait again", func() bool { return hooks.waits.Load() > waits })
+	time.Sleep(100 * time.Millisecond)
+
+	// J0's fetch-next finds only the delayed job, so its slot records when
+	// that one is due.
+	releaseJ0()
+	waitFor(t, 5*time.Second, "J0 to complete", func() bool {
+		state, err := q.JobState(ctx, j0.ID)
+		return err == nil && state == bullmq.StateCompleted
+	})
+	time.Sleep(200 * time.Millisecond)
+
+	start := time.Now()
+	if _, err := q.Add(ctx, "j1", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	select {
+	case at := <-j1Started:
+		if d := at.Sub(start); d > time.Second {
+			t.Errorf("J1 started %v after it was added, want under 1s", d)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("J1 was not started within 3s of being added (DrainDelay is 10s)")
+	}
+}

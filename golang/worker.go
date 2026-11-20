@@ -481,10 +481,11 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 				fetchNow = true
 			case out := <-waited:
 				waiter.done()
-				if !w.afterWait(loopCtx, out) {
+				fetch, ok := w.afterWait(loopCtx, out)
+				if !ok {
 					return loopCtx.Err()
 				}
-				fetchNow = w.blockUntil.Load() == 0
+				fetchNow = fetch
 			}
 			if timer != nil {
 				timer.Stop()
@@ -537,26 +538,47 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 	}
 }
 
-// afterWait handles the outcome of a WaitForJob call. It returns false when
-// the worker is stopping.
-func (w *Worker) afterWait(ctx context.Context, out waitOutcome) bool {
+// afterWait handles the outcome of a WaitForJob call. fetch reports whether
+// the loop should fetch now, and ok is false when the worker is stopping.
+//
+// The decision rests on what the wait returned, never on a due time a slot
+// recorded meanwhile (the loop has a timer for that): a wake-up for a job
+// that is ready consumed the backend's signal, so skipping the fetch would
+// leave that job waiting for the next wake-up or timeout.
+func (w *Worker) afterWait(ctx context.Context, out waitOutcome) (fetch, ok bool) {
 	if out.err != nil {
 		if ctx.Err() != nil {
-			return false
+			return false, false
 		}
 		if errors.Is(out.err, context.Canceled) {
 			// Interrupted by a pause.
-			return true
+			return true, true
 		}
 		w.emitError(out.err)
-		return sleepCtx(ctx, time.Second)
+		return true, sleepCtx(ctx, time.Second)
 	}
-	// A marker for a delayed job that is not due yet: keep waiting until it
-	// is, without fetching.
+	// A marker for a delayed job that is not due yet: wait until it is (or
+	// until an earlier due time already known), without fetching.
 	if out.res.Woken && out.res.NextDelayedAt > nowMillis() {
-		w.blockUntil.Store(out.res.NextDelayedAt)
+		w.noteNextDelayed(out.res.NextDelayedAt)
+		return false, true
 	}
-	return true
+	// A job may be ready, a delayed job is due, or the wait timed out.
+	return true, true
+}
+
+// noteNextDelayed records that a delayed job is due at (Unix milliseconds),
+// keeping an earlier due time already recorded.
+func (w *Worker) noteNextDelayed(at int64) {
+	for {
+		current := w.blockUntil.Load()
+		if current != 0 && current <= at {
+			return
+		}
+		if w.blockUntil.CompareAndSwap(current, at) {
+			return
+		}
+	}
 }
 
 // waitUnpaused blocks until the worker is resumed, releasing the callers of
