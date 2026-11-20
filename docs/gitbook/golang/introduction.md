@@ -1,35 +1,45 @@
 ---
-description: BullMQ is available as a native Go package with full context-aware async support.
+description: BullMQ is available as a native Go package, running on Redis™ or PostgreSQL.
 ---
 
 # Introduction
 
-## Installation
+BullMQ for Go is the official Go port of BullMQ. It runs the exact same Lua
+scripts (Redis™) and SQL (PostgreSQL) as every other BullMQ SDK, so a queue
+produced by the Node.js library can be consumed by a Go worker and the other
+way round.
 
-Add BullMQ to your project via `go get`:
+The module has three packages:
+
+- `bullmq`: `Queue`, `Worker`, `Job`, `QueueEvents`, `FlowProducer` and job
+  schedulers. It only depends on a `Backend` interface and imports no
+  datastore driver.
+- `redisbackend`: the Redis backend, built on
+  [go-redis](https://github.com/redis/go-redis) v9.
+- `postgresbackend`: the PostgreSQL backend, built on
+  [pgx](https://github.com/jackc/pgx) v5.
+
+## Installation
 
 ```bash
 go get github.com/taskforcesh/bullmq-go
 ```
 
-It is imported in code under the `bullmq` package name:
-
-```go
-import bullmq "github.com/taskforcesh/bullmq-go"
-```
-
 BullMQ for Go requires:
 
-- Go 1.24+
-- Redis 6.2+
+- Go 1.24 or newer
+- Redis 6.2 or newer, **or** PostgreSQL 13 or newer
 
-## Get Started
+Both backends ship in the module, but a program only links the driver of the
+backend package it imports.
 
-BullMQ uses Go's standard `context.Context` for cancellation throughout. All
-operations are non-blocking with respect to other goroutines and designed for
-high-throughput concurrent workloads.
+## Get started
 
-### Adding Jobs to a Queue
+BullMQ for Go uses `context.Context` for cancellation and goroutines for
+concurrency: a worker processes each job on its own goroutine, and a `Queue`
+can be shared by any number of goroutines.
+
+### Adding jobs to a queue
 
 ```go
 package main
@@ -46,21 +56,33 @@ func main() {
 	ctx := context.Background()
 
 	backend := redisbackend.New(redisbackend.Options{Addr: "127.0.0.1:6379"})
-	queue, err := bullmq.NewQueue("my-queue", &bullmq.QueueOptions{Backend: backend})
+	queue, err := bullmq.NewQueue("emails", &bullmq.QueueOptions{Backend: backend})
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer queue.Close()
 
-	job, err := queue.Add(ctx, "my-job", map[string]string{"foo": "bar"}, nil)
+	job, err := queue.Add(ctx, "welcome", map[string]string{"to": "ada@example.com"}, &bullmq.JobOptions{
+		Attempts: bullmq.Int64(3),
+		Backoff:  &bullmq.Backoff{Type: bullmq.BackoffExponential, Delay: 1000},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("queued job %s", job.ID)
+	log.Printf("added job %s", job.ID)
 }
 ```
 
-### Processing Jobs with a Worker
+The `Backend` option is required: it is a factory such as the one
+`redisbackend.New` or `postgresbackend.New` returns. Job data is encoded with
+`encoding/json`.
+
+### Processing jobs
+
+A worker hands each job to a processor, a
+`func(ctx context.Context, job *bullmq.Job) (any, error)`. The value it
+returns is stored as the job's return value, and an error fails the attempt
+(the job is retried while attempts remain):
 
 ```go
 package main
@@ -69,180 +91,213 @@ import (
 	"context"
 	"errors"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	bullmq "github.com/taskforcesh/bullmq-go"
 	"github.com/taskforcesh/bullmq-go/redisbackend"
 )
 
 func main() {
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	backend := redisbackend.New(redisbackend.Options{Addr: "127.0.0.1:6379"})
-	worker, err := bullmq.NewWorker("my-queue",
-		func(ctx context.Context, job *bullmq.Job) (any, error) {
-			log.Printf("Processing job: %s - %s", job.ID, job.Name)
-			return map[string]bool{"processed": true}, nil
-		},
-		&bullmq.WorkerOptions{Backend: backend},
-	)
+	worker, err := bullmq.NewWorker("emails", func(ctx context.Context, job *bullmq.Job) (any, error) {
+		var payload struct {
+			To string `json:"to"`
+		}
+		if err := job.DecodeData(&payload); err != nil {
+			return nil, bullmq.NewUnrecoverableError("invalid payload: %v", err)
+		}
+		log.Printf("sending a welcome email to %s", payload.To)
+		return map[string]bool{"sent": true}, nil
+	}, &bullmq.WorkerOptions{Backend: backend, Concurrency: 10})
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer worker.Close()
 
-	// Run blocks until ctx is cancelled (processors see the cancellation) or
-	// Close is called (in-flight jobs are allowed to finish).
+	// Run blocks until ctx is cancelled or Close is called.
 	if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		log.Fatal(err)
 	}
 }
 ```
 
-There are two ways to stop a worker, and they differ in how in-flight jobs are
-treated:
+Cancelling the context of `Run`, as Ctrl+C does here, stops the worker
+immediately: the jobs in flight see their context cancelled and are recovered
+later by the stalled check. `worker.Close()` stops it gracefully, waiting for
+them. See [Workers](workers.md#shutting-down).
 
-- **Graceful shutdown: `worker.Close()`.** Call it from another goroutine. The
-  worker stops fetching new jobs, waits for the jobs already in flight to
-  finish (their contexts are not cancelled), and then `Run` returns.
-- **Immediate shutdown: cancelling the context passed to `Run`.** The worker
-  stops fetching new jobs, but the same context is handed to your processors,
-  so they observe the cancellation through `ctx.Done()` and should return
-  early. After `Run` returns, call `worker.Close()` to release the worker's
-  connections and close its event channel.
+### Listening to events
 
-```go
-// Graceful: let in-flight jobs finish.
-sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-defer stop()
-
-go func() {
-	<-sigCtx.Done()
-	if err := worker.Close(); err != nil {
-		log.Printf("close: %v", err)
-	}
-}()
-
-// Run on a context that is not tied to the signal, so processors are not cancelled.
-if err := worker.Run(context.Background()); err != nil && !errors.Is(err, context.Canceled) {
-	log.Fatal(err)
-}
-```
-
-If you pass the signal-aware context directly to `Run` instead, shutdown
-becomes immediate and processors must honour `ctx.Done()`.
-
-### Listening to Worker Events
+A worker publishes the lifecycle of its jobs on `worker.Events()`, and
+`QueueEvents` reads the events of every worker of the queue, in any language:
 
 ```go
 go func() {
 	for ev := range worker.Events() {
 		switch ev.Type {
 		case bullmq.EventCompleted:
-			log.Printf("Job %s completed with: %v", ev.Job.ID, ev.Result)
+			log.Printf("job %s completed with %v", ev.Job.ID, ev.Result)
 		case bullmq.EventFailed:
-			log.Printf("Job %s failed: %v", ev.Job.ID, ev.Err)
-		case bullmq.EventActive:
-			log.Printf("Job %s started processing", ev.Job.ID)
+			log.Printf("job %s failed: %v", ev.Job.ID, ev.Err)
 		}
 	}
 }()
 ```
 
-## Concurrency
+See [Workers](workers.md#events) and [Queue Events](queue-events.md).
 
-Configure how many jobs are processed simultaneously:
+### Using PostgreSQL
+
+Only the backend changes:
 
 ```go
-worker, err := bullmq.NewWorker("my-queue", processor, &bullmq.WorkerOptions{
-	Backend:     backend,
-	Concurrency: 10,
+backend := postgresbackend.New(postgresbackend.Options{
+	ConnString: os.Getenv("DATABASE_URL"), // e.g. postgres://localhost:5432/app
 })
-```
-
-## Progress Tracking
-
-Report progress from inside the processor:
-
-```go
-func(ctx context.Context, job *bullmq.Job) (any, error) {
-	for i := 0; i < 100; i++ {
-		// Do work...
-		progress, err := bullmq.NumberProgress(float64(i))
-		if err != nil {
-			return nil, err
-		}
-		if err := job.UpdateProgress(ctx, progress); err != nil {
-			return nil, err
-		}
-	}
-	return nil, nil
+queue, err := bullmq.NewQueue("emails", &bullmq.QueueOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
 }
+defer queue.Close()
 ```
 
-## Job Retries with Backoff
+The `bullmq` schema is created and migrated by the first operation. See
+[PostgreSQL](postgresql.md).
 
-```go
-queue.Add(ctx, "flaky-job", map[string]any{}, &bullmq.JobOptions{
-	Attempts: bullmq.Int64(5),
-	Backoff: &bullmq.Backoff{
-		Type:  bullmq.BackoffExponential,
-		Delay: 1000, // waits 1s, 2s, 4s, 8s between the 5 attempts
-	},
-})
-```
+## Connection configuration
 
-## Connection Configuration
-
-The datastore is chosen with the required `Backend` option. The Redis backend
-lives in the `redisbackend` package, and `redisbackend.Options` holds the
-connection settings and the key `Prefix` (`bull` by default):
+`redisbackend.Options` holds the Redis settings: `Addr` (`127.0.0.1:6379` by
+default), `Username`, `Password`, `DB`, `PoolSize`, and the key `Prefix`
+(`bull` by default, as in every other SDK):
 
 ```go
 backend := redisbackend.New(redisbackend.Options{
-	Addr:     "redis.example.com:6380",
-	Username: "user",
-	Password: "password",
-	DB:       0,
+	Addr:     "redis.example.com:6379",
+	Username: "app",
+	Password: os.Getenv("REDIS_PASSWORD"),
+	Prefix:   "myapp",
 })
-
-queue, err := bullmq.NewQueue("my-queue", &bullmq.QueueOptions{Backend: backend})
-
-worker, err := bullmq.NewWorker("my-queue", processor, &bullmq.WorkerOptions{Backend: backend})
 ```
 
-### Sharing a Redis client
-
-Pass an existing `redis.UniversalClient` (from
-[go-redis](https://github.com/redis/go-redis)) to reuse a connection pool.
-Clients supplied this way are not closed by `Queue.Close` or `Worker.Close`.
+Each queue, worker and `QueueEvents` built from such a backend opens its own
+connections. To share a connection pool, or to set what `Options` doesn't
+expose such as TLS, pass an existing go-redis client. BullMQ never closes a
+client it didn't create:
 
 ```go
-import "github.com/redis/go-redis/v9"
-
-rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:6379"})
+rdb := redis.NewClient(&redis.Options{
+	Addr:      "redis.example.com:6380",
+	Password:  os.Getenv("REDIS_PASSWORD"),
+	TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+})
+defer rdb.Close()
 
 backend := redisbackend.New(redisbackend.Options{Client: rdb})
-queue, err := bullmq.NewQueue("my-queue", &bullmq.QueueOptions{Backend: backend})
 ```
 
-## Key Differences from Node.js
+Workers and `QueueEvents` still run their blocking reads on a dedicated
+connection, derived from the client's options, so that a blocked read never
+holds a connection of the shared pool.
 
-| Aspect         | Node.js                            | Go                                                 |
-| -------------- | ---------------------------------- | -------------------------------------------------- |
-| Runtime        | Event loop (single-threaded)       | Goroutines (multi-threaded, OS-scheduled)          |
-| Processor      | `async function` or sandboxed file | `func(ctx context.Context, job *Job) (any, error)` |
-| Events         | EventEmitter pattern               | Buffered `chan Event` consumed with `range`        |
-| Error handling | Exceptions                         | `error` return values                              |
-| Cancellation   | AbortSignal                        | `context.Context`                                  |
-| Concurrency    | Cooperative (single core)          | True parallelism across all CPU cores              |
+## Key differences from Node.js
 
-## Compatibility
+| Aspect         | Node.js                                    | Go                                                                                              |
+| -------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| Datastore      | `connection` option (or a backend factory) | Required `Backend` option: `redisbackend.New(...)` or `postgresbackend.New(...)`                |
+| Processor      | `async` function or sandboxed file         | `func(ctx context.Context, job *bullmq.Job) (any, error)`, run on goroutines                    |
+| Errors         | Thrown exceptions                          | Returned `error` values; panics are recovered and fail the attempt                              |
+| Events         | `EventEmitter`                             | A buffered `chan bullmq.Event` that drops events when full, or a synchronous `OnEvent` callback |
+| Cancellation   | `AbortSignal`                              | The processor's `context.Context`; `context.Cause` tells why                                    |
+| Lost job locks | Reported; the processor keeps running      | Reported, and the job's context is cancelled with `bullmq.ErrLockLost`                          |
+| Concurrency    | Cooperative, on one thread                 | Parallel, on every CPU core                                                                     |
+| Options        | `undefined` means unset                    | Pointer fields (`bullmq.Int64(0)`) tell an explicit zero from unset                             |
 
-The Go implementation uses the same Lua scripts and Redis data structures as
-the Node.js, Python, Rust and .NET versions. This means:
+## Interoperability
 
-- Ordinary jobs added by Node.js can be processed by Go workers (and vice versa)
-- Queue state is shared across language implementations
-- You can mix languages in a single deployment, subject to feature support
+The Go SDK uses the same Lua scripts, SQL, key names and data layout as the
+Node.js, Python, Elixir, PHP, Rust and .NET SDKs. As long as both sides use
+the same Redis prefix, or the same PostgreSQL database and schema:
 
-**Job scheduler restriction:** Do not attach Go workers to queues containing job-scheduler or repeatable jobs. Go workers cannot create the next iteration, so claiming one stops that schedule even if Node.js workers share the queue. Keep scheduler jobs on separate queues consumed only by scheduler-capable workers.
+- jobs added in any language can be processed by Go workers, and the other way
+  round; data and return values are JSON;
+- retries, backoff, priorities, removal policies, flows, deduplication and
+  rate limits behave the same whichever runtime processes the job (a custom
+  backoff type needs a `BackoffStrategy` on Go workers);
+- `QueueEvents` in any language sees the events of Go workers;
+- job schedulers created in one language are advanced by the workers of the
+  others.
+
+## Testing
+
+Run integration tests against a real Redis or PostgreSQL server, with a
+unique queue name per test, and remove the queue afterwards:
+
+```go
+func TestWelcomeEmail(t *testing.T) {
+	ctx := context.Background()
+	backend := redisbackend.New(redisbackend.Options{Addr: "127.0.0.1:6379"})
+	name := fmt.Sprintf("emails-test-%d", time.Now().UnixNano())
+
+	queue, err := bullmq.NewQueue(name, &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = queue.Obliterate(context.Background(), true, 0)
+		_ = queue.Close()
+	})
+
+	worker, err := bullmq.NewWorker(name, sendWelcome, &bullmq.WorkerOptions{Backend: backend})
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() { _ = worker.Run(ctx) }()
+	t.Cleanup(func() { _ = worker.Close() })
+
+	job, err := queue.Add(ctx, "welcome", map[string]string{"to": "ada@example.com"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		state, err := queue.JobState(ctx, job.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state == bullmq.StateCompleted {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("job is %s, want completed", state)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+```
+
+To unit test a processor on its own, call it with a `&bullmq.Job{Data: ...}`
+built in the test. Methods that reach the datastore, such as `UpdateProgress`,
+return `bullmq.ErrNoContext` on such a job.
+
+## Limitations
+
+- No telemetry (OpenTelemetry) integration yet.
+- Redis Cluster and Sentinel are untested: a cluster or failover client can be
+  passed as `Client`, but the test suite only runs against a standalone
+  server.
+- On PostgreSQL, `QueueEvents` can miss events when several jobs finish at
+  once, in every SDK, until
+  [#5183](https://github.com/taskforcesh/bullmq/issues/5183) is fixed.
+- Job schedulers with a time zone read the system's time zone database; in
+  containers without one, add `import _ "time/tzdata"` to the program.
+- Legacy repeatable jobs and sandboxed processors aren't supported.
+
+The [feature parity table](https://github.com/taskforcesh/bullmq/blob/master/golang/FEATURE_PARITY.md)
+lists what is and isn't implemented, and the
+[Go README](https://github.com/taskforcesh/bullmq/tree/master/golang) is the
+complete guide, including the changes from the pre-release API.
