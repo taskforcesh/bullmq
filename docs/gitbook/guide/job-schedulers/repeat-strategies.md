@@ -1,6 +1,6 @@
 # Repeat Strategies
 
-BullMQ comes with two predefined strategies for creating repeatable jobs. The ‘every’ strategy is straightforward, allowing you to schedule jobs to repeat at specific intervals, measured in seconds. The more complex ‘cron’ strategy uses cron expressions, as defined by the [cron-parser](https://www.npmjs.com/package/cron-parser) to schedule jobs in intricate patterns. Additionally, BullMQ lets you create custom strategies, giving you the flexibility to define your own logic for setting job intervals.
+BullMQ comes with two predefined strategies for creating repeatable jobs. The ‘every’ strategy is straightforward, allowing you to schedule jobs to repeat at specific intervals, measured in milliseconds. The more complex ‘cron’ strategy uses cron expressions, as defined by the [cron-parser](https://www.npmjs.com/package/cron-parser) to schedule jobs in intricate patterns. Additionally, BullMQ lets you create custom strategies, giving you the flexibility to define your own logic for setting job intervals.
 
 ### "Every" strategy
 
@@ -191,6 +191,64 @@ let worker = Worker::with_options(
     WorkerOptions::new().connection(connection),
 )
 .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+
+myQueue, err := bullmq.NewQueue("my-repeatable-jobs", &bullmq.QueueOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer myQueue.Close()
+
+// Upserting a repeatable job in the queue
+_, err = myQueue.UpsertJobScheduler(ctx, "repeat-every-10s",
+	bullmq.RepeatOptions{
+		Every: 10000, // Job will repeat every 10000 milliseconds (10 seconds)
+	},
+	&bullmq.JobTemplate{
+		Name: "every-job",
+		Data: map[string]string{"jobData": "data"},
+		Opts: &bullmq.JobOptions{}, // Optional additional job options
+	})
+if err != nil {
+	log.Fatal(err)
+}
+
+// Worker to process the jobs
+worker, err := bullmq.NewWorker("my-repeatable-jobs", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	var data struct {
+		JobData string `json:"jobData"`
+	}
+	if err := job.DecodeData(&data); err != nil {
+		return nil, err
+	}
+	fmt.Printf("Processing job %s with data: %s\n", job.ID, data.JobData)
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -416,6 +474,65 @@ let worker = Worker::with_options(
     WorkerOptions::new().connection(connection),
 )
 .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"time"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+
+myQueue, err := bullmq.NewQueue("my-cron-jobs", &bullmq.QueueOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer myQueue.Close()
+
+// Upserting a job with a cron expression
+_, err = myQueue.UpsertJobScheduler(ctx, "weekday-morning-job",
+	bullmq.RepeatOptions{
+		Pattern: "0 0 9 * * 1-5", // Runs at 9:00 AM every Monday to Friday
+	},
+	&bullmq.JobTemplate{
+		Name: "cron-job",
+		Data: map[string]string{"jobData": "morning data"},
+		Opts: &bullmq.JobOptions{}, // Optional additional job options
+	})
+if err != nil {
+	log.Fatal(err)
+}
+
+// Worker to process the jobs
+worker, err := bullmq.NewWorker("my-cron-jobs", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	var data struct {
+		JobData string `json:"jobData"`
+	}
+	if err := job.DecodeData(&data); err != nil {
+		return nil, err
+	}
+	fmt.Printf("Processing job %s at %s with data: %s\n", job.ID, time.Now(), data.JobData)
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
