@@ -1,6 +1,6 @@
 
 
-local function getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, startDate)
+local function getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, startDate, endDate)
     offset = tonumber(offset)
     local nextMillis
     if not prevMillis then
@@ -36,6 +36,12 @@ local function getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, st
                 nextMillis = aligned
             end
         end
+    end
+
+    -- The next iteration must not be scheduled after the endDate, if any.
+    -- Return nil to signal that the scheduler has no more iterations.
+    if endDate and nextMillis > tonumber(endDate) then
+        return nil
     end
 
     if not offset or offset == 0 then

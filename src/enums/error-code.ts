@@ -10,4 +10,5 @@ export enum ErrorCode {
   JobHasFailedChildren = -9,
   SchedulerJobIdCollision = -10,
   SchedulerJobSlotsBusy = -11,
+  SchedulerEndDateReached = -12,
 }

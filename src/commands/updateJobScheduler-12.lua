@@ -52,7 +52,7 @@ if prevMillis then
     prevMillis = tonumber(prevMillis)
 
     local schedulerKey = repeatKey .. ":" .. jobSchedulerId
-    local schedulerAttributes = rcall("HMGET", schedulerKey, "name", "data", "every", "startDate", "offset")
+    local schedulerAttributes = rcall("HMGET", schedulerKey, "name", "data", "every", "startDate", "offset", "endDate")
 
     local every = tonumber(schedulerAttributes[3])
     local now = tonumber(timestamp)
@@ -64,11 +64,18 @@ if prevMillis then
 
     if every then
         local startDate = schedulerAttributes[4]
+        local endDate = schedulerAttributes[6]
         local jobOptsOffset = jobOpts['repeat'] and jobOpts['repeat']['offset'] or 0
         local offset = schedulerAttributes[5] or jobOptsOffset or 0
         local newOffset
 
-        nextMillis, newOffset = getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, startDate)
+        nextMillis, newOffset = getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, startDate, endDate)
+
+        if not nextMillis then
+            -- The next iteration would be due after the scheduler's endDate,
+            -- so no more jobs should be produced for this scheduler.
+            return
+        end
 
         if not offset then
             rcall("HSET", schedulerKey, "offset", newOffset)
