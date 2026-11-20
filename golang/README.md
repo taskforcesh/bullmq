@@ -300,7 +300,10 @@ can override a queue default; `bullmq.Int64` and `bullmq.Bool` build them.
 `QueueOptions.DefaultJobOptions` applies to every job of a `Queue`, and
 `WorkerOptions.RemoveOnComplete` / `RemoveOnFail` are the defaults of the jobs
 a worker finishes. `AddBulk` adds several jobs in one round trip (a single
-`MULTI`/`EXEC` on Redis, a single statement on PostgreSQL):
+`MULTI`/`EXEC` on Redis, a single transaction on PostgreSQL). On PostgreSQL
+a failed batch adds no job. Redis doesn't roll back the jobs already added
+when another one is rejected (for example because its parent doesn't exist),
+so check the queue before retrying a failed batch there:
 
 ```go
 jobs, err := queue.AddBulk(ctx, []bullmq.JobSpec{

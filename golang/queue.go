@@ -78,10 +78,11 @@ func (q *Queue) Add(ctx context.Context, name string, data any, opts *JobOptions
 	return q.newAddedJob(id, nj)
 }
 
-// AddBulk inserts every job in one backend operation. For Redis that is a
-// single transaction, but Redis does not roll back earlier scripts when a
-// later script returns an application-level error, so a failed batch may
-// contain jobs that were inserted before the failing command.
+// AddBulk inserts every job in one backend operation. On PostgreSQL that is
+// a database transaction: a failed batch adds no job. On Redis it is a
+// single transaction, but Redis does not roll back the scripts that ran
+// when another returns an application-level error, such as a missing
+// parent, so a failed batch may leave the other jobs added.
 func (q *Queue) AddBulk(ctx context.Context, specs []JobSpec) ([]*Job, error) {
 	if len(specs) == 0 {
 		return nil, nil

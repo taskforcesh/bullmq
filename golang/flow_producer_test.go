@@ -834,7 +834,8 @@ func testFlowProducerAddBulk(t *testing.T, be testBackend) {
 		}
 	}
 
-	// A rejected root is reported, although the other flow is added.
+	// A rejected root is reported. Redis adds the other flow anyway;
+	// PostgreSQL rolls the batch back (see the postgresbackend tests).
 	_, err = fp.AddBulk(ctx, []bullmq.FlowJob{
 		{Name: "ok", QueueName: q.Name()},
 		{Name: "orphan", QueueName: q.Name(), Opts: &bullmq.JobOptions{

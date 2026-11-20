@@ -62,15 +62,15 @@ Parent jobs: `ChildrenValues`, `Dependencies` (paginated), `DependenciesCount`,
 
 ### FlowProducer
 
-| Feature                      | Notes                                                                                                                                                                                                                     |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Add`, `AddBulk`             | Trees of jobs across queues, inserted in one Redis transaction or one SQL statement; per-queue default options with `FlowOpts.QueuesOptions`                                                                              |
-| `GetFlow`                    | `Depth` and `MaxChildren`, as in Node.js                                                                                                                                                                                  |
-| Parent failure options       | `FailParentOnFailure`, `ContinueParentOnFailure`, `IgnoreDependencyOnFailure`, `RemoveDependencyOnFailure`, mutually exclusive                                                                                            |
-| Deduplication                | Only on a root without children nor parent, as in Node.js                                                                                                                                                                 |
-| Parents completing too early | A parent that completes with pending children, or with a child that failed it, fails (`Job X has pending dependencies`), as in Node.js                                                                                    |
-| Errors                       | `Add`/`AddBulk` return an error when the datastore rejects a job (missing parent, child of another parent); the jobs it accepted are kept, as in Node.js, which only reports the root of `add` and nothing from `addBulk` |
-| Per-node `prefix`            | Not supported: a flow lives in the namespace of the producer's backend factory. Use another `FlowProducer` for another prefix                                                                                             |
+| Feature                      | Notes                                                                                                                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Add`, `AddBulk`             | Trees of jobs across queues, inserted in one Redis transaction or one SQL transaction; per-queue default options with `FlowOpts.QueuesOptions`                                           |
+| `GetFlow`                    | `Depth` and `MaxChildren`, as in Node.js                                                                                                                                                 |
+| Parent failure options       | `FailParentOnFailure`, `ContinueParentOnFailure`, `IgnoreDependencyOnFailure`, `RemoveDependencyOnFailure`, mutually exclusive                                                           |
+| Deduplication                | Only on a root without children nor parent, as in Node.js                                                                                                                                |
+| Parents completing too early | A parent that completes with pending children, or with a child that failed it, fails (`Job X has pending dependencies`), as in Node.js                                                   |
+| Errors                       | `Add`/`AddBulk` return an error when the datastore rejects a job (missing parent, child of another parent); PostgreSQL then adds none, Redis keeps the jobs it accepted, as Node.js does |
+| Per-node `prefix`            | Not supported: a flow lives in the namespace of the producer's backend factory. Use another `FlowProducer` for another prefix                                                            |
 
 ### Job schedulers
 

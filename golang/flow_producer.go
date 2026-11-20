@@ -156,12 +156,13 @@ func (fp *FlowProducer) queueBackend(name string) (Backend, error) {
 // parents; a parent sees their results with [Job.ChildrenValues].
 //
 // The whole tree is sent in one datastore operation (a Redis transaction, a
-// single SQL statement). When the datastore rejects one of its jobs, for
-// example because the parent of the root does not exist
+// database transaction on PostgreSQL). When the datastore rejects one of its
+// jobs, for example because the parent of the root does not exist
 // ([ErrParentJobNotExist]: then no job is added) or because a child with a
 // custom id already belongs to another parent
-// ([ErrParentJobCannotBeReplaced]), Add returns an error; as in Node, the
-// jobs the datastore accepted are not rolled back.
+// ([ErrParentJobCannotBeReplaced]), Add returns an error. PostgreSQL then
+// rolls the whole tree back; on Redis, as in Node, the jobs the datastore
+// accepted are kept.
 func (fp *FlowProducer) Add(ctx context.Context, flow FlowJob, opts *FlowOpts) (*JobNode, error) {
 	var queuesOpts map[string]FlowQueueOptions
 	if opts != nil {
@@ -176,8 +177,8 @@ func (fp *FlowProducer) Add(ctx context.Context, flow FlowJob, opts *FlowOpts) (
 
 // AddBulk adds several flows in one datastore operation and returns their
 // jobs, in order. Errors are reported as in [FlowProducer.Add]: when the
-// datastore rejects a job, AddBulk returns an error and the jobs it accepted,
-// from any of the flows, are kept.
+// datastore rejects a job, AddBulk returns an error; PostgreSQL then adds no
+// job of any of the flows, while Redis keeps the jobs it accepted.
 func (fp *FlowProducer) AddBulk(ctx context.Context, flows []FlowJob) ([]*JobNode, error) {
 	if len(flows) == 0 {
 		return nil, nil
