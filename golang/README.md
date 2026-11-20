@@ -354,6 +354,37 @@ The `Job` returned for a duplicate carries the existing job's `ID`, but the
 data and options of the call; read it back with `Queue.Job` to see what is
 stored. Deduplication can't be combined with `Parent`.
 
+`Add` doesn't say whether it deduplicated the job, as in Node.js: listen to
+the `deduplicated` event, or compare the returned `ID` with `JobID` when you
+set one. `DeduplicationJobID` tells which job holds a deduplication id, and
+the id can be released before the job finishes, so the next job with it is
+added:
+
+```go
+holder, err := queue.DeduplicationJobID(ctx, "sync-account-42") // "" when none
+if err != nil {
+	log.Fatal(err)
+}
+log.Printf("job %q holds sync-account-42", holder)
+
+// Release it, whichever job holds it.
+if _, err := queue.RemoveDeduplicationKey(ctx, "sync-account-42"); err != nil {
+	log.Fatal(err)
+}
+```
+
+`Job.RemoveDeduplicationKey` releases the job's id only while the job holds
+it, for example to accept the next sync as soon as this one starts:
+
+```go
+func syncAccount(ctx context.Context, job *bullmq.Job) (any, error) {
+	if _, err := job.RemoveDeduplicationKey(ctx); err != nil {
+		return nil, err
+	}
+	return nil, syncWithCRM(ctx, job)
+}
+```
+
 ## Workers
 
 ### Processors
@@ -760,6 +791,7 @@ A `Queue` is safe for concurrent use. Its methods mirror Node's `Queue`:
 | `RetryJobs`, `PromoteJobs`                                                        | Move failed or completed jobs back to wait; make delayed jobs ready                          |
 | `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency`, `IsMaxed` | Cap how many jobs are active across all workers                                              |
 | `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Rate limit every worker of the queue                                                         |
+| `DeduplicationJobID`, `RemoveDeduplicationKey`                                    | Read or release a [deduplication](#deduplication) id                                         |
 | `Metrics`, `Workers`                                                              | Completed and failed metrics; the connected workers (`[]WorkerInfo`)                         |
 | `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](#job-schedulers)                                                            |
 
@@ -1165,8 +1197,8 @@ Custom `Backend` implementations have more to change: `SignalWork` is gone,
 `MoveToCompleted` and `MoveToFailed` return a `*FinishResult` and can fetch
 the next job, `FetchResult` reports `RateLimitDelay` and `NextDelayedAt`,
 `WaitForJob` returns a `WaitResult`, `BackendOptions.Prefix` moved to the
-backends, and there are new methods for flows, job schedulers and manual rate
-limiting. The documentation of the `Backend` interface describes the
+backends, and there are new methods for flows, job schedulers, manual rate
+limiting and deduplication. The documentation of the `Backend` interface describes the
 contract.
 
 ## Contributing

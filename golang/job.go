@@ -71,6 +71,9 @@ type Job struct {
 	Priority int64
 	// RepeatJobKey links the job to a job scheduler.
 	RepeatJobKey string
+	// DeduplicationID is the deduplication id the job was added with (see
+	// JobOptions.Deduplication), or "".
+	DeduplicationID string
 	// QueueName is the name of the owning queue.
 	QueueName string
 
@@ -83,7 +86,7 @@ type Job struct {
 
 // newJob builds a Job bound to backend from the record it returned.
 func newJob(b Backend, rec *JobRecord) *Job {
-	return &Job{
+	job := &Job{
 		ID:              rec.ID,
 		Name:            rec.Name,
 		Data:            rec.Data,
@@ -105,9 +108,14 @@ func newJob(b Backend, rec *JobRecord) *Job {
 		Delay:           rec.Delay,
 		Priority:        rec.Priority,
 		RepeatJobKey:    rec.RepeatJobKey,
+		DeduplicationID: rec.DeduplicationID,
 		QueueName:       b.QueueName(),
 		backend:         b,
 	}
+	if job.DeduplicationID == "" {
+		job.DeduplicationID = rec.Opts.deduplicationID()
+	}
+	return job
 }
 
 // Token returns the lock token held by the worker currently processing the job.
@@ -225,6 +233,22 @@ func (j *Job) Remove(ctx context.Context, removeChildren bool) error {
 		return fmt.Errorf("bullmq: job %s could not be removed because it is locked by another worker: %w", j.ID, ErrJobLocked)
 	}
 	return nil
+}
+
+// RemoveDeduplicationKey releases the job's deduplication id if the job
+// still holds it, so the next job added with it is not deduplicated, as
+// Node's job.removeDeduplicationKey does. It reports whether it did: false
+// when the job has no deduplication id, or when the id expired or is held
+// by another job.
+func (j *Job) RemoveDeduplicationKey(ctx context.Context) (bool, error) {
+	b, err := j.ctx()
+	if err != nil {
+		return false, err
+	}
+	if j.DeduplicationID == "" {
+		return false, nil
+	}
+	return b.RemoveDeduplicationKey(ctx, j.DeduplicationID, j.ID)
 }
 
 // Promote moves a delayed job to the wait list immediately.

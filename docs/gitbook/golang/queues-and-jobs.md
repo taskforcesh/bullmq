@@ -150,7 +150,40 @@ if err != nil {
 
 The `Job` returned for a duplicate carries the existing job's `ID`, but the
 data and options of the call; read it back with `queue.Job` to see what is
-stored. See [Deduplication](../guide/jobs/deduplication.md).
+stored.
+
+`Add` doesn't say whether it deduplicated the job, as in Node.js: listen to
+the `deduplicated` event, or compare the returned `ID` with `JobID` when you
+set one. `DeduplicationJobID` tells which job holds a deduplication id, and
+the id can be released before the job finishes, so the next job with it is
+added:
+
+```go
+holder, err := queue.DeduplicationJobID(ctx, "sync-account-42") // "" when none
+if err != nil {
+	log.Fatal(err)
+}
+log.Printf("job %q holds sync-account-42", holder)
+
+// Release it, whichever job holds it.
+if _, err := queue.RemoveDeduplicationKey(ctx, "sync-account-42"); err != nil {
+	log.Fatal(err)
+}
+```
+
+`Job.RemoveDeduplicationKey` releases the job's id only while the job holds
+it, for example to accept the next sync as soon as this one starts:
+
+```go
+func syncAccount(ctx context.Context, job *bullmq.Job) (any, error) {
+	if _, err := job.RemoveDeduplicationKey(ctx); err != nil {
+		return nil, err
+	}
+	return nil, syncWithCRM(ctx, job)
+}
+```
+
+See [Deduplication](../guide/jobs/deduplication.md).
 
 ## Queue operations
 
@@ -166,6 +199,7 @@ stored. See [Deduplication](../guide/jobs/deduplication.md).
 | `RetryJobs`, `PromoteJobs`                                                        | Move failed or completed jobs back to wait; make delayed jobs ready                          |
 | `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency`, `IsMaxed` | Cap how many jobs are active across all workers                                              |
 | `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Rate limit every worker of the queue                                                         |
+| `DeduplicationJobID`, `RemoveDeduplicationKey`                                    | Read or release a [deduplication](#deduplication) id                                         |
 | `Metrics`, `Workers`                                                              | Completed and failed metrics; the connected workers (`[]WorkerInfo`)                         |
 | `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](job-schedulers.md)                                                          |
 

@@ -57,7 +57,9 @@ type JobSpec struct {
 	Opts *JobOptions
 }
 
-// Add inserts a single job into the queue.
+// Add inserts a single job into the queue. When it is deduplicated (see
+// [DeduplicationOptions]), nothing is added and the returned Job has the ID
+// of the job that holds the deduplication id.
 func (q *Queue) Add(ctx context.Context, name string, data any, opts *JobOptions) (*Job, error) {
 	nj, err := q.prepareJob(JobSpec{Name: name, Data: data, Opts: opts})
 	if err != nil {
@@ -117,6 +119,8 @@ func (q *Queue) newAddedJob(id string, nj NewJob) (*Job, error) {
 		Priority:  nj.Opts.priorityVal(),
 		QueueName: q.Name(),
 		backend:   q.backend,
+
+		DeduplicationID: nj.Opts.deduplicationID(),
 	}
 	if nj.Opts.Parent != nil {
 		parent, parentKey, err := q.backend.ResolveParent(nj.Opts.Parent)
@@ -470,6 +474,22 @@ func (q *Queue) GlobalRateLimit(ctx context.Context) (*RateLimiter, error) {
 // RateLimitTTL returns the remaining rate limit window in milliseconds.
 func (q *Queue) RateLimitTTL(ctx context.Context, maxJobs int64) (int64, error) {
 	return q.backend.GetRateLimitTTL(ctx, maxJobs)
+}
+
+// DeduplicationJobID returns the id of the job that holds the deduplication
+// id dedupID (see [DeduplicationOptions]), or "" when no job holds it: it
+// was never used, was removed, or its TTL expired. While a job holds it,
+// adding a job with the same deduplication id returns that job's id.
+func (q *Queue) DeduplicationJobID(ctx context.Context, dedupID string) (string, error) {
+	return q.backend.GetDeduplicationJobID(ctx, dedupID)
+}
+
+// RemoveDeduplicationKey releases the deduplication id dedupID, whichever
+// job holds it, so the next job added with it is not deduplicated. It
+// reports whether there was one to release. Job.RemoveDeduplicationKey
+// releases it only if a given job still holds it.
+func (q *Queue) RemoveDeduplicationKey(ctx context.Context, dedupID string) (bool, error) {
+	return q.backend.DeleteDeduplicationKey(ctx, dedupID)
 }
 
 // Metrics returns the collected metrics for the completed or failed state.

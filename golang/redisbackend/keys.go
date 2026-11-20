@@ -139,6 +139,10 @@ func (k *Keys) ID() string { return k.Get("id") }
 // Repeat returns the job scheduler (repeat) key.
 func (k *Keys) Repeat() string { return k.Get("repeat") }
 
+// Deduplication returns the key holding the id of the job that holds a
+// deduplication id.
+func (k *Keys) Deduplication(dedupID string) string { return k.Get("de:" + dedupID) }
+
 // Metrics returns the metrics key for the given finished state.
 func (k *Keys) Metrics(state string) string { return k.Get("metrics:" + state) }
 

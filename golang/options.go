@@ -26,16 +26,26 @@ type ParentOptions struct {
 	Queue string `json:"queue"`
 }
 
-// DeduplicationOptions prevents duplicate jobs from being added while a
-// deduplication key is alive.
+// DeduplicationOptions prevents duplicate jobs from being added while a job
+// holds the deduplication id, as Node's deduplication option does.
+//
+// Adding a job whose id another job holds adds nothing: Queue.Add returns a
+// Job with the ID of the job that holds it (and the data and options of the
+// call), and QueueEvents reports a `deduplicated` event. As in Node, Add does
+// not say whether it deduplicated the job; use the event, or compare the
+// returned ID with JobOptions.JobID when you set one. Queue.DeduplicationJobID
+// reports the job that holds an id, and Queue.RemoveDeduplicationKey and
+// Job.RemoveDeduplicationKey release it early.
 type DeduplicationOptions struct {
-	// ID is the deduplication key.
+	// ID is the deduplication id.
 	ID string `json:"id"`
-	// TTL is how long, in milliseconds, the key stays alive.
+	// TTL is how long, in milliseconds, the id is held. When it is 0, the
+	// id is held until the job completes or fails for good.
 	TTL int64 `json:"ttl,omitempty"`
 	// Extend refreshes the TTL when a duplicate is discarded.
 	Extend bool `json:"extend,omitempty"`
-	// Replace discards the existing job in favour of the new one.
+	// Replace discards the existing job in favour of the new one, while the
+	// existing job is still delayed.
 	Replace bool `json:"replace,omitempty"`
 }
 
@@ -300,6 +310,14 @@ func (opts *JobOptions) priorityVal() int64 {
 		return 0
 	}
 	return *opts.Priority
+}
+
+// deduplicationID returns the deduplication id, or "" when there is none.
+func (opts *JobOptions) deduplicationID() string {
+	if opts == nil || opts.Deduplication == nil {
+		return ""
+	}
+	return opts.Deduplication.ID
 }
 
 // attemptsVal returns the configured attempts, or 0 if opts is nil or

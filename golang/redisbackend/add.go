@@ -355,7 +355,7 @@ func (b *Backend) addArgs(opts *bullmq.JobOptions, name string, timestamp int64)
 	}
 
 	if opts.Deduplication != nil {
-		args[8] = b.keys.Base() + ":de:" + opts.Deduplication.ID
+		args[8] = b.keys.Deduplication(opts.Deduplication.ID)
 	}
 	return args, nil
 }

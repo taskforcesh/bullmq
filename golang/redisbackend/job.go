@@ -42,6 +42,7 @@ func jobRecordFromHash(id string, fields map[string]string) *bullmq.JobRecord {
 	r.ParentKey = fields["parentKey"]
 	r.ProcessedBy = fields["pb"]
 	r.RepeatJobKey = fields["rjk"]
+	r.DeduplicationID = fields["deid"]
 	r.FailedReason = fields["failedReason"]
 	r.DeferredFailure = fields["defa"]
 	r.Timestamp = parseInt(fields["timestamp"])

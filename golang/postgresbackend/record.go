@@ -78,6 +78,7 @@ type jobRow struct {
 	data, opts, progress, returnValue, trace      []byte
 	failedReason, deferredFailure, processedBy    *string
 	schedulerID, parentQueue, parentID, parentKey *string
+	dedupID                                       *string
 	priority, attemptsMade, attemptsStarted       int64
 	stalledCount, delay, addedAt                  int64
 	processedAt, finishedAt                       *int64
@@ -122,6 +123,8 @@ func scanJobRows(rows pgx.Rows) ([]*bullmq.JobRecord, error) {
 			dest[i] = &r.parentID
 		case "parent_key":
 			dest[i] = &r.parentKey
+		case "dedup_id":
+			dest[i] = &r.dedupID
 		case "priority":
 			dest[i] = &r.priority
 		case "attempts_made":
@@ -167,6 +170,7 @@ func (r *jobRow) record() *bullmq.JobRecord {
 		ProcessedBy:     deref(r.processedBy),
 		RepeatJobKey:    deref(r.schedulerID),
 		ParentKey:       deref(r.parentKey),
+		DeduplicationID: deref(r.dedupID),
 	}
 	if len(r.data) > 0 {
 		rec.Data = json.RawMessage(r.data)

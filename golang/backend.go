@@ -409,6 +409,23 @@ type Backend interface {
 	// IsJobScheduler reports whether id is a job scheduler, as opposed to a
 	// legacy repeatable job, which this port does not support.
 	IsJobScheduler(ctx context.Context, id string) (bool, error)
+
+	// ------------------------------------------------------------------
+	// Deduplication
+	// ------------------------------------------------------------------
+
+	// GetDeduplicationJobID returns the id of the job that holds the
+	// deduplication id dedupID (see [DeduplicationOptions]), or "" when no
+	// job holds it: it was never set, was removed, or its TTL expired.
+	GetDeduplicationJobID(ctx context.Context, dedupID string) (string, error)
+
+	// RemoveDeduplicationKey releases the deduplication id dedupID if the
+	// job jobID still holds it, and reports whether it did.
+	RemoveDeduplicationKey(ctx context.Context, dedupID, jobID string) (bool, error)
+
+	// DeleteDeduplicationKey releases the deduplication id dedupID,
+	// whichever job holds it, and reports whether there was one to release.
+	DeleteDeduplicationKey(ctx context.Context, dedupID string) (bool, error)
 }
 
 // BackendOptions describes the role of the backend being built by a
@@ -486,6 +503,7 @@ type JobRecord struct {
 	Parent          *ParentKeys
 	ProcessedBy     string
 	RepeatJobKey    string
+	DeduplicationID string
 	FailedReason    string
 	DeferredFailure string
 	Timestamp       int64

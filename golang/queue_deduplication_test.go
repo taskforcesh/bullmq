@@ -261,3 +261,161 @@ func testDeduplicationReplaceDoesNotTouchANonDelayedJob(t *testing.T, be testBac
 	requireStoredData(t, ctx, q, first.ID, `"first"`)
 	requireWaitingCount(t, ctx, q, bullmq.StateWaiting, 1)
 }
+
+func requireDeduplicationJobID(t *testing.T, ctx context.Context, q *bullmq.Queue, dedupID, want string) {
+	t.Helper()
+	got, err := q.DeduplicationJobID(ctx, dedupID)
+	if err != nil {
+		t.Fatalf("DeduplicationJobID(%s): %v", dedupID, err)
+	}
+	if got != want {
+		t.Fatalf("DeduplicationJobID(%s) = %q, want %q", dedupID, got, want)
+	}
+}
+
+// DeduplicationJobID reports the job holding a deduplication id, which
+// every Job carries in DeduplicationID.
+func TestQueueDeduplicationJobID(t *testing.T) {
+	forEachBackend(t, testQueueDeduplicationJobID)
+}
+
+func testQueueDeduplicationJobID(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	requireDeduplicationJobID(t, ctx, q, "sync", "")
+	first := addDeduped(t, ctx, q, "first", &bullmq.DeduplicationOptions{ID: "sync"}, nil)
+	requireDeduplicationJobID(t, ctx, q, "sync", first.ID)
+	if first.DeduplicationID != "sync" {
+		t.Fatalf("added job DeduplicationID = %q, want sync", first.DeduplicationID)
+	}
+	stored, err := q.Job(ctx, first.ID)
+	if err != nil || stored == nil {
+		t.Fatalf("Job = %v, %v", stored, err)
+	}
+	if stored.DeduplicationID != "sync" {
+		t.Fatalf("stored job DeduplicationID = %q, want sync", stored.DeduplicationID)
+	}
+
+	// A TTL that ran out releases the id.
+	addDeduped(t, ctx, q, "short", &bullmq.DeduplicationOptions{ID: "short", TTL: 100}, nil)
+	waitFor(t, 5*time.Second, "the deduplication TTL to run out", func() bool {
+		id, err := q.DeduplicationJobID(ctx, "short")
+		return err == nil && id == ""
+	})
+}
+
+// Queue.RemoveDeduplicationKey releases a deduplication id whichever job
+// holds it, so the next job with that id is added.
+func TestQueueRemoveDeduplicationKey(t *testing.T) {
+	forEachBackend(t, testQueueRemoveDeduplicationKey)
+}
+
+func testQueueRemoveDeduplicationKey(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	de := &bullmq.DeduplicationOptions{ID: "sync"}
+
+	first := addDeduped(t, ctx, q, "first", de, nil)
+	removed, err := q.RemoveDeduplicationKey(ctx, "sync")
+	if err != nil || !removed {
+		t.Fatalf("RemoveDeduplicationKey = %v, %v; want true", removed, err)
+	}
+	requireDeduplicationJobID(t, ctx, q, "sync", "")
+	if removed, err := q.RemoveDeduplicationKey(ctx, "sync"); err != nil || removed {
+		t.Fatalf("RemoveDeduplicationKey again = %v, %v; want false", removed, err)
+	}
+
+	second := addDeduped(t, ctx, q, "second", de, nil)
+	if second.ID == first.ID {
+		t.Fatalf("Add after RemoveDeduplicationKey returned the deduplicated job %s", first.ID)
+	}
+	requireDeduplicationJobID(t, ctx, q, "sync", second.ID)
+	requireWaitingCount(t, ctx, q, bullmq.StateWaiting, 2)
+}
+
+// Job.RemoveDeduplicationKey only releases the id while the job holds it.
+func TestJobRemoveDeduplicationKey(t *testing.T) {
+	forEachBackend(t, testJobRemoveDeduplicationKey)
+}
+
+func testJobRemoveDeduplicationKey(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	de := &bullmq.DeduplicationOptions{ID: "sync"}
+
+	plain, err := q.Add(ctx, "plain", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if removed, err := plain.RemoveDeduplicationKey(ctx); err != nil || removed {
+		t.Fatalf("RemoveDeduplicationKey of a job without one = %v, %v; want false", removed, err)
+	}
+
+	first := addDeduped(t, ctx, q, "first", de, nil)
+	if _, err := q.RemoveDeduplicationKey(ctx, "sync"); err != nil {
+		t.Fatalf("Queue.RemoveDeduplicationKey: %v", err)
+	}
+	second := addDeduped(t, ctx, q, "second", de, nil)
+
+	// The first job no longer holds the id, so it must not release it.
+	if removed, err := first.RemoveDeduplicationKey(ctx); err != nil || removed {
+		t.Fatalf("RemoveDeduplicationKey of a former holder = %v, %v; want false", removed, err)
+	}
+	requireDeduplicationJobID(t, ctx, q, "sync", second.ID)
+
+	// A job read back from the datastore knows its deduplication id.
+	stored, err := q.Job(ctx, second.ID)
+	if err != nil || stored == nil {
+		t.Fatalf("Job = %v, %v", stored, err)
+	}
+	if removed, err := stored.RemoveDeduplicationKey(ctx); err != nil || !removed {
+		t.Fatalf("RemoveDeduplicationKey of the holder = %v, %v; want true", removed, err)
+	}
+	requireDeduplicationJobID(t, ctx, q, "sync", "")
+}
+
+// A processor can release its job's deduplication id while it runs, so a
+// new job with the same id is accepted before this one finishes.
+func TestJobRemoveDeduplicationKeyFromTheProcessor(t *testing.T) {
+	forEachBackend(t, testJobRemoveDeduplicationKeyFromTheProcessor)
+}
+
+func testJobRemoveDeduplicationKeyFromTheProcessor(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	de := &bullmq.DeduplicationOptions{ID: "sync"}
+
+	released := make(chan bool, 1)
+	finish := make(chan struct{})
+	w := newTestWorker(t, be, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
+		if string(job.Data) == `"first"` {
+			removed, err := job.RemoveDeduplicationKey(ctx)
+			if err != nil {
+				return nil, err
+			}
+			released <- removed
+			<-finish
+		}
+		return nil, nil
+	}, nil)
+	runWorker(t, w)
+	defer close(finish)
+
+	first := addDeduped(t, ctx, q, "first", de, nil)
+	select {
+	case removed := <-released:
+		if !removed {
+			t.Fatal("the processor could not release its deduplication id")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the job was not processed")
+	}
+	second, err := q.Add(ctx, "second", nil, &bullmq.JobOptions{Deduplication: de})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if second.ID == first.ID {
+		t.Fatalf("Add while the first job runs returned it (%s), want a new job", first.ID)
+	}
+}

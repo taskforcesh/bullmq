@@ -31,6 +31,7 @@ func TestKeysUseTheSharedNamingConvention(t *testing.T) {
 		"jobLogs":     k.JobLogs("42"),
 		"deps":        k.Dependencies("42"),
 		"metrics":     k.Metrics("completed"),
+		"dedup":       k.Deduplication("sync-1"),
 	}
 	want := map[string]string{
 		"base":        "bull:emails",
@@ -53,6 +54,7 @@ func TestKeysUseTheSharedNamingConvention(t *testing.T) {
 		"jobLogs":     "bull:emails:42:logs",
 		"deps":        "bull:emails:42:dependencies",
 		"metrics":     "bull:emails:metrics:completed",
+		"dedup":       "bull:emails:de:sync-1",
 	}
 	for name, got := range cases {
 		if got != want[name] {

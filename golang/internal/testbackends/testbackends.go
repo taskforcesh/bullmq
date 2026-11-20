@@ -173,7 +173,7 @@ func (redisFixture) Deduplication(ctx context.Context, b bullmq.Backend, dedupID
 	if err != nil {
 		return "", 0, false, err
 	}
-	key := rb.Keys().Base() + ":de:" + dedupID
+	key := rb.Keys().Deduplication(dedupID)
 	jobID, err := rb.Client().Get(ctx, key).Result()
 	if errors.Is(err, redis.Nil) {
 		return "", 0, false, nil
