@@ -354,7 +354,7 @@ func testQueueObliterateRemovesEverything(t *testing.T, be testBackend) {
 			t.Fatalf("Add: %v", err)
 		}
 	}
-	if err := q.Obliterate(ctx, false, 100); err != nil {
+	if err := q.Obliterate(ctx, &bullmq.ObliterateOptions{Count: 100}); err != nil {
 		t.Fatalf("Obliterate: %v", err)
 	}
 
@@ -396,7 +396,7 @@ func testQueueObliterateRefusesActiveJobsWithoutForce(t *testing.T, be testBacke
 		t.Fatal("the job was never picked up")
 	}
 
-	if err := q.Obliterate(ctx, false, 100); err == nil {
+	if err := q.Obliterate(ctx, &bullmq.ObliterateOptions{Count: 100}); err == nil {
 		t.Error("Obliterate should refuse to run while there are active jobs")
 	}
 	close(release)

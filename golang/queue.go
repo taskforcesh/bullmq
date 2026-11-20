@@ -239,19 +239,35 @@ func (q *Queue) Drain(ctx context.Context, delayed bool) error {
 	return q.backend.Drain(ctx, delayed)
 }
 
-// Obliterate deletes the queue and every job in it.
+// ObliterateOptions tunes [Queue.Obliterate], as Node's obliterate options
+// do.
+type ObliterateOptions struct {
+	// Force obliterates the queue even while some of its jobs are active.
+	Force bool
+	// Count is how many jobs are removed per datastore call, so that a
+	// large queue doesn't block the datastore; it is not a cap on the
+	// total. 0 means 1000.
+	Count int64
+}
+
+// Obliterate deletes the queue and every job in it, with its metadata,
+// whatever their state. opts may be nil.
 //
-// The queue is paused first, matching the behaviour of the other ports. When
-// force is false the call fails if there are still active jobs.
-func (q *Queue) Obliterate(ctx context.Context, force bool, count int64) error {
-	if count <= 0 {
-		count = 1000
+// The queue is paused first, matching the behaviour of the other ports.
+// Unless opts.Force is set, the call fails if there are still active jobs.
+func (q *Queue) Obliterate(ctx context.Context, opts *ObliterateOptions) error {
+	var o ObliterateOptions
+	if opts != nil {
+		o = *opts
+	}
+	if o.Count <= 0 {
+		o.Count = 1000
 	}
 	if err := q.Pause(ctx); err != nil {
 		return err
 	}
 	for {
-		remaining, err := q.backend.Obliterate(ctx, force, count)
+		remaining, err := q.backend.Obliterate(ctx, o.Force, o.Count)
 		if err != nil {
 			return err
 		}
@@ -530,7 +546,16 @@ func (q *Queue) GlobalRateLimit(ctx context.Context) (*RateLimiter, error) {
 	return &RateLimiter{Max: parseInt(max), Duration: time.Duration(parseInt(duration)) * time.Millisecond}, nil
 }
 
-// RateLimitTTL returns the remaining rate limit window in milliseconds.
+// RateLimitTTL returns how long, in milliseconds, the queue stays rate
+// limited, as Node's getRateLimitTtl does.
+//
+// maxJobs is the number of jobs per window that makes the queue rate
+// limited: RateLimitTTL returns the time left in the current window once at
+// least maxJobs jobs were counted in it, and 0 otherwise. A maxJobs of 0, like
+// Node's omitted argument, uses the Max of the global rate limit (see
+// SetGlobalRateLimit). Without a global rate limit either, it returns the
+// time left in the current window whatever its count, or the codes of Redis
+// PTTL: -2 when no window is open, and -1 when the window never expires.
 func (q *Queue) RateLimitTTL(ctx context.Context, maxJobs int64) (int64, error) {
 	return q.backend.GetRateLimitTTL(ctx, maxJobs)
 }

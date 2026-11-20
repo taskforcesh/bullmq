@@ -804,6 +804,11 @@ The limit is shared by the queue, like in the other ports.
 configuring each of them; `GlobalRateLimit` reads it and
 `RemoveGlobalRateLimit` (or a max of 0) removes it. A rate-limited worker sleeps until the limit lifts,
 at most `MaximumRateLimitDelay` (30 s by default) at a time.
+`Queue.RateLimitTTL(ctx, maxJobs)` tells how long the queue stays limited, in
+milliseconds: the time left in the current window once `maxJobs` jobs were
+counted in it, else 0. With `maxJobs` 0 it uses the global rate limit's max
+and, without one, returns the time left whatever the count, or -2 when no
+window is open, as Node's `getRateLimitTtl()` does.
 
 A processor can also rate limit the queue itself, for example when an
 external API asks it to slow down. `Worker.RateLimit` limits the queue for a
@@ -1207,7 +1212,7 @@ func TestWelcomeEmailIsSent(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_ = queue.Obliterate(context.Background(), true, 0)
+		_ = queue.Obliterate(context.Background(), &bullmq.ObliterateOptions{Force: true})
 		_ = queue.Close()
 	})
 
@@ -1292,6 +1297,7 @@ drafts of this port needs these changes:
 | `queue.PromoteJobs(ctx, count)` returned an always-0 `int64`                   | It returns only an error                                                                                                 |
 | `queue.Jobs(ctx, state, start, end, asc)`, `queue.JobIDs(...)` with one state  | `queue.Jobs(ctx, start, end, asc, states...)`: several states, or none for all of them                                   |
 | `queue.GlobalConcurrency(ctx)` returned 0 when no limit was set                | It returns a `*int64`, nil when no limit is set                                                                          |
+| `queue.Obliterate(ctx, force, count)`                                          | `queue.Obliterate(ctx, &bullmq.ObliterateOptions{Force, Count})`, or nil                                                 |
 
 Custom `Backend` implementations have more to change: `SignalWork` is gone,
 `MoveToCompleted` and `MoveToFailed` return a `*FinishResult` and can fetch

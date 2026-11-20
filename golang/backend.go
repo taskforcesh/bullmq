@@ -176,8 +176,9 @@ type Backend interface {
 	// timestamp (Unix milliseconds) and returns their ids.
 	CleanJobsByState(ctx context.Context, state JobState, timestamp, limit int64) ([]string, error)
 
-	// Obliterate destroys the queue and its contents in batches of count. It
-	// returns a cursor: 0 once the obliteration is complete.
+	// Obliterate destroys the queue and its contents, removing up to count
+	// jobs per call. It returns a cursor: 0 once the obliteration is
+	// complete.
 	Obliterate(ctx context.Context, force bool, count int64) (int64, error)
 
 	// ------------------------------------------------------------------
@@ -247,8 +248,11 @@ type Backend interface {
 	// IsMaxed reports whether the queue reached its global concurrency limit.
 	IsMaxed(ctx context.Context) (bool, error)
 
-	// GetRateLimitTTL returns the remaining ttl in milliseconds of the current
-	// rate limit window.
+	// GetRateLimitTTL returns the time left in the current rate limit window,
+	// in milliseconds, once at least maxJobs jobs were counted in it, and 0
+	// otherwise. A maxJobs of 0 uses the max of the global rate limit and,
+	// without one, returns the time left whatever the count, or -2 when no
+	// window is open (-1 for a window without expiry), as Redis PTTL does.
 	GetRateLimitTTL(ctx context.Context, maxJobs int64) (int64, error)
 
 	// SetRateLimit rate limits the whole queue for ttl, as if the limiter's

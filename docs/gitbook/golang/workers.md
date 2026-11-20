@@ -346,6 +346,11 @@ if err != nil {
 of the queue instead; `queue.GlobalRateLimit(ctx)` reads it and
 `queue.RemoveGlobalRateLimit(ctx)` removes it. A rate-limited worker sleeps until the limit lifts, at
 most `MaximumRateLimitDelay` (30 s by default) at a time.
+`queue.RateLimitTTL(ctx, maxJobs)` tells how long the queue stays limited, in
+milliseconds: the time left in the current window once `maxJobs` jobs were
+counted in it, else 0. With `maxJobs` 0 it uses the global rate limit's max
+and, without one, returns the time left whatever the count, or -2 when no
+window is open, as Node's `getRateLimitTtl()` does.
 
 A processor can rate limit the queue itself, for example when an external API
 asks it to slow down. `worker.RateLimit` limits the queue for a while, and

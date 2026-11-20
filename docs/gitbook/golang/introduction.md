@@ -272,7 +272,7 @@ func TestWelcomeEmail(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_ = queue.Obliterate(context.Background(), true, 0)
+		_ = queue.Obliterate(context.Background(), &bullmq.ObliterateOptions{Force: true})
 		_ = queue.Close()
 	})
 
