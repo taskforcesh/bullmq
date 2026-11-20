@@ -895,6 +895,11 @@ if err != nil {
 	log.Fatal(err)
 }
 log.Printf("removed %d jobs", len(removed))
+
+// Retry the jobs that failed more than an hour ago, 1000 per round trip.
+if err := queue.RetryJobs(ctx, &bullmq.RetryJobsOptions{Before: time.Now().Add(-time.Hour)}); err != nil {
+	log.Fatal(err)
+}
 ```
 
 `Queue.Job` returns `nil` for a job that doesn't exist. The returned `*Job`
@@ -1256,26 +1261,29 @@ aren't implemented yet.
 The API changed before the first release; code written against the early
 drafts of this port needs these changes:
 
-| Before                                                                         | Now                                                                                                                 |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `Redis: bullmq.RedisOptions{Addr: ...}` in the options; Redis when unset       | `Backend: redisbackend.New(redisbackend.Options{Addr: ...})`, required in every options struct                      |
-| `Prefix` in `QueueOptions`, `WorkerOptions` and `QueueEventsOptions`           | `redisbackend.Options.Prefix`                                                                                       |
-| `bullmq.RedisBackendFactory`, `bullmq.NewRedisBackend`, `*bullmq.RedisBackend` | `redisbackend.New`, `redisbackend.NewBackend`, `*redisbackend.Backend`                                              |
-| `queue.Client()`, `queue.Keys()`, `bullmq.Keys`                                | `queue.Backend().(*redisbackend.Backend).Client()` and `.Keys()`, `redisbackend.Keys`                               |
-| `worker.Pause()` returned at once                                              | `worker.Pause(ctx, doNotWaitActive)` waits for the active jobs unless `doNotWaitActive` is true                     |
-| `EventStalled` reported lost locks                                             | `EventLockRenewalFailed` and `EventLocksRenewed`, with `Event.JobIDs`; `EventStalled` is only for the stalled check |
-| Full event channel dropped events silently                                     | `Worker.DroppedEvents` counts them; `WorkerOptions.OnEvent` sees every event                                        |
-| Cancelling `Run`'s context failed in-flight jobs                               | They stay active, without using up an attempt, for the stalled check to recover                                     |
-| `Queue.Workers` returned connection names                                      | It returns `[]bullmq.WorkerInfo`, with the worker name and the connection's fields                                  |
-| `RemoveAll()` was stored as `{"count":0}`                                      | Stored as `true`, as in the other ports                                                                             |
-| `Worker.Run` and `QueueEvents.Run` returned `context.Canceled` after `Close`   | They return nil after `Close`, and still return the context's error when their context is done                      |
+| Before                                                                         | Now                                                                                                                      |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `Redis: bullmq.RedisOptions{Addr: ...}` in the options; Redis when unset       | `Backend: redisbackend.New(redisbackend.Options{Addr: ...})`, required in every options struct                           |
+| `Prefix` in `QueueOptions`, `WorkerOptions` and `QueueEventsOptions`           | `redisbackend.Options.Prefix`                                                                                            |
+| `bullmq.RedisBackendFactory`, `bullmq.NewRedisBackend`, `*bullmq.RedisBackend` | `redisbackend.New`, `redisbackend.NewBackend`, `*redisbackend.Backend`                                                   |
+| `queue.Client()`, `queue.Keys()`, `bullmq.Keys`                                | `queue.Backend().(*redisbackend.Backend).Client()` and `.Keys()`, `redisbackend.Keys`                                    |
+| `worker.Pause()` returned at once                                              | `worker.Pause(ctx, doNotWaitActive)` waits for the active jobs unless `doNotWaitActive` is true                          |
+| `EventStalled` reported lost locks                                             | `EventLockRenewalFailed` and `EventLocksRenewed`, with `Event.JobIDs`; `EventStalled` is only for the stalled check      |
+| Full event channel dropped events silently                                     | `Worker.DroppedEvents` counts them; `WorkerOptions.OnEvent` sees every event                                             |
+| Cancelling `Run`'s context failed in-flight jobs                               | They stay active, without using up an attempt, for the stalled check to recover                                          |
+| `Queue.Workers` returned connection names                                      | It returns `[]bullmq.WorkerInfo`, with the worker name and the connection's fields                                       |
+| `RemoveAll()` was stored as `{"count":0}`                                      | Stored as `true`, as in the other ports                                                                                  |
+| `Worker.Run` and `QueueEvents.Run` returned `context.Canceled` after `Close`   | They return nil after `Close`, and still return the context's error when their context is done                           |
+| `job.Retry(ctx, state)`                                                        | `job.Retry(ctx, state, opts)`, where `opts` (or nil) can reset the attempt counters                                      |
+| `queue.RetryJobs(ctx, state, count)` returned an always-0 `int64`              | `queue.RetryJobs(ctx, &bullmq.RetryJobsOptions{State, Count, Before})` returns only an error; `State` defaults to failed |
+| `queue.PromoteJobs(ctx, count)` returned an always-0 `int64`                   | It returns only an error                                                                                                 |
 
 Custom `Backend` implementations have more to change: `SignalWork` is gone,
 `MoveToCompleted` and `MoveToFailed` return a `*FinishResult` and can fetch
 the next job, `FetchResult` reports `RateLimitDelay` and `NextDelayedAt`,
 `WaitForJob` returns a `WaitResult`, `BackendOptions.Prefix` moved to the
-backends, and there are new methods for flows, job schedulers, manual rate
-limiting and deduplication. The documentation of the `Backend` interface describes the
+backends, `RetryFinishedJob` takes `RetryOptions`, and there are new methods
+for flows, job schedulers, manual rate limiting, deduplication and counts. The documentation of the `Backend` interface describes the
 contract.
 
 ## Contributing

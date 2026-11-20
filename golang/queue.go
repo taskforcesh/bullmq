@@ -311,24 +311,50 @@ func (q *Queue) Clean(ctx context.Context, grace time.Duration, limit int64, sta
 	return ids, nil
 }
 
-// RetryJobs moves completed or failed jobs back to the wait list, looping
-// until every eligible job has been moved.
-func (q *Queue) RetryJobs(ctx context.Context, state JobState, count int64) (int64, error) {
-	if state != StateCompleted && state != StateFailed {
-		return 0, configError("retry state must be %q or %q", StateCompleted, StateFailed)
+// RetryJobsOptions tunes [Queue.RetryJobs], as the options of Node's
+// retryJobs do.
+type RetryJobsOptions struct {
+	// State is the state of the jobs to retry: StateFailed (the default) or
+	// StateCompleted.
+	State JobState
+	// Count is how many jobs are moved per batch, one datastore call each,
+	// not a cap on the total; 0 means 1000.
+	Count int64
+	// Before only retries the jobs that finished at or before it; the zero
+	// time means now.
+	Before time.Time
+}
+
+// RetryJobs moves every failed (or completed) job back to the wait list, in
+// batches, as Node's retryJobs does. opts may be nil. Their attempt counters
+// are kept on Redis but reset on PostgreSQL, as the shared commands do.
+func (q *Queue) RetryJobs(ctx context.Context, opts *RetryJobsOptions) error {
+	var o RetryJobsOptions
+	if opts != nil {
+		o = *opts
 	}
-	if count <= 0 {
-		count = 1000
+	if o.State == "" {
+		o.State = StateFailed
+	}
+	if o.State != StateCompleted && o.State != StateFailed {
+		return configError("retry state must be %q or %q", StateCompleted, StateFailed)
+	}
+	if o.Count <= 0 {
+		o.Count = 1000
 	}
 	timestamp := nowMillis()
+	if !o.Before.IsZero() {
+		timestamp = o.Before.UnixMilli()
+	}
 	return drainCursor(func() (int64, error) {
-		return q.backend.RetryFinishedJobs(ctx, state, count, timestamp)
+		return q.backend.RetryFinishedJobs(ctx, o.State, o.Count, timestamp)
 	})
 }
 
-// PromoteJobs moves delayed jobs to the wait list right away, looping until
-// every eligible job has been moved.
-func (q *Queue) PromoteJobs(ctx context.Context, count int64) (int64, error) {
+// PromoteJobs moves every delayed job to the wait list right away, in
+// batches of count jobs (one datastore call each; 0 means 1000), as Node's
+// promoteJobs does.
+func (q *Queue) PromoteJobs(ctx context.Context, count int64) error {
 	if count <= 0 {
 		count = 1000
 	}
@@ -338,18 +364,19 @@ func (q *Queue) PromoteJobs(ctx context.Context, count int64) (int64, error) {
 }
 
 // drainCursor repeatedly invokes a batched backend operation until its cursor
-// reports that no batch remains. The cursor is 1 when another batch of up to
-// count jobs remains and 0 once complete, not a remaining-count, so a single
-// call would leave jobs behind whenever more than count jobs are eligible; see
-// the reference Queue.retryJobs, which loops the same way.
-func drainCursor(step func() (int64, error)) (int64, error) {
+// reports that no batch remains. The cursor is not a count of jobs: on Redis
+// it is 1 when another batch of up to count jobs may remain and 0 once
+// complete, so a single call would leave jobs behind whenever more than count
+// jobs are eligible; see the reference Queue.retryJobs, which loops the same
+// way.
+func drainCursor(step func() (int64, error)) error {
 	for {
 		cursor, err := step()
 		if err != nil {
-			return 0, err
+			return err
 		}
 		if cursor <= 0 {
-			return cursor, nil
+			return nil
 		}
 	}
 }

@@ -248,6 +248,11 @@ if err != nil {
 	log.Fatal(err)
 }
 log.Printf("removed %d jobs", len(removed))
+
+// Retry the jobs that failed more than an hour ago, 1000 per round trip.
+if err := queue.RetryJobs(ctx, &bullmq.RetryJobsOptions{Before: time.Now().Add(-time.Hour)}); err != nil {
+	log.Fatal(err)
+}
 ```
 
 `queue.Job` returns `nil` for a job that doesn't exist. A `*bullmq.Job` can be

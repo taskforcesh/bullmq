@@ -716,7 +716,7 @@ func testQueuePromoteJobsFarFuture(t *testing.T, be testBackend) {
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := q.PromoteJobs(ctx, 100); err != nil {
+	if err := q.PromoteJobs(ctx, 100); err != nil {
 		t.Fatalf("PromoteJobs: %v", err)
 	}
 	state, err := q.JobState(ctx, job.ID)
@@ -740,7 +740,7 @@ func testQueuePromoteJobs(t *testing.T, be testBackend) {
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := q.PromoteJobs(ctx, 100); err != nil {
+	if err := q.PromoteJobs(ctx, 100); err != nil {
 		t.Fatalf("PromoteJobs: %v", err)
 	}
 

@@ -156,12 +156,14 @@ type Backend interface {
 	// Bulk and administrative transitions
 	// ------------------------------------------------------------------
 
-	// RetryFinishedJobs moves up to count finished jobs of state back to wait.
-	// It returns a cursor: 0 once nothing is left to move.
+	// RetryFinishedJobs moves up to count jobs of state that finished at or
+	// before timestamp (Unix milliseconds) back to wait. It returns a cursor,
+	// not a count: 0 once nothing is left to move, positive while more may
+	// remain.
 	RetryFinishedJobs(ctx context.Context, state JobState, count, timestamp int64) (int64, error)
 
 	// PromoteJobs moves up to count delayed jobs back to wait. It returns a
-	// cursor: 0 once nothing is left to move.
+	// cursor as RetryFinishedJobs does.
 	PromoteJobs(ctx context.Context, count int64) (int64, error)
 
 	// Pause pauses (true) or resumes (false) the whole queue.
