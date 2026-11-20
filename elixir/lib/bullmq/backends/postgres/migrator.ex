@@ -41,7 +41,7 @@ defmodule BullMQ.Backends.Postgres.Migrator do
     {12, "0012_retention_zero_count.sql", 6}
   ]
 
-  @latest_schema_version 11
+  @latest_schema_version 12
 
   @doc "The default schema (namespace) the backend lives in."
   def default_schema, do: @default_schema
