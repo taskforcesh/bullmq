@@ -199,3 +199,37 @@ func TestBackoffValueJitter(t *testing.T) {
 		t.Fatalf("with jitter = %v, want %v", with, want)
 	}
 }
+
+func TestPackJobOptionsStoresRemovalPoliciesInTheirForm(t *testing.T) {
+	for _, tc := range []struct {
+		policy *bullmq.RemoveOnFinish
+		want   any
+	}{
+		{bullmq.RemoveAll(), true},
+		{bullmq.KeepCount(5), map[string]any{"count": int64(5)}},
+		{bullmq.KeepAge(60), map[string]any{"age": int64(60)}},
+	} {
+		packed, err := packJobOptions(&bullmq.JobOptions{RemoveOnComplete: tc.policy})
+		if err != nil {
+			t.Fatalf("packJobOptions: %v", err)
+		}
+		if got := unpackMsgpackMap(t, packed)["removeOnComplete"]; !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("stored removeOnComplete = %#v, want %#v", got, tc.want)
+		}
+	}
+
+	// A count read from a job written by another port is stored back as a
+	// count, and false as false.
+	var opts bullmq.JobOptions
+	if err := json.Unmarshal([]byte(`{"removeOnComplete":100,"removeOnFail":false}`), &opts); err != nil {
+		t.Fatal(err)
+	}
+	packed, err := packJobOptions(&opts)
+	if err != nil {
+		t.Fatalf("packJobOptions: %v", err)
+	}
+	got := unpackMsgpackMap(t, packed)
+	if got["removeOnComplete"] != int64(100) || got["removeOnFail"] != false {
+		t.Errorf("stored policies = %#v, %#v; want 100 and false", got["removeOnComplete"], got["removeOnFail"])
+	}
+}

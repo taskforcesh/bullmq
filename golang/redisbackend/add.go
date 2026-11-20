@@ -315,11 +315,20 @@ func packJobOptions(opts *bullmq.JobOptions) ([]byte, error) {
 	if p := opts.Parent; p != nil {
 		m["parent"] = map[string]any{"id": p.ID, "queue": p.Queue}
 	}
-	if opts.RemoveOnComplete != nil {
-		m["removeOnComplete"] = keepJobsValue(opts.RemoveOnComplete)
-	}
-	if opts.RemoveOnFail != nil {
-		m["removeOnFail"] = keepJobsValue(opts.RemoveOnFail)
+	for key, policy := range map[string]*bullmq.RemoveOnFinish{
+		"removeOnComplete": opts.RemoveOnComplete,
+		"removeOnFail":     opts.RemoveOnFail,
+	} {
+		if policy == nil {
+			continue
+		}
+		v, err := removeOnFinishValue(policy)
+		if err != nil {
+			return nil, err
+		}
+		if v != nil {
+			m[key] = v
+		}
 	}
 	if opts.Backoff != nil {
 		m["backoff"] = backoffValue(opts.Backoff)

@@ -65,8 +65,10 @@ func (b *Backoff) validate() error {
 
 // RemoveOnFinish controls the automatic removal of completed or failed jobs.
 //
-// Use [RemoveAll], [KeepCount] or [KeepAge] to construct a value; the zero
-// value keeps every finished job.
+// Use [RemoveAll], [KeepCount] or [KeepAge] to construct a value, or set
+// Count, Age and Limit directly; the zero value keeps every finished job. It
+// is stored in the three forms the other BullMQ ports write: a boolean
+// (RemoveAll is stored as true), a count, or a {count, age, limit} object.
 type RemoveOnFinish struct {
 	// Count keeps at most Count finished jobs. A value of 0 removes the job
 	// straight away.
@@ -75,12 +77,26 @@ type RemoveOnFinish struct {
 	Age *int64 `json:"age,omitempty"`
 	// Limit caps how many jobs a single cleanup pass may remove.
 	Limit *int64 `json:"limit,omitempty"`
+
+	form removeForm
 }
 
-// RemoveAll removes jobs as soon as they finish.
+// removeForm is how a removal policy is written.
+type removeForm uint8
+
+const (
+	removeFormObject removeForm = iota
+	removeFormBool
+	removeFormCount
+	// removeFormInvalid marks a stored value no port writes; it is ignored.
+	removeFormInvalid
+)
+
+// RemoveAll removes jobs as soon as they finish. It is stored as true, as
+// the other ports store `removeOnComplete: true`.
 func RemoveAll() *RemoveOnFinish {
 	zero := int64(0)
-	return &RemoveOnFinish{Count: &zero}
+	return &RemoveOnFinish{Count: &zero, form: removeFormBool}
 }
 
 // KeepCount keeps at most n finished jobs.
@@ -93,30 +109,100 @@ func KeepAge(seconds int64) *RemoveOnFinish {
 	return &RemoveOnFinish{Age: &seconds}
 }
 
+// IsRemoveAll reports whether r is the boolean form true ([RemoveAll]): each
+// job is removed as soon as it finishes, without trimming the other finished
+// jobs. Backends that tell "remove this job" from "keep no finished job"
+// apart (the shared PostgreSQL commands do) must check it rather than Count.
+func (r *RemoveOnFinish) IsRemoveAll() bool {
+	return r != nil && r.form == removeFormBool && r.Count != nil && *r.Count == 0
+}
+
+// MarshalJSON writes r in the form it was built or read in: true or false,
+// a count, or an object.
+func (r RemoveOnFinish) MarshalJSON() ([]byte, error) {
+	switch r.form {
+	case removeFormBool:
+		return json.Marshal(r.Count != nil && *r.Count == 0)
+	case removeFormCount:
+		if r.Count != nil {
+			return json.Marshal(*r.Count)
+		}
+	case removeFormInvalid:
+		return []byte("null"), nil
+	}
+	type fields RemoveOnFinish
+	return json.Marshal(fields(r))
+}
+
 // UnmarshalJSON accepts the boolean, numeric and object forms written by the
-// other BullMQ ports.
+// other BullMQ ports. Fractional counts are rounded away from zero, so they
+// keep their meaning (a positive count stays positive, a negative one keeps
+// every job), fractional ages are rounded up and negative ages are ignored.
+// Any other value is ignored, as if the option were not set.
 func (r *RemoveOnFinish) UnmarshalJSON(data []byte) error {
-	var b bool
-	if err := json.Unmarshal(data, &b); err == nil {
-		*r = RemoveOnFinish{}
-		if b {
+	*r = RemoveOnFinish{}
+	var v any
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch t := v.(type) {
+	case bool:
+		r.form = removeFormBool
+		if t {
 			zero := int64(0)
 			r.Count = &zero
 		}
+	case float64:
+		r.form = removeFormCount
+		r.Count = roundAwayFromZero(t)
+		if r.Count == nil {
+			r.form = removeFormInvalid
+		}
+	case map[string]any:
+		r.Count = numberField(t, "count", roundAwayFromZero)
+		r.Age = numberField(t, "age", func(f float64) *int64 {
+			if n := roundAwayFromZero(f); n != nil && *n >= 0 {
+				return n
+			}
+			return nil
+		})
+		r.Limit = numberField(t, "limit", roundAwayFromZero)
+	default:
+		r.form = removeFormInvalid
+	}
+	return nil
+}
+
+func numberField(m map[string]any, key string, convert func(float64) *int64) *int64 {
+	f, ok := m[key].(float64)
+	if !ok {
 		return nil
+	}
+	return convert(f)
+}
+
+// roundAwayFromZero converts a JSON number to an int64, rounding fractions
+// away from zero (0.5 -> 1, -0.5 -> -1) and saturating out-of-range values.
+// It returns nil for NaN.
+func roundAwayFromZero(f float64) *int64 {
+	if math.IsNaN(f) {
+		return nil
+	}
+	if f < 0 {
+		f = math.Floor(f)
+	} else {
+		f = math.Ceil(f)
 	}
 	var n int64
-	if err := json.Unmarshal(data, &n); err == nil {
-		*r = RemoveOnFinish{Count: &n}
-		return nil
+	switch {
+	case f >= math.MaxInt64:
+		n = math.MaxInt64
+	case f <= math.MinInt64:
+		n = math.MinInt64
+	default:
+		n = int64(f)
 	}
-	type alias RemoveOnFinish
-	var decoded alias
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-	*r = RemoveOnFinish(decoded)
-	return nil
+	return &n
 }
 
 // Progress is a job progress value: either a number or an arbitrary JSON value.

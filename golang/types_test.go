@@ -11,12 +11,22 @@ func TestRemoveOnFinishRoundTripsThroughJSON(t *testing.T) {
 		raw       string
 		wantCount *int64
 		wantAge   *int64
+		wantLimit *int64
+		// written is how the value is written back; empty means raw.
+		written string
 	}{
-		{`true`, ptr(int64(0)), nil},
-		{`false`, nil, nil},
-		{`10`, ptr(int64(10)), nil},
-		{`{"age":60}`, nil, ptr(int64(60))},
-		{`{"count":5,"age":60}`, ptr(int64(5)), ptr(int64(60))},
+		{raw: `true`, wantCount: ptr(int64(0))},
+		{raw: `false`},
+		{raw: `10`, wantCount: ptr(int64(10))},
+		{raw: `{"age":60}`, wantAge: ptr(int64(60))},
+		{raw: `{"count":5,"age":60,"limit":100}`, wantCount: ptr(int64(5)), wantAge: ptr(int64(60)), wantLimit: ptr(int64(100))},
+		// Fractions round away from zero, keeping their meaning.
+		{raw: `0.5`, wantCount: ptr(int64(1)), written: `1`},
+		{raw: `-0.5`, wantCount: ptr(int64(-1)), written: `-1`},
+		{raw: `{"count":2.2,"age":0.5}`, wantCount: ptr(int64(3)), wantAge: ptr(int64(1)), written: `{"count":3,"age":1}`},
+		// A negative age is ignored.
+		{raw: `{"count":3,"age":-5}`, wantCount: ptr(int64(3)), written: `{"count":3}`},
+		{raw: `1e300`, wantCount: ptr(int64(math.MaxInt64)), written: `9223372036854775807`},
 	}
 	for _, tc := range cases {
 		var r RemoveOnFinish
@@ -29,6 +39,49 @@ func TestRemoveOnFinishRoundTripsThroughJSON(t *testing.T) {
 		if !eqPtr(r.Age, tc.wantAge) {
 			t.Errorf("%s: Age = %v, want %v", tc.raw, deref(r.Age), deref(tc.wantAge))
 		}
+		if !eqPtr(r.Limit, tc.wantLimit) {
+			t.Errorf("%s: Limit = %v, want %v", tc.raw, deref(r.Limit), deref(tc.wantLimit))
+		}
+		want := tc.written
+		if want == "" {
+			want = tc.raw
+		}
+		if out, err := json.Marshal(&r); err != nil || string(out) != want {
+			t.Errorf("%s: written back as %s (%v), want %s", tc.raw, out, err, want)
+		}
+	}
+}
+
+func TestRemoveAllIsStoredAsTrue(t *testing.T) {
+	out, err := json.Marshal(&JobOptions{RemoveOnComplete: RemoveAll(), RemoveOnFail: KeepCount(0)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"removeOnComplete":true,"removeOnFail":{"count":0}}`; string(out) != want {
+		t.Fatalf("Marshal = %s, want %s", out, want)
+	}
+	if !RemoveAll().IsRemoveAll() || KeepCount(0).IsRemoveAll() {
+		t.Error("IsRemoveAll must tell RemoveAll from KeepCount(0)")
+	}
+	var back JobOptions
+	if err := json.Unmarshal(out, &back); err != nil {
+		t.Fatal(err)
+	}
+	if !back.RemoveOnComplete.IsRemoveAll() || back.RemoveOnFail.IsRemoveAll() {
+		t.Errorf("round trip lost the form: %+v, %+v", back.RemoveOnComplete, back.RemoveOnFail)
+	}
+}
+
+func TestJobOptionsIgnoreUnrecognizedRemovalPolicies(t *testing.T) {
+	var opts JobOptions
+	if err := json.Unmarshal([]byte(`{"removeOnComplete":"yes","removeOnFail":[1],"attempts":3}`), &opts); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if opts.RemoveOnComplete != nil || opts.RemoveOnFail != nil {
+		t.Errorf("unrecognized policies were kept: %+v, %+v", opts.RemoveOnComplete, opts.RemoveOnFail)
+	}
+	if opts.Attempts == nil || *opts.Attempts != 3 {
+		t.Errorf("Attempts = %v, want 3: the other options must still be read", opts.Attempts)
 	}
 }
 

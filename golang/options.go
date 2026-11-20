@@ -1,6 +1,7 @@
 package bullmq
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -96,6 +97,22 @@ type JobOptions struct {
 	// RemoveDependencyOnFailure removes the dependency when this job fails. A
 	// pointer so an explicit `false` can override a queue default of `true`.
 	RemoveDependencyOnFailure *bool `json:"rdof,omitempty"`
+}
+
+// UnmarshalJSON decodes stored job options. A removal policy stored in a
+// form no BullMQ port writes is dropped, so the worker default applies.
+func (opts *JobOptions) UnmarshalJSON(data []byte) error {
+	type plain JobOptions
+	if err := json.Unmarshal(data, (*plain)(opts)); err != nil {
+		return err
+	}
+	if opts.RemoveOnComplete != nil && opts.RemoveOnComplete.form == removeFormInvalid {
+		opts.RemoveOnComplete = nil
+	}
+	if opts.RemoveOnFail != nil && opts.RemoveOnFail.form == removeFormInvalid {
+		opts.RemoveOnFail = nil
+	}
+	return nil
 }
 
 // QueueOptions configures a Queue.

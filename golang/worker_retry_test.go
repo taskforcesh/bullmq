@@ -131,3 +131,31 @@ func testWorkerImmediateRetryOnAnotherSlotKeepsItsLockRenewed(t *testing.T, be t
 		t.Errorf("attemptsMade = %d, want 2", stored.AttemptsMade)
 	}
 }
+
+// RemoveAll is stored as true (not {"count":0}, which the PostgreSQL commands
+// read as "keep no finished job", #5160) and read back in that form.
+func TestRemoveAllIsStoredAsTheBooleanForm(t *testing.T) {
+	forEachBackend(t, testRemoveAllIsStoredAsTheBooleanForm)
+}
+
+func testRemoveAllIsStoredAsTheBooleanForm(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	job, err := q.Add(ctx, "ephemeral", nil, &bullmq.JobOptions{
+		RemoveOnComplete: bullmq.RemoveAll(),
+		RemoveOnFail:     bullmq.KeepCount(0),
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	stored, err := q.Job(ctx, job.ID)
+	if err != nil {
+		t.Fatalf("Job: %v", err)
+	}
+	if !stored.Opts.RemoveOnComplete.IsRemoveAll() {
+		t.Errorf("RemoveOnComplete read back as %+v, want RemoveAll", stored.Opts.RemoveOnComplete)
+	}
+	if got := stored.Opts.RemoveOnFail; got == nil || got.IsRemoveAll() || got.Count == nil || *got.Count != 0 {
+		t.Errorf("RemoveOnFail read back as %+v, want a count of 0", got)
+	}
+}
