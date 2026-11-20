@@ -50,7 +50,8 @@ type Backoff struct {
 	// Type is the strategy name. Custom strategy names are forwarded to the
 	// worker's WorkerOptions.BackoffStrategy callback.
 	Type BackoffType `json:"type"`
-	// Delay is the base delay in milliseconds.
+	// Delay is the base delay, in milliseconds (an int64, not a
+	// time.Duration).
 	Delay int64 `json:"delay,omitempty"`
 	// Jitter is the fraction (0 to 1) of the delay that is randomized: the
 	// effective delay is drawn uniformly from [delay*(1-Jitter), delay),
@@ -83,7 +84,8 @@ type RemoveOnFinish struct {
 	// Count keeps at most Count finished jobs. A value of 0 removes the job
 	// straight away.
 	Count *int64 `json:"count,omitempty"`
-	// Age keeps finished jobs younger than Age seconds.
+	// Age keeps finished jobs younger than Age, in seconds (not
+	// milliseconds), as in every port.
 	Age *int64 `json:"age,omitempty"`
 	// Limit caps how many jobs a single cleanup pass may remove.
 	Limit *int64 `json:"limit,omitempty"`
@@ -115,7 +117,8 @@ func KeepCount(n int64) *RemoveOnFinish {
 	return &RemoveOnFinish{Count: &n, form: removeFormCount}
 }
 
-// KeepAge keeps finished jobs younger than seconds.
+// KeepAge keeps finished jobs younger than seconds, in seconds (not
+// milliseconds): KeepAge(24 * 60 * 60) keeps a day.
 func KeepAge(seconds int64) *RemoveOnFinish {
 	return &RemoveOnFinish{Age: &seconds}
 }

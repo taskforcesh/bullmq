@@ -52,6 +52,15 @@ can override a queue default; `bullmq.Int64` and `bullmq.Bool` build them.
 | `Deduplication`                    | See [Deduplication](#deduplication)                                                                                           |
 | `Parent` and the failure options   | See [Flows](flows.md)                                                                                                         |
 
+Times and delays stored with a job keep the units every port stores:
+`JobOptions.Delay`, `Backoff.Delay`, `DeduplicationOptions.TTL` and the
+`RepeatOptions` fields are `int64` milliseconds (`time.Minute.Milliseconds()`;
+dates with `UnixMilli()`), and `RemoveOnFinish.Age` is in seconds. Method
+parameters and worker settings are `time.Duration`s: `job.ChangeDelay`,
+`job.MoveToDelayed`, `job.ExtendLock`, `Worker.RateLimit`, the grace period of
+`Clean` and the durations of `WorkerOptions`. So `ChangeDelay(ctx, 4000)` is
+4 µs; write `4*time.Second`.
+
 `AddBulk` adds several jobs in one round trip:
 
 ```go

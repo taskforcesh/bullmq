@@ -13,7 +13,9 @@ import (
 )
 
 // RepeatOptions describe the schedule of a job scheduler, as Node's
-// RepeatOptions do. Exactly one of Pattern and Every must be set.
+// RepeatOptions do. Exactly one of Pattern and Every must be set. Every,
+// Offset, StartDate and EndDate are int64 milliseconds (dates are Unix
+// milliseconds: use time.Time.UnixMilli), not time.Duration or time.Time.
 //
 // The JSON form is the one every BullMQ port stores in the options of the
 // jobs a scheduler produces (`opts.repeat`), with times in Unix milliseconds.

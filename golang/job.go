@@ -65,7 +65,8 @@ type Job struct {
 	ProcessedBy string
 	// StalledCounter is how many times the job has been detected as stalled.
 	StalledCounter int64
-	// Delay is the configured delay in milliseconds.
+	// Delay is the configured delay, in milliseconds (ChangeDelay takes a
+	// time.Duration).
 	Delay int64
 	// Priority is the configured priority.
 	Priority int64
@@ -272,7 +273,10 @@ func (j *Job) Promote(ctx context.Context) error {
 	return nil
 }
 
-// ChangeDelay updates the delay of a job that is in the delayed set.
+// ChangeDelay makes a job that is in the delayed set due after delay,
+// counted from now. delay is a time.Duration, used with millisecond
+// precision, unlike JobOptions.Delay and Job.Delay, which are milliseconds:
+// pass 4*time.Second, not 4000.
 func (j *Job) ChangeDelay(ctx context.Context, delay time.Duration) error {
 	b, err := j.ctx()
 	if err != nil {
@@ -357,7 +361,8 @@ func (j *Job) IsFailed(ctx context.Context) (bool, error) {
 	return state == StateFailed, err
 }
 
-// ExtendLock refreshes the lock held on an active job.
+// ExtendLock refreshes the lock held on an active job, so it expires
+// duration (a time.Duration, used with millisecond precision) from now.
 func (j *Job) ExtendLock(ctx context.Context, duration time.Duration) error {
 	b, err := j.ctx()
 	if err != nil {
@@ -369,8 +374,11 @@ func (j *Job) ExtendLock(ctx context.Context, duration time.Duration) error {
 	return b.ExtendLock(ctx, j.ID, j.token, duration)
 }
 
-// MoveToDelayed reschedules an active job. Processors should return [ErrDelayed]
-// afterwards so the worker does not also move the job to a finished state.
+// MoveToDelayed reschedules an active job to run after delay, a
+// time.Duration counted from now and used with millisecond precision (Node's
+// moveToDelayed takes the due timestamp instead). Processors should return
+// [ErrDelayed] afterwards so the worker does not also move the job to a
+// finished state.
 //
 // The current attempt is not counted, matching the Node.js implementation.
 func (j *Job) MoveToDelayed(ctx context.Context, delay time.Duration) error {

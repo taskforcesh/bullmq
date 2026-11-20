@@ -39,8 +39,9 @@ type ParentOptions struct {
 type DeduplicationOptions struct {
 	// ID is the deduplication id.
 	ID string `json:"id"`
-	// TTL is how long, in milliseconds, the id is held. When it is 0, the
-	// id is held until the job completes or fails for good.
+	// TTL is how long the id is held, in milliseconds (an int64, not a
+	// time.Duration). When it is 0, the id is held until the job completes
+	// or fails for good.
 	TTL int64 `json:"ttl,omitempty"`
 	// Extend refreshes the TTL when a duplicate is discarded.
 	Extend bool `json:"extend,omitempty"`
@@ -68,9 +69,11 @@ type DeduplicationOptions struct {
 type JobOptions struct {
 	// JobID overrides the automatically generated job id.
 	JobID string `json:"jobId,omitempty"`
-	// Delay in milliseconds before the job becomes available. A pointer so a
-	// per-job value of 0 can be told apart from "not set", letting it override
-	// a non-zero queue default back to 0.
+	// Delay is how long before the job becomes available, in milliseconds
+	// (an int64, not a time.Duration: use time.Minute.Milliseconds(), for
+	// example), as every port stores it. A pointer so a per-job value of 0
+	// can be told apart from "not set", letting it override a non-zero
+	// queue default back to 0.
 	Delay *int64 `json:"delay,omitempty"`
 	// Priority; lower values are processed first. 0 means unprioritized and
 	// the maximum is 2^21-1 (2097151). A
