@@ -297,14 +297,11 @@ type Backend interface {
 	// signal was meant for another worker or its blocking primitive cannot
 	// wait that long. The caller must cope by fetching again (and finding
 	// nothing) or waiting again; it must never rely on WaitForJob for timing.
+	//
+	// Workers may call it while some of their jobs are still being processed,
+	// so it must not report work that cannot be claimed, for example while
+	// the queue is paused or at its global concurrency limit.
 	WaitForJob(ctx context.Context, timeout time.Duration) (WaitResult, error)
-
-	// SignalWork wakes workers blocked in WaitForJob so they look for work
-	// again. The signal is level-triggered: it is kept until a waiter consumes
-	// it, so it is not lost when no worker is waiting yet. Workers call it
-	// when they free capacity that eligible jobs may have been waiting for,
-	// for example under a global concurrency limit.
-	SignalWork(ctx context.Context) error
 }
 
 // BackendOptions describes the role of the backend being built by a

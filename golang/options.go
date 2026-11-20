@@ -139,6 +139,10 @@ type WorkerOptions struct {
 	DrainDelay time.Duration
 	// Limiter throttles job processing.
 	Limiter *RateLimiter
+	// MaximumRateLimitDelay caps how long the worker sleeps in one go while
+	// the queue is rate limited, so delayed jobs keep being promoted during a
+	// long limit. Defaults to 30s.
+	MaximumRateLimitDelay time.Duration
 	// Metrics enables completed/failed metrics collection.
 	Metrics *MetricsOptions
 	// RemoveOnComplete is the default removal policy for completed jobs.
@@ -189,6 +193,9 @@ func (o *WorkerOptions) applyDefaults() error {
 	}
 	if o.DrainDelay <= 0 {
 		o.DrainDelay = 5 * time.Second
+	}
+	if o.MaximumRateLimitDelay <= 0 {
+		o.MaximumRateLimitDelay = 30 * time.Second
 	}
 	if o.Limiter != nil {
 		if o.Limiter.Max <= 0 {

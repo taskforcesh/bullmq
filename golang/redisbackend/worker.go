@@ -281,11 +281,6 @@ func (b *Backend) SetRateLimit(ctx context.Context, ttl time.Duration) error {
 // (Number.MAX_SAFE_INTEGER), so every port reads the same value.
 const maxSafeInteger int64 = 1<<53 - 1
 
-// SignalWork adds the base marker that WaitForJob blocks on.
-func (b *Backend) SignalWork(ctx context.Context) error {
-	return b.rdb.ZAdd(ctx, b.keys.Marker(), redis.Z{Score: 0, Member: "0"}).Err()
-}
-
 // LastEventID returns the id of the newest event stream entry, or "0-0" when
 // the stream is empty.
 func (b *Backend) LastEventID(ctx context.Context) (string, error) {
