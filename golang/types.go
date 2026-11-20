@@ -22,6 +22,14 @@ const (
 	StateUnknown         JobState = "unknown"
 )
 
+// StatePaused designates the paused list of older BullMQ versions, as
+// Node's "paused" job type does. Jobs of a paused queue stay waiting, and
+// Queue.Resume moves any job left in that list back to wait. It is accepted
+// by Clean, JobCounts and JobIDs but is never the state of a job. On
+// PostgreSQL, which has no paused list, JobCounts and JobIDs report it
+// empty, while Clean treats it as StateWaiting, as the shared SQL does.
+const StatePaused JobState = "paused"
+
 // AllStates lists every state that can be queried through Queue.JobCounts.
 var AllStates = []JobState{
 	StateWaiting, StateActive, StateDelayed, StatePrioritized,

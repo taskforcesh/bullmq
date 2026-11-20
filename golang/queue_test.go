@@ -525,6 +525,49 @@ func testQueueCleanHonoursLimit(t *testing.T, be testBackend) {
 	}
 }
 
+// StatePaused, Node's legacy "paused" type, is accepted where Node accepts
+// it. The jobs of a paused queue stay waiting, so the paused list is empty.
+func TestQueueStatePausedIsTheLegacyPausedList(t *testing.T) {
+	forEachBackend(t, testQueueStatePausedIsTheLegacyPausedList)
+}
+
+func testQueueStatePausedIsTheLegacyPausedList(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	if err := q.Pause(ctx); err != nil {
+		t.Fatalf("Pause: %v", err)
+	}
+	if _, err := q.AddBulk(ctx, []bullmq.JobSpec{{Name: "a"}, {Name: "b"}}); err != nil {
+		t.Fatalf("AddBulk: %v", err)
+	}
+	counts, err := q.JobCounts(ctx, bullmq.StateWaiting, bullmq.StatePaused)
+	if err != nil {
+		t.Fatalf("JobCounts: %v", err)
+	}
+	if counts[bullmq.StateWaiting] != 2 || counts[bullmq.StatePaused] != 0 {
+		t.Fatalf("counts = %v, want 2 waiting and 0 paused", counts)
+	}
+	ids, err := q.JobIDs(ctx, bullmq.StatePaused, 0, -1, true)
+	if err != nil || len(ids) != 0 {
+		t.Fatalf("JobIDs(paused) = %v, %v; want none", ids, err)
+	}
+
+	removed, err := q.Clean(ctx, 0, 0, bullmq.StatePaused)
+	if err != nil {
+		t.Fatalf("Clean(paused): %v", err)
+	}
+	// The shared SQL cleans the waiting jobs for "paused", since PostgreSQL
+	// has no paused list.
+	want := 0
+	if be.Name == "postgres" {
+		want = 2
+	}
+	if len(removed) != want {
+		t.Fatalf("Clean(paused) removed %v, want %d jobs", removed, want)
+	}
+}
+
 func TestQueuePromoteJobsFarFuture(t *testing.T) {
 	forEachBackend(t, testQueuePromoteJobsFarFuture)
 }

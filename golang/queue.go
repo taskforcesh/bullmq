@@ -257,7 +257,8 @@ func (q *Queue) Obliterate(ctx context.Context, force bool, count int64) error {
 	}
 }
 
-// cleanableStates are the states accepted by Clean.
+// cleanableStates are the states accepted by Clean. "wait" is Node's name
+// of the waiting state.
 var cleanableStates = map[JobState]bool{
 	JobState("wait"): true,
 	StateWaiting:     true,
@@ -266,7 +267,7 @@ var cleanableStates = map[JobState]bool{
 	StateDelayed:     true,
 	StateCompleted:   true,
 	StateFailed:      true,
-	"paused":         true,
+	StatePaused:      true,
 }
 
 // cleanMaxBatch bounds how many jobs a single CleanJobsByState call may
@@ -276,14 +277,15 @@ const cleanMaxBatch int64 = 10000
 
 // Clean removes finished (or waiting/delayed) jobs older than grace.
 //
-// state must be one of wait, active, paused, prioritized, delayed, completed or
-// failed. A limit of 0 means unlimited. Removal runs in batches of at most
-// 10,000 jobs, repeating until limit jobs were removed or a batch comes back
-// short, so a large state never blocks the datastore in a single call. It
-// returns the removed job ids.
+// state must be one of StateWaiting, StateActive, StatePaused,
+// StatePrioritized, StateDelayed, StateCompleted or StateFailed ("wait" is
+// accepted for StateWaiting, as in Node). A limit of 0 means unlimited.
+// Removal runs in batches of at most 10,000 jobs, repeating until limit jobs
+// were removed or a batch comes back short, so a large state never blocks
+// the datastore in a single call. It returns the removed job ids.
 func (q *Queue) Clean(ctx context.Context, grace time.Duration, limit int64, state JobState) ([]string, error) {
 	if !cleanableStates[state] {
-		return nil, configError("clean state must be one of wait, active, paused, prioritized, delayed, completed or failed, got %q", state)
+		return nil, configError("clean state must be one of waiting, active, paused, prioritized, delayed, completed or failed, got %q", state)
 	}
 	timestamp := nowMillis() - grace.Milliseconds()
 
