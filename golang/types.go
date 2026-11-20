@@ -77,7 +77,8 @@ func (b *Backoff) validate() error {
 // Use [RemoveAll], [KeepCount] or [KeepAge] to construct a value, or set
 // Count, Age and Limit directly; the zero value keeps every finished job. It
 // is stored in the three forms the other BullMQ ports write: a boolean
-// (RemoveAll is stored as true), a count, or a {count, age, limit} object.
+// (RemoveAll is stored as true), a count (KeepCount), or a {count, age,
+// limit} object.
 type RemoveOnFinish struct {
 	// Count keeps at most Count finished jobs. A value of 0 removes the job
 	// straight away.
@@ -108,9 +109,10 @@ func RemoveAll() *RemoveOnFinish {
 	return &RemoveOnFinish{Count: &zero, form: removeFormBool}
 }
 
-// KeepCount keeps at most n finished jobs.
+// KeepCount keeps at most n finished jobs. It is stored as the number n, as
+// the other ports store `removeOnComplete: n`.
 func KeepCount(n int64) *RemoveOnFinish {
-	return &RemoveOnFinish{Count: &n}
+	return &RemoveOnFinish{Count: &n, form: removeFormCount}
 }
 
 // KeepAge keeps finished jobs younger than seconds.
@@ -127,13 +129,14 @@ func (r *RemoveOnFinish) IsRemoveAll() bool {
 }
 
 // MarshalJSON writes r in the form it was built or read in: true or false,
-// a count, or an object.
+// a count, or an object. A count whose Age or Limit was set afterwards is
+// written as an object, so they are kept.
 func (r RemoveOnFinish) MarshalJSON() ([]byte, error) {
 	switch r.form {
 	case removeFormBool:
 		return json.Marshal(r.Count != nil && *r.Count == 0)
 	case removeFormCount:
-		if r.Count != nil {
+		if r.Count != nil && r.Age == nil && r.Limit == nil {
 			return json.Marshal(*r.Count)
 		}
 	case removeFormInvalid:

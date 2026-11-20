@@ -38,7 +38,7 @@ Status of the Go port relative to the reference Node.js implementation.
 | Panic recovery                      | A panicking processor fails the job instead of the process                                                                                                |
 | Rate limiting                       | `WorkerOptions.Limiter`; the limit is slept out, at most `MaximumRateLimitDelay` at a time                                                                |
 | Manual rate limiting                | `Worker.RateLimit` and `ErrRateLimited` (Node's `RateLimitError`)                                                                                         |
-| `RemoveOnComplete` / `RemoveOnFail` | Boolean, count, age and limit, stored in the same forms as Node.js (`RemoveAll` is `true`)                                                                |
+| `RemoveOnComplete` / `RemoveOnFail` | Boolean, count, age and limit, stored in the same forms as Node.js (`RemoveAll()` is `true`, `KeepCount(n)` is `n`)                                       |
 | Metrics                             | `WorkerOptions.Metrics`                                                                                                                                   |
 | `Pause`, `Resume`                   | `Pause(ctx, doNotWaitActive)` waits for active jobs, as in Node.js                                                                                        |
 | `Close`                             | Graceful shutdown drains in-flight jobs; cancelling the `Run` context leaves them active for stalled recovery                                             |
