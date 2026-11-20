@@ -769,12 +769,16 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 
 	var result any
 	var err error
-	if job.DeferredFailure != "" {
+	switch maxStarted := int64(w.opts.MaxStartedAttempts); {
+	case job.DeferredFailure != "":
 		// The stalled-check script found this job exceeded MaxStalledCount and
 		// stored the reason in "defa" instead of failing it outright, so it
 		// must be failed unrecoverably here rather than handed to the processor.
+		// It takes precedence over MaxStartedAttempts, as in Node.js.
 		err = &UnrecoverableError{Message: job.DeferredFailure}
-	} else {
+	case maxStarted > 0 && maxStarted < job.AttemptsStarted:
+		err = &UnrecoverableError{Message: "job started more than allowable limit"}
+	default:
 		result, err = w.safeProcess(jobCtx, job)
 	}
 
@@ -796,6 +800,10 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 		if errors.Is(err, context.Canceled) {
 			err = cause
 		}
+	}
+
+	if errors.Is(err, ErrRateLimited) {
+		return w.moveBackToWait(runCtx, job)
 	}
 
 	if err != nil {
@@ -845,6 +853,33 @@ func (w *Worker) fail(runCtx context.Context, job *Job, cause error) nextFetch {
 	}
 	w.emit(Event{Type: EventFailed, Job: job, Err: cause})
 	return next
+}
+
+// moveBackToWait puts a job whose processor reported ErrRateLimited back in
+// the wait list without using up an attempt, and makes the worker wait until
+// the rate limit lifts.
+func (w *Worker) moveBackToWait(runCtx context.Context, job *Job) nextFetch {
+	var ttl time.Duration
+	if err := w.retryTransition(runCtx, func(c context.Context) error {
+		var err error
+		ttl, err = w.backend.MoveJobFromActiveToWait(c, job.ID, job.token)
+		return err
+	}); err != nil {
+		w.emitError(err)
+		return nextFetch{}
+	}
+	if ttl > 0 {
+		w.limitUntil.Store(nowMillis() + ttl.Milliseconds())
+	}
+	return nextFetch{}
+}
+
+// RateLimit rate limits the whole queue for d, as Node's rateLimit does:
+// until it expires, workers that fetch with a limiter (WorkerOptions.Limiter
+// or a global rate limit) get no job. A processor typically calls it and then
+// returns ErrRateLimited, which puts its job back in the wait list.
+func (w *Worker) RateLimit(ctx context.Context, d time.Duration) error {
+	return w.backend.SetRateLimit(ctx, d)
 }
 
 // fetchAfterHandOff fetches the slot's next job once the processor itself
@@ -1038,11 +1073,13 @@ func (w *Worker) backoffDelay(job *Job, cause error) (time.Duration, error) {
 }
 
 // newFailureInfo builds the failure recorded for the current attempt: the
-// previous traces plus this reason, trimmed to the last 10 entries.
+// previous traces plus this reason, trimmed to the job's StackTraceLimit.
 func newFailureInfo(job *Job, reason string) FailureInfo {
 	trace := append(append([]string(nil), job.Stacktrace...), reason)
-	if len(trace) > 10 {
-		trace = trace[len(trace)-10:]
+	if job.Opts != nil && job.Opts.StackTraceLimit != nil {
+		if limit := *job.Opts.StackTraceLimit; limit >= 0 && int64(len(trace)) > limit {
+			trace = trace[int64(len(trace))-limit:]
+		}
 	}
 	return FailureInfo{Reason: reason, Stacktrace: trace}
 }

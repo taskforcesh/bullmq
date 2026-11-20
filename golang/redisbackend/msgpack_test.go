@@ -131,6 +131,7 @@ func TestPackJobOptionsEncodesEveryEffectiveOption(t *testing.T) {
 		LIFO:                    bullmq.Bool(false),
 		KeepLogs:                bullmq.Int64(0),
 		SizeLimit:               bullmq.Int64(0),
+		StackTraceLimit:         bullmq.Int64(0),
 		FailParentOnFailure:     bullmq.Bool(false),
 		ContinueParentOnFailure: bullmq.Bool(false),
 		Parent:                  &bullmq.ParentOptions{ID: "p1", Queue: "bull:parents"},
@@ -142,17 +143,18 @@ func TestPackJobOptionsEncodesEveryEffectiveOption(t *testing.T) {
 	// Options that were set explicitly are encoded even when they hold the
 	// zero value.
 	want := map[string]any{
-		"jobId":     "custom",
-		"timestamp": int64(1700000000000),
-		"delay":     int64(0),
-		"priority":  int64(0),
-		"attempts":  int64(0),
-		"lifo":      false,
-		"kl":        int64(0),
-		"sizeLimit": int64(0),
-		"fpof":      false,
-		"cpof":      false,
-		"parent":    map[string]any{"id": "p1", "queue": "bull:parents"},
+		"jobId":           "custom",
+		"timestamp":       int64(1700000000000),
+		"delay":           int64(0),
+		"priority":        int64(0),
+		"attempts":        int64(0),
+		"lifo":            false,
+		"kl":              int64(0),
+		"sizeLimit":       int64(0),
+		"fpof":            false,
+		"stackTraceLimit": int64(0),
+		"cpof":            false,
+		"parent":          map[string]any{"id": "p1", "queue": "bull:parents"},
 	}
 	if got := unpackMsgpackMap(t, packed); !reflect.DeepEqual(got, want) {
 		t.Fatalf("packed options = %v, want %v", got, want)

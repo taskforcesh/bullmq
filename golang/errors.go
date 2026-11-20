@@ -47,6 +47,12 @@ var (
 	// ErrWaitingChildren is returned by a processor that moved its job to waiting-children.
 	ErrWaitingChildren = errors.New("bullmq: job moved to waiting children")
 
+	// ErrRateLimited is returned by a processor to put its job back in the
+	// wait list without using up an attempt, because the queue is rate
+	// limited (see Worker.RateLimit), as Node's Worker.RateLimitError does.
+	// The worker then waits until the rate limit lifts.
+	ErrRateLimited = errors.New("bullmq: rate limit exceeded")
+
 	// ErrJobCancelled is the cause (see context.Cause) of the context of a
 	// job cancelled with Worker.CancelJob or Worker.CancelAllJobs. The cause
 	// reads as the cancellation reason and matches ErrJobCancelled with

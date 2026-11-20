@@ -287,7 +287,7 @@ func packJobOptions(opts *bullmq.JobOptions) ([]byte, error) {
 	// This map is persisted verbatim (as JSON) in the job's "opts" field, so
 	// every option that was set is encoded, including explicit zero/false
 	// values, under the same keys JobOptions uses for JSON.
-	m := make(map[string]any, 17)
+	m := make(map[string]any, 18)
 	addInt := func(key string, v *int64) {
 		if v != nil {
 			m[key] = *v
@@ -311,6 +311,7 @@ func packJobOptions(opts *bullmq.JobOptions) ([]byte, error) {
 	addBool("lifo", opts.LIFO)
 	addInt("kl", opts.KeepLogs)
 	addInt("sizeLimit", opts.SizeLimit)
+	addInt("stackTraceLimit", opts.StackTraceLimit)
 	if p := opts.Parent; p != nil {
 		m["parent"] = map[string]any{"id": p.ID, "queue": p.Queue}
 	}

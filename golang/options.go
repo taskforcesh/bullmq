@@ -72,6 +72,9 @@ type JobOptions struct {
 	// SizeLimit rejects jobs whose serialized data exceeds this many bytes. A
 	// pointer so a per-job value of 0 can override a non-zero queue default.
 	SizeLimit *int64 `json:"sizeLimit,omitempty"`
+	// StackTraceLimit caps how many failure traces are kept on the job: the
+	// most recent ones. 0 keeps none; unset keeps them all, as in Node.js.
+	StackTraceLimit *int64 `json:"stackTraceLimit,omitempty"`
 	// Timestamp is the creation time in Unix milliseconds. Defaults to now.
 	Timestamp int64 `json:"timestamp,omitempty"`
 
@@ -127,6 +130,11 @@ type WorkerOptions struct {
 	// A positive value must be at least 1ms unless SkipStalledCheck is set,
 	// since it is stored as a millisecond lock TTL.
 	StalledInterval time.Duration
+	// MaxStartedAttempts fails a job unrecoverably ("job started more than
+	// allowable limit") when it is started more than this many times, for
+	// example because it keeps stalling. 0, the default, means no limit.
+	// Negative values are rejected.
+	MaxStartedAttempts int
 	// MaxStalledCount is how many times a job may stall before failing. Defaults to 1.
 	// Use a pointer so an explicit 0 (fail on first stall) is distinguishable
 	// from unset. Negative values are rejected.
@@ -196,6 +204,9 @@ func (o *WorkerOptions) applyDefaults() error {
 	}
 	if o.MaxStalledCount != nil && *o.MaxStalledCount < 0 {
 		return configError("maxStalledCount must be greater or equal than 0")
+	}
+	if o.MaxStartedAttempts < 0 {
+		return configError("maxStartedAttempts must be greater or equal than 0")
 	}
 	if o.DrainDelay <= 0 {
 		o.DrainDelay = 5 * time.Second
@@ -334,7 +345,8 @@ func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 	if opts.JobID != "" {
 		merged.JobID = opts.JobID
 	}
-	// Delay, Priority, LIFO, Attempts, KeepLogs and SizeLimit are pointers
+	// Delay, Priority, LIFO, Attempts, KeepLogs, SizeLimit and StackTraceLimit
+	// are pointers
 	// specifically so a per-job value that is present but zero/false can
 	// still override a non-zero/true queue default; only a nil pointer
 	// (option omitted) falls back to the default.
@@ -364,6 +376,9 @@ func mergeJobOptions(opts, defaults *JobOptions) *JobOptions {
 	}
 	if opts.SizeLimit != nil {
 		merged.SizeLimit = opts.SizeLimit
+	}
+	if opts.StackTraceLimit != nil {
+		merged.StackTraceLimit = opts.StackTraceLimit
 	}
 	if opts.Timestamp != 0 {
 		merged.Timestamp = opts.Timestamp
