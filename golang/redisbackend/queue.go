@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"strconv"
+	"sync"
 
 	"github.com/redis/go-redis/v9"
 	bullmq "github.com/taskforcesh/bullmq-go"
@@ -267,13 +268,46 @@ func (b *Backend) GetMetrics(ctx context.Context, state bullmq.JobState, start, 
 	return m, nil
 }
 
-// GetClientList returns the output of CLIENT LIST.
+// GetClientList returns the output of CLIENT LIST: one string per server.
+// A cluster client asks every node, masters and replicas, and a ring every
+// live shard, as Node's getClientList asks every cluster node.
 func (b *Backend) GetClientList(ctx context.Context) ([]string, error) {
+	if sharded, ok := b.rdb.(shardedClient); ok {
+		return clientLists(ctx, sharded)
+	}
 	raw, err := b.rdb.ClientList(ctx).Result()
 	if err != nil {
 		return nil, err
 	}
 	return []string{raw}, nil
+}
+
+// shardedClient is a client spread over several servers: *redis.ClusterClient
+// and *redis.Ring.
+type shardedClient interface {
+	ForEachShard(ctx context.Context, fn func(ctx context.Context, client *redis.Client) error) error
+}
+
+// clientLists runs CLIENT LIST on every server of c.
+func clientLists(ctx context.Context, c shardedClient) ([]string, error) {
+	var (
+		mu    sync.Mutex
+		lists []string
+	)
+	err := c.ForEachShard(ctx, func(ctx context.Context, node *redis.Client) error {
+		raw, err := node.ClientList(ctx).Result()
+		if err != nil {
+			return err
+		}
+		mu.Lock()
+		lists = append(lists, raw)
+		mu.Unlock()
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return lists, nil
 }
 
 // SetQueueMeta sets fields of the queue metadata hash.

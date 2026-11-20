@@ -1293,7 +1293,9 @@ REDIS_ADDR=127.0.0.1:6380 \
 ```
 
 Tests that need Redis are skipped when no server is reachable, and the
-PostgreSQL tests when `POSTGRES_URL` isn't set. The PostgreSQL tests create
+PostgreSQL tests when `POSTGRES_URL` isn't set. The Redis Cluster tests run
+when `REDIS_CLUSTER_ADDRS` lists seed nodes of a cluster (for example
+`127.0.0.1:7000,127.0.0.1:7001`). The PostgreSQL tests create
 their own schemas (`bullmq_go_test` and `gotest_pg_*`) and leave the default
 `bullmq` schema alone. The behaviour tests of the root package run once per
 datastore, as subtests named after it (for example
