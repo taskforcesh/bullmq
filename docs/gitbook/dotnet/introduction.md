@@ -123,6 +123,7 @@ var pg = new PostgresOptions
 {
     ConnectionString = "Host=localhost;Database=mydb;Username=postgres;Password=postgres",
     // Schema = "bullmq", // optional, this is the default
+    // PoolSize = 20,     // optional, max pooled query connections
 };
 
 await using var queue = new Queue("emails", new QueueOptions { Postgres = pg });
@@ -132,7 +133,11 @@ await using var worker = new Worker("emails", async (job, ct) => "sent",
     new WorkerOptions { Postgres = pg, Concurrency = 5 });
 ```
 
+Queries run on a connection pool shared by every queue, worker and `QueueEvents` in the process that uses the same connection string and schema. Size it with `PoolSize` (default 20) or `Maximum Pool Size` in the connection string; each worker and `QueueEvents` also keeps one dedicated `LISTEN` connection outside the pool, so size the server's `max_connections` accordingly.
+
 Read more about how this backend works in the [PostgreSQL backend](../guide/postgresql.md) section of the guide.
+
+Migrations are recorded in the schema's `migration` ledger, shared with the other BullMQ SDKs, so a schema initialized by any of them can be used from .NET and vice versa. A schema that requires a newer BullMQ major version is refused with a `SchemaVersionMismatchException`. Schemas migrated by earlier .NET releases, which used a `bullmq_migration` ledger, are adopted automatically on first use. The legacy table is kept up to date for older .NET instances and can be dropped once every instance has been upgraded.
 
 ## Interoperability
 

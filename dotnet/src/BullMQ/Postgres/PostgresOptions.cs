@@ -16,4 +16,29 @@ public sealed class PostgresOptions
 
     /// <summary>Skip the minimum PostgreSQL server version check on startup.</summary>
     public bool SkipVersionCheck { get; set; }
+
+    /// <summary>
+    /// The <see cref="PoolSize"/> used when neither it nor the connection string
+    /// sets one. Larger than node-postgres' per-pool default (10) because this
+    /// pool is shared by the whole process rather than owned by each
+    /// queue/worker, yet well below Npgsql's 100: past ~20 connections, extra
+    /// sessions mostly add lock contention on a queue's hot rows.
+    /// </summary>
+    public const int DefaultPoolSize = 20;
+
+    /// <summary>
+    /// Maximum number of pooled connections used for regular queries (Npgsql's
+    /// <c>Maximum Pool Size</c>). The pool is shared by every queue, worker,
+    /// queue-events and flow producer in the process that uses the same
+    /// connection string, schema and pool size; each worker / queue-events
+    /// listener additionally holds its own dedicated <c>LISTEN</c> connection
+    /// outside the pool. When null, a <c>Maximum Pool Size</c> given in
+    /// <see cref="ConnectionString"/> is used, otherwise
+    /// <see cref="DefaultPoolSize"/>. Other pool settings in the connection string
+    /// (e.g. <c>Minimum Pool Size</c>, <c>Pooling=false</c>) are respected.
+    /// Returned sessions are not reset (<c>No Reset On Close</c> defaults to
+    /// true, preserving the server's cached plans) unless the connection string
+    /// sets it.
+    /// </summary>
+    public int? PoolSize { get; set; }
 }
