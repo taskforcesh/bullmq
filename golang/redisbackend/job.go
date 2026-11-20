@@ -86,7 +86,7 @@ func fieldsArg(fields []byte) any {
 
 // GetJob returns the stored job, or nil when it does not exist.
 func (b *Backend) GetJob(ctx context.Context, jobID string) (*bullmq.JobRecord, error) {
-	fields, err := b.rdb.HGetAll(ctx, b.keys.Job(jobID)).Result()
+	fields, err := b.cmd.HGetAll(ctx, b.keys.Job(jobID)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -147,11 +147,11 @@ func (b *Backend) AddLog(ctx context.Context, jobID, row string, keepLogs int64)
 // GetJobLogs returns the log rows in [start, end] together with the total count.
 func (b *Backend) GetJobLogs(ctx context.Context, jobID string, start, end int64) ([]string, int64, error) {
 	key := b.keys.JobLogs(jobID)
-	rows, err := b.rdb.LRange(ctx, key, start, end).Result()
+	rows, err := b.cmd.LRange(ctx, key, start, end).Result()
 	if err != nil {
 		return nil, 0, err
 	}
-	count, err := b.rdb.LLen(ctx, key).Result()
+	count, err := b.cmd.LLen(ctx, key).Result()
 	if err != nil {
 		return nil, 0, err
 	}

@@ -42,6 +42,13 @@ type Backend struct {
 	owned bool
 	keys  *Keys
 
+	// cmd runs every non-blocking command: ap when auto-pipelining is on, rdb
+	// otherwise. Explicit pipelines and transactions run on rdb.
+	cmd redis.UniversalClient
+	// ap is the client's auto-pipeliner, closed by Close when the backend owns
+	// the client.
+	ap *redis.AutoPipeliner
+
 	// blocking is the client used for BZPOPMIN and XREAD. When the caller asks
 	// for a dedicated blocking connection it is a single-connection client
 	// (blockingConn != nil) so a blocked read never starves the shared pool,
@@ -89,7 +96,19 @@ func NewBackend(name string, redisOpts Options, opts bullmq.BackendOptions) (*Ba
 		}
 	}
 	rdb, owned := redisOpts.build()
-	b := &Backend{rdb: rdb, owned: owned, keys: keys, blocking: rdb, blockTimeout: opts.BlockTimeout}
+	b := &Backend{rdb: rdb, owned: owned, keys: keys, cmd: rdb, blocking: rdb, blockTimeout: opts.BlockTimeout}
+	if redisOpts.AutoPipeline != nil {
+		ap, err := autoPipeliner(rdb, redisOpts.AutoPipeline)
+		if err != nil {
+			if owned {
+				_ = rdb.Close()
+			}
+			return nil, err
+		}
+		if ap != nil {
+			b.ap, b.cmd = ap, ap
+		}
+	}
 	if opts.WithBlockingConnection {
 		b.blocking, b.blockingConn = redisOpts.buildBlocking(
 			clientName, opts.BlockTimeout+blockingReadSlack)
@@ -97,20 +116,27 @@ func NewBackend(name string, redisOpts Options, opts bullmq.BackendOptions) (*Ba
 	return b, nil
 }
 
-// Client returns the underlying Redis client.
+// Client returns the underlying Redis client. Commands sent through it are
+// never auto-pipelined.
 func (b *Backend) Client() redis.UniversalClient { return b.rdb }
 
 // Keys returns the key generator used by the backend.
 func (b *Backend) Keys() *Keys { return b.keys }
 
 // Close releases the connections the backend created. Clients supplied by the
-// caller are left open.
+// caller, and their auto-pipeliner, are left open.
 func (b *Backend) Close() error {
 	var firstErr error
 	if b.blockingConn != nil {
 		firstErr = b.blocking.Close()
 	}
 	if b.owned {
+		if b.ap != nil {
+			// Flushes the commands already queued before the client goes.
+			if err := b.ap.Close(); firstErr == nil {
+				firstErr = err
+			}
+		}
 		if err := b.rdb.Close(); firstErr == nil {
 			firstErr = err
 		}
@@ -148,6 +174,10 @@ func isTransientRedisError(err error) bool {
 			return true
 		}
 	}
+	// The auto-pipeliner sets these on commands it never sent.
+	if errors.Is(err, redis.ErrAutoPipelineTimeout) || errors.Is(err, redis.ErrAutoPipelineQueueFull) {
+		return true
+	}
 	for cause := err; cause != nil; cause = errors.Unwrap(cause) {
 		switch cause.Error() {
 		case "redis: connection pool timeout", "redis: connection pool exhausted":
@@ -182,7 +212,12 @@ func (b *Backend) runScript(ctx context.Context, name string, keys []string, arg
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.run(ctx, b.rdb, keys, args...).Result()
+	// A plain client does not send a command whose context is done; the
+	// auto-pipeliner ignores the context, so check it here.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	res, err := s.run(ctx, b.cmd, keys, args...).Result()
 	if err == redis.Nil {
 		return nil, nil
 	}

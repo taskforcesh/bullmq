@@ -49,7 +49,7 @@ func (c *commandCounter) ProcessPipelineHook(next redis.ProcessPipelineHook) red
 // for queue, counting the commands called name sent through that client.
 func newBlockingTestBackend(t *testing.T, queue string, blockTimeout time.Duration, name string) (*Backend, *commandCounter) {
 	t.Helper()
-	b, err := NewBackend(queue, Options{Addr: redisAddr()}, bullmq.BackendOptions{
+	b, err := NewBackend(queue, Options{Addr: redisAddr(), AutoPipeline: testAutoPipeline()}, bullmq.BackendOptions{
 		WithBlockingConnection: true,
 		ClientNameSuffix:       ":w:blocking-test",
 		BlockTimeout:           blockTimeout,

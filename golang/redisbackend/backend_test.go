@@ -26,6 +26,8 @@ func TestIsTransientRedisError(t *testing.T) {
 		{"redis nil", redis.Nil, false},
 		{"script error", scriptError("moveToFinished", bullmq.ErrCodeJobLockNotExist), false},
 		{"plain", errors.New("boom"), false},
+		{"auto-pipeline permit timeout", redis.ErrAutoPipelineTimeout, true},
+		{"auto-pipeline queue full", redis.ErrAutoPipelineQueueFull, true},
 	}
 	for _, tc := range cases {
 		if got := isTransientRedisError(tc.err); got != tc.want {

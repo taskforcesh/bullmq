@@ -189,7 +189,7 @@ func schedulerFromHash(id string, h map[string]string) *bullmq.JobScheduler {
 // IsJobScheduler checks for the iteration count, which only job schedulers
 // store, unlike legacy repeatable jobs.
 func (b *Backend) IsJobScheduler(ctx context.Context, id string) (bool, error) {
-	return b.rdb.HExists(ctx, b.keys.Repeat()+":"+id, "ic").Result()
+	return b.cmd.HExists(ctx, b.keys.Repeat()+":"+id, "ic").Result()
 }
 
 // GetJobSchedulersRange reads the `repeat` sorted set.
@@ -199,9 +199,9 @@ func (b *Backend) GetJobSchedulersRange(ctx context.Context, start, end int64, a
 		err     error
 	)
 	if asc {
-		entries, err = b.rdb.ZRangeWithScores(ctx, b.keys.Repeat(), start, end).Result()
+		entries, err = b.cmd.ZRangeWithScores(ctx, b.keys.Repeat(), start, end).Result()
 	} else {
-		entries, err = b.rdb.ZRevRangeWithScores(ctx, b.keys.Repeat(), start, end).Result()
+		entries, err = b.cmd.ZRevRangeWithScores(ctx, b.keys.Repeat(), start, end).Result()
 	}
 	if err != nil {
 		return nil, err
@@ -219,7 +219,7 @@ func (b *Backend) GetJobSchedulersRange(ctx context.Context, start, end int64, a
 
 // GetJobSchedulersCount returns the size of the `repeat` sorted set.
 func (b *Backend) GetJobSchedulersCount(ctx context.Context) (int64, error) {
-	return b.rdb.ZCard(ctx, b.keys.Repeat()).Result()
+	return b.cmd.ZCard(ctx, b.keys.Repeat()).Result()
 }
 
 func orEmpty(opts *bullmq.JobOptions) *bullmq.JobOptions {
