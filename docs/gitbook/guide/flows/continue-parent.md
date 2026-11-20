@@ -14,7 +14,7 @@ The `continueParentOnFailure` option allows a parent job to start processing as 
 
 When set to `true` on a child job, the `continueParentOnFailure` option causes the parent job to begin processing immediately if that child fails. This contrasts with the default behavior, where the parent waits for all children to finish.
 
-- **Key Behavior**: The parent moves to the active state as soon as a child with this option fails, even if other children are still running or unprocessed.
+- **Key Behavior**: The parent moves to the wait list, to be processed, as soon as a child with this option fails, even if other children are still running or unprocessed.
 - **Use Case**: Ideal for scenarios where a child’s failure requires immediate parent intervention, such as aborting the workflow or performing cleanup.
 
 ### removeUnprocessedChildren
