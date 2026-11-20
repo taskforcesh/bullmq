@@ -1,6 +1,7 @@
 package bullmq
 
 import (
+	"math"
 	"testing"
 	"time"
 )
@@ -97,6 +98,30 @@ func TestBackoffNegativeDelayRejected(t *testing.T) {
 		job := &Job{ID: "1", Opts: &JobOptions{Backoff: b}}
 		if _, err := w.backoffDelay(job, nil); err == nil {
 			t.Fatalf("backoffDelay accepted a negative delay for %s", typ)
+		}
+	}
+}
+
+// Saturated delays must not overflow time.Duration or the due time of the
+// retry (now + delay) and wrap into a retry that is due at once.
+func TestBackoffDelayIsClamped(t *testing.T) {
+	w := &Worker{opts: WorkerOptions{
+		BackoffStrategy: func(int64, BackoffType, error, *Job) int64 { return math.MaxInt64 },
+	}}
+	for _, job := range []*Job{
+		{ID: "custom", Opts: &JobOptions{Backoff: &Backoff{Type: "custom"}}},
+		{ID: "exponential", AttemptsMade: 5000, Opts: &JobOptions{Backoff: &Backoff{Type: BackoffExponential, Delay: 1000}}},
+		{ID: "jittered", AttemptsMade: 5000, Opts: &JobOptions{Backoff: &Backoff{Type: BackoffExponential, Delay: 1000, Jitter: 0.5}}},
+	} {
+		d, err := w.backoffDelay(job, nil)
+		if err != nil {
+			t.Fatalf("%s: backoffDelay: %v", job.ID, err)
+		}
+		if d < 100*365*24*time.Hour {
+			t.Errorf("%s: delay = %v, want a saturated, far-future delay", job.ID, d)
+		}
+		if due := nowMillis() + d.Milliseconds(); due < nowMillis() {
+			t.Errorf("%s: due time %d overflows", job.ID, due)
 		}
 	}
 }

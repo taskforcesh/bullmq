@@ -1058,7 +1058,7 @@ func (w *Worker) backoffDelay(job *Job, cause error) (time.Duration, error) {
 			// implementation.
 			ms = math.Floor(rand.Float64()*maxDelay*backoff.Jitter + maxDelay*(1-backoff.Jitter))
 		}
-		return time.Duration(ms) * time.Millisecond, nil
+		return retryDelay(ms), nil
 	default:
 		if w.opts.BackoffStrategy == nil {
 			return 0, configError("unknown backoff strategy %q for job %s; if a custom backoff strategy is used, set WorkerOptions.BackoffStrategy",
@@ -1068,7 +1068,26 @@ func (w *Worker) backoffDelay(job *Job, cause error) (time.Duration, error) {
 		if ms < 0 {
 			return -1, nil
 		}
-		return time.Duration(ms) * time.Millisecond, nil
+		return retryDelay(float64(ms)), nil
+	}
+}
+
+// maxRetryDelayMillis is the longest retry delay, about 292 years. It keeps
+// the delay within time.Duration and its due time (now plus the delay, in
+// Unix milliseconds) within an int64, so a saturated or custom delay such as
+// math.MaxInt64 cannot wrap around into a retry that is due at once.
+const maxRetryDelayMillis = math.MaxInt64 / int64(time.Millisecond)
+
+// retryDelay converts a delay in milliseconds, clamping it to
+// [0, maxRetryDelayMillis].
+func retryDelay(ms float64) time.Duration {
+	switch {
+	case math.IsNaN(ms) || ms <= 0:
+		return 0
+	case ms >= float64(maxRetryDelayMillis):
+		return time.Duration(maxRetryDelayMillis) * time.Millisecond
+	default:
+		return time.Duration(ms) * time.Millisecond
 	}
 }
 
