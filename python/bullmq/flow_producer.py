@@ -72,7 +72,9 @@ class FlowProducer(EventEmitter):
             redisOpts = None
 
         self.opts: dict = dict(opts or {})
-        if redisOpts is not None:
+        # An empty first argument (for example ``FlowProducer({}, opts)``)
+        # must not replace a connection given in ``opts``.
+        if redisOpts or (redisOpts is not None and "connection" not in self.opts):
             self.opts["connection"] = redisOpts
         self.prefix = self.opts.get("prefix", "bull")
         self.backend = create_backend("__default__", self.opts)

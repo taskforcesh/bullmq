@@ -144,3 +144,23 @@ class TestRedisBackendFlowInsertion(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results, ["parent-id", "child-id"])
         self.assertEqual(parent_job.id, "parent-id")
         self.assertEqual(child_job.id, "child-id")
+
+
+class TestFlowProducerConnection(unittest.TestCase):
+    def test_empty_redis_opts_keep_connection_from_opts(self):
+        backend = _FakeBackend()
+
+        with patch("bullmq.flow_producer.create_backend", return_value=backend) as create:
+            FlowProducer({}, {"connection": "redis://cache.internal:6390"})
+
+        self.assertEqual(
+            create.call_args.args[1]["connection"], "redis://cache.internal:6390"
+        )
+
+    def test_redis_opts_override_connection_from_opts(self):
+        backend = _FakeBackend()
+
+        with patch("bullmq.flow_producer.create_backend", return_value=backend) as create:
+            FlowProducer("redis://first:6379", {"connection": "redis://second:6379"})
+
+        self.assertEqual(create.call_args.args[1]["connection"], "redis://first:6379")
