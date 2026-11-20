@@ -10,7 +10,7 @@ In certain workflows, you may need a parent job to fail immediately if any of it
 
 - Selective Application: Only child jobs with failParentOnFailure: true will trigger the failure of their parent job upon failing. Child jobs without this option will not affect the parent's state if they fail.
 - Recursive Behavior: If a child with this option fails, and its parent also has failParentOnFailure: true, the failure propagates upward through the job tree, potentially affecting grandparents and beyond.
-- Immediate Effect: As soon as a qualifying child job fails, the parent job is moved to the failed state.
+- Deferred Failure: As soon as a qualifying child job fails, the parent job is marked to fail and moved out of waiting-children. It moves to the failed state when a worker picks it up, without running its processor (see the hint below).
 
 ### Example
 

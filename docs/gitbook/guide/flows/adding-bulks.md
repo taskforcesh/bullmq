@@ -1,6 +1,6 @@
 # Adding flows in bulk
 
-Sometimes it is necessary to atomically add flows in bulk. For example, there could be a requirement that all the flows must be created or none of them. Also, adding flows in bulk can be faster since it reduces the number of roundtrips to Redis:
+You can add several flows with a single call. All their jobs are sent to the datastore together, in one transaction on Redis, which makes it faster than adding the flows one by one since it reduces the number of roundtrips:
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -189,7 +189,11 @@ if err != nil {
 {% endtab %}
 {% endtabs %}
 
-This call can only succeed or fail, and all or none of the jobs will be added.
+Adding flows in bulk is not all-or-nothing, though: a job that the datastore rejects, for example a root job whose `parent` doesn't exist, is not added (nor are its children), while the jobs of the other flows are still added: nothing is rolled back.
+
+{% hint style="warning" %}
+The Node.js and Python SDKs don't report such a rejection yet: `addBulk` resolves as if every job had been added ([#5191](https://github.com/taskforcesh/bullmq/issues/5191)).
+{% endhint %}
 
 ## Read more:
 

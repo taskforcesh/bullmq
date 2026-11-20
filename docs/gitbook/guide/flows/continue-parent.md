@@ -8,7 +8,7 @@ description: Process parent if any children fails.
 Available since v5.58.0
 {% endhint %}
 
-The `continueParentOnFailure` option allows a parent job to start processing as soon as a child job fails, while the `removeUnprocessedChildren` method enables dynamic cleanup of unprocessed child jobs. Additionally, you can use the `getFailedChildrenValues`() method to determine whether the parent is processing due to a child failure or because all children completed successfully, allowing you to define distinct logic paths.
+The `continueParentOnFailure` option allows a parent job to start processing as soon as a child job fails, while the `removeUnprocessedChildren` method enables dynamic cleanup of unprocessed child jobs. Additionally, you can use the `getIgnoredChildrenFailures()` method to determine whether the parent is processing due to a child failure or because all children completed successfully, allowing you to define distinct logic paths.
 
 ### continueParentOnFailure
 
@@ -24,11 +24,11 @@ This method, available on a job instance, removes all unprocessed child jobs (th
 - **Key Behavior**: Only affects children that haven’t started processing; **active, completed or failed** children remain intact.
 - **Usage**: Call within the parent’s processor to clean up dynamically.
 
-### getFailedChildrenValues
+### getIgnoredChildrenFailures
 
-The `getFailedChildrenValues()` method returns an object mapping the IDs of failed child jobs to their failure error messages. This allows the parent job to determine why it’s processing—whether due to a child failure (triggered by `continueParentOnFailure`) or because all children completed successfully.
+The `getIgnoredChildrenFailures()` method (which replaces the deprecated `getFailedChildrenValues()`) returns an object mapping the keys of the failed child jobs to their failure error messages. This allows the parent job to determine why it’s processing—whether due to a child failure (triggered by `continueParentOnFailure`) or because all children completed successfully.
 
-- **Return Value**: An object where keys are job IDs and values are error messages (e.g., { "job-id-1": "Upload failed" }). If no children failed, the object is empty.
+- **Return Value**: An object where keys are job keys (`<prefix>:<queueName>:<jobId>` on Redis) and values are error messages (e.g., { "bull:childrenQueueName:job-id-1": "Upload failed" }). If no children failed, the object is empty.
 - **Usage**: Use this in the parent’s processor to branch logic based on the presence of failed children.
 
 ### Example
@@ -70,7 +70,7 @@ const originalTree = await flow.add({
 // Processor for the parent job
 const processor = async job => {
   // Check if any children failed
-  const failedChildren = await job.getFailedChildrenValues();
+  const failedChildren = await job.getIgnoredChildrenFailures();
   const hasFailedChildren = Object.keys(failedChildren).length > 0;
 
   if (hasFailedChildren) {
@@ -128,7 +128,7 @@ let processor = move |job: Job, _token: CancellationToken| {
     let top_queue = top_queue.clone();
     async move {
         // Check if any children failed
-        let failed_children = job.get_failed_children_values().await?;
+        let failed_children = job.get_ignored_children_failures().await?;
         let has_failed_children = !failed_children.is_empty();
 
         if has_failed_children {
@@ -241,4 +241,4 @@ processor := func(ctx context.Context, job *bullmq.Job) (any, error) {
 
 ### Practical use case
 
-Consider a workflow where child jobs upload files to different servers. If one upload fails (e.g., `child-job-1`), the parent can use continueParentOnFailure to react immediately, check `getFailedChildrenValues()` to confirm the failure, and call `removeUnprocessedChildren()` to cancel remaining uploads. If all uploads succeed, the parent might aggregate the results instead.
+Consider a workflow where child jobs upload files to different servers. If one upload fails (e.g., `child-job-1`), the parent can use continueParentOnFailure to react immediately, check `getIgnoredChildrenFailures()` to confirm the failure, and call `removeUnprocessedChildren()` to cancel remaining uploads. If all uploads succeed, the parent might aggregate the results instead.

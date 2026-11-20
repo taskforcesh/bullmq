@@ -158,8 +158,8 @@ You may also need a way to limit that information if you have many children for 
 const limitedTree = await flow.getFlow({
   id: topJob.id,
   queueName: 'topQueueName',
-  depth: 1, // get only the first level of children
-  maxChildren: 2, // get only 2 children per node
+  depth: 2, // the root and its first level of children
+  maxChildren: 2, // about 2 children of each status per node
 });
 
 const { children, job } = limitedTree;
@@ -201,6 +201,12 @@ children, job := limitedTree.Children, limitedTree.Job
 
 {% endtab %}
 {% endtabs %}
+
+{% hint style="info" %}
+`depth` counts the levels of the tree, the root included: `depth: 1` returns only the root job. In Rust, `depth` counts the levels below the root, so `.depth(1)` returns the same tree as `depth: 2` above.
+
+`maxChildren` limits each group of children (processed, unprocessed, failed and ignored) separately. On Redis it is only a hint, passed as the `COUNT` of `SSCAN`/`HSCAN`: small groups are returned whole, so a node may get more children than `maxChildren`. Rust caps the total number of children per node at `max_children`.
+{% endhint %}
 
 ## Read more:
 

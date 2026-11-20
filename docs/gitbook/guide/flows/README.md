@@ -1021,7 +1021,7 @@ BullMQ also provides seamless removal functionality for jobs that are part of a 
 When removing a job that is part of the flow there are several important considerations:
 
 1. If a parent job is removed, all its children will also be removed.
-2. If a child job is removed, its parent dependency to said child is also removed, and if the child was the last child in the dependencies list, the parent job will be completed.
+2. If a child job is removed, its parent dependency to said child is also removed, and if the child was the last child in the dependencies list, the parent job will be moved to the wait list, so that a worker processes it.
 3. Since a job can be both a parent and a child in a large flow, both 1 and 2 will occur if removing such a job.
 4. If any of the jobs that would be removed happen to be locked, none of the jobs will be removed, and an exception will be thrown.
 
