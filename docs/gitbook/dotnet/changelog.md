@@ -1,3 +1,10 @@
+## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vnet1.3.4...vnet1.3.5) (2026-11-19)
+
+
+### Performance Improvements
+
+* **worker:** fetch the next job when finishing the current one [dotnet] ([#5164](https://github.com/taskforcesh/bullmq/issues/5164)) ([b613f6a](https://github.com/taskforcesh/bullmq/commit/b613f6a259b874085475695887c2238fb57ac2d5))
+
 ## [1.3.4](https://github.com/taskforcesh/bullmq/compare/vnet1.3.3...vnet1.3.4) (2026-11-19)
 
 
