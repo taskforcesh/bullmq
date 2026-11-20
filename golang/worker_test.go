@@ -601,7 +601,9 @@ func testWorkerPauseAndResume(t *testing.T, be testBackend) {
 	}, nil)
 	runWorker(t, w)
 
-	w.Pause()
+	if err := w.Pause(ctx, false); err != nil {
+		t.Fatalf("Pause: %v", err)
+	}
 	if !w.IsPaused() {
 		t.Fatal("the worker should be paused")
 	}
@@ -1021,4 +1023,79 @@ func testWorkerCloseIsIdempotent(t *testing.T, be testBackend) {
 			t.Fatalf("Close: %v", err)
 		}
 	}
+}
+
+// Pause waits for the jobs in flight unless told not to, as in Node.js, and
+// a paused worker fetches nothing until it is resumed.
+func TestWorkerPauseWaitsForActiveJobs(t *testing.T) {
+	forEachBackend(t, testWorkerPauseWaitsForActiveJobs)
+}
+
+func testWorkerPauseWaitsForActiveJobs(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseJob := func() { releaseOnce.Do(func() { close(release) }) }
+	started := make(chan struct{}, 2)
+	var processed atomic.Int64
+	w := newTestWorker(t, be, q.Name(), func(context.Context, *bullmq.Job) (any, error) {
+		started <- struct{}{}
+		<-release
+		processed.Add(1)
+		return nil, nil
+	}, &bullmq.WorkerOptions{Concurrency: 2})
+	runWorker(t, w)
+	t.Cleanup(releaseJob)
+
+	if _, err := q.Add(ctx, "held", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the job did not start")
+	}
+
+	// doNotWaitActive returns at once.
+	if err := w.Pause(ctx, true); err != nil {
+		t.Fatalf("Pause(doNotWaitActive): %v", err)
+	}
+	// A bounded wait gives up while the job runs.
+	short, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	if err := w.Pause(short, false); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Pause with a job in flight and an expiring context = %v, want DeadlineExceeded", err)
+	}
+
+	paused := make(chan error, 1)
+	go func() { paused <- w.Pause(ctx, false) }()
+	select {
+	case err := <-paused:
+		t.Fatalf("Pause returned (%v) while a job was still running", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+	releaseJob()
+	select {
+	case err := <-paused:
+		if err != nil {
+			t.Fatalf("Pause: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Pause did not return once the active job finished")
+	}
+	if got := processed.Load(); got != 1 {
+		t.Fatalf("Pause returned before the active job finished (%d processed)", got)
+	}
+
+	if _, err := q.Add(ctx, "while-paused", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if w.ActiveCount() != 0 {
+		t.Fatal("the paused worker fetched a job")
+	}
+	w.Resume()
+	waitFor(t, 5*time.Second, "the job to run after resuming", func() bool { return processed.Load() == 2 })
 }

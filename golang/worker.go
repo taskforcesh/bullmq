@@ -101,6 +101,12 @@ type Worker struct {
 	wg        sync.WaitGroup
 
 	paused atomic.Bool
+	// pauseMu guards pausedIdle and loopRunning. pausedIdle is created by
+	// Pause and closed once the worker is paused with no job in flight (or
+	// resumed, or stopped), which is what Pause waits for.
+	pauseMu     sync.Mutex
+	pausedIdle  chan struct{}
+	loopRunning bool
 
 	// slots holds one token per free processing slot.
 	slots chan struct{}
@@ -214,16 +220,65 @@ func (w *Worker) Events() <-chan Event { return w.events }
 // Events channel because its buffer was full.
 func (w *Worker) DroppedEvents() uint64 { return w.droppedEvents.Load() }
 
-// Pause stops fetching new jobs. Jobs already active keep running.
-func (w *Worker) Pause() {
-	w.paused.Store(true)
+// Pause stops this worker from fetching new jobs, as Node's pause does. Unless
+// doNotWaitActive is set, it then waits until the jobs in flight have
+// finished, or until ctx is done (returning ctx's error), the worker is
+// resumed or it stops. A processor pausing its own worker must set
+// doNotWaitActive, since Pause would otherwise wait for it.
+func (w *Worker) Pause(ctx context.Context, doNotWaitActive bool) error {
+	w.pauseMu.Lock()
+	if !w.paused.Load() {
+		w.paused.Store(true)
+		w.pausedIdle = make(chan struct{})
+		if !w.loopRunning {
+			close(w.pausedIdle)
+		}
+	}
+	idle := w.pausedIdle
+	w.pauseMu.Unlock()
 	signal(w.ctrl)
+
+	if doNotWaitActive {
+		return nil
+	}
+	select {
+	case <-idle:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Resume restarts fetching jobs after Pause.
 func (w *Worker) Resume() {
+	w.pauseMu.Lock()
 	w.paused.Store(false)
+	w.releasePauseLocked()
+	w.pauseMu.Unlock()
 	signal(w.ctrl)
+}
+
+// releasePauseLocked releases the callers of Pause. w.pauseMu must be held.
+func (w *Worker) releasePauseLocked() {
+	if w.pausedIdle == nil {
+		return
+	}
+	select {
+	case <-w.pausedIdle:
+	default:
+		close(w.pausedIdle)
+	}
+}
+
+// setLoopRunning records whether the fetch loop runs, releasing the callers
+// of Pause once it stops.
+func (w *Worker) setLoopRunning(running bool) {
+	w.pauseMu.Lock()
+	defer w.pauseMu.Unlock()
+	w.loopRunning = running
+	if !running {
+		w.releasePauseLocked()
+	}
 }
 
 // IsPaused reports whether the worker is paused.
@@ -345,6 +400,8 @@ func (w *Worker) run(ctx context.Context) error {
 // cancelled by the caller (never by Close), so a graceful shutdown drains
 // in-flight jobs instead of cancelling them.
 func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
+	w.setLoopRunning(true)
+	defer w.setLoopRunning(false)
 	var processing sync.WaitGroup
 	defer processing.Wait()
 	waiter := &jobWaiter{backend: w.backend, results: make(chan waitOutcome, 1)}
@@ -481,14 +538,23 @@ func (w *Worker) afterWait(ctx context.Context, out waitOutcome) bool {
 	return true
 }
 
-// waitUnpaused blocks until the worker is resumed. It returns false when ctx
-// is done first.
+// waitUnpaused blocks until the worker is resumed, releasing the callers of
+// Pause once no job is in flight anymore. It returns false when ctx is done
+// first.
 func (w *Worker) waitUnpaused(ctx context.Context) bool {
 	for w.IsPaused() {
+		if len(w.slots) == cap(w.slots) {
+			w.pauseMu.Lock()
+			if w.paused.Load() {
+				w.releasePauseLocked()
+			}
+			w.pauseMu.Unlock()
+		}
 		select {
 		case <-ctx.Done():
 			return false
 		case <-w.ctrl:
+		case <-w.wake:
 		}
 	}
 	return true

@@ -78,9 +78,11 @@ func testWorkerDoesNotReportDrainedAfterAFinishWithoutFetchNext(t *testing.T, be
 
 	var w *bullmq.Worker
 	var processed atomic.Int64
-	w = newTestWorker(t, be, q.Name(), func(context.Context, *bullmq.Job) (any, error) {
+	w = newTestWorker(t, be, q.Name(), func(ctx context.Context, _ *bullmq.Job) (any, error) {
 		if processed.Add(1) == 1 {
-			w.Pause()
+			if err := w.Pause(ctx, true); err != nil {
+				return nil, err
+			}
 		}
 		return nil, nil
 	}, nil)
