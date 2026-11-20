@@ -46,7 +46,29 @@ var (
 	ErrDelayed = errors.New("bullmq: job moved to delayed")
 	// ErrWaitingChildren is returned by a processor that moved its job to waiting-children.
 	ErrWaitingChildren = errors.New("bullmq: job moved to waiting children")
+
+	// ErrJobCancelled is the cause (see context.Cause) of the context of a
+	// job cancelled with Worker.CancelJob or Worker.CancelAllJobs. The cause
+	// reads as the cancellation reason and matches ErrJobCancelled with
+	// errors.Is.
+	ErrJobCancelled = errors.New("bullmq: job cancelled")
+	// ErrLockLost is the cause (see context.Cause) of the context of a job
+	// whose lock the worker could not renew: the job may belong to another
+	// worker now.
+	ErrLockLost = errors.New("bullmq: job lock lost")
 )
+
+// cancelledError is the cause of a job context cancelled by Worker.CancelJob.
+type cancelledError struct{ reason string }
+
+func (e *cancelledError) Error() string {
+	if e.reason == "" {
+		return ErrJobCancelled.Error()
+	}
+	return e.reason
+}
+
+func (e *cancelledError) Is(target error) bool { return target == ErrJobCancelled }
 
 // UnrecoverableError makes a job fail immediately without consuming further attempts.
 type UnrecoverableError struct {

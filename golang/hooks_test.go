@@ -18,6 +18,8 @@ type backendHooks struct {
 	// the next job.
 	fetchNext atomic.Int64
 	waits     atomic.Int64
+	// failures counts MoveToFailed, RetryJob and MoveToDelayed calls.
+	failures atomic.Int64
 
 	mu     sync.Mutex
 	tokens map[string]struct{}
@@ -77,16 +79,23 @@ func (b *hookedBackend) MoveToCompleted(ctx context.Context, jobID string, rv []
 }
 
 func (b *hookedBackend) MoveToFailed(ctx context.Context, jobID string, failure bullmq.FailureInfo, opts bullmq.FinishOptions) (*bullmq.FinishResult, error) {
+	b.hooks.failures.Add(1)
 	b.hooks.noteFinish(opts.Token, opts.FetchNext)
 	return b.Backend.MoveToFailed(ctx, jobID, failure, opts)
 }
 
 func (b *hookedBackend) MoveToDelayed(ctx context.Context, jobID, token string, delay time.Duration, opts bullmq.MoveToDelayedOptions) (*bullmq.FetchResult, error) {
+	b.hooks.failures.Add(1)
 	b.hooks.noteFinish(token, opts.FetchNext)
 	if f := b.hooks.onMoveToDelayed; f != nil {
 		return f(ctx, b.Backend, jobID, token, delay, opts)
 	}
 	return b.Backend.MoveToDelayed(ctx, jobID, token, delay, opts)
+}
+
+func (b *hookedBackend) RetryJob(ctx context.Context, jobID, token string, lifo bool, failure *bullmq.FailureInfo) error {
+	b.hooks.failures.Add(1)
+	return b.Backend.RetryJob(ctx, jobID, token, lifo, failure)
 }
 
 func (b *hookedBackend) WaitForJob(ctx context.Context, timeout time.Duration) (bullmq.WaitResult, error) {

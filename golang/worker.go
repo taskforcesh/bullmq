@@ -20,6 +20,13 @@ import (
 // Returning an error fails the job; if attempts remain the job is retried using
 // the configured backoff. Return an error created with [NewUnrecoverableError]
 // to fail without retrying.
+//
+// ctx is cancelled when the context passed to [Worker.Run] is, when the worker
+// loses the job's lock ([ErrLockLost]), and by [Worker.CancelJob]
+// ([ErrJobCancelled]); context.Cause tells which. An error returned after the
+// worker itself cancelled ctx (Run or the lock) is not recorded: the job is left
+// active, without using up an attempt, for the stalled check to recover. After
+// CancelJob the job fails with the cancellation reason.
 type Processor func(ctx context.Context, job *Job) (any, error)
 
 // EventType identifies a worker lifecycle event.
@@ -102,12 +109,14 @@ type Worker struct {
 }
 
 type activeJob struct {
-	job    *Job
-	cancel context.CancelFunc
+	job *Job
+	// cancel cancels the job's context with a cause: ErrLockLost, or a
+	// cancelledError for Worker.CancelJob.
+	cancel context.CancelCauseFunc
 	// lockLost is set once the job's lock could not be renewed. It is
 	// guarded by Worker.mu and keeps the entry out of later renewal
 	// snapshots, so a processor that is slow to honor cancellation cannot
-	// produce a stalled event on every tick.
+	// produce a lock event on every tick.
 	lockLost bool
 }
 
@@ -201,6 +210,31 @@ func (w *Worker) ActiveCount() int {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return len(w.active)
+}
+
+// CancelJob cancels the context of a job this worker is processing, with a
+// cause (see context.Cause) that matches ErrJobCancelled and reads as reason.
+// When the processor then returns an error, the job fails with reason as
+// its failure (and is retried if attempts remain), as Node.js's cancelJob
+// does. It reports whether the job was being processed.
+func (w *Worker) CancelJob(jobID, reason string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	a, ok := w.active[jobID]
+	if ok {
+		a.cancel(&cancelledError{reason: reason})
+	}
+	return ok
+}
+
+// CancelAllJobs cancels every job this worker is processing, as CancelJob
+// does.
+func (w *Worker) CancelAllJobs(reason string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, a := range w.active {
+		a.cancel(&cancelledError{reason: reason})
+	}
 }
 
 // Run starts the worker and blocks until ctx is cancelled or Close is called.
@@ -611,7 +645,7 @@ func (w *Worker) nextToken() string {
 // Unless the worker is pausing or stopping, that transition also fetches the
 // next job for this slot, which is returned for chaining.
 func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
-	jobCtx, cancel := context.WithCancel(runCtx)
+	jobCtx, cancel := context.WithCancelCause(runCtx)
 	entry := &activeJob{job: job, cancel: cancel}
 	w.mu.Lock()
 	w.active[job.ID] = entry
@@ -623,7 +657,7 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 		}
 		w.mu.Unlock()
 		job.worker = nil
-		cancel()
+		cancel(nil)
 	}()
 
 	w.emit(Event{Type: EventActive, Job: job})
@@ -658,6 +692,21 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 	// The processor took ownership of the job's next state.
 	if errors.Is(err, ErrDelayed) || errors.Is(err, ErrWaitingChildren) {
 		return w.fetchAfterHandOff(runCtx, job.token)
+	}
+
+	if err != nil && jobCtx.Err() != nil {
+		cause := context.Cause(jobCtx)
+		if !errors.Is(cause, ErrJobCancelled) {
+			// The worker itself interrupted the job: it was stopped (the Run
+			// context was cancelled) or lost the job's lock. Failing the job
+			// would use up an attempt for no fault of its own, so it is left
+			// active for the stalled check to recover, as Node.js does.
+			return nextFetch{}
+		}
+		// Cancelled with CancelJob: fail with the reason, as Node.js does.
+		if errors.Is(err, context.Canceled) {
+			err = cause
+		}
 	}
 
 	if err != nil {
@@ -999,7 +1048,7 @@ func (w *Worker) lockRenewalLoop(ctx context.Context) {
 			}
 			// The lock is gone: another worker owns the job now, so stop
 			// processing it locally.
-			current.cancel()
+			current.cancel(ErrLockLost)
 			w.emit(Event{Type: EventStalled, Job: current.job})
 		}
 	}
