@@ -61,9 +61,12 @@ var (
 	// currently locked by another worker and therefore cannot be removed.
 	ErrJobLocked = errors.New("bullmq: job is locked by another worker")
 
-	// ErrWorkerClosed is returned when an operation is attempted on a closed worker.
+	// ErrWorkerClosed is returned by Worker.Run when the worker was already
+	// run or is closed, and by Worker.Pause when the worker is closed while
+	// Pause waits for its jobs.
 	ErrWorkerClosed = errors.New("bullmq: worker is closed")
-	// ErrQueueEventsClosed is returned when Run is called more than once on a QueueEvents.
+	// ErrQueueEventsClosed is returned by QueueEvents.Run when it was
+	// already called or the listener is closed.
 	ErrQueueEventsClosed = errors.New("bullmq: queue events is closed")
 	// ErrNoContext is returned by the methods of a Job that reach the
 	// datastore, such as UpdateProgress or Log, when the Job has no backend:

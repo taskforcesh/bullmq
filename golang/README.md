@@ -532,9 +532,9 @@ it treat in-flight jobs differently:
   the processors have returned; `Close` must still be called to release the
   connections.
 
-`Run` returns `context.Canceled` after `Close`, and the context's error when
-its context is cancelled. Combining both gives in-flight jobs a grace period
-on SIGTERM:
+`Run` returns nil after `Close`, and the context's error when its context is
+done, even during a `Close`. Combining both gives in-flight jobs a grace
+period on SIGTERM:
 
 ```go
 func runUntilSignal(worker *bullmq.Worker) error {
@@ -559,6 +559,8 @@ func runUntilSignal(worker *bullmq.Worker) error {
 		return cerr
 	}
 	if errors.Is(err, context.Canceled) {
+		// The grace period ran out: the jobs still running were left
+		// active for the stalled check.
 		return nil
 	}
 	return err
@@ -813,7 +815,8 @@ Each `QueueEvent` has the event name (`added`, `waiting`, `active`,
 `Data`. The listener starts with the events published after `Run` starts;
 set `LastEventID` to read from another point (`"0"` for the oldest event
 kept). `Events()` is closed when the listener stops, by `Close` or by
-cancelling `Run`'s context. Unlike a worker's events, the channel isn't lossy:
+cancelling `Run`'s context; `Run` then returns nil or the context's error,
+as `Worker.Run` does. Unlike a worker's events, the channel isn't lossy:
 the listener waits for the reader, so keep reading it. Read errors are
 retried and reported on `Errors()`.
 
@@ -1140,6 +1143,7 @@ drafts of this port needs these changes:
 | Full event channel dropped events silently                                     | `Worker.DroppedEvents` counts them; `WorkerOptions.OnEvent` sees every event                                        |
 | Cancelling `Run`'s context failed in-flight jobs                               | They stay active, without using up an attempt, for the stalled check to recover                                     |
 | `RemoveAll()` was stored as `{"count":0}`                                      | Stored as `true`, as in the other ports                                                                             |
+| `Worker.Run` and `QueueEvents.Run` returned `context.Canceled` after `Close`   | They return nil after `Close`, and still return the context's error when their context is done                      |
 
 Custom `Backend` implementations have more to change: `SignalWork` is gone,
 `MoveToCompleted` and `MoveToFailed` return a `*FinishResult` and can fetch

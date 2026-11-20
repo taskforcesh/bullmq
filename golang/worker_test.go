@@ -1025,6 +1025,97 @@ func testWorkerCloseIsIdempotent(t *testing.T, be testBackend) {
 	}
 }
 
+// waitDrained waits until w reports that the queue is drained, which tells
+// that Run is running.
+func waitDrained(t *testing.T, w *bullmq.Worker) {
+	t.Helper()
+	timeout := time.After(10 * time.Second)
+	for {
+		select {
+		case ev := <-w.Events():
+			if ev.Type == bullmq.EventDrained {
+				return
+			}
+		case <-timeout:
+			t.Fatal("the worker never reported the queue as drained")
+		}
+	}
+}
+
+// Run returns nil after Close, ctx's error when ctx is done, and
+// ErrWorkerClosed when it was already called or the worker is closed.
+func TestWorkerRunReturnValues(t *testing.T) {
+	forEachBackend(t, testWorkerRunReturnValues)
+}
+
+func testWorkerRunReturnValues(t *testing.T, be testBackend) {
+	q := newTestQueue(t, be, nil)
+	noop := func(context.Context, *bullmq.Job) (any, error) { return nil, nil }
+	waitRun := func(t *testing.T, runDone <-chan error) error {
+		t.Helper()
+		select {
+		case err := <-runDone:
+			return err
+		case <-time.After(10 * time.Second):
+			t.Fatal("Run did not return")
+			return nil
+		}
+	}
+
+	t.Run("Close", func(t *testing.T) {
+		w := newTestWorker(t, be, q.Name(), noop, nil)
+		runDone := make(chan error, 1)
+		go func() { runDone <- w.Run(context.Background()) }()
+		waitDrained(t, w)
+		if err := w.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := waitRun(t, runDone); err != nil {
+			t.Fatalf("Run after Close = %v, want nil", err)
+		}
+		if err := w.Run(context.Background()); !errors.Is(err, bullmq.ErrWorkerClosed) {
+			t.Fatalf("second Run = %v, want ErrWorkerClosed", err)
+		}
+	})
+
+	t.Run("ctx", func(t *testing.T) {
+		w := newTestWorker(t, be, q.Name(), noop, nil)
+		t.Cleanup(func() { _ = w.Close() })
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		runDone := make(chan error, 1)
+		go func() { runDone <- w.Run(ctx) }()
+		waitDrained(t, w)
+		cancel()
+		if err := waitRun(t, runDone); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Run after cancelling ctx = %v, want context.Canceled", err)
+		}
+		if err := w.Run(context.Background()); !errors.Is(err, bullmq.ErrWorkerClosed) {
+			t.Fatalf("second Run = %v, want ErrWorkerClosed", err)
+		}
+	})
+
+	t.Run("deadline", func(t *testing.T) {
+		w := newTestWorker(t, be, q.Name(), noop, nil)
+		t.Cleanup(func() { _ = w.Close() })
+		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+		defer cancel()
+		if err := w.Run(ctx); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Run past its deadline = %v, want context.DeadlineExceeded", err)
+		}
+	})
+
+	t.Run("closed before Run", func(t *testing.T) {
+		w := newTestWorker(t, be, q.Name(), noop, nil)
+		if err := w.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := w.Run(context.Background()); !errors.Is(err, bullmq.ErrWorkerClosed) {
+			t.Fatalf("Run after Close = %v, want ErrWorkerClosed", err)
+		}
+	})
+}
+
 // Pause waits for the jobs in flight unless told not to, as in Node.js, and
 // a paused worker fetches nothing until it is resumed.
 func TestWorkerPauseWaitsForActiveJobs(t *testing.T) {

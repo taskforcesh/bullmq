@@ -2,6 +2,7 @@ package bullmq
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
@@ -87,8 +88,19 @@ func (qe *QueueEvents) Events() <-chan QueueEvent { return qe.events }
 // when the listener stops, after the last error has been sent.
 func (qe *QueueEvents) Errors() <-chan error { return qe.errs }
 
-// Run starts consuming the event stream and blocks until ctx is cancelled or
-// Close is called.
+// Run reads the event stream and delivers its events on the Events channel
+// until it stops, then closes the Events and Errors channels.
+//
+//   - After Close it returns nil.
+//   - When ctx is done it returns ctx's error.
+//   - Read errors are sent on the Errors channel and retried a second later,
+//     but an error reading the id of the newest event at startup (for the
+//     default LastEventID `$`) is returned.
+//   - It returns [ErrQueueEventsClosed] straight away when Run was already
+//     called or the listener is closed.
+//
+// Call Close after Run returns because ctx was done, to release the
+// listener's connection.
 func (qe *QueueEvents) Run(ctx context.Context) error {
 	started := false
 	// runOnce only claims startup. The loop must run outside it, otherwise
@@ -97,7 +109,25 @@ func (qe *QueueEvents) Run(ctx context.Context) error {
 	if !started {
 		return ErrQueueEventsClosed
 	}
-	return qe.run(ctx)
+	err := qe.run(ctx)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+	if errors.Is(err, context.Canceled) && qe.closing() {
+		// Stopped by Close.
+		return nil
+	}
+	return err
+}
+
+// closing reports whether Close was called.
+func (qe *QueueEvents) closing() bool {
+	select {
+	case <-qe.stop:
+		return true
+	default:
+		return false
+	}
 }
 
 func (qe *QueueEvents) run(ctx context.Context) error {

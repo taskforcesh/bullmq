@@ -42,19 +42,21 @@ Each `bullmq.QueueEvent` has:
 - `JobID`: the job it refers to, when there is one;
 - `Data`: every field of the event; `ReturnValue()` and `FailedReason()`
   read the usual ones;
-- `ID`: the event's id in the stream.
+- `ID`: the event's id, opaque: a stream entry id on Redis, a number on
+  PostgreSQL. Pass it as `LastEventID` to resume after that event.
 
 | Option            | Default | Meaning                                                                                      |
 | ----------------- | ------- | -------------------------------------------------------------------------------------------- |
 | `Backend`         |         | Required: the datastore backend factory                                                      |
 | `LastEventID`     | `$`     | Where to start: `$` for the events published after `Run` starts, `0` for the oldest one kept |
-| `BlockingTimeout` | 5 s     | How long each read waits for new events                                                      |
+| `BlockingTimeout` | 5 s     | The longest a single read waits for new events                                               |
 | `BufferSize`      | 128     | Size of the `Events()` channel                                                               |
 
 `Run` blocks until its context is cancelled or `Close` is called, and then
-closes `Events()`. Unlike worker events, the channel isn't lossy: the listener
-waits for its reader, so keep reading it. Read errors are retried, and
-reported on `Errors()` when someone reads it.
+closes `Events()`. It returns nil after `Close` and the context's error when
+the context is done, as `worker.Run` does. Unlike worker events, the channel
+isn't lossy: the listener waits for its reader, so keep reading it. Read
+errors are retried, and reported on `Errors()` when someone reads it.
 
 {% hint style="warning" %}
 On PostgreSQL, a listener can miss events when several jobs finish at the

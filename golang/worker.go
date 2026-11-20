@@ -334,7 +334,19 @@ func (w *Worker) CancelAllJobs(reason string) {
 	}
 }
 
-// Run starts the worker and blocks until ctx is cancelled or Close is called.
+// Run starts the worker and blocks until it stops.
+//
+//   - After Close it stops fetching, waits for the jobs being processed to
+//     finish, and returns nil.
+//   - When ctx is done it stops fetching and cancels the context of the jobs
+//     being processed, which are left active for the stalled check to
+//     recover (see [Processor]). Once their processors have returned, it
+//     returns ctx's error, even if Close was also called.
+//   - It returns [ErrWorkerClosed] straight away when Run was already called
+//     or the worker is closed.
+//
+// Call Close after Run returns because ctx was done, to release the
+// worker's connections.
 func (w *Worker) Run(ctx context.Context) error {
 	var err error
 	started := false
@@ -405,7 +417,24 @@ func (w *Worker) run(ctx context.Context) error {
 
 	w.wg.Wait()
 	w.emit(Event{Type: EventClosed})
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+	if errors.Is(err, context.Canceled) && w.stopping() {
+		// Stopped by Close.
+		return nil
+	}
 	return err
+}
+
+// stopping reports whether Close was called.
+func (w *Worker) stopping() bool {
+	select {
+	case <-w.stop:
+		return true
+	default:
+		return false
+	}
 }
 
 // fetchLoop fills free processing slots with jobs and dispatches them to

@@ -185,7 +185,9 @@ it treat the jobs in flight differently:
   `MaxStalledCount` times (1 by default) fails. `Close` must still be called
   to release the connections.
 
-Combining both gives in-flight jobs a grace period on SIGTERM:
+Combining both gives in-flight jobs a grace period on SIGTERM. `Run` returns
+nil after `Close`, and the context's error when its context is done, even
+during a `Close`:
 
 ```go
 func runUntilSignal(worker *bullmq.Worker) error {
@@ -210,11 +212,16 @@ func runUntilSignal(worker *bullmq.Worker) error {
 		return cerr
 	}
 	if errors.Is(err, context.Canceled) {
+		// The grace period ran out: the jobs still running were left
+		// active for the stalled check.
 		return nil
 	}
 	return err
 }
 ```
+
+A worker runs once: calling `Run` again, or after `Close`, returns
+`bullmq.ErrWorkerClosed`.
 
 See also [Graceful shutdown](../guide/workers/graceful-shutdown.md).
 

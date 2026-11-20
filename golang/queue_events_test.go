@@ -313,3 +313,92 @@ func TestQueueEventsCloseHonorsTimeoutWhileReadIsBlocked(t *testing.T) {
 		t.Fatal("Run did not return once the read was released")
 	}
 }
+
+// Run returns nil after Close, ctx's error when ctx is done, and
+// ErrQueueEventsClosed when it was already called or the listener is
+// closed, as Worker.Run does.
+func TestQueueEventsRunReturnValues(t *testing.T) {
+	forEachBackend(t, testQueueEventsRunReturnValues)
+}
+
+func testQueueEventsRunReturnValues(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	if _, err := q.Add(ctx, "job", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	newListener := func(t *testing.T) *bullmq.QueueEvents {
+		t.Helper()
+		qe, err := bullmq.NewQueueEvents(q.Name(), &bullmq.QueueEventsOptions{
+			Backend:         be.Factory,
+			LastEventID:     "0-0",
+			BlockingTimeout: 200 * time.Millisecond,
+		})
+		if err != nil {
+			t.Fatalf("NewQueueEvents: %v", err)
+		}
+		return qe
+	}
+	// start runs qe and returns once it delivered the event of the job
+	// added above, so Run is known to be running.
+	start := func(t *testing.T, qe *bullmq.QueueEvents, ctx context.Context) <-chan error {
+		t.Helper()
+		runDone := make(chan error, 1)
+		go func() { runDone <- qe.Run(ctx) }()
+		select {
+		case <-qe.Events():
+		case <-time.After(10 * time.Second):
+			t.Fatal("no event was delivered")
+		}
+		return runDone
+	}
+	waitRun := func(t *testing.T, runDone <-chan error) error {
+		t.Helper()
+		select {
+		case err := <-runDone:
+			return err
+		case <-time.After(10 * time.Second):
+			t.Fatal("Run did not return")
+			return nil
+		}
+	}
+
+	t.Run("Close", func(t *testing.T) {
+		qe := newListener(t)
+		runDone := start(t, qe, context.Background())
+		if err := qe.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := waitRun(t, runDone); err != nil {
+			t.Fatalf("Run after Close = %v, want nil", err)
+		}
+		if err := qe.Run(context.Background()); !errors.Is(err, bullmq.ErrQueueEventsClosed) {
+			t.Fatalf("second Run = %v, want ErrQueueEventsClosed", err)
+		}
+	})
+
+	t.Run("ctx", func(t *testing.T) {
+		qe := newListener(t)
+		t.Cleanup(func() { _ = qe.Close() })
+		runCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		runDone := start(t, qe, runCtx)
+		cancel()
+		if err := waitRun(t, runDone); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Run after cancelling ctx = %v, want context.Canceled", err)
+		}
+		if err := qe.Run(context.Background()); !errors.Is(err, bullmq.ErrQueueEventsClosed) {
+			t.Fatalf("second Run = %v, want ErrQueueEventsClosed", err)
+		}
+	})
+
+	t.Run("closed before Run", func(t *testing.T) {
+		qe := newListener(t)
+		if err := qe.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := qe.Run(context.Background()); !errors.Is(err, bullmq.ErrQueueEventsClosed) {
+			t.Fatalf("Run after Close = %v, want ErrQueueEventsClosed", err)
+		}
+	})
+}
