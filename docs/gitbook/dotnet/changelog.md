@@ -4,6 +4,12 @@
 
 * **postgres:** share the migration ledger with the other runtimes [dotnet] ([#5162](https://github.com/taskforcesh/bullmq/issues/5162)) ([04071ca](https://github.com/taskforcesh/bullmq/commit/04071cad240dc706e8fcb8d44e53dd8d835557ec))
 
+## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vnet1.3.4...vnet1.3.5) (2026-11-19)
+
+### Performance Improvements
+
+* **worker:** fetch the next job when finishing the current one [dotnet] ([#5164](https://github.com/taskforcesh/bullmq/issues/5164)) ([b613f6a](https://github.com/taskforcesh/bullmq/commit/b613f6a259b874085475695887c2238fb57ac2d5))
+
 ## [1.3.4](https://github.com/taskforcesh/bullmq/compare/vnet1.3.3...vnet1.3.4) (2026-11-19)
 
 ### Bug Fixes
