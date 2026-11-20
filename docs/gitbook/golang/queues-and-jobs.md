@@ -154,20 +154,20 @@ stored. See [Deduplication](../guide/jobs/deduplication.md).
 
 ## Queue operations
 
-| Methods                                                    | What they do                                                                                 |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `Add`, `AddBulk`                                           | Add jobs                                                                                     |
-| `Job`, `JobState`, `Jobs`, `JobIDs`                        | Read jobs, by id or by state                                                                 |
-| `Count`, `JobCounts`                                       | Count the waiting, delayed, prioritized and waiting-children jobs, or the jobs in each state |
-| `Pause`, `Resume`, `IsPaused`                              | Pause the queue for every worker                                                             |
-| `Drain`                                                    | Remove the waiting and prioritized jobs, and optionally the delayed ones                     |
-| `Clean`                                                    | Remove the jobs of a state older than a grace period                                         |
-| `Obliterate`                                               | Remove the queue and all of its jobs                                                         |
-| `RetryJobs`, `PromoteJobs`                                 | Move failed or completed jobs back to wait; make delayed jobs ready                          |
-| `SetGlobalConcurrency`, `GlobalConcurrency`, `IsMaxed`     | Cap how many jobs are active across all workers                                              |
-| `SetGlobalRateLimit`, `RateLimitTTL`                       | Rate limit every worker of the queue                                                         |
-| `Metrics`, `Workers`                                       | Completed and failed metrics; the names of the connected workers                             |
-| `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ... | [Job schedulers](job-schedulers.md)                                                          |
+| Methods                                                                           | What they do                                                                                 |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `Add`, `AddBulk`                                                                  | Add jobs                                                                                     |
+| `Job`, `JobState`, `Jobs`, `JobIDs`                                               | Read jobs, by id or by state                                                                 |
+| `Count`, `JobCounts`                                                              | Count the waiting, delayed, prioritized and waiting-children jobs, or the jobs in each state |
+| `Pause`, `Resume`, `IsPaused`                                                     | Pause the queue for every worker                                                             |
+| `Drain`                                                                           | Remove the waiting and prioritized jobs, and optionally the delayed ones                     |
+| `Clean`                                                                           | Remove the jobs of a state older than a grace period                                         |
+| `Obliterate`                                                                      | Remove the queue and all of its jobs                                                         |
+| `RetryJobs`, `PromoteJobs`                                                        | Move failed or completed jobs back to wait; make delayed jobs ready                          |
+| `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency`, `IsMaxed` | Cap how many jobs are active across all workers                                              |
+| `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Rate limit every worker of the queue                                                         |
+| `Metrics`, `Workers`                                                              | Completed and failed metrics; the names of the connected workers                             |
+| `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](job-schedulers.md)                                                          |
 
 ```go
 counts, err := queue.JobCounts(ctx, bullmq.StateWaiting, bullmq.StateActive, bullmq.StateFailed)

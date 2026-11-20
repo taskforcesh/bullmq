@@ -2,6 +2,8 @@ package bullmq_test
 
 import (
 	"context"
+	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -428,6 +430,96 @@ func testQueueGlobalConcurrency(t *testing.T, be testBackend) {
 	if got != 0 {
 		t.Fatalf("GlobalConcurrency() = %d, want 0", got)
 	}
+
+	if err := q.SetGlobalConcurrency(ctx, 2); err != nil {
+		t.Fatalf("SetGlobalConcurrency: %v", err)
+	}
+	if err := q.RemoveGlobalConcurrency(ctx); err != nil {
+		t.Fatalf("RemoveGlobalConcurrency: %v", err)
+	}
+	if got, err := q.GlobalConcurrency(ctx); err != nil || got != 0 {
+		t.Fatalf("GlobalConcurrency() after RemoveGlobalConcurrency = %d, %v; want 0", got, err)
+	}
+}
+
+// The global rate limit is stored as the max and duration queue metadata
+// fields, as in Node.js, and can be read back and removed.
+func TestQueueGlobalRateLimit(t *testing.T) {
+	forEachBackend(t, testQueueGlobalRateLimit)
+}
+
+func testQueueGlobalRateLimit(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	requireLimit := func(want *bullmq.RateLimiter) {
+		t.Helper()
+		got, err := q.GlobalRateLimit(ctx)
+		if err != nil {
+			t.Fatalf("GlobalRateLimit: %v", err)
+		}
+		if (got == nil) != (want == nil) || (got != nil && *got != *want) {
+			t.Fatalf("GlobalRateLimit() = %+v, want %+v", got, want)
+		}
+	}
+
+	requireLimit(nil)
+	if err := q.SetGlobalRateLimit(ctx, 5, 1500*time.Millisecond); err != nil {
+		t.Fatalf("SetGlobalRateLimit: %v", err)
+	}
+	requireLimit(&bullmq.RateLimiter{Max: 5, Duration: 1500 * time.Millisecond})
+
+	if err := q.RemoveGlobalRateLimit(ctx); err != nil {
+		t.Fatalf("RemoveGlobalRateLimit: %v", err)
+	}
+	requireLimit(nil)
+
+	if err := q.SetGlobalRateLimit(ctx, 5, time.Second); err != nil {
+		t.Fatalf("SetGlobalRateLimit: %v", err)
+	}
+	if err := q.SetGlobalRateLimit(ctx, 0, time.Second); err != nil {
+		t.Fatalf("SetGlobalRateLimit(0) = %v, want it to remove the limit", err)
+	}
+	requireLimit(nil)
+
+	var cfgErr *bullmq.ConfigError
+	if err := q.SetGlobalRateLimit(ctx, 5, 0); !errors.As(err, &cfgErr) {
+		t.Fatalf("SetGlobalRateLimit(5, 0) = %v, want a ConfigError", err)
+	}
+}
+
+// Removing the global rate limit lets workers fetch at full speed again.
+func TestQueueRemoveGlobalRateLimitLiftsTheLimit(t *testing.T) {
+	forEachBackend(t, testQueueRemoveGlobalRateLimitLiftsTheLimit)
+}
+
+func testQueueRemoveGlobalRateLimitLiftsTheLimit(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	// One job per minute: if the limit survived, only the first job would
+	// be processed before the test times out.
+	if err := q.SetGlobalRateLimit(ctx, 1, time.Minute); err != nil {
+		t.Fatalf("SetGlobalRateLimit: %v", err)
+	}
+	if err := q.RemoveGlobalRateLimit(ctx); err != nil {
+		t.Fatalf("RemoveGlobalRateLimit: %v", err)
+	}
+
+	var processed atomic.Int64
+	w := newTestWorker(t, be, q.Name(), func(context.Context, *bullmq.Job) (any, error) {
+		processed.Add(1)
+		return nil, nil
+	}, nil)
+	runWorker(t, w)
+	for range 3 {
+		if _, err := q.Add(ctx, "unlimited", nil, nil); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+	}
+	waitFor(t, 10*time.Second, "every job to be processed", func() bool {
+		return processed.Load() == 3
+	})
 }
 
 func TestQueueCleanRemovesCompletedJobs(t *testing.T) {

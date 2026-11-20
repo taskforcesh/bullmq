@@ -679,7 +679,8 @@ if err != nil {
 
 The limit is shared by the queue, like in the other ports.
 `Queue.SetGlobalRateLimit` sets one for every worker of the queue, without
-configuring each of them. A rate-limited worker sleeps until the limit lifts,
+configuring each of them; `GlobalRateLimit` reads it and
+`RemoveGlobalRateLimit` (or a max of 0) removes it. A rate-limited worker sleeps until the limit lifts,
 at most `MaximumRateLimitDelay` (30 s by default) at a time.
 
 A processor can also rate limit the queue itself, for example when an
@@ -735,20 +736,20 @@ log.Printf("%d jobs completed in total; last hour: %v", metrics.Count, metrics.D
 
 A `Queue` is safe for concurrent use. Its methods mirror Node's `Queue`:
 
-| Methods                                                    | What they do                                                                                 |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `Add`, `AddBulk`                                           | Add jobs                                                                                     |
-| `Job`, `JobState`, `Jobs`, `JobIDs`                        | Read jobs, by id or by state                                                                 |
-| `Count`, `JobCounts`                                       | Count the waiting, delayed, prioritized and waiting-children jobs, or the jobs in each state |
-| `Pause`, `Resume`, `IsPaused`                              | Pause the queue for every worker                                                             |
-| `Drain`                                                    | Remove the waiting and prioritized jobs, and optionally the delayed ones                     |
-| `Clean`                                                    | Remove the jobs of a state older than a grace period                                         |
-| `Obliterate`                                               | Remove the queue and all of its jobs                                                         |
-| `RetryJobs`, `PromoteJobs`                                 | Move failed or completed jobs back to wait; make delayed jobs ready                          |
-| `SetGlobalConcurrency`, `GlobalConcurrency`, `IsMaxed`     | Cap how many jobs are active across all workers                                              |
-| `SetGlobalRateLimit`, `RateLimitTTL`                       | Rate limit every worker of the queue                                                         |
-| `Metrics`, `Workers`                                       | Completed and failed metrics; the names of the connected workers                             |
-| `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ... | [Job schedulers](#job-schedulers)                                                            |
+| Methods                                                                           | What they do                                                                                 |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `Add`, `AddBulk`                                                                  | Add jobs                                                                                     |
+| `Job`, `JobState`, `Jobs`, `JobIDs`                                               | Read jobs, by id or by state                                                                 |
+| `Count`, `JobCounts`                                                              | Count the waiting, delayed, prioritized and waiting-children jobs, or the jobs in each state |
+| `Pause`, `Resume`, `IsPaused`                                                     | Pause the queue for every worker                                                             |
+| `Drain`                                                                           | Remove the waiting and prioritized jobs, and optionally the delayed ones                     |
+| `Clean`                                                                           | Remove the jobs of a state older than a grace period                                         |
+| `Obliterate`                                                                      | Remove the queue and all of its jobs                                                         |
+| `RetryJobs`, `PromoteJobs`                                                        | Move failed or completed jobs back to wait; make delayed jobs ready                          |
+| `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency`, `IsMaxed` | Cap how many jobs are active across all workers                                              |
+| `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Rate limit every worker of the queue                                                         |
+| `Metrics`, `Workers`                                                              | Completed and failed metrics; the names of the connected workers                             |
+| `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](#job-schedulers)                                                            |
 
 ```go
 counts, err := queue.JobCounts(ctx, bullmq.StateWaiting, bullmq.StateActive, bullmq.StateFailed)

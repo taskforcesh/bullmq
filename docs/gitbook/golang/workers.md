@@ -326,7 +326,8 @@ if err != nil {
 ```
 
 `queue.SetGlobalRateLimit(ctx, max, duration)` sets a limit for every worker
-of the queue instead. A rate-limited worker sleeps until the limit lifts, at
+of the queue instead; `queue.GlobalRateLimit(ctx)` reads it and
+`queue.RemoveGlobalRateLimit(ctx)` removes it. A rate-limited worker sleeps until the limit lifts, at
 most `MaximumRateLimitDelay` (30 s by default) at a time.
 
 A processor can rate limit the queue itself, for example when an external API

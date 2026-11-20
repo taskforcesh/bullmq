@@ -408,12 +408,17 @@ func (q *Queue) IsMaxed(ctx context.Context) (bool, error) {
 }
 
 // SetGlobalConcurrency limits how many jobs may be active across all workers.
-// A value of 0 removes the limit.
+// A value of 0 removes the limit, as RemoveGlobalConcurrency does.
 func (q *Queue) SetGlobalConcurrency(ctx context.Context, max int64) error {
 	if max <= 0 {
-		return q.backend.RemoveQueueMetaFields(ctx, "concurrency")
+		return q.RemoveGlobalConcurrency(ctx)
 	}
 	return q.backend.SetQueueMeta(ctx, map[string]any{"concurrency": max})
+}
+
+// RemoveGlobalConcurrency removes the global concurrency limit.
+func (q *Queue) RemoveGlobalConcurrency(ctx context.Context) error {
+	return q.backend.RemoveQueueMetaFields(ctx, "concurrency")
 }
 
 // GlobalConcurrency returns the configured global concurrency limit, or 0 when
@@ -427,10 +432,12 @@ func (q *Queue) GlobalConcurrency(ctx context.Context) (int64, error) {
 }
 
 // SetGlobalRateLimit throttles every worker of this queue to at most max jobs
-// per duration.
+// per duration. For a worker that also has a Limiter, this max and the
+// Limiter's Duration apply, as in Node.js. A max of 0 removes the limit, as
+// RemoveGlobalRateLimit does.
 func (q *Queue) SetGlobalRateLimit(ctx context.Context, max int64, duration time.Duration) error {
 	if max <= 0 {
-		return configError("global rate limit max must be greater than 0")
+		return q.RemoveGlobalRateLimit(ctx)
 	}
 	if duration < time.Millisecond {
 		return configError("global rate limit duration must be at least 1ms")
@@ -439,6 +446,25 @@ func (q *Queue) SetGlobalRateLimit(ctx context.Context, max int64, duration time
 		"max":      max,
 		"duration": duration.Milliseconds(),
 	})
+}
+
+// RemoveGlobalRateLimit removes the global rate limit: workers are then only
+// limited by their own Limiter.
+func (q *Queue) RemoveGlobalRateLimit(ctx context.Context) error {
+	return q.backend.RemoveQueueMetaFields(ctx, "max", "duration")
+}
+
+// GlobalRateLimit returns the global rate limit, or nil when none is set.
+func (q *Queue) GlobalRateLimit(ctx context.Context) (*RateLimiter, error) {
+	max, ok, err := q.backend.GetQueueMetaField(ctx, "max")
+	if err != nil || !ok || max == "" {
+		return nil, err
+	}
+	duration, ok, err := q.backend.GetQueueMetaField(ctx, "duration")
+	if err != nil || !ok || duration == "" {
+		return nil, err
+	}
+	return &RateLimiter{Max: parseInt(max), Duration: time.Duration(parseInt(duration)) * time.Millisecond}, nil
 }
 
 // RateLimitTTL returns the remaining rate limit window in milliseconds.

@@ -6,20 +6,20 @@ Status of the Go port relative to the reference Node.js implementation.
 
 ### Queue
 
-| Feature                                                | Notes                                  |
-| ------------------------------------------------------ | -------------------------------------- |
-| `Add`, `AddBulk`                                       | Standard, delayed and prioritized jobs |
-| Custom job ids                                         | `JobOptions.JobID`                     |
-| Default job options                                    | `QueueOptions.DefaultJobOptions`       |
-| `Pause`, `Resume`, `IsPaused`                          |                                        |
-| `Drain`, `Obliterate`, `Clean`                         |                                        |
-| `Count`, `JobCounts`, `JobIDs`, `Jobs`                 |                                        |
-| `RetryJobs`, `PromoteJobs`                             |                                        |
-| `IsMaxed`, `SetGlobalConcurrency`, `GlobalConcurrency` |                                        |
-| `SetGlobalRateLimit`, `RateLimitTTL`                   |                                        |
-| `Metrics`                                              | Completed/failed data points           |
-| `Workers`                                              | Parsed from `CLIENT LIST`              |
-| Job deduplication                                      | `JobOptions.Deduplication`             |
+| Feature                                                                           | Notes                                                            |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `Add`, `AddBulk`                                                                  | Standard, delayed and prioritized jobs                           |
+| Custom job ids                                                                    | `JobOptions.JobID`                                               |
+| Default job options                                                               | `QueueOptions.DefaultJobOptions`                                 |
+| `Pause`, `Resume`, `IsPaused`                                                     |                                                                  |
+| `Drain`, `Obliterate`, `Clean`                                                    |                                                                  |
+| `Count`, `JobCounts`, `JobIDs`, `Jobs`                                            |                                                                  |
+| `RetryJobs`, `PromoteJobs`                                                        |                                                                  |
+| `IsMaxed`, `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency` |                                                                  |
+| `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Stored as the `max` and `duration` queue metadata, as in Node.js |
+| `Metrics`                                                                         | Completed/failed data points                                     |
+| `Workers`                                                                         | Parsed from `CLIENT LIST`                                        |
+| Job deduplication                                                                 | `JobOptions.Deduplication`                                       |
 
 ### Worker
 
