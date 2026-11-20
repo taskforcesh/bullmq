@@ -61,7 +61,8 @@ type Options struct {
 	// config.ConnConfig.RuntimeParams["search_path"] = "bullmq", since BullMQ
 	// does not change the session state of connections it does not own.
 	// PoolSize does not apply to it. Dedicated LISTEN connections are opened
-	// with its connection settings, outside the pool.
+	// with its connection settings, outside the pool and without its
+	// OnNotification and OnNotice callbacks.
 	Pool *pgxpool.Pool
 	// Schema namespaces every queue. Defaults to "bullmq". It must be a
 	// plain identifier: letters, digits, underscores and $, starting with a

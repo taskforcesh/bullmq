@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	bullmq "github.com/taskforcesh/bullmq-go"
 )
@@ -904,5 +905,47 @@ func TestASharedPoolKeepsNoConnectionAfterItsLastClose(t *testing.T) {
 	time.Sleep(600 * time.Millisecond)
 	if n := pool.Stat().TotalConns(); n != 0 {
 		t.Fatalf("the pool holds %d connections after its last backend closed", n)
+	}
+}
+
+// A caller-supplied pool may route notifications to its own callback; the
+// LISTEN connections built from its settings must still receive them.
+func TestACallerPoolWithANotificationCallback(t *testing.T) {
+	url := testURL(t)
+	ctx := testCtx(t)
+	schema := newSchema(t)
+
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ConnConfig.RuntimeParams["search_path"] = schema
+	// Pooled connections never LISTEN, so the callback only sees the
+	// notifications of a LISTEN connection that kept it.
+	var callbacks atomic.Int64
+	cfg.ConnConfig.OnNotification = func(*pgconn.PgConn, *pgconn.Notification) { callbacks.Add(1) }
+	cfg.ConnConfig.OnNotice = func(*pgconn.PgConn, *pgconn.Notice) {}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+
+	opts := Options{Pool: pool, Schema: schema}
+	worker := newBackend(t, opts, "callback", bullmq.BackendOptions{WithBlockingConnection: true})
+	producer := newBackend(t, opts, "callback", bullmq.BackendOptions{})
+	if _, err := producer.GetCounts(ctx, nil); err != nil {
+		t.Fatalf("GetCounts: %v", err)
+	}
+
+	waited := waitAsync(t, ctx, worker, 10*time.Second)
+	time.Sleep(100 * time.Millisecond)
+	addTestJob(t, ctx, producer, 0)
+	got := <-waited
+	if res, elapsed := got[0].(bullmq.WaitResult), got[1].(time.Duration); !res.Woken || elapsed > 3*time.Second {
+		t.Fatalf("WaitForJob = %+v after %v, want woken by the added job", res, elapsed)
+	}
+	if n := callbacks.Load(); n != 0 {
+		t.Fatalf("the caller's notification callback ran %d times", n)
 	}
 }

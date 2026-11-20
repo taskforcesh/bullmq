@@ -152,6 +152,11 @@ func (l *listener) connect(ctx context.Context, name string) (*pgx.Conn, error) 
 		return nil, err
 	}
 	cfg := l.connConfig()
+	// The settings may come from a caller-supplied pool. Its notification
+	// callback would consume the notifications this connection waits for,
+	// and its notice callback is not meant for this connection.
+	cfg.OnNotification = nil
+	cfg.OnNotice = nil
 	if name != "" {
 		cfg.RuntimeParams["application_name"] = name
 	}
@@ -178,7 +183,7 @@ func (l *listener) run(ctx context.Context, conn *pgx.Conn, name string, done ch
 	for {
 		n, err := conn.WaitForNotification(ctx)
 		if err == nil {
-			if n.Channel == l.channel && n.Payload == l.queue {
+			if n != nil && n.Channel == l.channel && n.Payload == l.queue {
 				l.signal()
 			}
 			continue
