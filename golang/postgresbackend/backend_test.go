@@ -804,3 +804,82 @@ func TestWaitForJobReportsADelayedJobAddedWhileWaiting(t *testing.T) {
 		t.Fatalf("WaitForJob returned %dms before the due time, after %v", due-now, elapsed)
 	}
 }
+
+// breakFunction renames a function of the schema so the commands calling it
+// fail from now on.
+func breakFunction(t *testing.T, ctx context.Context, schema, signature, name string) {
+	t.Helper()
+	if _, err := adminConn(t).Exec(ctx,
+		"ALTER FUNCTION "+quoteIdent(schema)+"."+signature+" RENAME TO "+name); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A finish whose fetch-next found nothing has committed when it asks why;
+// failing to read the answer must not turn the finish into an error, which
+// the worker would retry against a job that is no longer active.
+func TestAFinishSucceedsWhenTheHintsOfAnEmptyFetchCannotBeRead(t *testing.T) {
+	url := testURL(t)
+	ctx := testCtx(t)
+	schema := newSchema(t)
+	b := newBackend(t, Options{ConnString: url, Schema: schema}, "hints", bullmq.BackendOptions{})
+
+	completed := addTestJob(t, ctx, b, 0)
+	failed := addTestJob(t, ctx, b, 0)
+	for _, id := range []string{completed, failed} {
+		if res, err := b.MoveToActive(ctx, bullmq.MoveToActiveOptions{Token: "tok-" + id, LockDuration: time.Minute}); err != nil || res.Job == nil || res.Job.ID != id {
+			t.Fatalf("MoveToActive = %+v, %v; want job %s", res, err, id)
+		}
+	}
+	breakFunction(t, ctx, schema, "next_signal(text, integer, bigint)", "next_signal_gone")
+
+	for _, tc := range []struct {
+		id     string
+		finish func(opts bullmq.FinishOptions) (*bullmq.FinishResult, error)
+		state  bullmq.JobState
+	}{
+		{completed, func(opts bullmq.FinishOptions) (*bullmq.FinishResult, error) {
+			return b.MoveToCompleted(ctx, completed, []byte(`1`), opts)
+		}, bullmq.StateCompleted},
+		{failed, func(opts bullmq.FinishOptions) (*bullmq.FinishResult, error) {
+			return b.MoveToFailed(ctx, failed, bullmq.FailureInfo{Reason: "boom"}, opts)
+		}, bullmq.StateFailed},
+	} {
+		res, err := tc.finish(bullmq.FinishOptions{Token: "tok-" + tc.id, LockDuration: time.Minute, FetchNext: true})
+		if err != nil {
+			t.Fatalf("finishing job %s: %v", tc.id, err)
+		}
+		if res.Next == nil || res.Next.Job != nil || res.Next.RateLimitDelay != 0 || res.Next.NextDelayedAt != 0 {
+			t.Fatalf("finishing job %s fetched %+v, want an empty result without hints", tc.id, res.Next)
+		}
+		if state, err := b.GetState(ctx, tc.id); err != nil || state != tc.state {
+			t.Fatalf("job %s is %q (%v), want %q", tc.id, state, err, tc.state)
+		}
+	}
+}
+
+// Likewise, once a job is delayed, failing to fetch the next one only means
+// "fetch again".
+func TestMoveToDelayedSucceedsWhenTheNextFetchFails(t *testing.T) {
+	url := testURL(t)
+	ctx := testCtx(t)
+	schema := newSchema(t)
+	b := newBackend(t, Options{ConnString: url, Schema: schema}, "delay-fetch", bullmq.BackendOptions{})
+
+	id := addTestJob(t, ctx, b, 0)
+	if res, err := b.MoveToActive(ctx, bullmq.MoveToActiveOptions{Token: "tok", LockDuration: time.Minute}); err != nil || res.Job == nil {
+		t.Fatalf("MoveToActive = %+v, %v", res, err)
+	}
+	breakFunction(t, ctx, schema, "move_to_active(text, text, bigint, bigint, text, integer, bigint)", "move_to_active_gone")
+
+	next, err := b.MoveToDelayed(ctx, id, "tok", time.Minute, bullmq.MoveToDelayedOptions{FetchNext: true, LockDuration: time.Minute})
+	if err != nil {
+		t.Fatalf("MoveToDelayed: %v", err)
+	}
+	if next == nil || next.Job != nil {
+		t.Fatalf("MoveToDelayed fetched %+v, want an empty result", next)
+	}
+	if state, err := b.GetState(ctx, id); err != nil || state != bullmq.StateDelayed {
+		t.Fatalf("job is %q (%v), want delayed", state, err)
+	}
+}

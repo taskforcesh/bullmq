@@ -126,8 +126,11 @@ func (b *Backend) moveToFinished(ctx context.Context, target, jobID string, valu
 			return nil, err
 		}
 		b.collectMetrics(ctx, target, finishedOn, opts.Metrics)
+		// The job has finished: a failure to read the hints of an empty fetch
+		// must not be reported as a failed finish, which the worker would
+		// retry and find the job no longer active. Report no hints instead.
 		if res.Next, err = b.fetchResult(ctx, jobs, a.limiterMax, now); err != nil {
-			return nil, err
+			res.Next = &bullmq.FetchResult{}
 		}
 		return res, nil
 	}
@@ -212,12 +215,18 @@ func (b *Backend) MoveToDelayed(ctx context.Context, jobID, token string, delay 
 	if !opts.FetchNext || lockToken(token) == "0" {
 		return nil, nil
 	}
-	return b.MoveToActive(ctx, bullmq.MoveToActiveOptions{
+	next, err := b.MoveToActive(ctx, bullmq.MoveToActiveOptions{
 		Token:        token,
 		LockDuration: opts.LockDuration,
 		WorkerName:   opts.WorkerName,
 		Limiter:      opts.Limiter,
 	})
+	if err != nil {
+		// The job is delayed already, so the call succeeded; an empty result
+		// tells the worker to fetch again.
+		return &bullmq.FetchResult{}, nil
+	}
+	return next, nil
 }
 
 // MoveJobFromActiveToWait puts an active job back in the wait list without
