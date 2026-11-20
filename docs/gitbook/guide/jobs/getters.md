@@ -79,6 +79,42 @@ println!("waiting: {}, completed: {}, failed: {}", counts.waiting, counts.comple
 
 {% endtab %}
 
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("Paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	counts, err := queue.JobCounts(ctx, bullmq.StateWaiting, bullmq.StateCompleted, bullmq.StateFailed)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Returns a map like this {waiting: number, completed: number, failed: number}
+	log.Printf("waiting: %d, completed: %d, failed: %d",
+		counts[bullmq.StateWaiting], counts[bullmq.StateCompleted], counts[bullmq.StateFailed])
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -174,6 +210,19 @@ var completed = await myQueue.GetJobsAsync(new[] { "completed" }, 0, 99, true);
 
 ```rust
 let completed = queue.get_jobs(&["completed"], 0, 99, true).await?;
+
+// returns jobs at indices 0-99 inclusive (100 jobs total)
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+completed, err := queue.Jobs(ctx, bullmq.StateCompleted, 0, 99, true)
+if err != nil {
+	log.Fatal(err)
+}
 
 // returns jobs at indices 0-99 inclusive (100 jobs total)
 ```
