@@ -89,13 +89,20 @@ func testWorkerCollectsCompletedMetrics(t *testing.T, be testBackend) {
 		return err == nil && state == bullmq.StateCompleted
 	})
 
-	metrics, err := q.Metrics(ctx, bullmq.StateCompleted, 0, -1)
-	if err != nil {
-		t.Fatalf("Metrics: %v", err)
-	}
 	// The data list only gains a point once a one-minute boundary has passed
 	// since the first recorded job, so with a single job in the same minute
-	// only Count (and the initialized PrevTS) are observable here.
+	// only Count (and the initialized PrevTS) are observable here. On
+	// PostgreSQL, as in Node, metrics are a separate statement after the
+	// finish commits, so the count may lag the completed state briefly.
+	var metrics *bullmq.Metrics
+	waitFor(t, 5*time.Second, "the completed metrics to be counted", func() bool {
+		m, err := q.Metrics(ctx, bullmq.StateCompleted, 0, -1)
+		if err != nil {
+			t.Fatalf("Metrics: %v", err)
+		}
+		metrics = m
+		return m.Count >= 1
+	})
 	if metrics.Count != 1 {
 		t.Errorf("Count = %d, want 1", metrics.Count)
 	}
