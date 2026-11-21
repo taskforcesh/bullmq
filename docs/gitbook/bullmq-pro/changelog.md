@@ -1,3 +1,10 @@
+## [7.50.2](https://github.com/taskforcesh/bullmq-pro/compare/v7.50.1...v7.50.2) (2026-11-21)
+
+
+### Bug Fixes
+
+* **deps:** upgrade bullmq to v5.81.6 ([#573](https://github.com/taskforcesh/bullmq-pro/issues/573)) ([19666fd](https://github.com/taskforcesh/bullmq-pro/commit/19666fd3186f6a17fc5803052de6641c23d89254))
+
 ## [7.50.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.50.0...v7.50.1) (2026-11-12)
 
 
