@@ -542,8 +542,12 @@ same time, each on its own goroutine. Every processing slot finishes its job
 and fetches the next one in the same backend call, as the Node.js worker
 does, so a busy worker needs about one round trip per job whatever its
 concurrency. The worker only blocks on the datastore once the queue looks
-drained. Run as many workers as you like, in one process or many; to cap the
-number of jobs processed at once across all of them, use
+drained. `worker.SetConcurrency(n)` changes the concurrency of a running
+worker, as setting Node's `worker.concurrency` does: raising it fetches jobs
+for the new slots right away, and lowering it lets the jobs in flight
+finish, fetching no next job while more than `n` are in flight. Run as many
+workers as you like, in one process or many; to cap the number of jobs
+processed at once across all of them, use
 `Queue.SetGlobalConcurrency`. `Queue.GlobalConcurrency` returns that limit, or
 nil when there is none. Unlike Node.js, where `setGlobalConcurrency(0)` stores
 0 and stops every worker, `SetGlobalConcurrency(ctx, 0)` removes the limit.

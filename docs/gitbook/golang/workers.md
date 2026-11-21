@@ -83,6 +83,18 @@ does, so a busy worker needs about one round trip per job. The worker only
 blocks on the datastore once the queue looks drained, for at most
 `DrainDelay` (5 s by default).
 
+`worker.SetConcurrency(n)` changes the concurrency of a running worker, as
+setting Node's `worker.concurrency` does, and `worker.Concurrency()` reads
+it. Raising it fetches jobs for the new slots right away; lowering it lets
+the jobs in flight finish, fetching no next job while more than `n` are in
+flight:
+
+```go
+if err := worker.SetConcurrency(5); err != nil {
+	log.Fatal(err)
+}
+```
+
 Run as many workers as you need, in one process or many. To cap the number of
 jobs processed at once across all of them, use
 [global concurrency](../guide/queues/global-concurrency.md):

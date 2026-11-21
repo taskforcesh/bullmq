@@ -121,8 +121,8 @@ type Worker struct {
 	idle     chan struct{}
 	resumed  chan struct{}
 
-	// slots holds one token per free processing slot.
-	slots chan struct{}
+	// slots counts the processing slots in use against the concurrency.
+	slots slotState
 	// wake tells the fetch loop that a slot was freed or that it was asked
 	// to fetch again (see refetch), and ctrl that the worker was paused or
 	// resumed. Both hold at most one pending signal.
@@ -204,13 +204,10 @@ func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, 
 		events:  make(chan Event, 256),
 		stop:    make(chan struct{}),
 		runDone: make(chan struct{}),
-		slots:   make(chan struct{}, o.Concurrency),
+		slots:   slotState{limit: o.Concurrency},
 		wake:    make(chan struct{}, 1),
 		ctrl:    make(chan struct{}, 1),
 		active:  make(map[string]*activeJob),
-	}
-	for range o.Concurrency {
-		w.slots <- struct{}{}
 	}
 	return w, nil
 }
@@ -503,7 +500,7 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 		if !fetchNow && w.drained.Load() {
 			// Nothing to fetch: wait until a slot frees up, or until the
 			// backend signals a job while at least one slot is free.
-			if !waiter.running() && len(w.slots) > 0 {
+			if !waiter.running() && w.hasFreeSlot() {
 				timeout := w.opts.DrainDelay
 				if next := w.blockUntil.Swap(0); next > 0 {
 					d := time.Until(time.UnixMilli(next))
@@ -556,19 +553,21 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 			continue
 		}
 
-		select {
-		case <-loopCtx.Done():
-			return loopCtx.Err()
-		case <-w.wake:
+		if !w.acquireSlot() {
+			// Every slot is busy: wait until one is freed or the concurrency
+			// is raised.
+			select {
+			case <-loopCtx.Done():
+				return loopCtx.Err()
+			case <-w.wake:
+			case <-w.ctrl:
+			}
 			continue
-		case <-w.ctrl:
-			continue
-		case <-w.slots:
 		}
 		// The job being fetched counts for Pause from now on, and nothing is
 		// fetched once the worker is paused.
 		if !w.beginJob() {
-			w.slots <- struct{}{}
+			w.releaseSlot()
 			continue
 		}
 
@@ -577,7 +576,7 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 		res, err := w.backend.MoveToActive(loopCtx, w.fetchOptions(token))
 		if err != nil {
 			w.endJob()
-			w.slots <- struct{}{}
+			w.releaseSlot()
 			if loopCtx.Err() != nil {
 				return loopCtx.Err()
 			}
@@ -590,7 +589,7 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 		}
 		if res == nil || res.Job == nil {
 			w.endJob()
-			w.slots <- struct{}{}
+			w.releaseSlot()
 			w.noteEmptyFetch(res)
 			continue
 		}
@@ -699,7 +698,7 @@ func (w *Worker) noteEmptyFetch(res *FetchResult) {
 // previous one, until a finish brings no next job. The slot is then freed.
 func (w *Worker) runSlot(runCtx context.Context, job *Job) {
 	defer func() {
-		w.slots <- struct{}{}
+		w.releaseSlot()
 		signal(w.wake)
 	}()
 	for job != nil {
@@ -765,9 +764,10 @@ func (w *Worker) putBack(runCtx context.Context, job *Job) {
 }
 
 // canFetchNext reports whether finishing a job should also fetch the next
-// one.
+// one: not once the concurrency was lowered below the slots in use, as in
+// Node.js, so that the slot is freed.
 func (w *Worker) canFetchNext(runCtx context.Context) bool {
-	if runCtx.Err() != nil || w.IsPaused() {
+	if runCtx.Err() != nil || w.IsPaused() || !w.withinConcurrency() {
 		return false
 	}
 	select {

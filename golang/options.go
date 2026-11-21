@@ -176,6 +176,7 @@ type WorkerOptions struct {
 	// Name identifies the worker; stored on each processed job as `pb`.
 	Name string
 	// Concurrency is the number of jobs processed in parallel. Defaults to 1.
+	// Worker.SetConcurrency changes it while the worker runs.
 	Concurrency int
 	// LockDuration is how long a job lock is held. Defaults to 30s. A positive
 	// value must be at least 1ms, since the lock TTL is stored in milliseconds,
