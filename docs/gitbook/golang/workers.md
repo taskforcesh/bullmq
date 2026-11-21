@@ -55,11 +55,7 @@ A processor reports progress, and writes logs that every SDK and dashboard
 can read:
 
 ```go
-progress, err := bullmq.NumberProgress(50)
-if err != nil {
-	return err
-}
-if err := job.UpdateProgress(ctx, progress); err != nil {
+if err := job.UpdateProgress(ctx, 50); err != nil {
 	return err
 }
 if _, err := job.Log(ctx, "half way there"); err != nil {
@@ -67,11 +63,16 @@ if _, err := job.Log(ctx, "half way there"); err != nil {
 }
 ```
 
+`UpdateProgress` also takes any value encoded as JSON, such as a struct or a
+map, instead of a number; NaN and infinite numbers are rejected.
+
 A processor can also move its own job and return a sentinel error, so that
 the worker doesn't finish it: `job.MoveToDelayed` with `bullmq.ErrDelayed`
 (the attempt isn't counted), `job.MoveToWaitingChildren` with
-`bullmq.ErrWaitingChildren` (see [Flows](flows.md)), and `worker.RateLimit`
-with `bullmq.ErrRateLimited` (see [Rate limiting](#rate-limiting)).
+`bullmq.ErrWaitingChildren` (see [Flows](flows.md)), `job.MoveToWait` with
+`bullmq.ErrWaiting` (back to the wait list; the attempt isn't counted, as
+with Node's `WaitingError`), and `worker.RateLimit` with
+`bullmq.ErrRateLimited` (see [Rate limiting](#rate-limiting)).
 
 ## Concurrency
 
@@ -82,6 +83,18 @@ does, so a busy worker needs about one round trip per job. The worker only
 blocks on the datastore once the queue looks drained, for at most
 `DrainDelay` (5 s by default).
 
+`worker.SetConcurrency(n)` changes the concurrency of a running worker, as
+setting Node's `worker.concurrency` does, and `worker.Concurrency()` reads
+it. Raising it fetches jobs for the new slots right away; lowering it lets
+the jobs in flight finish, fetching no next job while more than `n` are in
+flight:
+
+```go
+if err := worker.SetConcurrency(5); err != nil {
+	log.Fatal(err)
+}
+```
+
 Run as many workers as you need, in one process or many. To cap the number of
 jobs processed at once across all of them, use
 [global concurrency](../guide/queues/global-concurrency.md):
@@ -91,6 +104,11 @@ if err := queue.SetGlobalConcurrency(ctx, 20); err != nil {
 	log.Fatal(err)
 }
 ```
+
+`queue.GlobalConcurrency` returns the limit, or nil when there is none. Unlike
+Node.js, where `setGlobalConcurrency(0)` stores 0 and stops every worker,
+`SetGlobalConcurrency(ctx, 0)` removes the limit, as
+`RemoveGlobalConcurrency` does.
 
 ## Events
 
@@ -126,6 +144,8 @@ go func() {
 | `EventDrained`           | A fetch found no job, once until a job is fetched again             |                                |
 | `EventError`             | A background error, such as a lost connection                       | `Err`                          |
 | `EventClosed`            | `Run` is returning                                                  |                                |
+| `EventPaused`            | The `Pause` that paused the worker returned                         |                                |
+| `EventResumed`           | `Resume` resumed a paused worker                                    |                                |
 
 The channel never blocks the worker: when its buffer (256 events) is full,
 events are dropped, and `worker.DroppedEvents()` counts them. To see every
@@ -163,6 +183,10 @@ if err != nil {
 	log.Fatal(err)
 }
 ```
+
+As Node's `paused` and `resumed` events, `EventPaused` is emitted once the
+`Pause` that paused the worker returns, and `EventResumed` by `Resume`.
+Unlike Node, a paused worker keeps checking for stalled jobs.
 
 `worker.Pause` affects one worker; `queue.Pause` pauses the queue for every
 worker, in every language. See [Pausing queues](../guide/workers/pausing-queues.md).
@@ -229,8 +253,11 @@ See also [Graceful shutdown](../guide/workers/graceful-shutdown.md).
 
 `worker.CancelJob(jobID, reason)` cancels the context of a job the worker is
 processing, and `worker.CancelAllJobs(reason)` the context of all of them. As
-with Node's `cancelJob`, the job fails with the reason if its processor then
-returns an error (and is retried if attempts remain).
+with Node's `cancelJob`, the job then fails with the error its processor
+returns (and is retried if attempts remain). When that error is `ctx.Err()`
+itself, the job fails with the reason instead; to keep the reason in an
+error of your own, wrap `context.Cause(ctx)`. A processor that ignores the
+cancellation and succeeds completes the job.
 
 ```go
 if !worker.CancelJob(jobID, "superseded by a newer upload") {
@@ -245,8 +272,10 @@ func upload(ctx context.Context, job *bullmq.Job) (any, error) {
 	if err := transfer(ctx, job); err != nil {
 		switch cause := context.Cause(ctx); {
 		case errors.Is(cause, bullmq.ErrJobCancelled):
-			// CancelJob: the job fails with the reason (cause.Error()).
-			cleanUp(job)
+			// CancelJob: ctx is cancelled, so clean up with a context that
+			// isn't, and fail the job with the reason (cause.Error()).
+			cleanUp(context.WithoutCancel(ctx), job)
+			return nil, cause
 		case errors.Is(cause, bullmq.ErrLockLost):
 			// Another worker may own the job now: stop touching it.
 		}
@@ -260,6 +289,16 @@ The cause is `bullmq.ErrJobCancelled` after `CancelJob`, `bullmq.ErrLockLost`
 when the worker couldn't renew the job's lock, or the cause of the `Run`
 context. In the last two cases the job isn't failed. See
 [Cancelling jobs](../guide/workers/cancelling-jobs.md).
+
+Once a job's context is cancelled, the job's methods called with it
+(`UpdateProgress`, `Log`, `UpdateData`, ...) fail with the context's error,
+whereas Node's job methods ignore the abort signal. Make the calls of
+cleanup code with `context.WithoutCancel(ctx)`:
+
+```go
+_ = job.Log(context.WithoutCancel(ctx), fmt.Sprintf("cancelled after %d items", done))
+return nil, fmt.Errorf("cancelled after %d items: %w", done, context.Cause(ctx))
+```
 
 ## Retries and backoff
 
@@ -297,8 +336,20 @@ if err != nil {
 
 `WorkerOptions.MaxStartedAttempts` fails a job that was started more than
 that many times, for example because it keeps stalling, and
-`JobOptions.StackTraceLimit` bounds the failure traces kept on a job. See
-[Retrying failing jobs](../guide/retrying-failing-jobs.md).
+`JobOptions.StackTraceLimit` bounds the failure traces kept on a job.
+
+`Job.Retry` moves a failed (or completed) job back to wait. It keeps the
+attempt counters, so a job that used up its attempts fails for good after one
+more failure, unless you reset them:
+
+```go
+err := job.Retry(ctx, bullmq.StateFailed, &bullmq.RetryOptions{ResetAttemptsMade: true})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+See [Retrying failing jobs](../guide/retrying-failing-jobs.md).
 
 ## Stalled jobs and locks
 
@@ -329,6 +380,11 @@ if err != nil {
 of the queue instead; `queue.GlobalRateLimit(ctx)` reads it and
 `queue.RemoveGlobalRateLimit(ctx)` removes it. A rate-limited worker sleeps until the limit lifts, at
 most `MaximumRateLimitDelay` (30 s by default) at a time.
+`queue.RateLimitTTL(ctx, maxJobs)` tells how long the queue stays limited, in
+milliseconds: the time left in the current window once `maxJobs` jobs were
+counted in it, else 0. With `maxJobs` 0 it uses the global rate limit's max
+and, without one, returns the time left whatever the count, or -2 when no
+window is open, as Node's `getRateLimitTtl()` does.
 
 A processor can rate limit the queue itself, for example when an external API
 asks it to slow down. `worker.RateLimit` limits the queue for a while, and
@@ -376,6 +432,58 @@ if err != nil {
 
 `bullmq.RemoveAll()` removes each job as soon as it finishes. Options set on
 a job take precedence. See [Auto-removal of jobs](../guide/workers/auto-removal-of-jobs.md).
+
+## Fetching jobs by hand
+
+A worker created without a processor fetches nothing by itself: you fetch
+its jobs with `GetNextJob` and finish them with `MoveToCompleted` or
+`MoveToFailed`, as in Node's
+[manual mode](../patterns/manually-fetching-jobs.md). The
+token you choose locks the job; pass it again to finish it. With
+`fetchNext`, finishing a job fetches the next one in the same call:
+
+```go
+worker, err := bullmq.NewWorker("emails", nil, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+// Moves the jobs whose lock expired back to wait, until Close.
+if err := worker.StartStalledCheck(); err != nil {
+	log.Fatal(err)
+}
+
+const token = "my-token"
+for {
+	// Waits up to DrainDelay for a job; nil when there is none.
+	job, err := worker.GetNextJob(ctx, token, true)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for job != nil {
+		result, procErr := handle(ctx, job)
+		if procErr != nil {
+			job, err = job.MoveToFailed(ctx, procErr, token, true)
+		} else {
+			job, err = job.MoveToCompleted(ctx, result, token, true)
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+```
+
+- The worker's settings apply: `LockDuration`, `Limiter`, the removal
+  policies, `Metrics` and `BackoffStrategy`. A failed job is retried while
+  attempts remain, as with a processor.
+- Locks aren't renewed: finish a job within `LockDuration`, or call
+  `job.ExtendLock(ctx, d)`. A job whose lock expires is moved back to wait by
+  the stalled check, and its token no longer finishes it.
+- `GetNextJob` returns nil, without waiting, while the worker or the queue is
+  paused or the queue is rate limited. `Run` returns an error on a worker
+  without a processor.
 
 ## Worker options
 

@@ -40,12 +40,13 @@ defer worker.Close()
 | `PoolSize`         | 20       | Size of the query pool, unless the connection string sets `pool_max_conns`. Connections open on demand (`pool_min_conns` / `pool_min_idle_conns` are ignored for shared pools) |
 | `Pool`             |          | A `*pgxpool.Pool` to use instead of `ConnString`; BullMQ never closes it. Its `OnNotification`/`OnNotice` callbacks aren't used on BullMQ's `LISTEN` connections               |
 | `SkipVersionCheck` | `false`  | Skip the PostgreSQL 13 check                                                                                                                                                   |
+| `SkipMigrations`   | `false`  | Don't migrate: the schema must already be up to date (see [Migrations](#migrations))                                                                                           |
 
 ## Migrations
 
-The first operation of the process creates or migrates the schema, in one
-transaction under the advisory lock every SDK uses, and records the
-migrations in the schema's `migration` ledger, which the other SDKs share.
+The first operation of the process reads the schema's `migration` ledger,
+which the other SDKs share, and unless it is up to date creates or migrates
+the schema, in one transaction under the advisory lock every SDK uses.
 Every new backend checks the ledger, and a schema that requires a newer
 BullMQ major version is refused with a `*postgresbackend.SchemaVersionError`:
 
@@ -56,11 +57,30 @@ if _, err := queue.Add(ctx, "welcome", data, nil); errors.As(err, &versionErr) {
 }
 ```
 
+An up-to-date schema needs no DDL, so the application's role doesn't need to
+own it. It needs `USAGE` and `CREATE` on the schema (each queue gets a job id
+sequence on first use) and `SELECT`, `INSERT`, `UPDATE` and `DELETE` on its
+tables and sequences. To migrate as a deployment step, as the Node.js backend
+does with `runMigrations`, run `postgresbackend.Migrate` with a role that owns
+the schema, and set `SkipMigrations` in the application, which then refuses
+a schema that isn't up to date:
+
+```go
+// At deployment, as the schema owner.
+if err := postgresbackend.Migrate(ctx, postgresbackend.Options{ConnString: ownerURL}); err != nil {
+	log.Fatal(err)
+}
+
+// In the application.
+backend := postgresbackend.New(postgresbackend.Options{ConnString: appURL, SkipMigrations: true})
+```
+
 {% hint style="info" %}
 The Node.js backend only migrates when `runMigrations` is called, while the
-Go backend migrates on first use, as the .NET one does. A schema migrated by
-any SDK can be used by the others. Schemas migrated by early .NET releases,
-which used a `bullmq_migration` ledger, are adopted.
+Go backend migrates on first use unless `SkipMigrations` is set, as the .NET
+one does. A schema migrated by any SDK can be used by the others. Schemas
+migrated by early .NET releases, which used a `bullmq_migration` ledger, are
+adopted.
 {% endhint %}
 
 ## Connections
@@ -75,8 +95,11 @@ which used a `bullmq_migration` ledger, are adopted.
   `max_connections` for the pool plus one connection per worker and listener.
 - The `application_name` of a worker's dedicated connection is `<queue>` or
   `<queue>:w:<worker name>`, as in Node.js; `queue.Workers` lists them.
-  PostgreSQL truncates it to 63 bytes, so the workers of a queue with a long
-  name may be missing, and long worker names are truncated.
+  PostgreSQL stores each non-ASCII byte of it as a 4-byte `\xhh` escape
+  (`é` becomes `\xc3\xa9`; before PostgreSQL 16, a `?`), which
+  `queue.Workers` undoes, and then truncates it to 63 bytes, so the workers
+  of a queue with a long name may be missing, and long worker names are
+  truncated.
 
 To use your own pool, set its `search_path` to the schema, since BullMQ
 doesn't change the session of connections it doesn't own:

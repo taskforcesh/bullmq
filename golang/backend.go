@@ -94,7 +94,9 @@ type Backend interface {
 	AddJob(ctx context.Context, job NewJob) (string, error)
 
 	// AddJobs adds many jobs in a single efficient operation (a Redis
-	// transaction, a multi-row INSERT, ...) and returns their ids in order.
+	// transaction, an SQL transaction, ...) and returns their ids in order.
+	// When the datastore rejects a job, it returns an error; as for AddFlow,
+	// PostgreSQL then adds none of them, while Redis keeps those it accepted.
 	AddJobs(ctx context.Context, jobs []NewJob) ([]string, error)
 
 	// ------------------------------------------------------------------
@@ -141,8 +143,9 @@ type Backend interface {
 	// RetryJob puts an active job straight back into the wait list.
 	RetryJob(ctx context.Context, jobID, token string, lifo bool, failure *FailureInfo) error
 
-	// RetryFinishedJob reprocesses a completed or failed job.
-	RetryFinishedJob(ctx context.Context, jobID string, state JobState, lifo bool) error
+	// RetryFinishedJob reprocesses a completed or failed job, resetting its
+	// attempt counters as opts asks.
+	RetryFinishedJob(ctx context.Context, jobID string, state JobState, lifo bool, opts RetryOptions) error
 
 	// Promote makes a delayed job available immediately.
 	Promote(ctx context.Context, jobID string) error
@@ -155,12 +158,14 @@ type Backend interface {
 	// Bulk and administrative transitions
 	// ------------------------------------------------------------------
 
-	// RetryFinishedJobs moves up to count finished jobs of state back to wait.
-	// It returns a cursor: 0 once nothing is left to move.
+	// RetryFinishedJobs moves up to count jobs of state that finished at or
+	// before timestamp (Unix milliseconds) back to wait. It returns a cursor,
+	// not a count: 0 once nothing is left to move, positive while more may
+	// remain.
 	RetryFinishedJobs(ctx context.Context, state JobState, count, timestamp int64) (int64, error)
 
 	// PromoteJobs moves up to count delayed jobs back to wait. It returns a
-	// cursor: 0 once nothing is left to move.
+	// cursor as RetryFinishedJobs does.
 	PromoteJobs(ctx context.Context, count int64) (int64, error)
 
 	// Pause pauses (true) or resumes (false) the whole queue.
@@ -173,8 +178,9 @@ type Backend interface {
 	// timestamp (Unix milliseconds) and returns their ids.
 	CleanJobsByState(ctx context.Context, state JobState, timestamp, limit int64) ([]string, error)
 
-	// Obliterate destroys the queue and its contents in batches of count. It
-	// returns a cursor: 0 once the obliteration is complete.
+	// Obliterate destroys the queue and its contents, removing up to count
+	// jobs per call. It returns a cursor: 0 once the obliteration is
+	// complete.
 	Obliterate(ctx context.Context, force bool, count int64) (int64, error)
 
 	// ------------------------------------------------------------------
@@ -226,20 +232,29 @@ type Backend interface {
 	// GetJob returns the stored job, or nil when it does not exist.
 	GetJob(ctx context.Context, jobID string) (*JobRecord, error)
 
-	// GetJobs returns the jobs in state, ordered by their position in it.
-	GetJobs(ctx context.Context, state JobState, start, end int64, asc bool) ([]*JobRecord, error)
+	// GetJobs returns the jobs of each of states in turn, those at positions
+	// start to end of that state, ordered as GetRanges orders them. A job is
+	// returned once even if it shows up in two states, and jobs removed
+	// meanwhile are skipped.
+	GetJobs(ctx context.Context, states []JobState, start, end int64, asc bool) ([]*JobRecord, error)
 
 	// GetCounts returns the number of jobs per requested state, in order.
 	GetCounts(ctx context.Context, states []JobState) ([]int64, error)
 
-	// GetRanges returns the job ids of state in [start, end].
-	GetRanges(ctx context.Context, state JobState, start, end int64, asc bool) ([]string, error)
+	// GetRanges returns the ids of the jobs of each of states in turn, those
+	// at positions start to end (inclusive; a negative end counts from the
+	// last one) of that state, oldest or first due first when asc is set.
+	// An id is returned once even if it shows up in two states.
+	GetRanges(ctx context.Context, states []JobState, start, end int64, asc bool) ([]string, error)
 
 	// IsMaxed reports whether the queue reached its global concurrency limit.
 	IsMaxed(ctx context.Context) (bool, error)
 
-	// GetRateLimitTTL returns the remaining ttl in milliseconds of the current
-	// rate limit window.
+	// GetRateLimitTTL returns the time left in the current rate limit window,
+	// in milliseconds, once at least maxJobs jobs were counted in it, and 0
+	// otherwise. A maxJobs of 0 uses the max of the global rate limit and,
+	// without one, returns the time left whatever the count, or -2 when no
+	// window is open (-1 for a window without expiry), as Redis PTTL does.
 	GetRateLimitTTL(ctx context.Context, maxJobs int64) (int64, error)
 
 	// SetRateLimit rate limits the whole queue for ttl, as if the limiter's
@@ -320,7 +335,7 @@ type Backend interface {
 	ForQueue(name string) (Backend, error)
 
 	// AddFlow inserts the jobs of one or more flows in a single operation (a
-	// Redis transaction, a single SQL statement) and returns their ids in
+	// Redis transaction, an SQL transaction) and returns their ids in
 	// order. Each entry names its own queue, which may differ from this
 	// backend's. Entries are ordered so that a parent comes before its
 	// children, and a parent is released from waiting-children only once the
@@ -329,8 +344,9 @@ type Backend interface {
 	// When the datastore rejects an entry, for example because its parent
 	// does not exist ([ErrParentJobNotExist]) or because the job already
 	// exists under another parent ([ErrParentJobCannotBeReplaced]), AddFlow
-	// returns an error for the first rejected entry. Entries the datastore
-	// accepted are kept: neither Redis nor the shared SQL rolls them back.
+	// returns an error for the first rejected entry. A datastore that can
+	// roll back, such as PostgreSQL, then adds none of the entries; Redis
+	// keeps those it accepted.
 	AddFlow(ctx context.Context, entries []FlowEntry) ([]string, error)
 
 	// GetDependencies returns the children of a parent job grouped by
@@ -426,6 +442,35 @@ type Backend interface {
 	// DeleteDeduplicationKey releases the deduplication id dedupID,
 	// whichever job holds it, and reports whether there was one to release.
 	DeleteDeduplicationKey(ctx context.Context, dedupID string) (bool, error)
+
+	// ── Job and queue API additions ──
+
+	// GetCountsPerPriority returns, for each of priorities in order, how
+	// many waiting jobs have that priority; 0 counts the waiting jobs
+	// without a priority.
+	GetCountsPerPriority(ctx context.Context, priorities []int64) ([]int64, error)
+
+	// GetDelayedCount returns how many delayed jobs are due strictly before
+	// before (Unix milliseconds).
+	GetDelayedCount(ctx context.Context, before int64) (int64, error)
+
+	// ── Queue meta and connections ──
+
+	// GetQueueMeta returns every field of the queue metadata hash, or an
+	// empty map when there is none.
+	GetQueueMeta(ctx context.Context) (map[string]string, error)
+
+	// ── Event stream ──
+
+	// TrimEvents trims the event stream to about maxLength events and
+	// returns how many it removed. A backend that can't returns an error
+	// wrapping ErrNotSupported.
+	TrimEvents(ctx context.Context, maxLength int64) (int64, error)
+
+	// PublishEvent appends an event called event with fields (besides the
+	// `event` field) to the event stream, trimmed to about maxEvents where
+	// the backend trims on add, and returns its id.
+	PublishEvent(ctx context.Context, event string, fields map[string]string, maxEvents int64) (string, error)
 }
 
 // BackendOptions describes the role of the backend being built by a
@@ -441,6 +486,13 @@ type BackendOptions struct {
 	// BlockTimeout is the longest blocking read the owner will request. It
 	// lets the backend size socket read timeouts.
 	BlockTimeout time.Duration
+	// QueueMeta holds queue metadata fields the backend writes, as
+	// SetQueueMeta does, once, before the first command it sends. A write
+	// that fails is not retried, unless it failed because its context was
+	// done or with a transient error. Obliterate and Close stop any later
+	// write, so the metadata never comes back after an Obliterate. Queue
+	// sets it unless QueueOptions.SkipMetasUpdate is set.
+	QueueMeta map[string]any
 }
 
 // BackendFactory builds a [Backend] for the queue called name. It is injected

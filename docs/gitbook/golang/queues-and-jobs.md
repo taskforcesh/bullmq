@@ -33,7 +33,8 @@ if err != nil {
 log.Printf("added job %s", job.ID)
 ```
 
-The data is encoded with `encoding/json`, and a processor decodes it with
+The data is encoded with `encoding/json` (nil is stored as `{}`, as Node.js
+stores a job without data), and a processor decodes it with
 `job.DecodeData(&v)`. Several options are pointers, so that an explicit zero
 can override a queue default; `bullmq.Int64` and `bullmq.Bool` build them.
 
@@ -51,7 +52,20 @@ can override a queue default; `bullmq.Int64` and `bullmq.Bool` build them.
 | `Deduplication`                    | See [Deduplication](#deduplication)                                                                                           |
 | `Parent` and the failure options   | See [Flows](flows.md)                                                                                                         |
 
-`AddBulk` adds several jobs in one round trip:
+Times and delays stored with a job keep the units every port stores:
+`JobOptions.Delay`, `Backoff.Delay`, `DeduplicationOptions.TTL` and the
+`RepeatOptions` fields are `int64` milliseconds (`time.Minute.Milliseconds()`;
+dates with `UnixMilli()`), and `RemoveOnFinish.Age` is in seconds. Method
+parameters and worker settings are `time.Duration`s: `job.ChangeDelay`,
+`job.MoveToDelayed`, `job.ExtendLock`, `Worker.RateLimit`, the grace period of
+`Clean` and the durations of `WorkerOptions`. So `ChangeDelay(ctx, 4000)` is
+4 µs; write `4*time.Second`.
+
+`AddBulk` adds several jobs in one round trip (a single `MULTI`/`EXEC` on
+Redis, a single transaction on PostgreSQL). On PostgreSQL a failed batch adds
+no job. Redis doesn't roll back the jobs already added when another one is
+rejected, for example because its parent doesn't exist, so check the queue
+before retrying a failed batch there:
 
 ```go
 jobs, err := queue.AddBulk(ctx, []bullmq.JobSpec{
@@ -146,7 +160,29 @@ _, err = queue.Add(ctx, "sync", data, &bullmq.JobOptions{
 if err != nil {
 	log.Fatal(err)
 }
+
+// Reschedule: push the delayed job back to 5 seconds from now, keeping its
+// id and data. A job that is no longer delayed is left alone.
+_, err = queue.Add(ctx, "sync", data, &bullmq.JobOptions{
+	Delay:         bullmq.Int64(5_000),
+	Deduplication: &bullmq.DeduplicationOptions{ID: "sync-account-42", Reschedule: true},
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+// Keep last if active: while the job runs, remember the last job added and
+// add it once the running one finishes. At most one job runs and one waits.
+_, err = queue.Add(ctx, "deploy", data, &bullmq.JobOptions{
+	Deduplication: &bullmq.DeduplicationOptions{ID: "deploy-repo-7", KeepLastIfActive: true},
+})
+if err != nil {
+	log.Fatal(err)
+}
 ```
+
+`KeepLastIfActive` ignores `TTL`: the id is held until the jobs finish. It
+can't be used on a flow node with a parent.
 
 The `Job` returned for a duplicate carries the existing job's `ID`, but the
 data and options of the call; read it back with `queue.Job` to see what is
@@ -187,21 +223,24 @@ See [Deduplication](../guide/jobs/deduplication.md).
 
 ## Queue operations
 
-| Methods                                                                           | What they do                                                                                 |
-| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `Add`, `AddBulk`                                                                  | Add jobs                                                                                     |
-| `Job`, `JobState`, `Jobs`, `JobIDs`                                               | Read jobs, by id or by state                                                                 |
-| `Count`, `JobCounts`                                                              | Count the waiting, delayed, prioritized and waiting-children jobs, or the jobs in each state |
-| `Pause`, `Resume`, `IsPaused`                                                     | Pause the queue for every worker                                                             |
-| `Drain`                                                                           | Remove the waiting and prioritized jobs, and optionally the delayed ones                     |
-| `Clean`                                                                           | Remove the jobs of a state older than a grace period                                         |
-| `Obliterate`                                                                      | Remove the queue and all of its jobs                                                         |
-| `RetryJobs`, `PromoteJobs`                                                        | Move failed or completed jobs back to wait; make delayed jobs ready                          |
-| `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency`, `IsMaxed` | Cap how many jobs are active across all workers                                              |
-| `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Rate limit every worker of the queue                                                         |
-| `DeduplicationJobID`, `RemoveDeduplicationKey`                                    | Read or release a [deduplication](#deduplication) id                                         |
-| `Metrics`, `Workers`                                                              | Completed and failed metrics; the connected workers (`[]WorkerInfo`)                         |
-| `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](job-schedulers.md)                                                          |
+| Methods                                                                           | What they do                                                                                                                                                    |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Add`, `AddBulk`                                                                  | Add jobs                                                                                                                                                        |
+| `Job`, `JobState`, `Jobs`, `JobIDs`                                               | Read jobs, by id or by states                                                                                                                                   |
+| `Count`, `JobCounts`, `CountsPerPriority`, `DelayedCount`                         | Count the waiting, delayed, prioritized and waiting-children jobs, the jobs in each state, the waiting jobs per priority, or the delayed jobs due before a time |
+| `Pause`, `Resume`, `IsPaused`                                                     | Pause the queue for every worker                                                                                                                                |
+| `Drain`                                                                           | Remove the waiting and prioritized jobs, and optionally the delayed ones                                                                                        |
+| `Remove`                                                                          | Remove a job by id, and optionally its children; false when a worker holds it                                                                                   |
+| `Clean`                                                                           | Remove the jobs of a state older than a grace period                                                                                                            |
+| `Obliterate`                                                                      | Remove the queue and all of its jobs                                                                                                                            |
+| `RetryJobs`, `PromoteJobs`                                                        | Move failed or completed jobs back to wait; make delayed jobs ready                                                                                             |
+| `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency`, `IsMaxed` | Cap how many jobs are active across all workers                                                                                                                 |
+| `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Rate limit every worker of the queue                                                                                                                            |
+| `DeduplicationJobID`, `RemoveDeduplicationKey`                                    | Read or release a [deduplication](#deduplication) id                                                                                                            |
+| `Metrics`, `Workers`                                                              | Completed and failed metrics; the connected workers (`[]WorkerInfo`)                                                                                            |
+| `Meta`, `Version`                                                                 | The queue metadata (limits, paused, events length) and the library that wrote it                                                                                |
+| `TrimEvents`                                                                      | Trim the event stream to about a length ([Queue Events](queue-events.md))                                                                                       |
+| `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](job-schedulers.md)                                                                                                                             |
 
 ```go
 counts, err := queue.JobCounts(ctx, bullmq.StateWaiting, bullmq.StateActive, bullmq.StateFailed)
@@ -212,7 +251,7 @@ log.Printf("%d waiting, %d active, %d failed",
 	counts[bullmq.StateWaiting], counts[bullmq.StateActive], counts[bullmq.StateFailed])
 
 // The 10 most recent failures.
-failed, err := queue.Jobs(ctx, bullmq.StateFailed, 0, 9, false)
+failed, err := queue.Jobs(ctx, 0, 9, false, bullmq.StateFailed)
 if err != nil {
 	log.Fatal(err)
 }
@@ -220,16 +259,40 @@ for _, job := range failed {
 	log.Printf("%s failed: %s", job.ID, job.FailedReason)
 }
 
+// The next 10 jobs to run of each pending state, as Node's getWaiting,
+// getPrioritized and getDelayed list them.
+next, err := queue.Jobs(ctx, 0, 9, true, bullmq.StateWaiting, bullmq.StatePrioritized, bullmq.StateDelayed)
+if err != nil {
+	log.Fatal(err)
+}
+log.Printf("%d jobs to run", len(next))
+
 // Remove the completed jobs older than a day, at most 1000 of them.
 removed, err := queue.Clean(ctx, 24*time.Hour, 1000, bullmq.StateCompleted)
 if err != nil {
 	log.Fatal(err)
 }
 log.Printf("removed %d jobs", len(removed))
+
+// Retry the jobs that failed more than an hour ago, 1000 per round trip.
+if err := queue.RetryJobs(ctx, &bullmq.RetryJobsOptions{Before: time.Now().Add(-time.Hour)}); err != nil {
+	log.Fatal(err)
+}
 ```
 
 `queue.Job` returns `nil` for a job that doesn't exist. A `*bullmq.Job` can be
 changed and inspected with `UpdateData`, `UpdateProgress`, `Log` and `Logs`,
 `State`, `IsCompleted`, `IsFailed`, `Promote`, `ChangeDelay`,
 `ChangePriority`, `Retry` and `Remove`, which returns `bullmq.ErrJobLocked`
-while a worker holds the job.
+while a worker holds the job. `queue.Remove(ctx, id, removeChildren)` removes
+a job by id without reading it first, and returns false while a worker holds
+it.
+
+`NewQueue` doesn't reach the datastore. Before its first command, a queue
+writes its metadata, as Node's `Queue` does: `version`, which is
+`bullmq:<bullmq.ScriptsVersion>`, the version of the Node.js package whose
+scripts the module embeds, so dashboards enable the matching features; and
+`opts.maxLenEvents`, the approximate maximum length of the events stream,
+`QueueOptions.EventsMaxLen` (10,000 by default). Set
+`QueueOptions.SkipMetasUpdate` for a role that may only read. `queue.Meta`
+reads the metadata back.

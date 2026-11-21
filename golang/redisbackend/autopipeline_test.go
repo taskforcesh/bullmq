@@ -98,7 +98,7 @@ func TestAutoPipelineBatchesConcurrentCommands(t *testing.T) {
 	requireRedis(t)
 	q := newTestQueue(t, Options{AutoPipeline: &redis.AutoPipelineOptions{}})
 	rb := redisOf(t, q)
-	if rb.ap == nil || rb.cmd != rb.ap || rb.ap.Config().FullDuplex {
+	if rb.ap == nil || rb.commands != rb.ap || rb.ap.Config().FullDuplex {
 		t.Fatal("the backend does not use a half-duplex auto-pipeliner")
 	}
 	hook := &batchHook{}
@@ -115,7 +115,7 @@ func TestAutoPipelineFullDuplex(t *testing.T) {
 	requireRedis(t)
 	q := newTestQueue(t, Options{AutoPipeline: &redis.AutoPipelineOptions{FullDuplex: true}})
 	rb := redisOf(t, q)
-	if rb.ap == nil || rb.cmd != rb.ap || !rb.ap.Config().FullDuplex {
+	if rb.ap == nil || rb.commands != rb.ap || !rb.ap.Config().FullDuplex {
 		t.Fatal("the backend does not use a full-duplex auto-pipeliner")
 	}
 	addConcurrently(t, q, 200)
@@ -165,7 +165,7 @@ func TestAutoPipelineIsClosedOnlyWithAnOwnedClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sibling.ap != owned.ap || sibling.cmd != owned.cmd {
+	if sibling.ap != owned.ap || sibling.commands != owned.commands {
 		t.Error("ForQueue does not share the auto-pipeliner")
 	}
 	if err := sibling.Close(); err != nil || owned.ap.IsClosed() {
@@ -207,8 +207,8 @@ func TestAutoPipelineFallsBackWhenTheClientCannot(t *testing.T) {
 	defer ring.Close()
 
 	b := newAutoPipelinedBackend(t, Options{Client: ring})
-	if b.ap != nil || b.cmd != ring {
-		t.Fatalf("backend on a Ring uses %T, want the Ring itself", b.cmd)
+	if b.ap != nil || b.commands != ring {
+		t.Fatalf("backend on a Ring uses %T, want the Ring itself", b.commands)
 	}
 	if _, err := b.AddJob(ctx, bullmq.NewJob{Name: "ring", Data: []byte("null"), Opts: &bullmq.JobOptions{}}); err != nil {
 		t.Fatalf("AddJob: %v", err)
@@ -240,12 +240,12 @@ func TestAutoPipelineFallsBackToEvalOnNoScript(t *testing.T) {
 			src := "return '" + tag + "'"
 			s := &luaScript{name: "probe", src: src, script: redis.NewScript(src)}
 
-			err := b.cmd.EvalSha(ctx, s.script.Hash(), nil).Err()
+			err := b.commands.EvalSha(ctx, s.script.Hash(), nil).Err()
 			if !redis.HasErrorPrefix(err, "NOSCRIPT") {
 				t.Fatalf("EVALSHA error = %v, want NOSCRIPT", err)
 			}
 			for range 2 {
-				res, err := s.run(ctx, b.cmd, nil).Result()
+				res, err := s.run(ctx, b.commands, nil).Result()
 				if err != nil || res != tag {
 					t.Fatalf("run = %v, %v", res, err)
 				}
@@ -255,8 +255,9 @@ func TestAutoPipelineFallsBackToEvalOnNoScript(t *testing.T) {
 }
 
 // A plain client sends nothing once the context is done. The auto-pipeliner
-// runs queued commands on its own context, so the backend checks it first.
-func TestCancelledContextSendsNoScript(t *testing.T) {
+// runs queued commands on its own context, so the backend checks it before
+// every non-blocking command: Lua commands, typed writes and typed reads.
+func TestCancelledContextSendsNoCommand(t *testing.T) {
 	requireRedis(t)
 	modes := append([]struct {
 		name string
@@ -265,6 +266,7 @@ func TestCancelledContextSendsNoScript(t *testing.T) {
 	for _, mode := range modes {
 		t.Run(mode.name, func(t *testing.T) {
 			ap := mode.opts()
+			live := testContext(t)
 			// Not newTestQueue: REDIS_AUTOPIPELINE must not turn the plain case on.
 			q, err := bullmq.NewQueue(testQueueName(t), &bullmq.QueueOptions{
 				Backend: New(Options{Addr: redisAddr(), AutoPipeline: ap}),
@@ -272,17 +274,69 @@ func TestCancelledContextSendsNoScript(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewQueue: %v", err)
 			}
-			t.Cleanup(func() { _ = q.Close() })
-			if (redisOf(t, q).ap != nil) != (ap != nil) {
-				t.Fatalf("auto-pipelining = %v, want %v", redisOf(t, q).ap != nil, ap != nil)
+			t.Cleanup(func() {
+				_ = q.Obliterate(context.Background(), &bullmq.ObliterateOptions{Force: true})
+				_ = q.Close()
+			})
+			rb := redisOf(t, q)
+			if (rb.ap != nil) != (ap != nil) {
+				t.Fatalf("auto-pipelining = %v, want %v", rb.ap != nil, ap != nil)
 			}
+			job, err := q.Add(live, "held", nil, &bullmq.JobOptions{
+				Deduplication: &bullmq.DeduplicationOptions{ID: "dedup"},
+			})
+			if err != nil {
+				t.Fatalf("Add: %v", err)
+			}
+			if _, err := job.Log(live, "row"); err != nil {
+				t.Fatalf("Log: %v", err)
+			}
+			if err := q.SetGlobalRateLimit(live, 10, time.Second); err != nil {
+				t.Fatalf("SetGlobalRateLimit: %v", err)
+			}
+
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			if _, err := q.Add(ctx, "cancelled", nil, nil); !errors.Is(err, context.Canceled) {
-				t.Fatalf("Add error = %v, want context.Canceled", err)
+			calls := []struct {
+				name string
+				call func() error
+			}{
+				{"Add (Lua)", func() error { _, err := q.Add(ctx, "cancelled", nil, nil); return err }},
+				{"SetGlobalConcurrency (HSET)", func() error { return q.SetGlobalConcurrency(ctx, 5) }},
+				{"RemoveGlobalRateLimit (HDEL)", func() error { return q.RemoveGlobalRateLimit(ctx) }},
+				{"RemoveDeduplicationKey (DEL)", func() error { _, err := q.RemoveDeduplicationKey(ctx, "dedup"); return err }},
+				{"SetRateLimit (SET)", func() error { return rb.SetRateLimit(ctx, time.Minute) }},
+				{"GlobalRateLimit (HGET)", func() error { _, err := q.GlobalRateLimit(ctx); return err }},
+				{"DeduplicationJobID (GET)", func() error { _, err := q.DeduplicationJobID(ctx, "dedup"); return err }},
+				{"Job (HGETALL)", func() error { _, err := q.Job(ctx, job.ID); return err }},
+				{"Logs (LRANGE)", func() error { _, _, err := job.Logs(ctx, 0, -1); return err }},
+				{"ChildrenValues (HGETALL)", func() error { _, err := job.ChildrenValues(ctx); return err }},
+				{"IgnoredChildrenFailures (HGETALL)", func() error { _, err := job.IgnoredChildrenFailures(ctx); return err }},
+				{"IsJobScheduler (HEXISTS)", func() error { _, err := rb.IsJobScheduler(ctx, "s"); return err }},
+				{"JobSchedulers (ZRANGE)", func() error { _, err := q.JobSchedulers(ctx, 0, -1, true); return err }},
+				{"JobSchedulers (ZREVRANGE)", func() error { _, err := q.JobSchedulers(ctx, 0, -1, false); return err }},
+				{"JobSchedulersCount (ZCARD)", func() error { _, err := q.JobSchedulersCount(ctx); return err }},
 			}
-			if n, err := q.Count(testContext(t)); err != nil || n != 0 {
-				t.Fatalf("Count = %d, %v; want no job added", n, err)
+			for _, c := range calls {
+				if err := c.call(); !errors.Is(err, context.Canceled) {
+					t.Errorf("%s error = %v, want context.Canceled", c.name, err)
+				}
+			}
+
+			if n, err := q.Count(live); err != nil || n != 1 {
+				t.Errorf("Count = %d, %v; want no job added", n, err)
+			}
+			if max, err := q.GlobalConcurrency(live); err != nil || max != nil {
+				t.Errorf("GlobalConcurrency = %v, %v; want it unset", max, err)
+			}
+			if rl, err := q.GlobalRateLimit(live); err != nil || rl == nil {
+				t.Errorf("GlobalRateLimit = %v, %v; want it kept", rl, err)
+			}
+			if id, err := q.DeduplicationJobID(live, "dedup"); err != nil || id != job.ID {
+				t.Errorf("DeduplicationJobID = %q, %v; want %q kept", id, err, job.ID)
+			}
+			if n, err := rb.Client().Exists(live, rb.Keys().Limiter()).Result(); err != nil || n != 0 {
+				t.Errorf("limiter key exists = %d, %v; want it not set", n, err)
 			}
 		})
 	}

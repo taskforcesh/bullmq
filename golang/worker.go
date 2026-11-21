@@ -27,7 +27,12 @@ import (
 // ([ErrJobCancelled]); context.Cause tells which. An error returned after the
 // worker itself cancelled ctx (Run or the lock) is not recorded: the job is left
 // active, without using up an attempt, for the stalled check to recover. After
-// CancelJob the job fails with the cancellation reason.
+// CancelJob the job fails with the error the processor returns, as in Node.js,
+// and with the cancellation reason when that error is ctx.Err() itself.
+//
+// Once ctx is cancelled, the job's methods called with it (UpdateProgress,
+// Log, ...) fail with ctx's error. Cleanup that must still reach the
+// datastore uses context.WithoutCancel(ctx).
 type Processor func(ctx context.Context, job *Job) (any, error)
 
 // EventType identifies a worker lifecycle event.
@@ -54,6 +59,13 @@ const (
 	EventDrained      EventType = "drained"
 	EventError        EventType = "error"
 	EventClosed       EventType = "closed"
+	// EventPaused is emitted by the Pause that paused the worker once it
+	// returns, as Node emits paused once pause has waited for the jobs in
+	// flight (whose EventCompleted or EventFailed may follow it); not when
+	// the worker was resumed or closed meanwhile.
+	EventPaused EventType = "paused"
+	// EventResumed is emitted by Resume when the worker was paused.
+	EventResumed EventType = "resumed"
 )
 
 // Event is emitted by a Worker through Worker.Events.
@@ -61,7 +73,7 @@ type Event struct {
 	// Type is the kind of event.
 	Type EventType
 	// Job is the job the event refers to; nil for EventDrained, EventError,
-	// EventClosed and the lock events. For EventStalled only ID and
+	// EventClosed, EventPaused, EventResumed and the lock events. For EventStalled only ID and
 	// QueueName are set, since the stalled check reports job ids; load the
 	// job with Queue.Job (or Job.State) if needed.
 	Job *Job
@@ -101,7 +113,9 @@ type Worker struct {
 	closeOnce sync.Once
 	closeErr  error
 	stop      chan struct{}
-	wg        sync.WaitGroup
+	// runDone is closed when the Run that claimed runOnce returns.
+	runDone chan struct{}
+	wg      sync.WaitGroup
 
 	// pauseMu guards the changes of paused and the fields below, which Pause
 	// waits on. inFlight counts the jobs being fetched into a free slot or
@@ -114,8 +128,8 @@ type Worker struct {
 	idle     chan struct{}
 	resumed  chan struct{}
 
-	// slots holds one token per free processing slot.
-	slots chan struct{}
+	// slots counts the processing slots in use against the concurrency.
+	slots slotState
 	// wake tells the fetch loop that a slot was freed or that it was asked
 	// to fetch again (see refetch), and ctrl that the worker was paused or
 	// resumed. Both hold at most one pending signal.
@@ -136,6 +150,9 @@ type Worker struct {
 
 	mu     sync.Mutex
 	active map[string]*activeJob
+
+	// manual holds the state of a worker without a processor.
+	manual manualState
 }
 
 type activeJob struct {
@@ -164,10 +181,11 @@ func clientNameSuffix(name string) string {
 }
 
 // NewWorker creates a worker for the given queue. Call Run to start processing.
+//
+// A worker created with a nil proc processes nothing by itself: its jobs are
+// fetched with GetNextJob and finished with Job.MoveToCompleted or
+// Job.MoveToFailed, as in Node's manual mode (see GetNextJob).
 func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, error) {
-	if proc == nil {
-		return nil, configError("a processor function is required")
-	}
 	if opts == nil {
 		opts = &WorkerOptions{}
 	}
@@ -192,13 +210,11 @@ func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, 
 		id:      randomID(),
 		events:  make(chan Event, 256),
 		stop:    make(chan struct{}),
-		slots:   make(chan struct{}, o.Concurrency),
+		runDone: make(chan struct{}),
+		slots:   slotState{limit: o.Concurrency},
 		wake:    make(chan struct{}, 1),
 		ctrl:    make(chan struct{}, 1),
 		active:  make(map[string]*activeJob),
-	}
-	for range o.Concurrency {
-		w.slots <- struct{}{}
 	}
 	return w, nil
 }
@@ -229,7 +245,9 @@ func (w *Worker) DroppedEvents() uint64 { return w.droppedEvents.Load() }
 // Pause stops this worker from starting new jobs, as Node's pause does.
 // Unless doNotWaitActive is set, it then waits until the jobs being processed
 // have finished, or until ctx is done (returning ctx's error), the worker is
-// resumed, or it is closed (returning ErrWorkerClosed).
+// resumed, or it is closed (returning ErrWorkerClosed). The Pause that paused
+// the worker then emits EventPaused, unless the worker was resumed or closed
+// meanwhile. A paused worker keeps checking for stalled jobs, unlike Node's.
 //
 // It may be called from WorkerOptions.OnEvent: from EventDrained, or from the
 // EventCompleted or EventFailed of a job, it waits for the other jobs only. A
@@ -238,7 +256,8 @@ func (w *Worker) DroppedEvents() uint64 { return w.droppedEvents.Load() }
 // Pause would otherwise wait for that job.
 func (w *Worker) Pause(ctx context.Context, doNotWaitActive bool) error {
 	w.pauseMu.Lock()
-	if !w.paused.Load() {
+	pausing := !w.paused.Load()
+	if pausing {
 		w.paused.Store(true)
 		w.resumed = make(chan struct{})
 	}
@@ -246,24 +265,29 @@ func (w *Worker) Pause(ctx context.Context, doNotWaitActive bool) error {
 	w.pauseMu.Unlock()
 	signal(w.ctrl)
 
-	if doNotWaitActive || !busy {
-		return nil
+	var err error
+	if !doNotWaitActive && busy {
+		select {
+		case <-idle:
+		case <-resumed:
+			return nil
+		case <-w.stop:
+			return ErrWorkerClosed
+		case <-ctx.Done():
+			err = ctx.Err()
+		}
 	}
-	select {
-	case <-idle:
-		return nil
-	case <-resumed:
-		return nil
-	case <-w.stop:
-		return ErrWorkerClosed
-	case <-ctx.Done():
-		return ctx.Err()
+	if pausing && w.IsPaused() {
+		w.emit(Event{Type: EventPaused})
 	}
+	return err
 }
 
-// Resume restarts fetching jobs after Pause.
+// Resume restarts fetching jobs after Pause, and emits EventResumed when the
+// worker was paused.
 func (w *Worker) Resume() {
 	w.pauseMu.Lock()
+	wasPaused := w.paused.Load()
 	w.paused.Store(false)
 	if w.resumed != nil {
 		close(w.resumed)
@@ -271,6 +295,9 @@ func (w *Worker) Resume() {
 	}
 	w.pauseMu.Unlock()
 	signal(w.ctrl)
+	if wasPaused {
+		w.emit(Event{Type: EventResumed})
+	}
 }
 
 // beginJob counts a job about to be fetched into a free slot or started by
@@ -311,9 +338,12 @@ func (w *Worker) ActiveCount() int {
 
 // CancelJob cancels the context of a job this worker is processing, with a
 // cause (see context.Cause) that matches ErrJobCancelled and reads as reason.
-// When the processor then returns an error, the job fails with reason as
-// its failure (and is retried if attempts remain), as Node.js's cancelJob
-// does. It reports whether the job was being processed.
+// When the processor then returns an error, the job fails with it (and is
+// retried if attempts remain), as Node.js's cancelJob records what the
+// processor throws; a bare ctx.Err() fails it with reason. To keep the
+// reason in an error of your own, wrap context.Cause(ctx). A processor that
+// returns no error completes the job. It reports whether the job was being
+// processed.
 func (w *Worker) CancelJob(jobID, reason string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -343,21 +373,24 @@ func (w *Worker) CancelAllJobs(reason string) {
 //     recover (see [Processor]). Once their processors have returned, it
 //     returns ctx's error, even if Close was also called.
 //   - It returns [ErrWorkerClosed] straight away when Run was already called
-//     or the worker is closed.
+//     or the worker is closed, and a [ConfigError] for a worker without a
+//     processor.
 //
 // Call Close after Run returns because ctx was done, to release the
 // worker's connections.
 func (w *Worker) Run(ctx context.Context) error {
-	var err error
+	if w.proc == nil {
+		return configError("a worker without a processor can't Run: fetch its jobs with GetNextJob")
+	}
 	started := false
-	w.runOnce.Do(func() {
-		started = true
-		err = w.run(ctx)
-	})
+	// runOnce only claims startup, so that a concurrent Run returns at once;
+	// Close waits for runDone instead.
+	w.runOnce.Do(func() { started = true })
 	if !started {
 		return ErrWorkerClosed
 	}
-	return err
+	defer close(w.runDone)
+	return w.run(ctx)
 }
 
 func (w *Worker) run(ctx context.Context) error {
@@ -485,7 +518,7 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 		if !fetchNow && w.drained.Load() {
 			// Nothing to fetch: wait until a slot frees up, or until the
 			// backend signals a job while at least one slot is free.
-			if !waiter.running() && len(w.slots) > 0 {
+			if !waiter.running() && w.hasFreeSlot() {
 				timeout := w.opts.DrainDelay
 				if next := w.blockUntil.Swap(0); next > 0 {
 					d := time.Until(time.UnixMilli(next))
@@ -538,19 +571,21 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 			continue
 		}
 
-		select {
-		case <-loopCtx.Done():
-			return loopCtx.Err()
-		case <-w.wake:
+		if !w.acquireSlot() {
+			// Every slot is busy: wait until one is freed or the concurrency
+			// is raised.
+			select {
+			case <-loopCtx.Done():
+				return loopCtx.Err()
+			case <-w.wake:
+			case <-w.ctrl:
+			}
 			continue
-		case <-w.ctrl:
-			continue
-		case <-w.slots:
 		}
 		// The job being fetched counts for Pause from now on, and nothing is
 		// fetched once the worker is paused.
 		if !w.beginJob() {
-			w.slots <- struct{}{}
+			w.releaseSlot()
 			continue
 		}
 
@@ -559,7 +594,7 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 		res, err := w.backend.MoveToActive(loopCtx, w.fetchOptions(token))
 		if err != nil {
 			w.endJob()
-			w.slots <- struct{}{}
+			w.releaseSlot()
 			if loopCtx.Err() != nil {
 				return loopCtx.Err()
 			}
@@ -572,7 +607,7 @@ func (w *Worker) fetchLoop(loopCtx, runCtx context.Context) error {
 		}
 		if res == nil || res.Job == nil {
 			w.endJob()
-			w.slots <- struct{}{}
+			w.releaseSlot()
 			w.noteEmptyFetch(res)
 			continue
 		}
@@ -681,7 +716,7 @@ func (w *Worker) noteEmptyFetch(res *FetchResult) {
 // previous one, until a finish brings no next job. The slot is then freed.
 func (w *Worker) runSlot(runCtx context.Context, job *Job) {
 	defer func() {
-		w.slots <- struct{}{}
+		w.releaseSlot()
 		signal(w.wake)
 	}()
 	for job != nil {
@@ -747,9 +782,10 @@ func (w *Worker) putBack(runCtx context.Context, job *Job) {
 }
 
 // canFetchNext reports whether finishing a job should also fetch the next
-// one.
+// one: not once the concurrency was lowered below the slots in use, as in
+// Node.js, so that the slot is freed.
 func (w *Worker) canFetchNext(runCtx context.Context) bool {
-	if runCtx.Err() != nil || w.IsPaused() {
+	if runCtx.Err() != nil || w.IsPaused() || !w.withinConcurrency() {
 		return false
 	}
 	select {
@@ -895,7 +931,7 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 	}
 
 	// The processor took ownership of the job's next state.
-	if errors.Is(err, ErrDelayed) || errors.Is(err, ErrWaitingChildren) {
+	if errors.Is(err, ErrDelayed) || errors.Is(err, ErrWaitingChildren) || errors.Is(err, ErrWaiting) {
 		return w.fetchAfterHandOff(runCtx, job.token)
 	}
 
@@ -908,8 +944,12 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 			// active for the stalled check to recover, as Node.js does.
 			return nextFetch{}
 		}
-		// Cancelled with CancelJob: fail with the reason, as Node.js does.
-		if errors.Is(err, context.Canceled) {
+		// Cancelled with CancelJob: the job fails with the processor's
+		// error, as Node.js records what the processor throws. A bare
+		// ctx.Err() says nothing more than the cancellation, so the reason
+		// stands in for it, as when a Node.js processor throws the abort
+		// signal's reason.
+		if err == context.Canceled {
 			err = cause
 		}
 	}
@@ -1004,8 +1044,8 @@ func (w *Worker) RateLimit(ctx context.Context, d time.Duration) error {
 }
 
 // fetchAfterHandOff fetches the slot's next job once the processor itself
-// moved its job out of active (to delayed or waiting-children), as finishing
-// would have.
+// moved its job out of active (to delayed, waiting-children or wait), as
+// finishing would have.
 func (w *Worker) fetchAfterHandOff(runCtx context.Context, token string) nextFetch {
 	if !w.canFetchNext(runCtx) {
 		return nextFetch{}
@@ -1395,15 +1435,16 @@ func (w *Worker) checkStalledJobs(ctx context.Context) error {
 func (w *Worker) Close() error {
 	w.closeOnce.Do(func() {
 		w.stopOnce.Do(func() { close(w.stop) })
-		// runOnce is shared with Run: sync.Once.Do blocks concurrent callers
-		// until an in-progress call's function returns, and Run's function
-		// spans the entire run() lifecycle. So this call either waits for an
-		// already-running Run to fully stop (its function only returns once
-		// run() does, after the stop signal above has been observed), or, if
-		// Run was never called, claims the once itself so any later Run call
-		// observes it as already closed and never touches the resources
-		// below. Either way, it is safe to close them once this returns.
-		w.runOnce.Do(func() {})
+		// Claim startup in case Run was never called: a later Run then
+		// returns ErrWorkerClosed and never touches the resources below.
+		// Otherwise wait for Run, which returns once it has observed the
+		// stop signal above. Either way, it is safe to close them after.
+		ran := true
+		w.runOnce.Do(func() { ran = false })
+		if ran {
+			<-w.runDone
+		}
+		w.stopManual()
 		w.closeErr = w.backend.Close()
 		w.eventsMu.Lock()
 		w.eventsClosed = true

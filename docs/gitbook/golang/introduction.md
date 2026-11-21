@@ -171,7 +171,7 @@ The `bullmq` schema is created and migrated by the first operation. See
 
 ## Connection configuration
 
-`redisbackend.Options` holds the Redis settings: `Addr` (`127.0.0.1:6379` by
+`redisbackend.Options` holds the Redis settings: `Addr` (`localhost:6379` by
 default), `Username`, `Password`, `DB`, `PoolSize`, and the key `Prefix`
 (`bull` by default, as in every other SDK):
 
@@ -201,8 +201,12 @@ backend := redisbackend.New(redisbackend.Options{Client: rdb})
 ```
 
 Workers and `QueueEvents` still run their blocking reads on a dedicated
-connection, derived from the client's options, so that a blocked read never
-holds a connection of the shared pool.
+client, derived from the options of a `*redis.Client` (one connection) or a
+`*redis.ClusterClient` (one connection per node), so that a blocked read
+never holds a connection of the shared pool. A `*redis.Ring` can't be cloned,
+so its blocking reads share its pool. `Backend()` on a queue, worker,
+`QueueEvents` or `FlowProducer` returns its backend; a
+`*redisbackend.Backend` exposes `Client()` and `BlockingClient()`.
 
 ### Auto-pipelining
 
@@ -272,7 +276,7 @@ func TestWelcomeEmail(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_ = queue.Obliterate(context.Background(), true, 0)
+		_ = queue.Obliterate(context.Background(), &bullmq.ObliterateOptions{Force: true})
 		_ = queue.Close()
 	})
 
@@ -311,9 +315,9 @@ return `bullmq.ErrNoContext` on such a job.
 ## Limitations
 
 - No telemetry (OpenTelemetry) integration yet.
-- Redis Cluster and Sentinel are untested: a cluster or failover client can be
-  passed as `Client`, but the test suite only runs against a standalone
-  server.
+- Redis Cluster is lightly tested and Sentinel untested: a cluster or
+  failover client can be passed as `Client`, but CI only runs against a
+  standalone server (the cluster tests run when `REDIS_CLUSTER_ADDRS` is set).
 - On PostgreSQL, `QueueEvents` can miss events when several jobs finish at
   once, in every SDK, until
   [#5183](https://github.com/taskforcesh/bullmq/issues/5183) is fixed.

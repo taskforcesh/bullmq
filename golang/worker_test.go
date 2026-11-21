@@ -1121,6 +1121,30 @@ func testWorkerRunReturnValues(t *testing.T, be testBackend) {
 			t.Fatalf("Run after Close = %v, want ErrWorkerClosed", err)
 		}
 	})
+
+	t.Run("concurrent Run", func(t *testing.T) {
+		w := newTestWorker(t, be, q.Name(), noop, nil)
+		runDone := make(chan error, 1)
+		go func() { runDone <- w.Run(context.Background()) }()
+		waitDrained(t, w)
+		second := make(chan error, 1)
+		go func() { second <- w.Run(context.Background()) }()
+		select {
+		case err := <-second:
+			if !errors.Is(err, bullmq.ErrWorkerClosed) {
+				t.Errorf("second Run = %v, want ErrWorkerClosed", err)
+			}
+		case <-time.After(time.Second):
+			t.Error("a second Run blocks while the first one runs")
+			defer func() { _ = waitRun(t, second) }()
+		}
+		if err := w.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := waitRun(t, runDone); err != nil {
+			t.Fatalf("Run after Close = %v, want nil", err)
+		}
+	})
 }
 
 // Pause waits for the jobs in flight unless told not to, as in Node.js, and

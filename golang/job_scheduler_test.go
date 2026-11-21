@@ -87,7 +87,7 @@ func pendingSchedulerJobs(t *testing.T, ctx context.Context, q *bullmq.Queue) []
 	t.Helper()
 	var ids []string
 	for _, state := range []bullmq.JobState{bullmq.StateDelayed, bullmq.StateWaiting, bullmq.StatePrioritized} {
-		got, err := q.JobIDs(ctx, state, 0, -1, true)
+		got, err := q.JobIDs(ctx, 0, -1, true, state)
 		if err != nil {
 			t.Fatalf("JobIDs(%s): %v", state, err)
 		}
@@ -375,6 +375,29 @@ func TestJobSchedulerRemove(t *testing.T) {
 		}
 		if removed, err := q.RemoveJobScheduler(ctx, "gone"); err != nil || removed {
 			t.Fatalf("second RemoveJobScheduler = %v, %v; want false", removed, err)
+		}
+	})
+}
+
+// RemoveJobScheduler removes the iteration job only while it is delayed: the
+// first job of an Every scheduler, which is waiting, is kept, as in Node.js.
+func TestJobSchedulerRemoveKeepsAWaitingJob(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, be testBackend) {
+		ctx := testContext(t)
+		q := newTestQueue(t, be, nil)
+		job := upsertScheduler(t, ctx, q, "every", bullmq.RepeatOptions{Every: 60_000}, nil)
+		if state, err := q.JobState(ctx, job.ID); err != nil || state != bullmq.StateWaiting {
+			t.Fatalf("first job state = %s, %v; want waiting", state, err)
+		}
+
+		if removed, err := q.RemoveJobScheduler(ctx, "every"); err != nil || !removed {
+			t.Fatalf("RemoveJobScheduler = %v, %v; want true", removed, err)
+		}
+		if state, err := q.JobState(ctx, job.ID); err != nil || state != bullmq.StateWaiting {
+			t.Fatalf("job state after RemoveJobScheduler = %s, %v; want waiting (kept)", state, err)
+		}
+		if s, err := q.JobScheduler(ctx, "every"); err != nil || s != nil {
+			t.Fatalf("JobScheduler after remove = %+v, %v; want nil", s, err)
 		}
 	})
 }

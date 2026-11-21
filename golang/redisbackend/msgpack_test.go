@@ -214,7 +214,7 @@ func TestPackJobOptionsStoresRemovalPoliciesInTheirForm(t *testing.T) {
 		want   any
 	}{
 		{bullmq.RemoveAll(), true},
-		{bullmq.KeepCount(5), map[string]any{"count": int64(5)}},
+		{bullmq.KeepCount(5), int64(5)},
 		{bullmq.KeepAge(60), map[string]any{"age": int64(60)}},
 	} {
 		packed, err := packJobOptions(&bullmq.JobOptions{RemoveOnComplete: tc.policy})

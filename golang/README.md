@@ -30,7 +30,7 @@ to.
 - [Quick start](#quick-start): [Redis](#redis) and [PostgreSQL](#postgresql)
 - [Connecting to Redis](#connecting-to-redis): [auto-pipelining](#auto-pipelining)
 - [Adding jobs](#adding-jobs): [delayed and prioritized jobs](#delayed-and-prioritized-jobs), [deduplication](#deduplication)
-- [Workers](#workers): [processors](#processors), [concurrency](#concurrency), [events](#worker-events), [pausing](#pausing-a-worker), [shutting down](#shutting-down), [cancellation](#cancelling-jobs), [retries](#retries-and-backoff), [stalled jobs](#stalled-jobs-and-locks), [rate limiting](#rate-limiting)
+- [Workers](#workers): [processors](#processors), [concurrency](#concurrency), [events](#worker-events), [pausing](#pausing-a-worker), [shutting down](#shutting-down), [cancellation](#cancelling-jobs), [retries](#retries-and-backoff), [stalled jobs](#stalled-jobs-and-locks), [rate limiting](#rate-limiting), [fetching jobs by hand](#fetching-jobs-by-hand)
 - [Queue operations](#queue-operations)
 - [QueueEvents](#queueevents)
 - [Flows](#flows)
@@ -172,7 +172,7 @@ The `bullmq` schema is created and migrated by the first operation. See
 
 | Field                                    | Default          | Meaning                                                                                            |
 | ---------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
-| `Addr`                                   | `127.0.0.1:6379` | Server address                                                                                     |
+| `Addr`                                   | `localhost:6379` | Server address                                                                                     |
 | `Username`, `Password`, `DB`, `PoolSize` |                  | Passed to go-redis                                                                                 |
 | `Prefix`                                 | `bull`           | Prefix of every key, as in the other ports. Producers and workers of a queue must use the same one |
 | `Client`                                 |                  | An existing `redis.UniversalClient` to use instead of the fields above; BullMQ never closes it     |
@@ -198,14 +198,15 @@ if err != nil {
 defer queue.Close()
 ```
 
-Blocking reads (`BZPOPMIN` in workers, `XREAD` in `QueueEvents`) never run on
-the shared pool. When the client is a `*redis.Client`, a worker derives a
-dedicated single-connection client from its options (address, credentials,
-TLS, dialer...) and closes it on `Close`. An idle worker blocks on it for the
+Workers and `QueueEvents` run their blocking reads (`BZPOPMIN`, `XREAD`) on a
+dedicated client that they derive from the client's options (address,
+credentials, TLS, dialer...) and close on `Close`: a single connection for a
+`*redis.Client`, one per node for a `*redis.ClusterClient`, named after the
+worker so that `Queue.Workers` finds it. An idle worker blocks on it for the
 whole `DrainDelay` (5 s by default), and stopping the worker interrupts the
-read by closing that connection, as Node's `disconnectBlocking` does. Other
-client types (cluster, ring) are used as they are, with blocking calls of at
-most a second; see [Known limitations](#known-limitations).
+read by closing that connection, as Node's `disconnectBlocking` does. A
+`*redis.Ring` can't be cloned: its blocking reads share its pool, in calls of
+at most a second, and `Queue.Workers` may not find its workers.
 
 The backend of a queue built with `redisbackend.New` is a
 `*redisbackend.Backend`, which exposes the client and the key names:
@@ -218,6 +219,10 @@ if err != nil {
 }
 log.Printf("%d jobs in the wait list", waiting)
 ```
+
+`Worker`, `QueueEvents` and `FlowProducer` have a `Backend` method too. The
+`BlockingClient` of a worker's or a listener's backend is its dedicated
+blocking client.
 
 ### Auto-pipelining
 
@@ -279,8 +284,8 @@ if err != nil {
 log.Printf("added job %s", job.ID)
 ```
 
-The data is encoded with `encoding/json`; a processor decodes it with
-`job.DecodeData(&v)`. Several options are pointers so that an explicit zero
+The data is encoded with `encoding/json` (nil is stored as `{}`, as Node.js
+stores a job without data); a processor decodes it with `job.DecodeData(&v)`. Several options are pointers so that an explicit zero
 can override a queue default; `bullmq.Int64` and `bullmq.Bool` build them.
 
 | Option                             | Meaning                                                                                                                                                              |
@@ -297,10 +302,22 @@ can override a queue default; `bullmq.Int64` and `bullmq.Bool` build them.
 | `Deduplication`                    | See [Deduplication](#deduplication)                                                                                                                                  |
 | `Parent` and the failure options   | See [Flows](#flows)                                                                                                                                                  |
 
+Times and delays stored with a job keep the units every port stores:
+`JobOptions.Delay`, `Backoff.Delay`, `DeduplicationOptions.TTL` and the
+`RepeatOptions` fields are `int64` milliseconds (`time.Minute.Milliseconds()`;
+dates with `UnixMilli()`), and `RemoveOnFinish.Age` is in seconds. Method
+parameters and worker settings are `time.Duration`s: `job.ChangeDelay`,
+`job.MoveToDelayed`, `job.ExtendLock`, `Worker.RateLimit`, the grace period of
+`Clean` and the durations of `WorkerOptions`. So `ChangeDelay(ctx, 4000)` is
+4 µs; write `4*time.Second`.
+
 `QueueOptions.DefaultJobOptions` applies to every job of a `Queue`, and
 `WorkerOptions.RemoveOnComplete` / `RemoveOnFail` are the defaults of the jobs
 a worker finishes. `AddBulk` adds several jobs in one round trip (a single
-`MULTI`/`EXEC` on Redis, a single statement on PostgreSQL):
+`MULTI`/`EXEC` on Redis, a single transaction on PostgreSQL). On PostgreSQL
+a failed batch adds no job. Redis doesn't roll back the jobs already added
+when another one is rejected (for example because its parent doesn't exist),
+so check the queue before retrying a failed batch there:
 
 ```go
 jobs, err := queue.AddBulk(ctx, []bullmq.JobSpec{
@@ -364,7 +381,7 @@ func poll(ctx context.Context, job *bullmq.Job) (any, error) {
 
 While a deduplication id is alive, adding another job with the same id
 returns the existing job's id instead of adding a job, and `QueueEvents`
-reports a `deduplicated` event. The three modes of the
+reports a `deduplicated` event. The modes of the
 [deduplication guide](https://docs.bullmq.io/guide/jobs/deduplication) map to
 `DeduplicationOptions` like this:
 
@@ -394,7 +411,29 @@ _, err = queue.Add(ctx, "sync", data, &bullmq.JobOptions{
 if err != nil {
 	log.Fatal(err)
 }
+
+// Reschedule: push the delayed job back to 5 seconds from now, keeping its
+// id and data. A job that is no longer delayed is left alone.
+_, err = queue.Add(ctx, "sync", data, &bullmq.JobOptions{
+	Delay:         bullmq.Int64(5_000),
+	Deduplication: &bullmq.DeduplicationOptions{ID: "sync-account-42", Reschedule: true},
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+// Keep last if active: while the job runs, remember the last job added and
+// add it once the running one finishes. At most one job runs and one waits.
+_, err = queue.Add(ctx, "deploy", data, &bullmq.JobOptions{
+	Deduplication: &bullmq.DeduplicationOptions{ID: "deploy-repo-7", KeepLastIfActive: true},
+})
+if err != nil {
+	log.Fatal(err)
+}
 ```
+
+`KeepLastIfActive` ignores `TTL`: the id is held until the jobs finish. It
+can't be used on a flow node with a parent.
 
 The `Job` returned for a duplicate carries the existing job's `ID`, but the
 data and options of the call; read it back with `Queue.Job` to see what is
@@ -459,10 +498,12 @@ func sendWelcome(ctx context.Context, job *bullmq.Job) (any, error) {
   remain. `bullmq.NewUnrecoverableError`, or calling `job.Discard()` before
   returning, fails it for good.
 - A panic is recovered and fails the attempt, with the stack as its trace.
-- `bullmq.ErrDelayed`, `bullmq.ErrWaitingChildren` and
+- `bullmq.ErrDelayed`, `bullmq.ErrWaitingChildren`, `bullmq.ErrWaiting` and
   `bullmq.ErrRateLimited` tell the worker that the processor moved the job
   itself; see [delayed jobs](#delayed-and-prioritized-jobs),
-  [flows](#flows) and [rate limiting](#rate-limiting).
+  [flows](#flows) and [rate limiting](#rate-limiting). `job.MoveToWait`
+  puts the job back in the wait list without counting the attempt, as
+  Node's `moveToWait`; return `bullmq.ErrWaiting` after it.
 - `ctx` is cancelled when the worker stops immediately, loses the job's lock
   or cancels the job; see [Shutting down](#shutting-down) and
   [Cancelling jobs](#cancelling-jobs).
@@ -471,11 +512,7 @@ A processor reports progress and writes job logs, which every port and
 dashboard can read:
 
 ```go
-progress, err := bullmq.NumberProgress(50)
-if err != nil {
-	return err
-}
-if err := job.UpdateProgress(ctx, progress); err != nil {
+if err := job.UpdateProgress(ctx, 50); err != nil {
 	return err
 }
 if _, err := job.Log(ctx, "half way there"); err != nil {
@@ -483,7 +520,8 @@ if _, err := job.Log(ctx, "half way there"); err != nil {
 }
 ```
 
-`bullmq.JSONProgress(v)` reports a structured value instead of a number.
+`UpdateProgress` also takes any value encoded as JSON, such as a struct or a
+map, instead of a number; NaN and infinite numbers are rejected.
 
 ### Concurrency
 
@@ -504,9 +542,15 @@ same time, each on its own goroutine. Every processing slot finishes its job
 and fetches the next one in the same backend call, as the Node.js worker
 does, so a busy worker needs about one round trip per job whatever its
 concurrency. The worker only blocks on the datastore once the queue looks
-drained. Run as many workers as you like, in one process or many; to cap the
-number of jobs processed at once across all of them, use
-`Queue.SetGlobalConcurrency`.
+drained. `worker.SetConcurrency(n)` changes the concurrency of a running
+worker, as setting Node's `worker.concurrency` does: raising it fetches jobs
+for the new slots right away, and lowering it lets the jobs in flight
+finish, fetching no next job while more than `n` are in flight. Run as many
+workers as you like, in one process or many; to cap the number of jobs
+processed at once across all of them, use
+`Queue.SetGlobalConcurrency`. `Queue.GlobalConcurrency` returns that limit, or
+nil when there is none. Unlike Node.js, where `setGlobalConcurrency(0)` stores
+0 and stops every worker, `SetGlobalConcurrency(ctx, 0)` removes the limit.
 
 `Name` is stored on every job the worker processes and is part of the name
 of the worker's connection, which is how `Queue.Workers` finds it:
@@ -557,6 +601,8 @@ go func() {
 | `EventDrained`           | A fetch found no job to process, once until a job is fetched again  | none                           |
 | `EventError`             | A background error, such as a lost connection                       | `Err`                          |
 | `EventClosed`            | `Run` is returning                                                  | none                           |
+| `EventPaused`            | The `Pause` that paused the worker returned                         | none                           |
+| `EventResumed`           | `Resume` resumed a paused worker                                    | none                           |
 
 The channel never blocks the worker: when its buffer (256 events) is full,
 events are dropped and `Worker.DroppedEvents` counts them. To see every event,
@@ -582,7 +628,11 @@ pausing its own worker must do so. `Pause` may also be called from `OnEvent`,
 for example to pause once the queue is drained: from `EventDrained`,
 `EventCompleted` or `EventFailed` it waits for the other jobs only, and a job
 fetched in the meantime is put back in the wait list rather than started.
-`Close` releases a pending `Pause` with `bullmq.ErrWorkerClosed`.
+`Close` releases a pending `Pause` with `bullmq.ErrWorkerClosed`. As Node's
+`paused` and `resumed`, `EventPaused` is emitted once the `Pause` that
+paused the worker returns, and `EventResumed` by `Resume`. Unlike Node, a
+paused worker keeps checking for stalled jobs, so a paused worker still
+recovers the jobs of workers that died.
 
 ```go
 var worker *bullmq.Worker
@@ -663,9 +713,12 @@ A worker runs once: calling `Run` again, or after `Close`, returns
 
 `Worker.CancelJob` cancels the context of a job the worker is processing, and
 `Worker.CancelAllJobs` the context of all of them. As with Node's
-`cancelJob`, the job fails with the reason if its processor then returns an
-error (and is retried if attempts remain); a processor that ignores the
-cancellation and succeeds completes the job.
+`cancelJob`, the job then fails with the error its processor returns (and is
+retried if attempts remain). When that error is `ctx.Err()` itself, which
+says nothing more than "context canceled", the job fails with the reason
+instead; to keep the reason in an error of your own, wrap
+`context.Cause(ctx)`. A processor that ignores the cancellation and succeeds
+completes the job.
 
 ```go
 if !worker.CancelJob(jobID, "superseded by a newer upload") {
@@ -680,8 +733,10 @@ func upload(ctx context.Context, job *bullmq.Job) (any, error) {
 	if err := transfer(ctx, job); err != nil {
 		switch cause := context.Cause(ctx); {
 		case errors.Is(cause, bullmq.ErrJobCancelled):
-			// CancelJob: the job fails with the reason (cause.Error()).
-			cleanUp(job)
+			// CancelJob: ctx is cancelled, so clean up with a context that
+			// isn't, and fail the job with the reason (cause.Error()).
+			cleanUp(context.WithoutCancel(ctx), job)
+			return nil, cause
 		case errors.Is(cause, bullmq.ErrLockLost):
 			// Another worker may own the job now: stop touching it.
 		}
@@ -694,6 +749,16 @@ func upload(ctx context.Context, job *bullmq.Job) (any, error) {
 Besides `ErrJobCancelled`, the cause is `bullmq.ErrLockLost` when the worker
 couldn't renew the job's lock, or the cause of the `Run` context. In the last
 two cases the job isn't failed.
+
+Once a job's context is cancelled, the job's methods called with it
+(`UpdateProgress`, `Log`, `UpdateData`, ...) fail with the context's error,
+whereas Node's job methods ignore the abort signal. Make the calls of
+cleanup code with `context.WithoutCancel(ctx)`:
+
+```go
+_ = job.Log(context.WithoutCancel(ctx), fmt.Sprintf("cancelled after %d items", done))
+return nil, fmt.Errorf("cancelled after %d items: %w", done, context.Cause(ctx))
+```
 
 ### Retries and backoff
 
@@ -734,7 +799,16 @@ without a `BackoffStrategy`, and an `EventError` says why.
 `WorkerOptions.MaxStartedAttempts` fails a job that was started more than that
 many times, for example because it keeps stalling. `JobOptions.StackTraceLimit`
 bounds the failure traces kept on the job. `Job.Retry` and `Queue.RetryJobs`
-move failed (or completed) jobs back to wait.
+move failed (or completed) jobs back to wait. `Job.Retry` keeps the attempt
+counters, so a job that used up its attempts fails for good after one more
+failure, unless you reset them:
+
+```go
+err := job.Retry(ctx, bullmq.StateFailed, &bullmq.RetryOptions{ResetAttemptsMade: true})
+if err != nil {
+	log.Fatal(err)
+}
+```
 
 ### Stalled jobs and locks
 
@@ -771,6 +845,11 @@ The limit is shared by the queue, like in the other ports.
 configuring each of them; `GlobalRateLimit` reads it and
 `RemoveGlobalRateLimit` (or a max of 0) removes it. A rate-limited worker sleeps until the limit lifts,
 at most `MaximumRateLimitDelay` (30 s by default) at a time.
+`Queue.RateLimitTTL(ctx, maxJobs)` tells how long the queue stays limited, in
+milliseconds: the time left in the current window once `maxJobs` jobs were
+counted in it, else 0. With `maxJobs` 0 it uses the global rate limit's max
+and, without one, returns the time left whatever the count, or -2 when no
+window is open, as Node's `getRateLimitTtl()` does.
 
 A processor can also rate limit the queue itself, for example when an
 external API asks it to slow down. `Worker.RateLimit` limits the queue for a
@@ -800,6 +879,58 @@ if err != nil {
 As in Node.js, `RateLimit` only holds back workers that fetch with a limiter
 (`Limiter`, or a global rate limit).
 
+### Fetching jobs by hand
+
+A worker created without a processor fetches nothing by itself: you fetch
+its jobs with `GetNextJob` and finish them with `MoveToCompleted` or
+`MoveToFailed`, as in Node's
+[manual mode](https://docs.bullmq.io/patterns/manually-fetching-jobs). The
+token you choose locks the job; pass it again to finish it. With
+`fetchNext`, finishing a job fetches the next one in the same call:
+
+```go
+worker, err := bullmq.NewWorker("emails", nil, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+// Moves the jobs whose lock expired back to wait, until Close.
+if err := worker.StartStalledCheck(); err != nil {
+	log.Fatal(err)
+}
+
+const token = "my-token"
+for {
+	// Waits up to DrainDelay for a job; nil when there is none.
+	job, err := worker.GetNextJob(ctx, token, true)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for job != nil {
+		result, procErr := handle(ctx, job)
+		if procErr != nil {
+			job, err = job.MoveToFailed(ctx, procErr, token, true)
+		} else {
+			job, err = job.MoveToCompleted(ctx, result, token, true)
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+```
+
+- The worker's settings apply: `LockDuration`, `Limiter`, the removal
+  policies, `Metrics` and `BackoffStrategy`. A failed job is retried while
+  attempts remain, as with a processor.
+- Locks aren't renewed: finish a job within `LockDuration`, or call
+  `job.ExtendLock(ctx, d)`. A job whose lock expires is moved back to wait by
+  the stalled check, and its token no longer finishes it.
+- `GetNextJob` returns nil, without waiting, while the worker or the queue is
+  paused or the queue is rate limited. `Run` returns an error on a worker
+  without a processor.
+
 ### Metrics
 
 ```go
@@ -825,21 +956,24 @@ log.Printf("%d jobs completed in total; last hour: %v", metrics.Count, metrics.D
 
 A `Queue` is safe for concurrent use. Its methods mirror Node's `Queue`:
 
-| Methods                                                                           | What they do                                                                                 |
-| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `Add`, `AddBulk`                                                                  | Add jobs                                                                                     |
-| `Job`, `JobState`, `Jobs`, `JobIDs`                                               | Read jobs, by id or by state                                                                 |
-| `Count`, `JobCounts`                                                              | Count the waiting, delayed, prioritized and waiting-children jobs, or the jobs in each state |
-| `Pause`, `Resume`, `IsPaused`                                                     | Pause the queue for every worker                                                             |
-| `Drain`                                                                           | Remove the waiting and prioritized jobs, and optionally the delayed ones                     |
-| `Clean`                                                                           | Remove the jobs of a state older than a grace period                                         |
-| `Obliterate`                                                                      | Remove the queue and all of its jobs                                                         |
-| `RetryJobs`, `PromoteJobs`                                                        | Move failed or completed jobs back to wait; make delayed jobs ready                          |
-| `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency`, `IsMaxed` | Cap how many jobs are active across all workers                                              |
-| `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Rate limit every worker of the queue                                                         |
-| `DeduplicationJobID`, `RemoveDeduplicationKey`                                    | Read or release a [deduplication](#deduplication) id                                         |
-| `Metrics`, `Workers`                                                              | Completed and failed metrics; the connected workers (`[]WorkerInfo`)                         |
-| `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](#job-schedulers)                                                            |
+| Methods                                                                           | What they do                                                                                                                                                    |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Add`, `AddBulk`                                                                  | Add jobs                                                                                                                                                        |
+| `Job`, `JobState`, `Jobs`, `JobIDs`                                               | Read jobs, by id or by states                                                                                                                                   |
+| `Count`, `JobCounts`, `CountsPerPriority`, `DelayedCount`                         | Count the waiting, delayed, prioritized and waiting-children jobs, the jobs in each state, the waiting jobs per priority, or the delayed jobs due before a time |
+| `Pause`, `Resume`, `IsPaused`                                                     | Pause the queue for every worker                                                                                                                                |
+| `Drain`                                                                           | Remove the waiting and prioritized jobs, and optionally the delayed ones                                                                                        |
+| `Remove`                                                                          | Remove a job by id, and optionally its children; false when a worker holds it                                                                                   |
+| `Clean`                                                                           | Remove the jobs of a state older than a grace period                                                                                                            |
+| `Obliterate`                                                                      | Remove the queue and all of its jobs                                                                                                                            |
+| `RetryJobs`, `PromoteJobs`                                                        | Move failed or completed jobs back to wait; make delayed jobs ready                                                                                             |
+| `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency`, `IsMaxed` | Cap how many jobs are active across all workers                                                                                                                 |
+| `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Rate limit every worker of the queue                                                                                                                            |
+| `DeduplicationJobID`, `RemoveDeduplicationKey`                                    | Read or release a [deduplication](#deduplication) id                                                                                                            |
+| `Metrics`, `Workers`                                                              | Completed and failed metrics; the connected workers (`[]WorkerInfo`)                                                                                            |
+| `Meta`, `Version`                                                                 | The queue metadata (limits, paused, events length) and the library that wrote it                                                                                |
+| `TrimEvents`                                                                      | Trim the event stream to about a length ([QueueEvents](#queueevents))                                                                                           |
+| `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](#job-schedulers)                                                                                                                               |
 
 ```go
 counts, err := queue.JobCounts(ctx, bullmq.StateWaiting, bullmq.StateActive, bullmq.StateFailed)
@@ -850,7 +984,7 @@ log.Printf("%d waiting, %d active, %d failed",
 	counts[bullmq.StateWaiting], counts[bullmq.StateActive], counts[bullmq.StateFailed])
 
 // The 10 most recent failures.
-failed, err := queue.Jobs(ctx, bullmq.StateFailed, 0, 9, false)
+failed, err := queue.Jobs(ctx, 0, 9, false, bullmq.StateFailed)
 if err != nil {
 	log.Fatal(err)
 }
@@ -858,19 +992,45 @@ for _, job := range failed {
 	log.Printf("%s failed: %s", job.ID, job.FailedReason)
 }
 
+// The next 10 jobs to run of each pending state, as Node's getWaiting,
+// getPrioritized and getDelayed list them.
+next, err := queue.Jobs(ctx, 0, 9, true, bullmq.StateWaiting, bullmq.StatePrioritized, bullmq.StateDelayed)
+if err != nil {
+	log.Fatal(err)
+}
+log.Printf("%d jobs to run", len(next))
+
 // Remove the completed jobs older than a day, at most 1000 of them.
 removed, err := queue.Clean(ctx, 24*time.Hour, 1000, bullmq.StateCompleted)
 if err != nil {
 	log.Fatal(err)
 }
 log.Printf("removed %d jobs", len(removed))
+
+// Retry the jobs that failed more than an hour ago, 1000 per round trip.
+if err := queue.RetryJobs(ctx, &bullmq.RetryJobsOptions{Before: time.Now().Add(-time.Hour)}); err != nil {
+	log.Fatal(err)
+}
 ```
 
 `Queue.Job` returns `nil` for a job that doesn't exist. The returned `*Job`
 can be changed and inspected: `UpdateData`, `UpdateProgress`, `Log` and
 `Logs`, `State`, `IsCompleted`, `IsFailed`, `Promote`, `ChangeDelay`,
 `ChangePriority`, `Retry`, and `Remove` (which returns `bullmq.ErrJobLocked`
-while a worker holds the job).
+while a worker holds the job). `queue.Remove(ctx, id, removeChildren)` removes
+a job by id without reading it first, and returns false while a worker holds
+it.
+
+`NewQueue` doesn't reach the datastore. Before its first command, a queue
+writes its metadata, as Node's `Queue` does: `version` and
+`opts.maxLenEvents`. The version is `bullmq:<bullmq.ScriptsVersion>`, the
+version of the Node.js package whose Lua and SQL scripts the module embeds,
+so dashboards enable the features of those scripts; `bullmq.Version` is the
+version of the Go module. `opts.maxLenEvents` is the approximate maximum
+length of the events stream, `QueueOptions.EventsMaxLen` (10,000 by default,
+Node's `streams.events.maxLen`). Set `QueueOptions.SkipMetasUpdate` for a
+role that may only read. After `Obliterate` or `Close`, the queue never
+writes it again, so an obliterated queue keeps no metadata.
 
 ## QueueEvents
 
@@ -903,7 +1063,11 @@ for ev := range events.Events() {
 Each `QueueEvent` has the event name (`added`, `waiting`, `active`,
 `progress`, `completed`, `failed`, `delayed`, `stalled`, `removed`,
 `deduplicated`, `drained`...), the job id and every field of the event in
-`Data`. The listener starts with the events published after `Run` starts;
+`Data`, as strings. The helpers parse the fields Node's `QueueEvents`
+parses: `DecodeReturnValue(&v)` the JSON return value of `completed`,
+`Progress()` and `DecodeProgress(&v)` the progress of `progress`, and
+`DelayedUntil()` the `delay` of `delayed`, which is when the job is due
+(Unix milliseconds), not a duration. The listener starts with the events published after `Run` starts;
 set `LastEventID` to read from another point (`"0"` for the oldest event
 kept). `Events()` is closed when the listener stops, by `Close` or by
 cancelling `Run`'s context; `Run` then returns nil or the context's error,
@@ -913,6 +1077,35 @@ retried and reported on `Errors()`.
 
 On PostgreSQL, a listener can miss events when several workers finish jobs at
 the same time; see [Known limitations](#known-limitations).
+
+A `QueueEventsProducer` publishes custom events, as Node's does with
+`publishEvent`; listeners in every runtime receive them with the event name
+in `Event` and the fields in `Data`. String values are stored as they are and
+other values as JSON. On Redis the stream is then trimmed to about
+`maxEvents` events (1,000 when it is 0); PostgreSQL trims it to
+`EventsMaxLen`. Don't use the names of job events (`completed`, `failed`,
+...) for your own.
+
+```go
+producer, err := bullmq.NewQueueEventsProducer("emails", &bullmq.QueueEventsProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer producer.Close()
+
+// Listeners see ev.Event == "example" and ev.Data["custom"] == "value".
+if _, err := producer.PublishEvent(ctx, "example", map[string]any{"custom": "value"}, 0); err != nil {
+	log.Fatal(err)
+}
+```
+
+The stream keeps about `QueueOptions.EventsMaxLen` events (10,000 by
+default). `Queue.TrimEvents(ctx, n)` trims it to about `n` events, as Node's
+`trimEvents` does, and returns how many it removed. On Redis the trim is
+approximate (`XTRIM MAXLEN ~`): whole stream nodes go, so a few more than `n`
+events may be left. The PostgreSQL backend returns an error matching
+`bullmq.ErrNotSupported`, as Node's does; it trims the stream to
+`EventsMaxLen` as it adds events.
 
 ## Flows
 
@@ -948,21 +1141,19 @@ The processor of the parent reads the children's return values, by child key
 
 ```go
 func renderReport(ctx context.Context, job *bullmq.Job) (any, error) {
-	values, err := job.ChildrenValues(ctx)
-	if err != nil {
+	var amounts map[string]float64
+	if err := job.DecodeChildrenValues(ctx, &amounts); err != nil {
 		return nil, err
 	}
 	total := 0.0
-	for _, raw := range values {
-		var amount float64
-		if err := json.Unmarshal(raw, &amount); err != nil {
-			return nil, err
-		}
+	for _, amount := range amounts {
 		total += amount
 	}
 	return total, nil
 }
 ```
+
+`job.ChildrenValues` returns the raw JSON values instead.
 
 - Every queue of a flow is reached through the producer's backend, so they
   share its connections and its namespace (the Redis prefix or the PostgreSQL
@@ -1033,7 +1224,9 @@ if _, err := queue.RemoveJobScheduler(ctx, "poll"); err != nil {
   `repeat:<scheduler id>:<due time in ms>`. The worker that fetches it adds
   the following one before processing it, so Go, Node.js and the other ports
   advance each other's schedulers. While no worker runs, a scheduler doesn't
-  pile up jobs.
+  pile up jobs. `RemoveJobScheduler` removes that job only while it is still
+  delayed: a job already waiting (such as the first job of an `Every`
+  scheduler) or being processed runs once more.
 - `Pattern` takes 5 fields, or 6 with leading seconds, with names, ranges,
   steps, `L` and `#`. It is evaluated exactly as cron-parser evaluates it in
   Node.js, including across DST changes, so every port computes the same due
@@ -1049,7 +1242,15 @@ if _, err := queue.RemoveJobScheduler(ctx, "poll"); err != nil {
   the schedule stops visibly instead of stalling.
 - `Every` schedulers accept an `Offset`; every scheduler a `Limit`, a
   `StartDate` and an `EndDate` (Unix milliseconds); `Pattern` schedulers
-  `Immediately`, to produce their first job right away.
+  `Immediately`, to produce their first job right away. A Go worker adds no
+  job due after `EndDate`, where Node.js adds one more to `Every` schedulers
+  ([#5190](https://github.com/taskforcesh/bullmq/issues/5190)).
+- `QueueOptions.RepeatStrategy` and `WorkerOptions.RepeatStrategy` replace
+  cron for `Pattern` schedulers, as Node's `settings.repeatStrategy` does: it
+  returns the next due time (Unix milliseconds) after `millis`, or 0 for no
+  more runs, so `Pattern` can be any rule it understands. The queue that
+  upserts a scheduler and every worker that advances it, in any language,
+  need the same strategy; a worker without it fails the iteration.
 - Legacy repeatable jobs (Node's `repeat` option, BullMQ 5 and earlier) aren't
   supported: migrate them to job schedulers. A Go worker processes their jobs
   but can't schedule the next ones, and reports it with an `EventError`.
@@ -1074,14 +1275,21 @@ Python, Elixir and .NET ports use, so they all work on the same schema.
 | `PoolSize`         | 20       | Size of the query pool (or the connection string's `pool_max_conns`)                                                                                                                                                                                                 |
 | `Pool`             |          | A `*pgxpool.Pool` to use instead; BullMQ never closes it. Its connections must use the schema as `search_path` (`config.ConnConfig.RuntimeParams["search_path"] = "bullmq"`). Its `OnNotification`/`OnNotice` callbacks aren't used on BullMQ's `LISTEN` connections |
 | `SkipVersionCheck` | `false`  | Skip the PostgreSQL 13 check                                                                                                                                                                                                                                         |
+| `SkipMigrations`   | `false`  | Don't migrate: the schema must already be up to date (see `postgresbackend.Migrate`)                                                                                                                                                                                 |
 
-- **Migrations.** The first operation of the process creates or migrates the
-  schema, in one transaction under the advisory lock every runtime uses, and
-  records it in the shared `migration` ledger. Every new backend checks that
-  ledger: a schema that requires a newer BullMQ major version is refused with
-  a `*postgresbackend.SchemaVersionError`. (The Node.js backend migrates only
-  when asked to, with `runMigrations`; a schema migrated by either is usable
-  by both.)
+- **Migrations.** The first operation of the process reads the shared
+  `migration` ledger and, unless it is up to date, creates or migrates the
+  schema, in one transaction under the advisory lock every runtime uses. Every
+  new backend checks that ledger: a schema that requires a newer BullMQ major
+  version is refused with a `*postgresbackend.SchemaVersionError`. An up-to-date
+  schema needs no DDL, so the application's role doesn't need to own it: it
+  needs `USAGE` and `CREATE` on the schema (each queue gets a job id sequence
+  on first use) and `SELECT`, `INSERT`, `UPDATE` and `DELETE` on its tables
+  and sequences. To migrate as a deployment step instead, as Node.js does with
+  `runMigrations`, call `postgresbackend.Migrate(ctx, opts)` with the owner's
+  role and set `SkipMigrations` in the application, which then refuses a
+  schema that isn't up to date. A schema migrated by any runtime is usable by
+  the others.
 - **Connections.** Backends built with the same `ConnString`, `Schema` and
   `PoolSize` share one pgxpool pool per process. It opens connections on
   demand (`pool_min_conns` and `pool_min_idle_conns` are ignored for these
@@ -1093,9 +1301,11 @@ Python, Elixir and .NET ports use, so they all work on the same schema.
   connection per worker and listener.
 - **Worker discovery.** The `application_name` of a worker's dedicated
   connection is `<queue>` or `<queue>:w:<name>`, as in Node.js, and is what
-  `Queue.Workers` finds. PostgreSQL truncates it to 63 bytes, so the workers
-  of a queue with a long name may be missing, and long worker names are
-  truncated.
+  `Queue.Workers` finds. PostgreSQL stores each non-ASCII byte of it as a
+  4-byte `\xhh` escape (`é` becomes `\xc3\xa9`; before PostgreSQL 16, a `?`),
+  which `Queue.Workers` undoes, and then truncates it to 63 bytes, so the
+  workers of a queue with a long name may be missing, and long worker names
+  are truncated. Non-ASCII characters make a name reach that limit sooner.
 - The backend of a queue built with `postgresbackend.New` is a
   `*postgresbackend.Backend`, which exposes `Pool()` and `Schema()`.
 - Job data, return values and progress are stored as `jsonb`, so a job read
@@ -1158,7 +1368,7 @@ func TestWelcomeEmailIsSent(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_ = queue.Obliterate(context.Background(), true, 0)
+		_ = queue.Obliterate(context.Background(), &bullmq.ObliterateOptions{Force: true})
 		_ = queue.Close()
 	})
 
@@ -1200,11 +1410,12 @@ quickly, lower `LockDuration` and `StalledInterval`.
 
 - **No telemetry.** There are no OpenTelemetry hooks yet; use worker events
   or `OnEvent` for metrics and tracing.
-- **Redis Cluster and Sentinel are untested.** A `redis.UniversalClient` for a
-  cluster or a failover setup can be passed as `Client`, but the test suite
-  only runs on a standalone server. On a cluster, the prefix needs a hash tag
-  (for example `{bull}`) so that the keys of a queue share a slot, as in
-  Node.js.
+- **Redis Cluster is lightly tested, Sentinel untested.** A
+  `redis.UniversalClient` for a cluster or a failover setup can be passed as
+  `Client`. CI only runs on a standalone server; the cluster tests (workers,
+  worker discovery, queue events) run when `REDIS_CLUSTER_ADDRS` is set. On a
+  cluster, the prefix needs a hash tag (for example `{bull}`) so that the keys
+  of a queue share a slot, as in Node.js.
 - **QueueEvents on PostgreSQL can miss events under concurrency.** Event ids
   are assigned before their transaction commits, so a listener can skip an
   event that commits after a later one was read. Every runtime is affected
@@ -1225,27 +1436,40 @@ aren't implemented yet.
 The API changed before the first release; code written against the early
 drafts of this port needs these changes:
 
-| Before                                                                         | Now                                                                                                                 |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `Redis: bullmq.RedisOptions{Addr: ...}` in the options; Redis when unset       | `Backend: redisbackend.New(redisbackend.Options{Addr: ...})`, required in every options struct                      |
-| `Prefix` in `QueueOptions`, `WorkerOptions` and `QueueEventsOptions`           | `redisbackend.Options.Prefix`                                                                                       |
-| `bullmq.RedisBackendFactory`, `bullmq.NewRedisBackend`, `*bullmq.RedisBackend` | `redisbackend.New`, `redisbackend.NewBackend`, `*redisbackend.Backend`                                              |
-| `queue.Client()`, `queue.Keys()`, `bullmq.Keys`                                | `queue.Backend().(*redisbackend.Backend).Client()` and `.Keys()`, `redisbackend.Keys`                               |
-| `worker.Pause()` returned at once                                              | `worker.Pause(ctx, doNotWaitActive)` waits for the active jobs unless `doNotWaitActive` is true                     |
-| `EventStalled` reported lost locks                                             | `EventLockRenewalFailed` and `EventLocksRenewed`, with `Event.JobIDs`; `EventStalled` is only for the stalled check |
-| Full event channel dropped events silently                                     | `Worker.DroppedEvents` counts them; `WorkerOptions.OnEvent` sees every event                                        |
-| Cancelling `Run`'s context failed in-flight jobs                               | They stay active, without using up an attempt, for the stalled check to recover                                     |
-| `Queue.Workers` returned connection names                                      | It returns `[]bullmq.WorkerInfo`, with the worker name and the connection's fields                                  |
-| `RemoveAll()` was stored as `{"count":0}`                                      | Stored as `true`, as in the other ports                                                                             |
-| `Worker.Run` and `QueueEvents.Run` returned `context.Canceled` after `Close`   | They return nil after `Close`, and still return the context's error when their context is done                      |
+| Before                                                                                    | Now                                                                                                                                       |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `Redis: bullmq.RedisOptions{Addr: ...}` in the options; Redis when unset                  | `Backend: redisbackend.New(redisbackend.Options{Addr: ...})`, required in every options struct                                            |
+| `Prefix` in `QueueOptions`, `WorkerOptions` and `QueueEventsOptions`                      | `redisbackend.Options.Prefix`                                                                                                             |
+| `bullmq.RedisBackendFactory`, `bullmq.NewRedisBackend`, `*bullmq.RedisBackend`            | `redisbackend.New`, `redisbackend.NewBackend`, `*redisbackend.Backend`                                                                    |
+| `queue.Client()`, `queue.Keys()`, `bullmq.Keys`                                           | `queue.Backend().(*redisbackend.Backend).Client()` and `.Keys()`, `redisbackend.Keys`                                                     |
+| `worker.Pause()` returned at once                                                         | `worker.Pause(ctx, doNotWaitActive)` waits for the active jobs unless `doNotWaitActive` is true                                           |
+| `EventStalled` reported lost locks                                                        | `EventLockRenewalFailed` and `EventLocksRenewed`, with `Event.JobIDs`; `EventStalled` is only for the stalled check                       |
+| Full event channel dropped events silently                                                | `Worker.DroppedEvents` counts them; `WorkerOptions.OnEvent` sees every event                                                              |
+| Cancelling `Run`'s context failed in-flight jobs                                          | They stay active, without using up an attempt, for the stalled check to recover                                                           |
+| `Queue.Workers` returned connection names                                                 | It returns `[]bullmq.WorkerInfo`, with the worker name and the connection's fields                                                        |
+| `RemoveAll()` was stored as `{"count":0}`                                                 | Stored as `true`, as in the other ports                                                                                                   |
+| `Worker.Run` and `QueueEvents.Run` returned `context.Canceled` after `Close`              | They return nil after `Close`, and still return the context's error when their context is done                                            |
+| `job.Retry(ctx, state)`                                                                   | `job.Retry(ctx, state, opts)`, where `opts` (or nil) can reset the attempt counters                                                       |
+| `queue.RetryJobs(ctx, state, count)` returned an always-0 `int64`                         | `queue.RetryJobs(ctx, &bullmq.RetryJobsOptions{State, Count, Before})` returns only an error; `State` defaults to failed                  |
+| `queue.PromoteJobs(ctx, count)` returned an always-0 `int64`                              | It returns only an error                                                                                                                  |
+| `queue.Jobs(ctx, state, start, end, asc)`, `queue.JobIDs(...)` with one state             | `queue.Jobs(ctx, start, end, asc, states...)`: several states, or none for all of them                                                    |
+| `queue.GlobalConcurrency(ctx)` returned 0 when no limit was set                           | It returns a `*int64`, nil when no limit is set                                                                                           |
+| `queue.Obliterate(ctx, force, count)`                                                     | `queue.Obliterate(ctx, &bullmq.ObliterateOptions{Force, Count})`, or nil                                                                  |
+| `job.UpdateProgress(ctx, bullmq.Progress)`, built with `NumberProgress` or `JSONProgress` | `job.UpdateProgress(ctx, v)` with a number or any JSON value; a `Progress` still works                                                    |
+| `job.RemoveChildDependency` returned false, nil for a job without a parent                | It returns an error matching `bullmq.ErrParentJobNotExist`, as Node.js throws                                                             |
+| `redisbackend.Options` without `Addr` connected to `127.0.0.1:6379`                       | It connects to `localhost:6379` (`redisbackend.DefaultAddr`), as ioredis and go-redis do; set `Addr` to keep `127.0.0.1`                  |
+| A `Queue` never wrote the queue metadata                                                  | It writes `version` and `opts.maxLenEvents` before its first command, as Node's `Queue` does; `QueueOptions.SkipMetasUpdate` turns it off |
+| A failed `AddBulk` or flow on PostgreSQL kept the jobs it had added                       | It adds none: the batch is rolled back                                                                                                    |
 
 Custom `Backend` implementations have more to change: `SignalWork` is gone,
 `MoveToCompleted` and `MoveToFailed` return a `*FinishResult` and can fetch
 the next job, `FetchResult` reports `RateLimitDelay` and `NextDelayedAt`,
 `WaitForJob` returns a `WaitResult`, `BackendOptions.Prefix` moved to the
-backends, and there are new methods for flows, job schedulers, manual rate
-limiting and deduplication. The documentation of the `Backend` interface describes the
-contract.
+backends, `RetryFinishedJob` takes `RetryOptions`, a backend writes
+`BackendOptions.QueueMeta` before its first command, and there are new
+methods for flows, job schedulers, manual rate limiting, deduplication,
+counts and the queue metadata (`GetQueueMeta`). The documentation of the
+`Backend` interface describes the contract.
 
 ## Contributing
 
@@ -1259,7 +1483,8 @@ the main repository.
 
 The Lua commands and SQL files aren't committed to the `golang` directory:
 they are generated from the shared sources, so every port stays byte-for-byte
-identical. Before building or testing, run from the repository root:
+identical. So is `scripts_version.go`, which holds the version of the root
+`package.json` (`bullmq.ScriptsVersion`). Before building or testing, run from the repository root:
 
 ```sh
 yarn install
@@ -1271,7 +1496,8 @@ yarn copy:sql:golang
 This resolves the `--- @include` directives of `src/commands/*.lua` into
 `rawScripts/` and copies the result into `golang/redisbackend/commands/`, and
 copies the migrations and commands of `src/postgres` into
-`golang/postgresbackend/sql/`, where `go:embed` picks them up.
+`golang/postgresbackend/sql/`, where `go:embed` picks them up. Both copy
+steps also write `golang/scripts_version.go`.
 
 The tests need a Redis server, and a PostgreSQL database for the PostgreSQL
 backend. From the repository root:
@@ -1293,7 +1519,9 @@ REDIS_ADDR=127.0.0.1:6380 \
 ```
 
 Tests that need Redis are skipped when no server is reachable, and the
-PostgreSQL tests when `POSTGRES_URL` isn't set. The PostgreSQL tests create
+PostgreSQL tests when `POSTGRES_URL` isn't set. The Redis Cluster tests run
+when `REDIS_CLUSTER_ADDRS` lists seed nodes of a cluster (for example
+`127.0.0.1:7000,127.0.0.1:7001`). The PostgreSQL tests create
 their own schemas (`bullmq_go_test` and `gotest_pg_*`) and leave the default
 `bullmq` schema alone. The behaviour tests of the root package run once per
 datastore, as subtests named after it (for example

@@ -17,6 +17,7 @@ import (
 type Queue struct {
 	backend           Backend
 	defaultJobOptions *JobOptions
+	repeatStrategy    RepeatStrategy
 }
 
 // priorityLimit is the largest accepted priority (2^21-1). The shared scripts
@@ -24,16 +25,22 @@ type Queue struct {
 // the exact integer range of Redis/Lua and lose the counter.
 const priorityLimit int64 = 1<<21 - 1
 
-// NewQueue creates a queue named name.
+// NewQueue creates a queue named name. It does not reach the datastore: the
+// queue writes its metadata (see QueueOptions.SkipMetasUpdate) before its
+// first command.
 func NewQueue(name string, opts *QueueOptions) (*Queue, error) {
 	if opts == nil {
 		opts = &QueueOptions{}
 	}
-	backend, err := resolveBackend(opts.Backend, name, BackendOptions{})
+	meta, err := opts.metaValues()
 	if err != nil {
 		return nil, err
 	}
-	return &Queue{backend: backend, defaultJobOptions: opts.DefaultJobOptions}, nil
+	backend, err := resolveBackend(opts.Backend, name, BackendOptions{QueueMeta: meta})
+	if err != nil {
+		return nil, err
+	}
+	return &Queue{backend: backend, defaultJobOptions: opts.DefaultJobOptions, repeatStrategy: opts.RepeatStrategy}, nil
 }
 
 // Name returns the queue name.
@@ -51,15 +58,17 @@ func (q *Queue) Close() error { return q.backend.Close() }
 type JobSpec struct {
 	// Name is the job name handed to the processor.
 	Name string
-	// Data is the payload; it is marshalled to JSON.
+	// Data is the payload; it is marshalled to JSON. nil is stored as {}, as
+	// Node stores a job added without data.
 	Data any
 	// Opts overrides the queue default job options.
 	Opts *JobOptions
 }
 
-// Add inserts a single job into the queue. When it is deduplicated (see
-// [DeduplicationOptions]), nothing is added and the returned Job has the ID
-// of the job that holds the deduplication id.
+// Add inserts a single job into the queue. data is marshalled to JSON, and
+// nil is stored as {}, as Node stores a job added without data. When the
+// job is deduplicated (see [DeduplicationOptions]), nothing is added and the
+// returned Job has the ID of the job that holds the deduplication id.
 func (q *Queue) Add(ctx context.Context, name string, data any, opts *JobOptions) (*Job, error) {
 	nj, err := q.prepareJob(JobSpec{Name: name, Data: data, Opts: opts})
 	if err != nil {
@@ -72,10 +81,11 @@ func (q *Queue) Add(ctx context.Context, name string, data any, opts *JobOptions
 	return q.newAddedJob(id, nj)
 }
 
-// AddBulk inserts every job in one backend operation. For Redis that is a
-// single transaction, but Redis does not roll back earlier scripts when a
-// later script returns an application-level error, so a failed batch may
-// contain jobs that were inserted before the failing command.
+// AddBulk inserts every job in one backend operation. On PostgreSQL that is
+// a database transaction: a failed batch adds no job. On Redis it is a
+// single transaction, but Redis does not roll back the scripts that ran
+// when another returns an application-level error, such as a missing
+// parent, so a failed batch may leave the other jobs added.
 func (q *Queue) AddBulk(ctx context.Context, specs []JobSpec) ([]*Job, error) {
 	if len(specs) == 0 {
 		return nil, nil
@@ -186,6 +196,11 @@ func (q *Queue) prepareJob(spec JobSpec) (NewJob, error) {
 	if err != nil {
 		return NewJob{}, err
 	}
+	// Node stores {} for jobs added without data, and processors written for
+	// it expect an object, so nil is stored as {} too.
+	if string(payload) == "null" {
+		payload = []byte("{}")
+	}
 	if opts.sizeLimitVal() > 0 && int64(len(payload)) > opts.sizeLimitVal() {
 		return NewJob{}, configError("job data exceeds sizeLimit of %d bytes (was %d)",
 			opts.sizeLimitVal(), len(payload))
@@ -239,19 +254,35 @@ func (q *Queue) Drain(ctx context.Context, delayed bool) error {
 	return q.backend.Drain(ctx, delayed)
 }
 
-// Obliterate deletes the queue and every job in it.
+// ObliterateOptions tunes [Queue.Obliterate], as Node's obliterate options
+// do.
+type ObliterateOptions struct {
+	// Force obliterates the queue even while some of its jobs are active.
+	Force bool
+	// Count is how many jobs are removed per datastore call, so that a
+	// large queue doesn't block the datastore; it is not a cap on the
+	// total. 0 means 1000.
+	Count int64
+}
+
+// Obliterate deletes the queue and every job in it, with its metadata,
+// whatever their state. opts may be nil.
 //
-// The queue is paused first, matching the behaviour of the other ports. When
-// force is false the call fails if there are still active jobs.
-func (q *Queue) Obliterate(ctx context.Context, force bool, count int64) error {
-	if count <= 0 {
-		count = 1000
+// The queue is paused first, matching the behaviour of the other ports.
+// Unless opts.Force is set, the call fails if there are still active jobs.
+func (q *Queue) Obliterate(ctx context.Context, opts *ObliterateOptions) error {
+	var o ObliterateOptions
+	if opts != nil {
+		o = *opts
+	}
+	if o.Count <= 0 {
+		o.Count = 1000
 	}
 	if err := q.Pause(ctx); err != nil {
 		return err
 	}
 	for {
-		remaining, err := q.backend.Obliterate(ctx, force, count)
+		remaining, err := q.backend.Obliterate(ctx, o.Force, o.Count)
 		if err != nil {
 			return err
 		}
@@ -311,24 +342,50 @@ func (q *Queue) Clean(ctx context.Context, grace time.Duration, limit int64, sta
 	return ids, nil
 }
 
-// RetryJobs moves completed or failed jobs back to the wait list, looping
-// until every eligible job has been moved.
-func (q *Queue) RetryJobs(ctx context.Context, state JobState, count int64) (int64, error) {
-	if state != StateCompleted && state != StateFailed {
-		return 0, configError("retry state must be %q or %q", StateCompleted, StateFailed)
+// RetryJobsOptions tunes [Queue.RetryJobs], as the options of Node's
+// retryJobs do.
+type RetryJobsOptions struct {
+	// State is the state of the jobs to retry: StateFailed (the default) or
+	// StateCompleted.
+	State JobState
+	// Count is how many jobs are moved per batch, one datastore call each,
+	// not a cap on the total; 0 means 1000.
+	Count int64
+	// Before only retries the jobs that finished at or before it; the zero
+	// time means now.
+	Before time.Time
+}
+
+// RetryJobs moves every failed (or completed) job back to the wait list, in
+// batches, as Node's retryJobs does. opts may be nil. Their attempt counters
+// are kept on Redis but reset on PostgreSQL, as the shared commands do.
+func (q *Queue) RetryJobs(ctx context.Context, opts *RetryJobsOptions) error {
+	var o RetryJobsOptions
+	if opts != nil {
+		o = *opts
 	}
-	if count <= 0 {
-		count = 1000
+	if o.State == "" {
+		o.State = StateFailed
+	}
+	if o.State != StateCompleted && o.State != StateFailed {
+		return configError("retry state must be %q or %q", StateCompleted, StateFailed)
+	}
+	if o.Count <= 0 {
+		o.Count = 1000
 	}
 	timestamp := nowMillis()
+	if !o.Before.IsZero() {
+		timestamp = o.Before.UnixMilli()
+	}
 	return drainCursor(func() (int64, error) {
-		return q.backend.RetryFinishedJobs(ctx, state, count, timestamp)
+		return q.backend.RetryFinishedJobs(ctx, o.State, o.Count, timestamp)
 	})
 }
 
-// PromoteJobs moves delayed jobs to the wait list right away, looping until
-// every eligible job has been moved.
-func (q *Queue) PromoteJobs(ctx context.Context, count int64) (int64, error) {
+// PromoteJobs moves every delayed job to the wait list right away, in
+// batches of count jobs (one datastore call each; 0 means 1000), as Node's
+// promoteJobs does.
+func (q *Queue) PromoteJobs(ctx context.Context, count int64) error {
 	if count <= 0 {
 		count = 1000
 	}
@@ -338,18 +395,19 @@ func (q *Queue) PromoteJobs(ctx context.Context, count int64) (int64, error) {
 }
 
 // drainCursor repeatedly invokes a batched backend operation until its cursor
-// reports that no batch remains. The cursor is 1 when another batch of up to
-// count jobs remains and 0 once complete, not a remaining-count, so a single
-// call would leave jobs behind whenever more than count jobs are eligible; see
-// the reference Queue.retryJobs, which loops the same way.
-func drainCursor(step func() (int64, error)) (int64, error) {
+// reports that no batch remains. The cursor is not a count of jobs: on Redis
+// it is 1 when another batch of up to count jobs may remain and 0 once
+// complete, so a single call would leave jobs behind whenever more than count
+// jobs are eligible; see the reference Queue.retryJobs, which loops the same
+// way.
+func drainCursor(step func() (int64, error)) error {
 	for {
 		cursor, err := step()
 		if err != nil {
-			return 0, err
+			return err
 		}
 		if cursor <= 0 {
-			return cursor, nil
+			return nil
 		}
 	}
 }
@@ -386,16 +444,27 @@ func (q *Queue) JobCounts(ctx context.Context, states ...JobState) (JobCounts, e
 	return counts, nil
 }
 
-// JobIDs returns the ids of the jobs in state, in [start, end] of their
-// position in it (a negative end counts from the last one), in ascending
-// order when asc is set, as Node's getRanges.
-func (q *Queue) JobIDs(ctx context.Context, state JobState, start, end int64, asc bool) ([]string, error) {
-	return q.backend.GetRanges(ctx, state, start, end, asc)
+// JobIDs returns the ids of the jobs in the given states, as Node's
+// getRanges does: for each state, in order, the jobs at positions start to
+// end (inclusive; a negative end counts from the last one) of that state,
+// so the range applies to every state on its own. A job listed twice is
+// returned once. With no state, every state in [AllStates] is listed.
+//
+// asc selects the order within each state. Node's shortcuts use asc=true for
+// waiting, active, delayed, prioritized and waiting-children jobs (oldest or
+// first due first: getWaiting, getActive, getDelayed, getPrioritized,
+// getWaitingChildren) and asc=false for completed and failed jobs (most
+// recent first: getCompleted, getFailed), and getJobs defaults to false.
+func (q *Queue) JobIDs(ctx context.Context, start, end int64, asc bool, states ...JobState) ([]string, error) {
+	return q.backend.GetRanges(ctx, jobStates(states), start, end, asc)
 }
 
-// Jobs returns the jobs in state, selected and ordered as by JobIDs.
-func (q *Queue) Jobs(ctx context.Context, state JobState, start, end int64, asc bool) ([]*Job, error) {
-	records, err := q.backend.GetJobs(ctx, state, start, end, asc)
+// Jobs returns the jobs in the given states, selected and ordered as by
+// JobIDs, as Node's getJobs does. For example, the 10 most recent failures:
+//
+//	jobs, err := queue.Jobs(ctx, 0, 9, false, bullmq.StateFailed)
+func (q *Queue) Jobs(ctx context.Context, start, end int64, asc bool, states ...JobState) ([]*Job, error) {
+	records, err := q.backend.GetJobs(ctx, jobStates(states), start, end, asc)
 	if err != nil {
 		return nil, err
 	}
@@ -406,13 +475,31 @@ func (q *Queue) Jobs(ctx context.Context, state JobState, start, end int64, asc 
 	return jobs, nil
 }
 
+// jobStates returns states without duplicates, or AllStates when empty.
+func jobStates(states []JobState) []JobState {
+	if len(states) == 0 {
+		return AllStates
+	}
+	unique := make([]JobState, 0, len(states))
+	seen := make(map[JobState]bool, len(states))
+	for _, s := range states {
+		if !seen[s] {
+			seen[s] = true
+			unique = append(unique, s)
+		}
+	}
+	return unique
+}
+
 // IsMaxed reports whether the queue reached its global concurrency limit.
 func (q *Queue) IsMaxed(ctx context.Context) (bool, error) {
 	return q.backend.IsMaxed(ctx)
 }
 
 // SetGlobalConcurrency limits how many jobs may be active across all workers.
-// A value of 0 removes the limit, as RemoveGlobalConcurrency does.
+// A value of 0 (or less) removes the limit, as RemoveGlobalConcurrency does.
+// Unlike Go, Node's setGlobalConcurrency(0) stores 0, which stops every
+// worker: the queue is then always maxed.
 func (q *Queue) SetGlobalConcurrency(ctx context.Context, max int64) error {
 	if max <= 0 {
 		return q.RemoveGlobalConcurrency(ctx)
@@ -425,14 +512,17 @@ func (q *Queue) RemoveGlobalConcurrency(ctx context.Context) error {
 	return q.backend.RemoveQueueMetaFields(ctx, "concurrency")
 }
 
-// GlobalConcurrency returns the configured global concurrency limit, or 0 when
-// no limit is set.
-func (q *Queue) GlobalConcurrency(ctx context.Context) (int64, error) {
+// GlobalConcurrency returns the global concurrency limit, or nil when none
+// is set, as Node's getGlobalConcurrency returns null. It may be 0 when
+// another port stored it (see SetGlobalConcurrency): no job is then
+// fetched, and IsMaxed reports true.
+func (q *Queue) GlobalConcurrency(ctx context.Context) (*int64, error) {
 	val, ok, err := q.backend.GetQueueMetaField(ctx, "concurrency")
-	if err != nil || !ok {
-		return 0, err
+	if err != nil || !ok || val == "" {
+		return nil, err
 	}
-	return parseInt(val), nil
+	n := parseInt(val)
+	return &n, nil
 }
 
 // SetGlobalRateLimit throttles every worker of this queue to at most max jobs
@@ -471,7 +561,16 @@ func (q *Queue) GlobalRateLimit(ctx context.Context) (*RateLimiter, error) {
 	return &RateLimiter{Max: parseInt(max), Duration: time.Duration(parseInt(duration)) * time.Millisecond}, nil
 }
 
-// RateLimitTTL returns the remaining rate limit window in milliseconds.
+// RateLimitTTL returns how long, in milliseconds, the queue stays rate
+// limited, as Node's getRateLimitTtl does.
+//
+// maxJobs is the number of jobs per window that makes the queue rate
+// limited: RateLimitTTL returns the time left in the current window once at
+// least maxJobs jobs were counted in it, and 0 otherwise. A maxJobs of 0, like
+// Node's omitted argument, uses the Max of the global rate limit (see
+// SetGlobalRateLimit). Without a global rate limit either, it returns the
+// time left in the current window whatever its count, or the codes of Redis
+// PTTL: -2 when no window is open, and -1 when the window never expires.
 func (q *Queue) RateLimitTTL(ctx context.Context, maxJobs int64) (int64, error) {
 	return q.backend.GetRateLimitTTL(ctx, maxJobs)
 }
@@ -511,15 +610,19 @@ type WorkerInfo struct {
 	// age, idle, ...), only name on PostgreSQL. Fields["name"] is the raw
 	// connection name, which encodes the queue: `{prefix}:{base64(queue)}`
 	// followed by `:w:{name}` for a named worker on Redis, `{queue}` and
-	// `:w:{name}` on PostgreSQL.
+	// `:w:{name}` on PostgreSQL, where it is reported as the worker set it,
+	// with PostgreSQL's `\xhh` escaping of non-ASCII bytes undone.
 	Fields map[string]string
 }
 
 // Workers lists the workers connected to this queue, as Node's getWorkers
 // does. Workers are found by the name of their dedicated connection, in
 // CLIENT LIST on Redis and in pg_stat_activity on PostgreSQL. PostgreSQL
-// truncates connection names to 63 bytes, so there the workers of a queue
-// with a long name may be missing, and long worker names are truncated.
+// stores each non-ASCII byte of a connection name as a 4-byte `\xhh` escape
+// (a `?` before version 16, which loses the worker name's non-ASCII
+// characters) and truncates the result to 63 bytes, so there the workers of
+// a queue with a long name may be missing, and long worker names are
+// truncated.
 func (q *Queue) Workers(ctx context.Context) ([]WorkerInfo, error) {
 	lists, err := q.backend.GetClientList(ctx)
 	if err != nil {

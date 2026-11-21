@@ -10,6 +10,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// DefaultAddr is the Redis server used when Options.Addr is empty, the
+// default of ioredis and go-redis.
+const DefaultAddr = "localhost:6379"
+
 // Options configures the Redis backend: how to reach the server and which key
 // prefix the queues live under.
 //
@@ -22,7 +26,7 @@ type Options struct {
 	// Client is an existing client to reuse. When set, the connection fields
 	// below are ignored. The backend never closes a supplied client.
 	Client redis.UniversalClient
-	// Addr is the `host:port` of the Redis server. Defaults to 127.0.0.1:6379.
+	// Addr is the `host:port` of the Redis server. Defaults to [DefaultAddr].
 	Addr string
 	// Username for ACL authentication.
 	Username string
@@ -65,7 +69,7 @@ func (o Options) build() (redis.UniversalClient, bool) {
 	}
 	addr := o.Addr
 	if addr == "" {
-		addr = "127.0.0.1:6379"
+		addr = DefaultAddr
 	}
 	return redis.NewClient(&redis.Options{
 		Addr:                  addr,
@@ -109,8 +113,9 @@ func autoPipeliner(rdb redis.UniversalClient, opts *redis.AutoPipelineOptions) (
 // options (address, credentials, TLS, dialer, sentinel failover, ...) with a
 // single pooled connection, the blocking read timeout and the client name, so
 // the caller's default read timeout (3s) never applies to blocking commands.
-// Other supplied clients (cluster, ring, ...) cannot be cloned; they are
-// reused as-is, the returned bool is false, and callers must use go-redis's
+// A *redis.ClusterClient is cloned the same way, with one connection per
+// node. Other supplied clients (ring, ...) cannot be cloned; they are reused
+// as-is, the returned tracker is nil, and callers must use go-redis's
 // timeout-aware typed blocking commands and treat the name as best-effort.
 //
 // A dedicated client comes with a connTracker, which interrupts a blocked
@@ -119,6 +124,9 @@ func autoPipeliner(rdb redis.UniversalClient, opts *redis.AutoPipelineOptions) (
 func (o Options) buildBlocking(name string, readTimeout time.Duration) (redis.UniversalClient, *connTracker) {
 	if readTimeout <= 0 {
 		readTimeout = -1
+	}
+	if cluster, ok := o.Client.(*redis.ClusterClient); ok {
+		return buildBlockingCluster(cluster, name, readTimeout)
 	}
 	var opt *redis.Options
 	if o.Client != nil {
@@ -146,7 +154,7 @@ func (o Options) buildBlocking(name string, readTimeout time.Duration) (redis.Un
 	} else {
 		addr := o.Addr
 		if addr == "" {
-			addr = "127.0.0.1:6379"
+			addr = DefaultAddr
 		}
 		opt = &redis.Options{
 			Addr:                  addr,
@@ -165,13 +173,44 @@ func (o Options) buildBlocking(name string, readTimeout time.Duration) (redis.Un
 	return client, tracker
 }
 
-// connTracker remembers the connection of a dedicated blocking client, which
-// has at most one, so that a blocked read can be interrupted by closing it,
-// as Node's disconnectBlocking does. The client then drops the connection
-// and dials (and names) a new one for its next command.
+// buildBlockingCluster derives a dedicated blocking client from a cluster
+// client's options, as buildBlocking does for a *redis.Client: one
+// connection per node, named, with the blocking read timeout. One connection
+// per node also lists a worker once per node in CLIENT LIST.
+func buildBlockingCluster(c *redis.ClusterClient, name string, readTimeout time.Duration) (redis.UniversalClient, *connTracker) {
+	clone := *c.Options()
+	clone.PoolSize = 1
+	clone.MinIdleConns = 0
+	clone.MaxIdleConns = 0
+	clone.MaxActiveConns = 0
+	clone.ReadTimeout = readTimeout
+	clone.ContextTimeoutEnabled = true
+	clone.ClientName = name
+	// See buildBlocking.
+	clone.PushNotificationProcessor = nil
+	clone.AutoPipelineOptions = nil
+	tracker := &connTracker{}
+	newNode := clone.NewClient
+	clone.NewClient = func(opt *redis.Options) *redis.Client {
+		var node *redis.Client
+		if newNode != nil {
+			node = newNode(opt)
+		} else {
+			node = redis.NewClient(opt)
+		}
+		node.AddHook(tracker)
+		return node
+	}
+	return redis.NewClusterClient(&clone), tracker
+}
+
+// connTracker remembers the connections of a dedicated blocking client, which
+// has at most one per server, so that a blocked read can be interrupted by
+// closing them, as Node's disconnectBlocking does. The client then drops the
+// connection and dials (and names) a new one for its next command.
 type connTracker struct {
-	mu   sync.Mutex
-	conn net.Conn
+	mu    sync.Mutex
+	conns map[string]net.Conn
 }
 
 func (t *connTracker) DialHook(next redis.DialHook) redis.DialHook {
@@ -179,7 +218,10 @@ func (t *connTracker) DialHook(next redis.DialHook) redis.DialHook {
 		conn, err := next(ctx, network, addr)
 		if err == nil {
 			t.mu.Lock()
-			t.conn = conn
+			if t.conns == nil {
+				t.conns = make(map[string]net.Conn)
+			}
+			t.conns[addr] = conn
 			t.mu.Unlock()
 		}
 		return conn, err
@@ -192,13 +234,14 @@ func (t *connTracker) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.
 	return next
 }
 
-// interrupt closes the current connection, failing any read blocked on it.
+// interrupt closes the current connections, failing any read blocked on
+// them.
 func (t *connTracker) interrupt() {
 	t.mu.Lock()
-	conn := t.conn
-	t.conn = nil
+	conns := t.conns
+	t.conns = nil
 	t.mu.Unlock()
-	if conn != nil {
+	for _, conn := range conns {
 		_ = conn.Close()
 	}
 }

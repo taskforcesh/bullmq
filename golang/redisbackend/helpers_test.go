@@ -75,7 +75,7 @@ func newTestQueue(t *testing.T, opts Options) *bullmq.Queue {
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_ = q.Obliterate(ctx, true, 1000)
+		_ = q.Obliterate(ctx, &bullmq.ObliterateOptions{Force: true})
 		_ = q.Close()
 	})
 	return q

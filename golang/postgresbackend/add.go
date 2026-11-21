@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/jackc/pgx/v5"
 	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
@@ -98,9 +99,10 @@ func (b *Backend) AddJob(ctx context.Context, job bullmq.NewJob) (string, error)
 	return id, err
 }
 
-// AddJobs adds every job in one atomic statement, so they become visible
-// together: set-based add_jobs_bulk when the jobs are independent, the
-// row-by-row add_flow when some have a parent or a deduplication id.
+// AddJobs adds every job atomically, so they become visible together, or
+// none of them: set-based add_jobs_bulk when the jobs are independent, the
+// row-by-row add_flow (see addFlow) when some have a parent or a
+// deduplication id.
 func (b *Backend) AddJobs(ctx context.Context, jobs []bullmq.NewJob) ([]string, error) {
 	if len(jobs) == 0 {
 		return nil, nil
@@ -121,21 +123,51 @@ func (b *Backend) AddJobs(ctx context.Context, jobs []bullmq.NewJob) ([]string, 
 	if err != nil {
 		return nil, err
 	}
-	var ids []string
-	if independent {
-		ids, err = b.queryStrings(ctx, "add_jobs_bulk", b.name, string(payload))
-	} else {
-		ids, err = b.queryStrings(ctx, "add_flow", string(payload))
+	if !independent {
+		ids, _, err := b.addFlow(ctx, string(payload))
+		return ids, err
 	}
+	ids, err := b.queryStrings(ctx, "add_jobs_bulk", b.name, string(payload))
 	if err != nil {
 		return nil, err
 	}
 	for _, id := range ids {
 		if code, ok := negativeCode(id); ok {
-			return nil, codeError("addJob", code)
+			return nil, codeError("add_jobs_bulk", code)
 		}
 	}
 	return ids, nil
+}
+
+// addFlow runs add_flow on the entries of payload in a transaction, which it
+// rolls back when an id is an error code, and then returns the index of
+// that entry. add_flow returns a code for a job it cannot add (-5 for a
+// missing parent) and goes on with the others, so the transaction is what
+// keeps a failed batch from leaving the other jobs committed.
+func (b *Backend) addFlow(ctx context.Context, payload string) (ids []string, failed int, err error) {
+	failed = -1
+	err = b.run(ctx, "add_flow", func(ctx context.Context, sql string) error {
+		return pgx.BeginFunc(ctx, b.pool, func(tx pgx.Tx) error {
+			rows, err := tx.Query(ctx, sql, payload)
+			if err != nil {
+				return err
+			}
+			if ids, err = pgx.CollectRows(rows, pgx.RowTo[string]); err != nil {
+				return err
+			}
+			for i, id := range ids {
+				if code, ok := negativeCode(id); ok {
+					failed = i
+					return codeError("add_flow", code)
+				}
+			}
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, failed, err
+	}
+	return ids, -1, nil
 }
 
 // negativeCode reports whether an id returned by add_flow is an error code.

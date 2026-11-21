@@ -30,6 +30,7 @@ func (b *Backend) ForQueue(name string) (bullmq.Backend, error) {
 		shared:           b.shared,
 		migrateKey:       b.migrateKey,
 		skipVersionCheck: b.skipVersionCheck,
+		skipMigrations:   b.skipMigrations,
 		closing:          b.closing,
 	}
 	s.ready.Store(b.ready.Load())
@@ -65,7 +66,8 @@ func bareQueueName(name string) (string, error) {
 
 // AddFlow adds the entries with the shared add_flow command: a single
 // statement that inserts the whole tree and releases, at the end, every
-// parent left without pending children.
+// parent left without pending children. It adds the whole tree or, when a
+// job cannot be added, none of it (see addFlow).
 func (b *Backend) AddFlow(ctx context.Context, entries []bullmq.FlowEntry) ([]string, error) {
 	if len(entries) == 0 {
 		return nil, nil
@@ -89,18 +91,16 @@ func (b *Backend) AddFlow(ctx context.Context, entries []bullmq.FlowEntry) ([]st
 	if err != nil {
 		return nil, err
 	}
-	ids, err := b.queryStrings(ctx, "add_flow", string(payload))
+	ids, failed, err := b.addFlow(ctx, string(payload))
+	if failed >= 0 && failed < len(entries) {
+		return nil, fmt.Errorf("bullmq: flow job %s of queue %s was not added: %w",
+			entries[failed].JobID, entries[failed].QueueName, err)
+	}
 	if err != nil {
 		return nil, err
 	}
 	if len(ids) != len(entries) {
 		return nil, fmt.Errorf("bullmq: add_flow returned %d ids for %d jobs", len(ids), len(entries))
-	}
-	for i, id := range ids {
-		if code, ok := negativeCode(id); ok {
-			return nil, fmt.Errorf("bullmq: flow job %s of queue %s was not added: %w",
-				entries[i].JobID, entries[i].QueueName, codeError("addFlow", code))
-		}
 	}
 	return ids, nil
 }

@@ -174,6 +174,9 @@ func commandScripts(prepared []redisAdd) (map[string]*luaScript, []*luaScript, e
 // their order, which is harmless for independent jobs but not for a flow: see
 // execFlow.
 func (b *Backend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.Cmd, error) {
+	if err := b.ready(ctx); err != nil {
+		return nil, err
+	}
 	scripts, distinct, err := commandScripts(prepared)
 	if err != nil {
 		return nil, err
@@ -284,6 +287,9 @@ func (b *Backend) execAdds(ctx context.Context, prepared []redisAdd) ([]*redis.C
 // that missed the cache on their own would add a parent after its children
 // were rejected, and release it at once.
 func (b *Backend) execFlow(ctx context.Context, prepared []redisAdd) ([]*redis.Cmd, error) {
+	if err := b.ready(ctx); err != nil {
+		return nil, err
+	}
 	scripts, distinct, err := commandScripts(prepared)
 	if err != nil {
 		return nil, err
@@ -425,6 +431,12 @@ func packJobOptions(opts *bullmq.JobOptions) ([]byte, error) {
 		}
 		if d.Replace {
 			de["replace"] = true
+		}
+		if d.Reschedule {
+			de["reschedule"] = true
+		}
+		if d.KeepLastIfActive {
+			de["keepLastIfActive"] = true
 		}
 		m["de"] = de
 	}

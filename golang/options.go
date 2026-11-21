@@ -39,14 +39,27 @@ type ParentOptions struct {
 type DeduplicationOptions struct {
 	// ID is the deduplication id.
 	ID string `json:"id"`
-	// TTL is how long, in milliseconds, the id is held. When it is 0, the
-	// id is held until the job completes or fails for good.
+	// TTL is how long the id is held, in milliseconds (an int64, not a
+	// time.Duration). When it is 0, the id is held until the job completes
+	// or fails for good.
 	TTL int64 `json:"ttl,omitempty"`
 	// Extend refreshes the TTL when a duplicate is discarded.
 	Extend bool `json:"extend,omitempty"`
 	// Replace discards the existing job in favour of the new one, while the
 	// existing job is still delayed.
 	Replace bool `json:"replace,omitempty"`
+	// Reschedule moves the existing job, while it is still delayed, to the
+	// new job's delay counted from the new job's timestamp (no delay makes
+	// it due now). The existing job keeps its id and data, and a `delayed`
+	// event is emitted. It is independent of Extend, and ignored when
+	// Replace is set.
+	Reschedule bool `json:"reschedule,omitempty"`
+	// KeepLastIfActive keeps the data of the last job added while the
+	// existing job is active: when that job completes or fails, a new job
+	// is added with it, so at most one job runs and one waits per id. TTL
+	// is then ignored: the id is held until the jobs finish. It can't be
+	// used on a flow node with a parent.
+	KeepLastIfActive bool `json:"keepLastIfActive,omitempty"`
 }
 
 // JobOptions configures a single job.
@@ -56,9 +69,11 @@ type DeduplicationOptions struct {
 type JobOptions struct {
 	// JobID overrides the automatically generated job id.
 	JobID string `json:"jobId,omitempty"`
-	// Delay in milliseconds before the job becomes available. A pointer so a
-	// per-job value of 0 can be told apart from "not set", letting it override
-	// a non-zero queue default back to 0.
+	// Delay is how long before the job becomes available, in milliseconds
+	// (an int64, not a time.Duration: use time.Minute.Milliseconds(), for
+	// example), as every port stores it. A pointer so a per-job value of 0
+	// can be told apart from "not set", letting it override a non-zero
+	// queue default back to 0.
 	Delay *int64 `json:"delay,omitempty"`
 	// Priority; lower values are processed first. 0 means unprioritized and
 	// the maximum is 2^21-1 (2097151). A
@@ -141,6 +156,17 @@ type QueueOptions struct {
 	Backend BackendFactory
 	// DefaultJobOptions are merged into every job added to this queue.
 	DefaultJobOptions *JobOptions
+	// EventsMaxLen is the approximate maximum length of the queue's events
+	// stream, stored as the `opts.maxLenEvents` metadata, as Node's
+	// streams.events.maxLen. Defaults to 10000.
+	EventsMaxLen int64
+	// SkipMetasUpdate stops the queue from writing its metadata (version
+	// and opts.maxLenEvents), for example for a role that may only read.
+	SkipMetasUpdate bool
+	// RepeatStrategy, when set, computes the due times of the Pattern job
+	// schedulers this queue upserts, instead of cron (see [RepeatStrategy]).
+	// Set the same one on the workers.
+	RepeatStrategy RepeatStrategy
 }
 
 // WorkerOptions configures a Worker.
@@ -150,6 +176,7 @@ type WorkerOptions struct {
 	// Name identifies the worker; stored on each processed job as `pb`.
 	Name string
 	// Concurrency is the number of jobs processed in parallel. Defaults to 1.
+	// Worker.SetConcurrency changes it while the worker runs.
 	Concurrency int
 	// LockDuration is how long a job lock is held. Defaults to 30s. A positive
 	// value must be at least 1ms, since the lock TTL is stored in milliseconds,
@@ -195,6 +222,11 @@ type WorkerOptions struct {
 	// BackoffStrategy computes a custom retry delay in milliseconds. Returning
 	// a negative value discards the job.
 	BackoffStrategy func(attemptsMade int64, backoffType BackoffType, err error, job *Job) int64
+	// RepeatStrategy, when set, computes the due time of the next iteration
+	// of a Pattern job scheduler when the worker fetches one of its jobs,
+	// instead of cron (see [RepeatStrategy]). It must match the one of the
+	// queue that upserted the scheduler.
+	RepeatStrategy RepeatStrategy
 	// OnEvent, when set, is called synchronously with every event the worker
 	// emits, including those dropped from a full Events channel. It runs on
 	// the worker's goroutines (a slow callback slows processing down), may

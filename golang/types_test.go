@@ -57,7 +57,7 @@ func TestRemoveAllIsStoredAsTrue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := `{"removeOnComplete":true,"removeOnFail":{"count":0}}`; string(out) != want {
+	if want := `{"removeOnComplete":true,"removeOnFail":0}`; string(out) != want {
 		t.Fatalf("Marshal = %s, want %s", out, want)
 	}
 	if !RemoveAll().IsRemoveAll() || KeepCount(0).IsRemoveAll() {
@@ -69,6 +69,20 @@ func TestRemoveAllIsStoredAsTrue(t *testing.T) {
 	}
 	if !back.RemoveOnComplete.IsRemoveAll() || back.RemoveOnFail.IsRemoveAll() {
 		t.Errorf("round trip lost the form: %+v, %+v", back.RemoveOnComplete, back.RemoveOnFail)
+	}
+}
+
+// KeepCount(n) is stored as the bare number n, as Node stores
+// `removeOnComplete: n`; an Age or Limit set on it afterwards is kept by
+// writing the object form.
+func TestKeepCountIsStoredAsANumber(t *testing.T) {
+	if out, err := json.Marshal(KeepCount(1000)); err != nil || string(out) != `1000` {
+		t.Fatalf("KeepCount(1000) = %s (%v), want 1000", out, err)
+	}
+	k := KeepCount(5)
+	k.Age = ptr(int64(60))
+	if out, err := json.Marshal(k); err != nil || string(out) != `{"count":5,"age":60}` {
+		t.Fatalf("KeepCount(5) with an Age = %s (%v), want the object form", out, err)
 	}
 }
 

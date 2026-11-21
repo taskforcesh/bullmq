@@ -6,52 +6,59 @@ Status of the Go port relative to the reference Node.js implementation.
 
 ### Queue
 
-| Feature                                                                           | Notes                                                                                                                                       |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Add`, `AddBulk`                                                                  | Standard, delayed and prioritized jobs                                                                                                      |
-| Custom job ids                                                                    | `JobOptions.JobID`                                                                                                                          |
-| Default job options                                                               | `QueueOptions.DefaultJobOptions`                                                                                                            |
-| `Pause`, `Resume`, `IsPaused`                                                     |                                                                                                                                             |
-| `Drain`, `Obliterate`, `Clean`                                                    |                                                                                                                                             |
-| `Count`, `JobCounts`, `JobIDs`, `Jobs`                                            |                                                                                                                                             |
-| `RetryJobs`, `PromoteJobs`                                                        |                                                                                                                                             |
-| `IsMaxed`, `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency` |                                                                                                                                             |
-| `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Stored as the `max` and `duration` queue metadata, as in Node.js                                                                            |
-| `Metrics`                                                                         | Completed/failed data points                                                                                                                |
-| `Workers`                                                                         | `[]WorkerInfo`: the worker name and the connection's fields                                                                                 |
-| Job deduplication                                                                 | `JobOptions.Deduplication`, `Job.DeduplicationID`; `Queue.DeduplicationJobID`, `Queue.RemoveDeduplicationKey`, `Job.RemoveDeduplicationKey` |
+| Feature                                                                           | Notes                                                                                                                                                                                              |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Add`, `AddBulk`                                                                  | Standard, delayed and prioritized jobs                                                                                                                                                             |
+| Custom job ids                                                                    | `JobOptions.JobID`                                                                                                                                                                                 |
+| Default job options                                                               | `QueueOptions.DefaultJobOptions`                                                                                                                                                                   |
+| Queue metadata                                                                    | Written before the first command: `version` (`bullmq:<ScriptsVersion>`, the Node.js version of the embedded scripts), `opts.maxLenEvents` (`EventsMaxLen`); `SkipMetasUpdate` turns it off         |
+| `Pause`, `Resume`, `IsPaused`                                                     |                                                                                                                                                                                                    |
+| `Drain`, `Obliterate`, `Clean`, `Remove`                                          |                                                                                                                                                                                                    |
+| `Count`, `JobCounts`, `JobIDs`, `Jobs`                                            | `Jobs` and `JobIDs` take several states, as `getJobs` does; Node's `getWaiting`, `getFailed`, ... shortcuts are `Jobs` with one state (the `asc` each uses is documented on `JobIDs`)              |
+| `CountsPerPriority`, `DelayedCount`                                               | Node's `getCountsPerPriority` and `getDelayedCount(timestamp)`                                                                                                                                     |
+| `RetryJobs`, `PromoteJobs`                                                        |                                                                                                                                                                                                    |
+| `IsMaxed`, `SetGlobalConcurrency`, `GlobalConcurrency`, `RemoveGlobalConcurrency` | `GlobalConcurrency` is nil when unset, as Node returns null; `SetGlobalConcurrency(0)` removes the limit, whereas Node stores 0, which maxes the queue out                                         |
+| `SetGlobalRateLimit`, `GlobalRateLimit`, `RemoveGlobalRateLimit`, `RateLimitTTL`  | Stored as the `max` and `duration` queue metadata, as in Node.js                                                                                                                                   |
+| `Metrics`                                                                         | Completed/failed data points                                                                                                                                                                       |
+| `Workers`                                                                         | `[]WorkerInfo`: the worker name and the connection's fields                                                                                                                                        |
+| `Meta`, `Version`                                                                 | `*QueueMeta`, parsed as Node's `getMeta` parses it; `Version` reads the `version` field, `""` when unset                                                                                           |
+| Job deduplication                                                                 | Simple, throttle, debounce (`Replace`), `Reschedule` and `KeepLastIfActive` modes; `Job.DeduplicationID`; `Queue.DeduplicationJobID`, `Queue.RemoveDeduplicationKey`, `Job.RemoveDeduplicationKey` |
 
 ### Worker
 
-| Feature                             | Notes                                                                                                                                                     |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Concurrency                         | Bounded by `WorkerOptions.Concurrency`                                                                                                                    |
-| Fetch-next                          | Each slot fetches its next job when it finishes the current one, re-using its lock token, as in Node.js                                                   |
-| Blocking fetch                      | Dedicated connection using `BZPOPMIN` on the marker key for the whole `DrainDelay`, interrupted on close; waits until the next delayed job is due         |
-| Auto-pipelining                     | Opt-in, experimental: `redisbackend.Options.AutoPipeline` (go-redis auto-pipelining, use `FullDuplex`) batches concurrent commands as ioredis does        |
-| Lock renewal                        | Disable with `SkipLockRenewal`; `EventLocksRenewed` and `EventLockRenewalFailed`. A lost lock also cancels the job's context (`ErrLockLost`), unlike Node |
-| Stalled job recovery                | Disable with `SkipStalledCheck`; `EventStalled`                                                                                                           |
-| Retries and backoff                 | Fixed, exponential and custom `BackoffStrategy`; delays are clamped so they cannot overflow                                                               |
-| `UnrecoverableError`                | Skips the remaining attempts                                                                                                                              |
-| `MaxStartedAttempts`                | Checked after a deferred stalled failure, as in Node.js                                                                                                   |
-| `StackTraceLimit`                   | Job option; every trace is kept by default, as in Node.js                                                                                                 |
-| Panic recovery                      | A panicking processor fails the job instead of the process                                                                                                |
-| Rate limiting                       | `WorkerOptions.Limiter`; the limit is slept out, at most `MaximumRateLimitDelay` at a time                                                                |
-| Manual rate limiting                | `Worker.RateLimit` and `ErrRateLimited` (Node's `RateLimitError`)                                                                                         |
-| `RemoveOnComplete` / `RemoveOnFail` | Boolean, count, age and limit, stored in the same forms as Node.js (`RemoveAll` is `true`)                                                                |
-| Metrics                             | `WorkerOptions.Metrics`                                                                                                                                   |
-| `Pause`, `Resume`                   | `Pause(ctx, doNotWaitActive)` waits for active jobs, as in Node.js                                                                                        |
-| `Close`                             | Graceful shutdown drains in-flight jobs; cancelling the `Run` context leaves them active for stalled recovery                                             |
-| `CancelJob`, `CancelAllJobs`        | Cancel the job context; the job fails with the reason                                                                                                     |
-| Events                              | Active, completed, failed, progress, stalled, lock renewal, drained, error, closed; synchronous `OnEvent` and `DroppedEvents`                             |
+| Feature                             | Notes                                                                                                                                                                                                             |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Concurrency                         | Bounded by `WorkerOptions.Concurrency`; `SetConcurrency` changes it while the worker runs, as setting Node's `concurrency` does                                                                                   |
+| Fetch-next                          | Each slot fetches its next job when it finishes the current one, re-using its lock token, as in Node.js                                                                                                           |
+| Blocking fetch                      | Dedicated connection using `BZPOPMIN` on the marker key for the whole `DrainDelay`, interrupted on close; waits until the next delayed job is due                                                                 |
+| Auto-pipelining                     | Opt-in, experimental: `redisbackend.Options.AutoPipeline` (go-redis auto-pipelining, use `FullDuplex`) batches concurrent commands as ioredis does                                                                |
+| Lock renewal                        | Disable with `SkipLockRenewal`; `EventLocksRenewed` and `EventLockRenewalFailed`. A lost lock also cancels the job's context (`ErrLockLost`), unlike Node                                                         |
+| Stalled job recovery                | Disable with `SkipStalledCheck`; `EventStalled`                                                                                                                                                                   |
+| Retries and backoff                 | Fixed, exponential and custom `BackoffStrategy`; delays are clamped so they cannot overflow                                                                                                                       |
+| `UnrecoverableError`                | Skips the remaining attempts                                                                                                                                                                                      |
+| `MaxStartedAttempts`                | Checked after a deferred stalled failure, as in Node.js                                                                                                                                                           |
+| `StackTraceLimit`                   | Job option; every trace is kept by default, as in Node.js                                                                                                                                                         |
+| Panic recovery                      | A panicking processor fails the job instead of the process                                                                                                                                                        |
+| Rate limiting                       | `WorkerOptions.Limiter`; the limit is slept out, at most `MaximumRateLimitDelay` at a time                                                                                                                        |
+| Manual rate limiting                | `Worker.RateLimit` and `ErrRateLimited` (Node's `RateLimitError`)                                                                                                                                                 |
+| `RemoveOnComplete` / `RemoveOnFail` | Boolean, count, age and limit, stored in the same forms as Node.js (`RemoveAll()` is `true`, `KeepCount(n)` is `n`)                                                                                               |
+| Metrics                             | `WorkerOptions.Metrics`                                                                                                                                                                                           |
+| `Pause`, `Resume`                   | `Pause(ctx, doNotWaitActive)` waits for active jobs, as in Node.js; `EventPaused` and `EventResumed`. A paused worker keeps its stalled check running, while Node's `pause` stops it                              |
+| `Close`                             | Graceful shutdown drains in-flight jobs; cancelling the `Run` context leaves them active for stalled recovery                                                                                                     |
+| `CancelJob`, `CancelAllJobs`        | Cancel the job context; the job fails with the processor's error, or with the reason when that error is `ctx.Err()`. Job calls made with the cancelled context fail: use `context.WithoutCancel(ctx)` for cleanup |
+| Events                              | Active, completed, failed, progress, stalled, lock renewal, drained, error, closed; synchronous `OnEvent` and `DroppedEvents`                                                                                     |
+| Manual fetching                     | A worker without a processor: `GetNextJob`, `Job.MoveToCompleted` / `MoveToFailed` with fetch-next, `Job.ExtendLock` and `StartStalledCheck`, as Node's manual mode                                               |
 
 ### Job
 
 `UpdateProgress`, `UpdateData`, `Log`, `Logs`, `State`, `Remove`, `Promote`,
-`Retry`, `ChangeDelay`, `ChangePriority`, `ExtendLock`, `MoveToDelayed`,
+`Retry` (with `RetryOptions.ResetAttemptsMade` / `ResetAttemptsStarted`),
+`ChangeDelay`, `ChangePriority`, `ExtendLock`, `MoveToDelayed`, `MoveToWait`
+(with `ErrWaiting`, Node's `WaitingError`),
 `MoveToWaitingChildren`, `IsCompleted`, `IsFailed`.
 
-Parent jobs: `ChildrenValues`, `Dependencies` (paginated), `DependenciesCount`,
+Parent jobs: `ChildrenValues` (and `DecodeChildrenValues` into a typed map),
+`Dependencies` (paginated), `DependenciesCount`,
 `IgnoredChildrenFailures` (and the deprecated `FailedChildrenValues`),
 `RemoveChildDependency`, `RemoveUnprocessedChildren`: Node's
 `getChildrenValues`, `getDependencies`, `getDependenciesCount`,
@@ -60,21 +67,22 @@ Parent jobs: `ChildrenValues`, `Dependencies` (paginated), `DependenciesCount`,
 
 ### FlowProducer
 
-| Feature                      | Notes                                                                                                                                                                                                                     |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Add`, `AddBulk`             | Trees of jobs across queues, inserted in one Redis transaction or one SQL statement; per-queue default options with `FlowOpts.QueuesOptions`                                                                              |
-| `GetFlow`                    | `Depth` and `MaxChildren`, as in Node.js                                                                                                                                                                                  |
-| Parent failure options       | `FailParentOnFailure`, `ContinueParentOnFailure`, `IgnoreDependencyOnFailure`, `RemoveDependencyOnFailure`, mutually exclusive                                                                                            |
-| Deduplication                | Only on a root without children nor parent, as in Node.js                                                                                                                                                                 |
-| Parents completing too early | A parent that completes with pending children, or with a child that failed it, fails (`Job X has pending dependencies`), as in Node.js                                                                                    |
-| Errors                       | `Add`/`AddBulk` return an error when the datastore rejects a job (missing parent, child of another parent); the jobs it accepted are kept, as in Node.js, which only reports the root of `add` and nothing from `addBulk` |
-| Per-node `prefix`            | Not supported: a flow lives in the namespace of the producer's backend factory. Use another `FlowProducer` for another prefix                                                                                             |
+| Feature                      | Notes                                                                                                                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Add`, `AddBulk`             | Trees of jobs across queues, inserted in one Redis transaction or one SQL transaction; per-queue default options with `FlowOpts.QueuesOptions`                                           |
+| `GetFlow`                    | `Depth` and `MaxChildren`, as in Node.js                                                                                                                                                 |
+| Parent failure options       | `FailParentOnFailure`, `ContinueParentOnFailure`, `IgnoreDependencyOnFailure`, `RemoveDependencyOnFailure`, mutually exclusive                                                           |
+| Deduplication                | Only on a root without children nor parent, as in Node.js (`KeepLastIfActive` on a child reports Node's error)                                                                           |
+| Parents completing too early | A parent that completes with pending children, or with a child that failed it, fails (`Job X has pending dependencies`), as in Node.js                                                   |
+| Errors                       | `Add`/`AddBulk` return an error when the datastore rejects a job (missing parent, child of another parent); PostgreSQL then adds none, Redis keeps the jobs it accepted, as Node.js does |
+| Per-node `prefix`            | Not supported: a flow lives in the namespace of the producer's backend factory. Use another `FlowProducer` for another prefix                                                            |
 
 ### Job schedulers
 
 | Feature                                               | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `UpsertJobScheduler`                                  | Cron `Pattern` or `Every` interval, with `Offset`, `Limit`, `Immediately`, `StartDate`, `EndDate` and `Tz`; template name, data and options                                                                                                                                                                                                                                                                                                                                 |
+| Custom repeat strategy                                | `QueueOptions.RepeatStrategy` and `WorkerOptions.RepeatStrategy`, Node's `settings.repeatStrategy`: replace cron for `Pattern` schedulers; 0 means no next run                                                                                                                                                                                                                                                                                                              |
 | `RemoveJobScheduler`                                  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `JobScheduler`, `JobSchedulers`, `JobSchedulersCount` | Paginated by next run; iteration count, schedule and template                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Worker reschedule-on-fetch                            | The worker that fetches an iteration adds the next one before processing it, as in Node.js; Go and other ports advance each other's schedulers                                                                                                                                                                                                                                                                                                                              |
@@ -85,15 +93,21 @@ Parent jobs: `ChildrenValues`, `Dependencies` (paginated), `DependenciesCount`,
 ### QueueEvents
 
 Streams every event published by any worker on the queue, in any language.
+`Queue.TrimEvents` trims the stream as Node's `trimEvents` does; like Node's,
+the PostgreSQL backend doesn't support it (`ErrNotSupported`).
+`QueueEventsProducer.PublishEvent` publishes custom events, as Node's
+`QueueEventsProducer.publishEvent` does. Event fields are strings;
+`DecodeReturnValue`, `Progress`/`DecodeProgress` and `DelayedUntil` parse
+those Node's `QueueEvents` parses.
 
 ## Not implemented
 
-| Feature                                | Notes                                                                                                                                    |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Sandboxed processors                   | Not applicable; use goroutines.                                                                                                          |
-| Telemetry / OpenTelemetry              | No tracing hooks yet.                                                                                                                    |
-| Redis Cluster and Sentinel             | Only standalone Redis is exercised by the test suite. You can pass your own `redis.UniversalClient`, but this configuration is untested. |
-| Global concurrency groups (BullMQ Pro) | Pro-only feature.                                                                                                                        |
+| Feature                                | Notes                                                                                                            |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Sandboxed processors                   | Not applicable; use goroutines.                                                                                  |
+| Telemetry / OpenTelemetry              | No tracing hooks yet.                                                                                            |
+| Redis Cluster and Sentinel             | CI only runs on standalone Redis; the cluster tests run when `REDIS_CLUSTER_ADDRS` is set. Sentinel is untested. |
+| Global concurrency groups (BullMQ Pro) | Pro-only feature.                                                                                                |
 
 ## PostgreSQL
 
@@ -105,11 +119,11 @@ both datastores, and the behaviour test suite runs on both.
 | Topic            | PostgreSQL behaviour                                                                                                                                                                                                                                                                                                           |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Namespace        | `Options.Schema` (default `bullmq`) instead of a key prefix. `Queue.Backend().QualifiedName()` is the bare queue name, as in Node.js.                                                                                                                                                                                          |
-| Migrations       | Applied on first use, in one transaction under the shared advisory lock, and recorded in the `migration` ledger every runtime reads. A schema whose ledger requires a newer BullMQ major is refused with `SchemaVersionError`. A legacy .NET `bullmq_migration` ledger is adopted.                                             |
+| Migrations       | On first use unless the ledger is up to date (then no DDL) or `SkipMigrations` is set; `Migrate` runs them at deployment. One transaction under the shared advisory lock, recorded in the shared `migration` ledger. A ledger requiring a newer major is refused (`SchemaVersionError`); a legacy .NET ledger is adopted.      |
 | Connections      | Queries run on a pgxpool pool (`PoolSize`, default 20) shared by the backends of the process with the same settings, or on a caller-supplied `*pgxpool.Pool`. Workers and `QueueEvents` add one dedicated `LISTEN` connection each, outside the pool.                                                                          |
 | Blocking fetch   | `LISTEN bullmq_jobs` on the dedicated connection. Before blocking, and after each notification for the queue, the worker checks for a claimable job and the next delayed job, whose due time it reports once, like the Redis delayed marker. Nothing is reported while the queue is paused or at its global concurrency limit. |
 | Events           | Stored in the `event` table and delivered with `LISTEN bullmq_events`. Event ids are numbers; the Redis forms `0-0` and `<id>-<seq>` are accepted. As with every runtime on the shared SQL, a listener can miss an event whose transaction commits after a later event was read, which happens with concurrent workers.        |
-| Worker discovery | `Queue.Workers` lists the `application_name` of the workers' dedicated connections: `{queue}` or `{queue}:w:{name}`, as the Node.js PostgreSQL backend names them. Pooled sessions are never named. PostgreSQL truncates names to 63 bytes, so the workers of a queue with a long name may be missing.                         |
+| Worker discovery | `Queue.Workers` lists the `application_name` of the workers' dedicated connections: `{queue}` or `{queue}:w:{name}`, as in Node.js; pooled sessions are unnamed. PostgreSQL escapes non-ASCII bytes as `\xhh` (undone by `Workers`) and truncates names to 63 bytes: the workers of a queue with a long name may be missing.   |
 | Pause            | A queue flag: waiting jobs stay waiting and keep being counted as waiting.                                                                                                                                                                                                                                                     |
 | Prioritized jobs | Waiting jobs with a priority, reported as `prioritized`.                                                                                                                                                                                                                                                                       |
 | Job options      | Stored with the long `JobsOptions` names (`deduplication`, `keepLogs`, `failParentOnFailure`, ...) that the shared SQL reads, as the other ports store them on PostgreSQL.                                                                                                                                                     |

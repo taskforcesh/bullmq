@@ -49,8 +49,8 @@ if err != nil {
 
 `AddBulk` adds several flows in one operation. When the datastore rejects a
 job, for example because the parent of the root doesn't exist, `Add` and
-`AddBulk` return an error, and, as in Node.js, the jobs already accepted are
-kept.
+`AddBulk` return an error. On PostgreSQL no job of the operation is added;
+on Redis, as in Node.js, the jobs already accepted are kept.
 
 ## Reading the results of the children
 
@@ -60,21 +60,19 @@ PostgreSQL):
 
 ```go
 func renderReport(ctx context.Context, job *bullmq.Job) (any, error) {
-	values, err := job.ChildrenValues(ctx)
-	if err != nil {
+	var amounts map[string]float64
+	if err := job.DecodeChildrenValues(ctx, &amounts); err != nil {
 		return nil, err
 	}
 	total := 0.0
-	for _, raw := range values {
-		var amount float64
-		if err := json.Unmarshal(raw, &amount); err != nil {
-			return nil, err
-		}
+	for _, amount := range amounts {
 		total += amount
 	}
 	return total, nil
 }
 ```
+
+`job.ChildrenValues` returns the raw JSON values instead.
 
 `job.Dependencies` lists the children by status (processed, unprocessed,
 ignored, failed), in full or a page at a time, and `job.DependenciesCount`
@@ -93,8 +91,10 @@ options change that, as described in the guide:
 | `RemoveDependencyOnFailure` | [The child is removed from the dependencies](../guide/flows/remove-dependency.md)                        |
 
 The options are mutually exclusive. `job.RemoveChildDependency` detaches a
-pending child from its parent, and `job.RemoveUnprocessedChildren` removes
-the children of a parent that haven't been processed yet.
+pending child from its parent (it returns an error matching
+`bullmq.ErrParentJobNotExist` for a job without a parent, as Node.js throws),
+and `job.RemoveUnprocessedChildren` removes the children of a parent that
+haven't been processed yet.
 
 ## Adding children at runtime
 

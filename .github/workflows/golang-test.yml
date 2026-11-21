@@ -32,6 +32,7 @@ jobs:
               - 'src/commands/**'
               - 'src/postgres/**'
               - 'package.json'
+              - 'scripts/generateGolangScriptsVersion.js'
               - '.github/workflows/golang-test.yml'
 
   test:

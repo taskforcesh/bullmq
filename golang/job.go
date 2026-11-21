@@ -65,7 +65,8 @@ type Job struct {
 	ProcessedBy string
 	// StalledCounter is how many times the job has been detected as stalled.
 	StalledCounter int64
-	// Delay is the configured delay in milliseconds.
+	// Delay is the configured delay, in milliseconds (ChangeDelay takes a
+	// time.Duration).
 	Delay int64
 	// Priority is the configured priority.
 	Priority int64
@@ -153,20 +154,28 @@ func (j *Job) ctx() (Backend, error) {
 // UpdateProgress stores a new progress value and emits a `progress` event on
 // the owning Worker, mirroring how a per-job update is observed through
 // Worker.Events.
-func (j *Job) UpdateProgress(ctx context.Context, progress Progress) error {
+//
+// progress is a number, or any value encoded as JSON, as Node's
+// updateProgress takes a number or an object; a [Progress] is stored as
+// is. NaN and infinite numbers, which have no JSON encoding, are rejected.
+func (j *Job) UpdateProgress(ctx context.Context, progress any) error {
+	p, err := progressOf(progress)
+	if err != nil {
+		return err
+	}
 	b, err := j.ctx()
 	if err != nil {
 		return err
 	}
-	if err := b.UpdateProgress(ctx, j.ID, progress); err != nil {
+	if err := b.UpdateProgress(ctx, j.ID, p); err != nil {
 		return err
 	}
-	j.Progress = progress
+	j.Progress = p
 	// worker is set before the job is handed to the processor and never
 	// changes, so goroutines that outlive the processor may read it; emit
 	// discards events once the worker is closed.
 	if j.worker != nil {
-		j.worker.emit(Event{Type: EventProgress, Job: j, Result: progress})
+		j.worker.emit(Event{Type: EventProgress, Job: j, Result: p})
 	}
 	return nil
 }
@@ -264,7 +273,10 @@ func (j *Job) Promote(ctx context.Context) error {
 	return nil
 }
 
-// ChangeDelay updates the delay of a job that is in the delayed set.
+// ChangeDelay makes a job that is in the delayed set due after delay,
+// counted from now. delay is a time.Duration, used with millisecond
+// precision, unlike JobOptions.Delay and Job.Delay, which are milliseconds:
+// pass 4*time.Second, not 4000.
 func (j *Job) ChangeDelay(ctx context.Context, delay time.Duration) error {
 	b, err := j.ctx()
 	if err != nil {
@@ -293,10 +305,23 @@ func (j *Job) ChangePriority(ctx context.Context, priority int64, lifo bool) err
 	return nil
 }
 
-// Retry moves a completed or failed job back to the wait list.
+// RetryOptions tunes [Job.Retry], as Node's RetryOptions does.
+type RetryOptions struct {
+	// ResetAttemptsMade sets the job's attempts-made counter back to 0, so
+	// it gets every attempt of JobOptions.Attempts again.
+	ResetAttemptsMade bool
+	// ResetAttemptsStarted sets the job's attempts-started counter back to
+	// 0, which WorkerOptions.MaxStartedAttempts checks.
+	ResetAttemptsStarted bool
+}
+
+// Retry moves a completed or failed job back to the wait list (or to the
+// prioritized set when it has a priority). opts may be nil.
 //
-// state must be either StateCompleted or StateFailed.
-func (j *Job) Retry(ctx context.Context, state JobState) error {
+// state must be either StateCompleted or StateFailed. Unless opts resets
+// them, the attempt counters are kept: a job that used up its attempts
+// fails for good after its next failure.
+func (j *Job) Retry(ctx context.Context, state JobState, opts *RetryOptions) error {
 	b, err := j.ctx()
 	if err != nil {
 		return err
@@ -304,13 +329,23 @@ func (j *Job) Retry(ctx context.Context, state JobState) error {
 	if state != StateCompleted && state != StateFailed {
 		return configError("retry state must be %q or %q", StateCompleted, StateFailed)
 	}
-	if err := b.RetryFinishedJob(ctx, j.ID, state, j.Opts.isLIFO()); err != nil {
+	var o RetryOptions
+	if opts != nil {
+		o = *opts
+	}
+	if err := b.RetryFinishedJob(ctx, j.ID, state, j.Opts.isLIFO(), o); err != nil {
 		return err
 	}
 	j.FailedReason = ""
 	j.FinishedOn = 0
 	j.ProcessedOn = 0
 	j.ReturnValue = nil
+	if o.ResetAttemptsMade {
+		j.AttemptsMade = 0
+	}
+	if o.ResetAttemptsStarted {
+		j.AttemptsStarted = 0
+	}
 	return nil
 }
 
@@ -326,7 +361,8 @@ func (j *Job) IsFailed(ctx context.Context) (bool, error) {
 	return state == StateFailed, err
 }
 
-// ExtendLock refreshes the lock held on an active job.
+// ExtendLock refreshes the lock held on an active job, so it expires
+// duration (a time.Duration, used with millisecond precision) from now.
 func (j *Job) ExtendLock(ctx context.Context, duration time.Duration) error {
 	b, err := j.ctx()
 	if err != nil {
@@ -338,8 +374,11 @@ func (j *Job) ExtendLock(ctx context.Context, duration time.Duration) error {
 	return b.ExtendLock(ctx, j.ID, j.token, duration)
 }
 
-// MoveToDelayed reschedules an active job. Processors should return [ErrDelayed]
-// afterwards so the worker does not also move the job to a finished state.
+// MoveToDelayed reschedules an active job to run after delay, a
+// time.Duration counted from now and used with millisecond precision (Node's
+// moveToDelayed takes the due timestamp instead). Processors should return
+// [ErrDelayed] afterwards so the worker does not also move the job to a
+// finished state.
 //
 // The current attempt is not counted, matching the Node.js implementation.
 func (j *Job) MoveToDelayed(ctx context.Context, delay time.Duration) error {

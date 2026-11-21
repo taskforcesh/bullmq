@@ -37,7 +37,7 @@ func newSuffixedQueue(t *testing.T, be testBackend, suffix string) *bullmq.Queue
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_ = q.Obliterate(ctx, true, 1000)
+		_ = q.Obliterate(ctx, &bullmq.ObliterateOptions{Force: true})
 		_ = q.Close()
 	})
 	return q
@@ -704,9 +704,18 @@ func testJobRemoveChildDependency(t *testing.T, be testBackend) {
 	requireState(t, ctx, parentQ, tree.Job.ID, bullmq.StateWaitingChildren)
 	requireCounts(t, ctx, tree.Job, bullmq.DependencyCounts{Unprocessed: 1})
 
-	// The child no longer has a parent.
-	if removed, err := stored.RemoveChildDependency(ctx); err != nil || removed {
-		t.Fatalf("second RemoveChildDependency = %v, %v; want false, nil", removed, err)
+	// The child no longer has a parent: as in Node.js, that is an error.
+	for _, job := range []*bullmq.Job{stored, first} {
+		if removed, err := job.RemoveChildDependency(ctx); !errors.Is(err, bullmq.ErrParentJobNotExist) || removed {
+			t.Fatalf("RemoveChildDependency without a parent = %v, %v; want ErrParentJobNotExist", removed, err)
+		}
+	}
+	plain, err := childQ.Add(ctx, "plain", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if _, err := plain.RemoveChildDependency(ctx); !errors.Is(err, bullmq.ErrParentJobNotExist) {
+		t.Fatalf("RemoveChildDependency of a job without a parent = %v, want ErrParentJobNotExist", err)
 	}
 
 	// Removing the last pending child releases the parent.
@@ -834,7 +843,8 @@ func testFlowProducerAddBulk(t *testing.T, be testBackend) {
 		}
 	}
 
-	// A rejected root is reported, although the other flow is added.
+	// A rejected root is reported. Redis adds the other flow anyway;
+	// PostgreSQL rolls the batch back (see the postgresbackend tests).
 	_, err = fp.AddBulk(ctx, []bullmq.FlowJob{
 		{Name: "ok", QueueName: q.Name()},
 		{Name: "orphan", QueueName: q.Name(), Opts: &bullmq.JobOptions{

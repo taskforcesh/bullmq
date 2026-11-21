@@ -3,6 +3,7 @@ package postgresbackend
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -32,6 +33,7 @@ func (b *Backend) Drain(ctx context.Context, delayed bool) error {
 // Obliterate removes up to count jobs of the queue and returns 1 while more
 // remain, 0 once the queue is gone.
 func (b *Backend) Obliterate(ctx context.Context, force bool, count int64) (int64, error) {
+	b.meta.Stop()
 	var cursor int64
 	if err := b.queryRow(ctx, "obliterate", []any{b.name, clampInt32(count), force}, &cursor); err != nil {
 		return 0, err
@@ -98,27 +100,51 @@ func (b *Backend) GetCounts(ctx context.Context, states []bullmq.JobState) ([]in
 	return counts, nil
 }
 
-// GetRanges returns the ids of the jobs in state, in [start, end].
-func (b *Backend) GetRanges(ctx context.Context, state bullmq.JobState, start, end int64, asc bool) ([]string, error) {
-	name := stateName(state)
-	ids, err := b.queryStrings(ctx, "get_range", b.name, name, clampInt32(start), clampInt32(end), asc)
+// GetRanges returns the ids of the jobs of each state in turn, those in
+// [start, end] of that state, in one round trip.
+func (b *Backend) GetRanges(ctx context.Context, states []bullmq.JobState, start, end int64, asc bool) ([]string, error) {
+	groups := make([][]string, len(states))
+	err := b.run(ctx, "get_range", func(ctx context.Context, sql string) error {
+		batch := &pgx.Batch{}
+		for i, state := range states {
+			name := stateName(state)
+			batch.Queue(sql, b.name, name, clampInt32(start), clampInt32(end), asc).Query(func(rows pgx.Rows) error {
+				ids, err := pgx.CollectRows(rows, pgx.RowTo[string])
+				if err != nil {
+					return err
+				}
+				// As with the Redis lists, the list-like states come newest
+				// first and are reversed for ascending order.
+				if asc && (name == "wait" || name == "paused" || name == "active") {
+					slices.Reverse(ids)
+				}
+				groups[i] = ids
+				return nil
+			})
+		}
+		return b.pool.SendBatch(ctx, batch).Close()
+	})
 	if err != nil {
 		return nil, err
 	}
-	// As with the Redis lists, the list-like states come newest first and
-	// are reversed for ascending order.
-	if asc && (name == "wait" || name == "paused" || name == "active") {
-		for i, j := 0, len(ids)-1; i < j; i, j = i+1, j-1 {
-			ids[i], ids[j] = ids[j], ids[i]
+	ids := make([]string, 0)
+	seen := make(map[string]bool)
+	for _, group := range groups {
+		for _, id := range group {
+			if !seen[id] {
+				seen[id] = true
+				ids = append(ids, id)
+			}
 		}
 	}
 	return ids, nil
 }
 
-// GetJobs returns the jobs in state, in [start, end]. The jobs are read in
-// one round trip; a job removed after its id was read is skipped.
-func (b *Backend) GetJobs(ctx context.Context, state bullmq.JobState, start, end int64, asc bool) ([]*bullmq.JobRecord, error) {
-	ids, err := b.GetRanges(ctx, state, start, end, asc)
+// GetJobs returns the jobs of each state in turn, those in [start, end] of
+// that state. The jobs are read in one round trip after their ids; a job
+// removed after its id was read is skipped.
+func (b *Backend) GetJobs(ctx context.Context, states []bullmq.JobState, start, end int64, asc bool) ([]*bullmq.JobRecord, error) {
+	ids, err := b.GetRanges(ctx, states, start, end, asc)
 	if err != nil || len(ids) == 0 {
 		return []*bullmq.JobRecord{}, err
 	}
@@ -199,6 +225,8 @@ func (b *Backend) GetMetrics(ctx context.Context, state bullmq.JobState, start, 
 // GetClientList reports the named sessions of the database as `name=<name>`
 // lines, the shape of Redis CLIENT LIST that worker discovery parses. Only
 // the dedicated connections of workers and queue events listeners are named.
+// The names of this queue's connections are reported as their clients set
+// them, with PostgreSQL's escaping of non-ASCII bytes undone.
 func (b *Backend) GetClientList(ctx context.Context) ([]string, error) {
 	names, err := b.queryStrings(ctx, "get_client_list")
 	if err != nil {
@@ -206,7 +234,7 @@ func (b *Backend) GetClientList(ctx context.Context) ([]string, error) {
 	}
 	lines := make([]string, len(names))
 	for i, name := range names {
-		lines[i] = "name=" + name
+		lines[i] = "name=" + b.clientNameAsSet(name)
 	}
 	return []string{strings.Join(lines, "\n")}, nil
 }
@@ -216,13 +244,18 @@ func (b *Backend) SetQueueMeta(ctx context.Context, values map[string]any) error
 	if len(values) == 0 {
 		return nil
 	}
-	fields := make([]string, 0, len(values))
-	vals := make([]string, 0, len(values))
+	fields, vals := metaArgs(values)
+	return b.exec(ctx, "set_queue_meta", b.name, fields, vals)
+}
+
+func metaArgs(values map[string]any) (fields, vals []string) {
+	fields = make([]string, 0, len(values))
+	vals = make([]string, 0, len(values))
 	for f, v := range values {
 		fields = append(fields, f)
 		vals = append(vals, metaValue(v))
 	}
-	return b.exec(ctx, "set_queue_meta", b.name, fields, vals)
+	return fields, vals
 }
 
 func metaValue(v any) string {

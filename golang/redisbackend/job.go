@@ -87,7 +87,11 @@ func fieldsArg(fields []byte) any {
 
 // GetJob returns the stored job, or nil when it does not exist.
 func (b *Backend) GetJob(ctx context.Context, jobID string) (*bullmq.JobRecord, error) {
-	fields, err := b.cmd.HGetAll(ctx, b.keys.Job(jobID)).Result()
+	c, err := b.cmd(ctx)
+	if err != nil {
+		return nil, err
+	}
+	fields, err := c.HGetAll(ctx, b.keys.Job(jobID)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -148,11 +152,18 @@ func (b *Backend) AddLog(ctx context.Context, jobID, row string, keepLogs int64)
 // GetJobLogs returns the log rows in [start, end] together with the total count.
 func (b *Backend) GetJobLogs(ctx context.Context, jobID string, start, end int64) ([]string, int64, error) {
 	key := b.keys.JobLogs(jobID)
-	rows, err := b.cmd.LRange(ctx, key, start, end).Result()
+	c, err := b.cmd(ctx)
 	if err != nil {
 		return nil, 0, err
 	}
-	count, err := b.cmd.LLen(ctx, key).Result()
+	rows, err := c.LRange(ctx, key, start, end).Result()
+	if err != nil {
+		return nil, 0, err
+	}
+	if c, err = b.cmd(ctx); err != nil {
+		return nil, 0, err
+	}
+	count, err := c.LLen(ctx, key).Result()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -213,7 +224,7 @@ func pushCommand(lifo bool) string {
 }
 
 // RetryFinishedJob moves a completed or failed job back to the wait list.
-func (b *Backend) RetryFinishedJob(ctx context.Context, jobID string, state bullmq.JobState, lifo bool) error {
+func (b *Backend) RetryFinishedJob(ctx context.Context, jobID string, state bullmq.JobState, lifo bool, opts bullmq.RetryOptions) error {
 	k := b.keys
 	propVal := "returnvalue"
 	if state == bullmq.StateFailed {
@@ -222,7 +233,8 @@ func (b *Backend) RetryFinishedJob(ctx context.Context, jobID string, state bull
 	res, err := b.runScript(ctx, "reprocessJob", []string{
 		k.Job(jobID), k.Events(), k.Get(string(state)),
 		k.Wait(), k.Meta(), k.Active(), k.Marker(), k.Prioritized(), k.PC(),
-	}, jobID, pushCommand(lifo), propVal, string(state), "0", "0")
+	}, jobID, pushCommand(lifo), propVal, string(state),
+		boolToStr(opts.ResetAttemptsMade), boolToStr(opts.ResetAttemptsStarted))
 	if err != nil {
 		return err
 	}

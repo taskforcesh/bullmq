@@ -40,16 +40,16 @@ scheduler doesn't pile up jobs.
 
 ## Repeat options
 
-| Option        | Meaning                                                                                                                                               |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Pattern`     | A cron expression: 5 fields, or 6 with leading seconds                                                                                                |
-| `Every`       | An interval in milliseconds, instead of `Pattern`                                                                                                     |
-| `Tz`          | Time zone of `Pattern`: IANA names (any case), ICU ids like `PST`, or offsets like `+03:00`. Defaults to the process's local time zone, as in Node.js |
-| `Offset`      | Shifts the runs of an `Every` scheduler, in milliseconds                                                                                              |
-| `Limit`       | Maximum number of jobs to produce                                                                                                                     |
-| `StartDate`   | When the schedule starts, in Unix milliseconds                                                                                                        |
-| `EndDate`     | When the schedule ends, in Unix milliseconds                                                                                                          |
-| `Immediately` | Produce the first job of a `Pattern` scheduler right away (`Every` schedulers always do)                                                              |
+| Option        | Meaning                                                                                                                                                                                            |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Pattern`     | A cron expression: 5 fields, or 6 with leading seconds                                                                                                                                             |
+| `Every`       | An interval in milliseconds, instead of `Pattern`                                                                                                                                                  |
+| `Tz`          | Time zone of `Pattern`: IANA names (any case), ICU ids like `PST`, or offsets like `+03:00`. Defaults to the process's local time zone, as in Node.js                                              |
+| `Offset`      | Shifts the runs of an `Every` scheduler, in milliseconds                                                                                                                                           |
+| `Limit`       | Maximum number of jobs to produce                                                                                                                                                                  |
+| `StartDate`   | When the schedule starts, in Unix milliseconds                                                                                                                                                     |
+| `EndDate`     | When the schedule ends, in Unix milliseconds. A Go worker adds no job due after it, where Node.js adds one more to `Every` schedulers ([#5190](https://github.com/taskforcesh/bullmq/issues/5190)) |
+| `Immediately` | Produce the first job of a `Pattern` scheduler right away (`Every` schedulers always do)                                                                                                           |
 
 Patterns are evaluated exactly as cron-parser evaluates them in Node.js, with
 names, ranges, steps, `L`, `#` and Sunday as 0 or 7, including across DST
@@ -67,6 +67,46 @@ a `Tz`, and a worker that fetches an iteration of a scheduler whose time zone it
 can't resolve fails that iteration with the reason and an `EventError`, so the
 schedule stops visibly instead of stalling.
 {% endhint %}
+
+## Custom repeat strategy
+
+`QueueOptions.RepeatStrategy` and `WorkerOptions.RepeatStrategy` replace cron
+for `Pattern` schedulers, as Node's `settings.repeatStrategy` does. The
+strategy returns when the next job is due (Unix milliseconds) after `millis`,
+or 0 when there is no next run; `Pattern` can then hold any rule it
+understands, such as an RRULE. `opts.Count` is the number of jobs produced so
+far.
+
+```go
+// The next run after millis, or 0 for none; Pattern holds the rule, parsed
+// here with github.com/teambition/rrule-go.
+strategy := func(millis int64, opts bullmq.RepeatOptions, jobName string) (int64, error) {
+	rule, err := rrule.StrToRRule(strings.TrimPrefix(opts.Pattern, "RRULE:"))
+	if err != nil {
+		return 0, err
+	}
+	next := rule.After(time.UnixMilli(millis), false)
+	if next.IsZero() {
+		return 0, nil
+	}
+	return next.UnixMilli(), nil
+}
+
+queue, err := bullmq.NewQueue("reports", &bullmq.QueueOptions{Backend: backend, RepeatStrategy: strategy})
+if err != nil {
+	log.Fatal(err)
+}
+worker, err := bullmq.NewWorker("reports", render, &bullmq.WorkerOptions{Backend: backend, RepeatStrategy: strategy})
+if err != nil {
+	log.Fatal(err)
+}
+_, err = queue.UpsertJobScheduler(ctx, "weekly",
+	bullmq.RepeatOptions{Pattern: "RRULE:FREQ=WEEKLY;BYDAY=MO;BYHOUR=9"}, nil)
+```
+
+The queue that upserts a scheduler and every worker that advances it, in any
+language, need the same strategy: a worker without it can't compute the next
+run, and fails the iteration it fetched.
 
 ## Job template
 
@@ -112,8 +152,9 @@ log.Printf("removed: %v", existed)
 
 `JobSchedulers` lists them by the due time of their next job, `JobScheduler`
 reads one by id (or returns `nil`), and `JobSchedulersCount` counts them.
-`RemoveJobScheduler` also removes the job of the next iteration, unless a
-worker is already processing it. See
+`RemoveJobScheduler` also removes the job of the next iteration while it is
+still delayed; a job already waiting (such as the first job of an `Every`
+scheduler) or being processed is kept, and runs once more. See
 [Manage job schedulers](../guide/job-schedulers/manage-job-schedulers.md).
 
 {% hint style="info" %}

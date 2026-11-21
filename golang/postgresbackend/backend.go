@@ -13,7 +13,8 @@
 //
 // The schema (default "bullmq") namespaces every queue, as the key prefix
 // does on Redis. It is created and migrated on first use, with the migration
-// ledger every runtime shares. Queries run on a pgxpool pool shared by the
+// ledger every runtime shares, unless the ledger is up to date or
+// Options.SkipMigrations is set; [Migrate] migrates it as a deployment step. Queries run on a pgxpool pool shared by the
 // backends of the process with the same settings; workers and queue events
 // listeners also hold a dedicated connection for LISTEN.
 //
@@ -36,6 +37,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/internal/queuemeta"
 )
 
 const (
@@ -79,6 +81,13 @@ type Options struct {
 	// SkipVersionCheck skips the check that the server runs PostgreSQL 13 or
 	// newer.
 	SkipVersionCheck bool
+	// SkipMigrations stops the backends from migrating the schema: it must
+	// already be up to date, migrated with [Migrate] or by another runtime,
+	// or the first operation fails. The backends then only read the
+	// migration ledger, which suits a role that does not own the schema.
+	// Without it, the schema is migrated on first use, which skips every
+	// DDL statement when the ledger is up to date.
+	SkipMigrations bool
 }
 
 // Backend is the [bullmq.Backend] implementation that stores queues in
@@ -93,6 +102,7 @@ type Backend struct {
 	shared           *sharedPool
 	migrateKey       string
 	skipVersionCheck bool
+	skipMigrations   bool
 
 	ready   atomic.Bool
 	readyMu sync.Mutex
@@ -105,6 +115,9 @@ type Backend struct {
 
 	closing   chan struct{}
 	closeOnce sync.Once
+
+	// meta writes the queue metadata before the first command.
+	meta *queuemeta.Writer
 }
 
 var _ bullmq.Backend = (*Backend)(nil)
@@ -144,7 +157,9 @@ func NewBackend(name string, opts Options, bo bullmq.BackendOptions) (*Backend, 
 		name:             name,
 		schema:           schema,
 		skipVersionCheck: opts.SkipVersionCheck,
+		skipMigrations:   opts.SkipMigrations,
 		closing:          make(chan struct{}),
+		meta:             queuemeta.New(bo.QueueMeta),
 	}
 	switch {
 	case opts.Pool != nil:
@@ -185,6 +200,7 @@ func (b *Backend) Schema() string { return b.schema }
 // backend is closed; a caller-supplied pool is left untouched.
 func (b *Backend) Close() error {
 	b.closeOnce.Do(func() {
+		b.meta.Stop()
 		close(b.closing)
 		b.jobs.close()
 		b.events.close()
@@ -262,6 +278,7 @@ func (b *Backend) runSQL(ctx context.Context, label, sql string, fn func(ctx con
 	if err := b.ensureReady(ctx); err != nil {
 		return err
 	}
+	b.meta.Write(ctx, b.writeMeta, isTransientError)
 	return mapError(label, fn(ctx, sql))
 }
 
