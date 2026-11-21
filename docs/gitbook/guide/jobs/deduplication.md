@@ -192,6 +192,27 @@ for (color, delay) in [("white", 5000), ("blue", 8000)] {
 ```
 
 {% endtab %}
+{% tab title="Go" %}
+
+```go
+_, err := queue.Add(ctx, "house", map[string]string{"color": "white"}, &bullmq.JobOptions{
+	Delay:         bullmq.Int64(5000),
+	Deduplication: &bullmq.DeduplicationOptions{ID: "house", Reschedule: true},
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+_, err = queue.Add(ctx, "house", map[string]string{"color": "blue"}, &bullmq.JobOptions{
+	Delay:         bullmq.Int64(8000),
+	Deduplication: &bullmq.DeduplicationOptions{ID: "house", Reschedule: true},
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% tab title="PHP" %}
 
 ```php
@@ -987,6 +1008,72 @@ async fn on_git_push(deploy_queue: &Queue, sha: &str, repo: &str) -> bullmq::Res
         })
         .await?;
     Ok(())
+}
+
+// Push 1 at 0ms: Job added and starts processing
+// Push 2 at 100ms (job active): Data stored, deduplicated event emitted
+// Push 3 at 5000ms (job still active): Data overwritten with latest
+// Push 4 at 5100ms (job still active): Data overwritten again
+// Job completes at 10000ms: New job created with Push 4's data
+// Result: Exactly 2 deployments, the last one always reflects the latest push
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	deployQueue, err := bullmq.NewQueue("Deploy", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer deployQueue.Close()
+
+	worker, err := bullmq.NewWorker("Deploy", func(ctx context.Context, job *bullmq.Job) (any, error) {
+		var data struct {
+			Commit string `json:"commit"`
+		}
+		if err := job.DecodeData(&data); err != nil {
+			return nil, err
+		}
+		log.Printf("Deploying commit %s", data.Commit)
+		// ... perform deployment
+		return nil, nil
+	}, &bullmq.WorkerOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer worker.Close()
+
+	// Webhook handlers call onGitPush(ctx, deployQueue, sha, repo).
+	if err := worker.Run(ctx); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// Webhook handler: multiple pushes may arrive while a deploy is running
+func onGitPush(ctx context.Context, deployQueue *bullmq.Queue, sha, repo string) error {
+	_, err := deployQueue.Add(ctx, "deploy", map[string]string{"commit": sha}, &bullmq.JobOptions{
+		Deduplication: &bullmq.DeduplicationOptions{
+			ID:               "deploy-" + repo,
+			KeepLastIfActive: true,
+		},
+	})
+	return err
 }
 
 // Push 1 at 0ms: Job added and starts processing

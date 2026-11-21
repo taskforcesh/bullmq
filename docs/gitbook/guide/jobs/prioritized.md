@@ -428,6 +428,18 @@ let counts = queue.get_counts_per_priority(&[1, 0]).await?;
 
 {% endtab %}
 
+{% tab title="Go" %}
+
+```go
+counts, err := queue.CountsPerPriority(ctx, 1, 0)
+if err != nil {
+	log.Fatal(err)
+}
+// map[0:10 1:11]
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php

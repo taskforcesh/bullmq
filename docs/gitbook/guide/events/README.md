@@ -638,6 +638,23 @@ queue.trim_events(10).await?; // leaves 10 events
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+queue, err := bullmq.NewQueue("paint", &bullmq.QueueOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer queue.Close()
+
+// leaves at least 10 events
+if _, err := queue.TrimEvents(ctx, 10); err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Read more:

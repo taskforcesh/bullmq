@@ -208,6 +208,18 @@ job.retry("failed", Some(RetryOptions {
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+// Retry and reset the attempts counter
+err := job.Retry(ctx, bullmq.StateFailed, &bullmq.RetryOptions{ResetAttemptsMade: true})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 ### Reset Attempts Started
@@ -261,6 +273,21 @@ job.retry("failed", Some(RetryOptions {
     reset_attempts_made: true,
     reset_attempts_started: true,
 })).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+// Retry and reset both counters
+err := job.Retry(ctx, bullmq.StateFailed, &bullmq.RetryOptions{
+	ResetAttemptsMade:    true,
+	ResetAttemptsStarted: true,
+})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}

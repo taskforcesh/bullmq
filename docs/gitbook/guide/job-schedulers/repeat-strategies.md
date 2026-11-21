@@ -546,6 +546,9 @@ The strategy receives the scheduler's repeat options, which also include a read-
 
 For example we can create a custom one for [RRULE](https://jkbrzt.github.io/rrule/) like this:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { JobSchedulerRepeatOptions, Queue, Worker } from 'bullmq';
 import { rrulestr } from 'rrule';
@@ -604,6 +607,91 @@ const worker = new Worker(
   { settings },
 );
 ```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+import (
+	"context"
+	"errors"
+	"log"
+	"time"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+	"github.com/teambition/rrule-go"
+)
+
+repeatStrategy := func(millis int64, opts bullmq.RepeatOptions, _ string) (int64, error) {
+	currentDate := time.UnixMilli(millis)
+	if opts.StartDate > millis {
+		currentDate = time.UnixMilli(opts.StartDate)
+	}
+
+	rule, err := rrule.StrToRRule(opts.Pattern)
+	if err != nil {
+		return 0, err
+	}
+
+	if rule.OrigOptions.Count > 0 && rule.OrigOptions.Dtstart.IsZero() {
+		return 0, errors.New("DTSTART must be defined to use COUNT with rrule")
+	}
+
+	nextOccurrence := rule.After(currentDate, false)
+	if nextOccurrence.IsZero() {
+		return 0, nil // no next run
+	}
+	return nextOccurrence.UnixMilli(), nil
+}
+
+backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+
+myQueue, err := bullmq.NewQueue("Paint", &bullmq.QueueOptions{
+	Backend:        backend,
+	RepeatStrategy: repeatStrategy,
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer myQueue.Close()
+
+// Repeat job every 10 seconds
+_, err = myQueue.UpsertJobScheduler(ctx, "collibris",
+	bullmq.RepeatOptions{Pattern: "RRULE:FREQ=SECONDLY;INTERVAL=10;WKST=MO"},
+	&bullmq.JobTemplate{Data: map[string]string{"color": "green"}})
+if err != nil {
+	log.Fatal(err)
+}
+
+// Repeat job every 20 seconds
+_, err = myQueue.UpsertJobScheduler(ctx, "pingeons",
+	bullmq.RepeatOptions{Pattern: "RRULE:FREQ=SECONDLY;INTERVAL=20;WKST=MO"},
+	&bullmq.JobTemplate{Data: map[string]string{"color": "gray"}})
+if err != nil {
+	log.Fatal(err)
+}
+
+worker, err := bullmq.NewWorker("Paint", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	doSomething()
+	return nil, nil
+}, &bullmq.WorkerOptions{
+	Backend:        backend,
+	RepeatStrategy: repeatStrategy,
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
+{% endtabs %}
 
 {% hint style="danger" %}
 As you may have noticed, the repeat strategy setting should be provided in **both** the Queue and Worker classes. The reason we need it in both places is that when we first add the job to the Queue, we need to calculate when the next iteration will occur. After that, the Worker takes over, and we use the settings configured in the Worker.

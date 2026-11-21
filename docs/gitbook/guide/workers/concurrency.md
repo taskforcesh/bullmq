@@ -136,6 +136,16 @@ worker.set_concurrency(5);
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+if err := worker.SetConcurrency(5); err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 #### Multiple workers
