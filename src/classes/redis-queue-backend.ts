@@ -1198,7 +1198,8 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
 
     const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
 
-    const args = [
+    const args: (string | number | boolean | Buffer)[] = keys.slice();
+    args.push(
       job.id,
       timestamp,
       propVal,
@@ -1222,9 +1223,9 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
         rdof: !!job.opts?.removeDependencyOnFailure,
       }),
       fieldsToUpdate ? pack(objectToFlatArray(fieldsToUpdate)) : void 0,
-    ];
+    );
 
-    return keys.concat(args);
+    return args;
   }
 
   protected getKeepJobs(
@@ -1671,7 +1672,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
 
     const fetchNext = opts.fetchNext && !this.queue.closing ? 1 : 0;
 
-    return keys.concat([
+    keys.push(
       this.queue.keys[''],
       timestamp,
       jobId,
@@ -1690,7 +1691,9 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
             name: workerOpts.name,
           })
         : void 0,
-    ]);
+    );
+
+    return keys;
   }
 
   moveToWaitingChildrenArgs(
