@@ -712,20 +712,20 @@ func addTestJob(t *testing.T, ctx context.Context, b *Backend, delay int64) stri
 }
 
 // waitAsync runs WaitForJob in the background once the LISTEN connection is
-// up, and returns its outcome and how long it took.
-func waitAsync(t *testing.T, ctx context.Context, b *Backend, timeout time.Duration) <-chan [2]any {
+// up, and returns its outcome, how long it took and when it returned.
+func waitAsync(t *testing.T, ctx context.Context, b *Backend, timeout time.Duration) <-chan [3]any {
 	t.Helper()
 	if err := b.jobs.ensure(ctx); err != nil {
 		t.Fatal(err)
 	}
-	out := make(chan [2]any, 1)
+	out := make(chan [3]any, 1)
 	start := time.Now()
 	go func() {
 		res, err := b.WaitForJob(ctx, timeout)
 		if err != nil {
 			t.Errorf("WaitForJob: %v", err)
 		}
-		out <- [2]any{res, time.Since(start)}
+		out <- [3]any{res, time.Since(start), time.Now()}
 	}()
 	return out
 }
@@ -784,18 +784,28 @@ func TestWaitForJobReportsADelayedJobAddedWhileWaiting(t *testing.T) {
 	opts := Options{ConnString: url, Schema: schema}
 	worker := newBackend(t, opts, "delayed", bullmq.BackendOptions{WithBlockingConnection: true})
 	producer := newBackend(t, opts, "delayed", bullmq.BackendOptions{})
+	// Migrate the schema first: under load, migrating it in the first wait
+	// took longer than the wake-up this test times.
+	for _, b := range []*Backend{producer, worker} {
+		if err := b.ensureReady(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	waited := waitAsync(t, ctx, worker, 10*time.Second)
 	time.Sleep(100 * time.Millisecond)
 	id := addTestJob(t, ctx, producer, 600)
+	added := time.Now()
+	got := <-waited
 	job, err := producer.GetJob(ctx, id)
 	if err != nil || job == nil {
 		t.Fatalf("GetJob = %v, %v", job, err)
 	}
 	due := job.Timestamp + 600
-	got := <-waited
-	if res, elapsed := got[0].(bullmq.WaitResult), got[1].(time.Duration); !res.Woken || res.NextDelayedAt != due || elapsed > 400*time.Millisecond {
-		t.Fatalf("WaitForJob after a delayed job was added = %+v after %v, want woken at once with NextDelayedAt %d", res, elapsed, due)
+	// Woken by the add, before the job is due, rather than by the due time.
+	res, woke := got[0].(bullmq.WaitResult), got[2].(time.Time)
+	if latency := woke.Sub(added); !res.Woken || res.NextDelayedAt != due || latency > 400*time.Millisecond || woke.UnixMilli() >= due {
+		t.Fatalf("WaitForJob after a delayed job was added = %+v, %v after the add, want woken at once with NextDelayedAt %d", res, latency, due)
 	}
 
 	// The due time was reported: the next wait lasts until it.
