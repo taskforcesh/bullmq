@@ -615,7 +615,7 @@ describe('workers', () => {
         await anotherWorker.waitUntilReady();
 
         const completed = new Promise<void>(resolve => {
-          worker.once('completed', resolve);
+          worker.once('completed', () => resolve());
         });
         releaseProcessing();
         await completed;
