@@ -296,9 +296,13 @@ warm_proxy() {
 
 # --- Resolve what is pending -------------------------------------------------
 
+# golang/v0.0.0 is a baseline tag on a commit before the port existed. It
+# only makes semantic-release start the 0.x line (its first release would
+# otherwise be 1.0.0) and is never published.
 SOURCE_VERSIONS=()
 while IFS= read -r line; do
-  if [ -n "$line" ]; then SOURCE_VERSIONS+=("$line"); fi
+  if [ -z "$line" ] || [ "$line" = "0.0.0" ]; then continue; fi
+  SOURCE_VERSIONS+=("$line")
 done < <(git tag --list 'golang/v*' | sed 's#^golang/v##' | grep -E "$SEMVER" | semver_sort || true)
 if [ "${#SOURCE_VERSIONS[@]}" -eq 0 ]; then
   echo "No golang/v* source tags found; nothing to publish."
