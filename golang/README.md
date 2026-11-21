@@ -703,9 +703,12 @@ A worker runs once: calling `Run` again, or after `Close`, returns
 
 `Worker.CancelJob` cancels the context of a job the worker is processing, and
 `Worker.CancelAllJobs` the context of all of them. As with Node's
-`cancelJob`, the job fails with the reason if its processor then returns an
-error (and is retried if attempts remain); a processor that ignores the
-cancellation and succeeds completes the job.
+`cancelJob`, the job then fails with the error its processor returns (and is
+retried if attempts remain). When that error is `ctx.Err()` itself, which
+says nothing more than "context canceled", the job fails with the reason
+instead; to keep the reason in an error of your own, wrap
+`context.Cause(ctx)`. A processor that ignores the cancellation and succeeds
+completes the job.
 
 ```go
 if !worker.CancelJob(jobID, "superseded by a newer upload") {
@@ -720,8 +723,10 @@ func upload(ctx context.Context, job *bullmq.Job) (any, error) {
 	if err := transfer(ctx, job); err != nil {
 		switch cause := context.Cause(ctx); {
 		case errors.Is(cause, bullmq.ErrJobCancelled):
-			// CancelJob: the job fails with the reason (cause.Error()).
-			cleanUp(job)
+			// CancelJob: ctx is cancelled, so clean up with a context that
+			// isn't, and fail the job with the reason (cause.Error()).
+			cleanUp(context.WithoutCancel(ctx), job)
+			return nil, cause
 		case errors.Is(cause, bullmq.ErrLockLost):
 			// Another worker may own the job now: stop touching it.
 		}
@@ -734,6 +739,16 @@ func upload(ctx context.Context, job *bullmq.Job) (any, error) {
 Besides `ErrJobCancelled`, the cause is `bullmq.ErrLockLost` when the worker
 couldn't renew the job's lock, or the cause of the `Run` context. In the last
 two cases the job isn't failed.
+
+Once a job's context is cancelled, the job's methods called with it
+(`UpdateProgress`, `Log`, `UpdateData`, ...) fail with the context's error,
+whereas Node's job methods ignore the abort signal. Make the calls of
+cleanup code with `context.WithoutCancel(ctx)`:
+
+```go
+_ = job.Log(context.WithoutCancel(ctx), fmt.Sprintf("cancelled after %d items", done))
+return nil, fmt.Errorf("cancelled after %d items: %w", done, context.Cause(ctx))
+```
 
 ### Retries and backoff
 
