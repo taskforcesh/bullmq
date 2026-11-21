@@ -1,6 +1,6 @@
 # Adding flows in bulk
 
-Sometimes it is necessary to atomically add flows in bulk. For example, there could be a requirement that all the flows must be created or none of them. Also, adding flows in bulk can be faster since it reduces the number of roundtrips to Redis:
+Sometimes it is useful to add flows in bulk. Adding flows in bulk can be faster since it reduces the number of roundtrips to Redis:
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -141,7 +141,7 @@ let trees = flow
 {% endtab %}
 {% endtabs %}
 
-This call can only succeed or fail, and all or none of the jobs will be added.
+If any job in the bulk call is rejected by the datastore, an error is thrown. Note that valid flows or jobs already added in the batch are not rolled back.
 
 ## Read more:
 

@@ -7,6 +7,7 @@ import {
   afterAll,
   it,
   expect,
+  vi,
 } from 'vitest';
 
 import { randomUUID } from '../src/utils';
@@ -24,7 +25,7 @@ import {
 import { delay } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
-import { IRedisClient } from '../src/interfaces';
+import { FlowJob, IRedisClient } from '../src/interfaces';
 
 /**
  * Backend-agnostic qualified queue name. Derives the qualifier (the `bull:`
@@ -57,6 +58,7 @@ describe('flows', () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await queue.close();
     await cleanupQueue(queueName);
   });
@@ -5514,6 +5516,181 @@ describe('flows', () => {
 
       await cleanupQueue(rootQueueName);
     });
+
+    it('throws an error when a root entry points to a non-existent parent while valid flow remains added', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const validRootName = 'valid-root';
+      const validChildName = 'valid-child';
+      const invalidRootName = 'invalid-root';
+      const missingParentId = `missing-parent-${randomUUID()}`;
+      const parentKey = `${qualify(queue, queueName)}:${missingParentId}`;
+
+      const validFlow: FlowJob = {
+        name: validRootName,
+        queueName,
+        data: { role: 'parent' },
+        children: [
+          {
+            name: validChildName,
+            queueName,
+            data: { role: 'child' },
+            opts: { jobId: 'valid-child-id' },
+          },
+        ],
+        opts: { jobId: 'valid-root-id' },
+      };
+
+      const invalidFlow: FlowJob = {
+        name: invalidRootName,
+        queueName,
+        data: {},
+        opts: {
+          parent: {
+            id: missingParentId,
+            queue: qualify(queue, queueName),
+          },
+          jobId: 'invalid-root-id',
+        },
+      };
+
+      await expect(flow.addBulk([validFlow, invalidFlow])).rejects.toThrow(
+        `Missing key for parent job ${parentKey}. addJob`,
+      );
+
+      // Verify the valid flow's jobs remain in the queue
+      const validRootJob = await queue.getJob('valid-root-id');
+      const validChildJob = await queue.getJob('valid-child-id');
+      expect(validRootJob).toBeDefined();
+      expect(validChildJob).toBeDefined();
+
+      // Verify the invalid flow's job was not created
+      const invalidJob = await queue.getJob('invalid-root-id');
+      expect(invalidJob).toBeUndefined();
+
+      await flow.close();
+    });
+
+    it('throws an error when a child entry fails (index >= jobsTrees.length)', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const backend = flow.getBackend();
+
+      const origAddFlow = backend.addFlow.bind(backend);
+      vi.spyOn(backend, 'addFlow').mockImplementation(async entries => {
+        const results = await origAddFlow(entries);
+        // Simulate a child entry error code (-5) on the child (index 1)
+        if (results.length > 1) {
+          results[1] = [null, -5];
+        }
+        return results;
+      });
+
+      const flowJob: FlowJob = {
+        name: 'root-job',
+        queueName,
+        data: {},
+        children: [
+          {
+            name: 'child-job',
+            queueName,
+            data: {},
+          },
+        ],
+      };
+
+      await expect(flow.addBulk([flowJob])).rejects.toThrow(
+        /Missing key for parent job .*\. addJob/,
+      );
+
+      await flow.close();
+    });
+
+    it('throws when backend.addFlow returns a non-null err on a root or child entry', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const backend = flow.getBackend();
+
+      const pipelineError = new Error('Simulated datastore pipeline error');
+      vi.spyOn(backend, 'addFlow').mockResolvedValueOnce([[pipelineError, 0]]);
+
+      await expect(
+        flow.addBulk([
+          {
+            name: 'root-job',
+            queueName,
+            data: {},
+          },
+        ]),
+      ).rejects.toThrow('Simulated datastore pipeline error');
+
+      const childPipelineError = new Error('Child pipeline failure');
+      vi.spyOn(backend, 'addFlow').mockResolvedValueOnce([
+        [null, 'root-job-id'],
+        [childPipelineError, 0],
+      ]);
+
+      await expect(
+        flow.addBulk([
+          {
+            name: 'root-job',
+            queueName,
+            data: {},
+            children: [{ name: 'child-job', queueName, data: {} }],
+          },
+        ]),
+      ).rejects.toThrow('Child pipeline failure');
+
+      await flow.close();
+    });
+
+    it('populates job.id on all returned job trees for valid multi-flow addBulk', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const trees = await flow.addBulk([
+        {
+          name: 'multi-root-1',
+          queueName,
+          data: { flow: 1 },
+          children: [
+            {
+              name: 'multi-child-1',
+              queueName,
+              data: { child: 1 },
+            },
+          ],
+        },
+        {
+          name: 'multi-root-2',
+          queueName,
+          data: { flow: 2 },
+          children: [
+            {
+              name: 'multi-child-2',
+              queueName,
+              data: { child: 2 },
+            },
+          ],
+        },
+      ]);
+
+      expect(trees).toHaveLength(2);
+      expect(typeof trees[0].job.id).toBe('string');
+      expect(trees[0].job.id).toBeTruthy();
+      expect(typeof trees[1].job.id).toBe('string');
+      expect(trees[1].job.id).toBeTruthy();
+
+      expect(trees[0].children).toHaveLength(1);
+      expect(typeof trees[0].children![0].job.id).toBe('string');
+      expect(trees[0].children![0].job.id).toBeTruthy();
+
+      expect(trees[1].children).toHaveLength(1);
+      expect(typeof trees[1].children![0].job.id).toBe('string');
+      expect(trees[1].children![0].job.id).toBeTruthy();
+
+      const job1 = await queue.getJob(trees[0].job.id!);
+      const job2 = await queue.getJob(trees[1].job.id!);
+      expect(job1).toBeDefined();
+      expect(job2).toBeDefined();
+
+      await flow.close();
+    });
   });
 
   describe('.removeUnprocessedChildren', async () => {
@@ -6720,38 +6897,42 @@ describe('flows', () => {
       await flow.close();
     });
 
-    it('should not corrupt id mapping for successful jobs when some addBulk commands fail', async () => {
+    it('throws error and retains valid job on partial failure with deduplication', async () => {
       const flow = new FlowProducer({ connection, prefix });
+      const missingParentId = `missing-parent-${randomUUID()}`;
+      const parentKey = `${qualify(queue, queueName)}:${missingParentId}`;
 
-      const trees = await flow.addBulk([
-        {
-          name: 'valid-root',
-          data: {},
-          queueName,
-          opts: {
-            deduplication: { id: 'dedup-valid-on-partial-failure' },
-            delay: 1000,
-          },
-        },
-        {
-          name: 'invalid-root',
-          data: {},
-          queueName,
-          opts: {
-            parent: {
-              id: 'missing-parent',
-              queue: `${qualify(queue, queueName)}`,
+      await expect(
+        flow.addBulk([
+          {
+            name: 'valid-root',
+            data: {},
+            queueName,
+            opts: {
+              jobId: 'valid-root-id',
+              deduplication: { id: 'dedup-valid-on-partial-failure' },
+              delay: 1000,
             },
           },
-        },
-      ]);
+          {
+            name: 'invalid-root',
+            data: {},
+            queueName,
+            opts: {
+              parent: {
+                id: missingParentId,
+                queue: `${qualify(queue, queueName)}`,
+              },
+            },
+          },
+        ]),
+      ).rejects.toThrow(`Missing key for parent job ${parentKey}. addJob`);
 
-      const [validTree, invalidTree] = trees;
-      const validJob = await queue.getJob(validTree.job.id);
-      const invalidJob = await queue.getJob(invalidTree.job.id);
-
+      const validJob = await queue.getJob('valid-root-id');
       expect(validJob).toBeDefined();
-      expect(invalidJob).toBeUndefined();
+      expect(
+        await queue.getDeduplicationJobId('dedup-valid-on-partial-failure'),
+      ).toBe('valid-root-id');
 
       await flow.close();
     });
