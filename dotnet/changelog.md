@@ -1,3 +1,9 @@
+## [1.3.6](https://github.com/taskforcesh/bullmq/compare/vnet1.3.5...vnet1.3.6) (2026-11-19)
+
+### Bug Fixes
+
+* **worker:** retry failed jobs according to attempts and backoff [dotnet] ([#5161](https://github.com/taskforcesh/bullmq/issues/5161)) ([02c3725](https://github.com/taskforcesh/bullmq/commit/02c372557b585f5e179c6ad868b06a283593286b))
+
 ## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vnet1.3.4...vnet1.3.5) (2026-11-19)
 
 ### Performance Improvements
