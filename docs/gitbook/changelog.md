@@ -1,3 +1,10 @@
+## [5.81.6](https://github.com/taskforcesh/bullmq/compare/v5.81.5...v5.81.6) (2026-11-21)
+
+
+### Bug Fixes
+
+* **worker:** backport resume wake-up to v5 ([#5196](https://github.com/taskforcesh/bullmq/issues/5196)) ([360b51c](https://github.com/taskforcesh/bullmq/commit/360b51c7f483b1f280b51d3566345b8658578381))
+
 ## [5.81.5](https://github.com/taskforcesh/bullmq/compare/v5.81.4...v5.81.5) (2026-09-10)
 
 
