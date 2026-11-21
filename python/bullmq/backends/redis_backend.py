@@ -178,6 +178,12 @@ class RedisBackend(Backend):
                 await self.scripts.addJob(job, pipe)
             job_ids = await pipe.execute()
         for index, job_id in enumerate(job_ids):
+            if type(job_id) == int and job_id < 0:
+                raise self.scripts.finishedErrors({
+                    "code": job_id,
+                    "parentKey": jobs[index].parentKey,
+                    "command": 'addJob'
+                    })
             jobs[index].id = job_id
         return job_ids
 

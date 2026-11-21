@@ -70,5 +70,25 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await queue.close()
         await worker.close()
 
+    async def test_add_bulk_when_parent_key_is_missing(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        parent_id = uuid4().hex
+        with self.assertRaises(TypeError) as error:
+            await queue.addBulk(
+                [
+                    {"name": "test", "data": {"idx": 0}},
+                    {"name": "test", "data": {"idx": 1}, "opts": {
+                        "parent": {
+                            "id": parent_id,
+                            "queue": f"{prefix}{queueName}"
+                        }
+                    }}
+                ]
+            )
+
+        self.assertEqual(str(error.exception), f"Missing key for parent job {prefix}{queueName}:{parent_id}. addJob")
+
+        await queue.close()
+
 if __name__ == '__main__':
     unittest.main()
