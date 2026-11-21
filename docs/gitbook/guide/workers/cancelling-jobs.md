@@ -197,7 +197,7 @@ worker.CancelAllJobs("")
 worker.CancelAllJobs("System shutdown")
 
 // Get list of active jobs from queue
-activeJobs, err := queue.Jobs(ctx, bullmq.StateActive, 0, -1, false)
+activeJobs, err := queue.Jobs(ctx, 0, -1, true, bullmq.StateActive)
 if err != nil {
 	log.Fatal(err)
 }
@@ -759,11 +759,7 @@ worker, err := bullmq.NewWorker("batchQueue", func(ctx context.Context, job *bul
 		results = append(results, result)
 
 		// Update progress
-		progress, err := bullmq.NumberProgress(float64(i+1) / float64(len(data.Items)) * 100)
-		if err != nil {
-			return nil, err
-		}
-		if err := job.UpdateProgress(ctx, progress); err != nil {
+		if err := job.UpdateProgress(ctx, float64(i+1)/float64(len(data.Items))*100); err != nil {
 			return nil, err
 		}
 	}
@@ -1261,11 +1257,7 @@ worker, err := bullmq.NewWorker("multiPhaseQueue", func(ctx context.Context, job
 		return nil, errors.New("Cancelled before download")
 	}
 	data := downloadData(input.URL)
-	progress, err := bullmq.NumberProgress(33)
-	if err != nil {
-		return nil, err
-	}
-	if err := job.UpdateProgress(ctx, progress); err != nil {
+	if err := job.UpdateProgress(ctx, 33); err != nil {
 		return nil, err
 	}
 
@@ -1274,11 +1266,7 @@ worker, err := bullmq.NewWorker("multiPhaseQueue", func(ctx context.Context, job
 		return nil, errors.New("Cancelled before processing")
 	}
 	processed := processData(data)
-	progress, err = bullmq.NumberProgress(66)
-	if err != nil {
-		return nil, err
-	}
-	if err := job.UpdateProgress(ctx, progress); err != nil {
+	if err := job.UpdateProgress(ctx, 66); err != nil {
 		return nil, err
 	}
 
@@ -1287,11 +1275,7 @@ worker, err := bullmq.NewWorker("multiPhaseQueue", func(ctx context.Context, job
 		return nil, errors.New("Cancelled before upload")
 	}
 	result := uploadResults(processed)
-	progress, err = bullmq.NumberProgress(100)
-	if err != nil {
-		return nil, err
-	}
-	if err := job.UpdateProgress(ctx, progress); err != nil {
+	if err := job.UpdateProgress(ctx, 100); err != nil {
 		return nil, err
 	}
 

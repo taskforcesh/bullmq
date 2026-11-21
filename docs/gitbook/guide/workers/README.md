@@ -120,20 +120,12 @@ let worker = Worker::new(queue_name, |mut job: Job, _token: CancellationToken| a
 ```go
 worker, err := bullmq.NewWorker(queueName, func(ctx context.Context, job *bullmq.Job) (any, error) {
 	// Optionally report some progress
-	progress, err := bullmq.NumberProgress(42)
-	if err != nil {
-		return nil, err
-	}
-	if err := job.UpdateProgress(ctx, progress); err != nil {
+	if err := job.UpdateProgress(ctx, 42); err != nil {
 		return nil, err
 	}
 
 	// Optionally sending an object as progress
-	progress, err = bullmq.JSONProgress(map[string]string{"foo": "bar"})
-	if err != nil {
-		return nil, err
-	}
-	if err := job.UpdateProgress(ctx, progress); err != nil {
+	if err := job.UpdateProgress(ctx, map[string]string{"foo": "bar"}); err != nil {
 		return nil, err
 	}
 
@@ -343,20 +335,12 @@ worker.run().await?;
 ```go
 worker, err := bullmq.NewWorker(queueName, func(ctx context.Context, job *bullmq.Job) (any, error) {
 	// Optionally report some progress
-	progress, err := bullmq.NumberProgress(42)
-	if err != nil {
-		return nil, err
-	}
-	if err := job.UpdateProgress(ctx, progress); err != nil {
+	if err := job.UpdateProgress(ctx, 42); err != nil {
 		return nil, err
 	}
 
 	// Optionally sending an object as progress
-	progress, err = bullmq.JSONProgress(map[string]string{"foo": "bar"})
-	if err != nil {
-		return nil, err
-	}
-	if err := job.UpdateProgress(ctx, progress); err != nil {
+	if err := job.UpdateProgress(ctx, map[string]string{"foo": "bar"}); err != nil {
 		return nil, err
 	}
 
@@ -747,12 +731,12 @@ for ev := range queueEvents.Events() {
 	switch ev.Event {
 	case "completed":
 		// Called every time a job is completed by any worker:
-		// ev.JobID, ev.ReturnValue()
+		// ev.JobID, ev.DecodeReturnValue(&returnvalue)
 	case "failed":
 		// Called whenever a job is moved to failed by any worker:
 		// ev.JobID, ev.FailedReason()
 	case "progress":
-		// ev.JobID received a progress event: ev.Data["data"]
+		// ev.JobID received a progress event: ev.DecodeProgress(&data)
 	}
 }
 ```

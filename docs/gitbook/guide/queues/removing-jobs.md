@@ -484,7 +484,7 @@ func main() {
 	}
 	defer queue.Close()
 
-	if err := queue.Obliterate(ctx, false, 1000); err != nil {
+	if err := queue.Obliterate(ctx, nil); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -607,7 +607,7 @@ func main() {
 	defer queue.Close()
 
 	// Force obliteration even with active jobs
-	if err := queue.Obliterate(ctx, true, 1000); err != nil {
+	if err := queue.Obliterate(ctx, &bullmq.ObliterateOptions{Force: true}); err != nil {
 		log.Fatal(err)
 	}
 }

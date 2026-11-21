@@ -437,24 +437,19 @@ let renovate_worker = Worker::new("renovate", |job: Job, _token: CancellationTok
 ```go
 import (
 	"context"
-	"encoding/json"
 	"log"
 
 	bullmq "github.com/taskforcesh/bullmq-go"
 )
 
 renovateWorker, err := bullmq.NewWorker("renovate", func(ctx context.Context, job *bullmq.Job) (any, error) {
-	childrenValues, err := job.ChildrenValues(ctx)
-	if err != nil {
+	var childrenValues map[string]float64
+	if err := job.DecodeChildrenValues(ctx, &childrenValues); err != nil {
 		return nil, err
 	}
 
 	totalCosts := 0.0
-	for _, raw := range childrenValues {
-		var cost float64
-		if err := json.Unmarshal(raw, &cost); err != nil {
-			return nil, err
-		}
+	for _, cost := range childrenValues {
 		totalCosts += cost
 	}
 
@@ -1078,6 +1073,10 @@ queue.remove(job.id()).await?;
 
 ```go
 if err := job.Remove(ctx, true); err != nil {
+	log.Fatal(err)
+}
+// or
+if _, err := queue.Remove(ctx, job.ID, true); err != nil {
 	log.Fatal(err)
 }
 ```

@@ -145,12 +145,12 @@ func main() {
 	}
 
 	// Retry a failed job
-	if err := job.Retry(ctx, bullmq.StateFailed); err != nil {
+	if err := job.Retry(ctx, bullmq.StateFailed, nil); err != nil {
 		log.Fatal(err)
 	}
 
 	// Retry a completed job
-	if err := job.Retry(ctx, bullmq.StateCompleted); err != nil {
+	if err := job.Retry(ctx, bullmq.StateCompleted, nil); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -365,7 +365,7 @@ match job.retry("failed", None).await {
 {% tab title="Go" %}
 
 ```go
-err := job.Retry(ctx, bullmq.StateFailed)
+err := job.Retry(ctx, bullmq.StateFailed, nil)
 switch {
 case err == nil:
 	log.Println("Job retried successfully")

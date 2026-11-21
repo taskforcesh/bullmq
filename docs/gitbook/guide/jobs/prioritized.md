@@ -349,7 +349,7 @@ let jobs2 = queue.get_prioritized(0, -1).await?;
 {% tab title="Go" %}
 
 ```go
-jobs, err := queue.Jobs(ctx, bullmq.StatePrioritized, 0, -1, false)
+jobs, err := queue.Jobs(ctx, 0, -1, false, bullmq.StatePrioritized)
 if err != nil {
 	log.Fatal(err)
 }

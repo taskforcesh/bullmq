@@ -294,7 +294,7 @@ for ev := range queueEvents.Events() {
 	case "completed":
 		// Called every time a job is completed in any worker.
 	case "progress":
-		// ev.JobID received a progress event: ev.Data["data"]
+		// ev.JobID received a progress event: ev.DecodeProgress(&data)
 	}
 }
 ```
@@ -530,11 +530,7 @@ job.update_progress(bullmq::JobProgress::Object(serde_json::json!({ "completed":
 {% tab title="Go" %}
 
 ```go
-progress, err := bullmq.JSONProgress(map[string]int{"completed": 3, "total": 10})
-if err != nil {
-	return nil, err
-}
-if err := job.UpdateProgress(ctx, progress); err != nil {
+if err := job.UpdateProgress(ctx, map[string]int{"completed": 3, "total": 10}); err != nil {
 	return nil, err
 }
 ```

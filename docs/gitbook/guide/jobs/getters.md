@@ -219,7 +219,7 @@ let completed = queue.get_jobs(&["completed"], 0, 99, true).await?;
 {% tab title="Go" %}
 
 ```go
-completed, err := queue.Jobs(ctx, bullmq.StateCompleted, 0, 99, true)
+completed, err := queue.Jobs(ctx, 0, 99, true, bullmq.StateCompleted)
 if err != nil {
 	log.Fatal(err)
 }

@@ -586,14 +586,11 @@ worker, err := bullmq.NewWorker("invoices", func(ctx context.Context, job *bullm
 		if err := sendInvoice(ctx, invoiceID); err != nil {
 			return nil, err
 		}
-		progress, err := bullmq.JSONProgress(map[string]int{
+		err := job.UpdateProgress(ctx, map[string]int{
 			"completed": index + 1,
 			"total":     len(data.InvoiceIDs),
 		})
 		if err != nil {
-			return nil, err
-		}
-		if err := job.UpdateProgress(ctx, progress); err != nil {
 			return nil, err
 		}
 	}
