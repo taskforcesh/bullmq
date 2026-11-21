@@ -93,6 +93,8 @@ Parent jobs: `ChildrenValues` (and `DecodeChildrenValues` into a typed map),
 ### QueueEvents
 
 Streams every event published by any worker on the queue, in any language.
+`Queue.TrimEvents` trims the stream as Node's `trimEvents` does; like Node's,
+the PostgreSQL backend doesn't support it (`ErrNotSupported`).
 
 ## Not implemented
 

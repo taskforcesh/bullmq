@@ -67,4 +67,24 @@ Don't rely on seeing every `completed` or `failed` event on PostgreSQL; read
 the job's state instead.
 {% endhint %}
 
+## The length of the stream
+
+The stream keeps about `QueueOptions.EventsMaxLen` events (10,000 by
+default, Node's `streams.events.maxLen`). `queue.TrimEvents(ctx, n)` trims
+it to about `n` events, as Node's `trimEvents` does, and returns how many it
+removed:
+
+```go
+removed, err := queue.TrimEvents(ctx, 10)
+if err != nil {
+	log.Fatal(err)
+}
+log.Printf("trimmed %d events", removed)
+```
+
+On Redis the trim is approximate (`XTRIM MAXLEN ~`): whole stream nodes go,
+so a few more than `n` events may be left. The PostgreSQL backend returns an
+error matching `bullmq.ErrNotSupported`, as Node's does; it trims the stream
+to `EventsMaxLen` as it adds events.
+
 See also the [Events guide](../guide/events/).

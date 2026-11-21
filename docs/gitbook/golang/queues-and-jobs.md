@@ -239,6 +239,7 @@ See [Deduplication](../guide/jobs/deduplication.md).
 | `DeduplicationJobID`, `RemoveDeduplicationKey`                                    | Read or release a [deduplication](#deduplication) id                                                                                                            |
 | `Metrics`, `Workers`                                                              | Completed and failed metrics; the connected workers (`[]WorkerInfo`)                                                                                            |
 | `Meta`, `Version`                                                                 | The queue metadata (limits, paused, events length) and the library that wrote it                                                                                |
+| `TrimEvents`                                                                      | Trim the event stream to about a length ([Queue Events](queue-events.md))                                                                                       |
 | `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](job-schedulers.md)                                                                                                                             |
 
 ```go

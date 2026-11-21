@@ -459,6 +459,13 @@ type Backend interface {
 	// GetQueueMeta returns every field of the queue metadata hash, or an
 	// empty map when there is none.
 	GetQueueMeta(ctx context.Context) (map[string]string, error)
+
+	// ── Event stream ──
+
+	// TrimEvents trims the event stream to about maxLength events and
+	// returns how many it removed. A backend that can't returns an error
+	// wrapping ErrNotSupported.
+	TrimEvents(ctx context.Context, maxLength int64) (int64, error)
 }
 
 // BackendOptions describes the role of the backend being built by a

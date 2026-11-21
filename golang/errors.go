@@ -96,6 +96,10 @@ var (
 	// whose lock the worker could not renew: the job may belong to another
 	// worker now.
 	ErrLockLost = errors.New("bullmq: job lock lost")
+
+	// ErrNotSupported is returned, wrapped, by an operation the backend
+	// does not implement, as Node's backends throw "not implemented".
+	ErrNotSupported = errors.New("bullmq: not supported by this backend")
 )
 
 // cancelledError is the cause of a job context cancelled by Worker.CancelJob.

@@ -972,6 +972,7 @@ A `Queue` is safe for concurrent use. Its methods mirror Node's `Queue`:
 | `DeduplicationJobID`, `RemoveDeduplicationKey`                                    | Read or release a [deduplication](#deduplication) id                                                                                                            |
 | `Metrics`, `Workers`                                                              | Completed and failed metrics; the connected workers (`[]WorkerInfo`)                                                                                            |
 | `Meta`, `Version`                                                                 | The queue metadata (limits, paused, events length) and the library that wrote it                                                                                |
+| `TrimEvents`                                                                      | Trim the event stream to about a length ([QueueEvents](#queueevents))                                                                                           |
 | `UpsertJobScheduler`, `JobScheduler`, `JobSchedulers`, ...                        | [Job schedulers](#job-schedulers)                                                                                                                               |
 
 ```go
@@ -1072,6 +1073,14 @@ retried and reported on `Errors()`.
 
 On PostgreSQL, a listener can miss events when several workers finish jobs at
 the same time; see [Known limitations](#known-limitations).
+
+The stream keeps about `QueueOptions.EventsMaxLen` events (10,000 by
+default). `Queue.TrimEvents(ctx, n)` trims it to about `n` events, as Node's
+`trimEvents` does, and returns how many it removed. On Redis the trim is
+approximate (`XTRIM MAXLEN ~`): whole stream nodes go, so a few more than `n`
+events may be left. The PostgreSQL backend returns an error matching
+`bullmq.ErrNotSupported`, as Node's does; it trims the stream to
+`EventsMaxLen` as it adds events.
 
 ## Flows
 
