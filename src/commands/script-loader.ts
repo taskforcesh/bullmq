@@ -234,9 +234,23 @@ export class ScriptLoader {
 
     const hasFilenamePattern = (path: string) => hasMagic(path);
 
-    async function getFilenamesByPattern(pattern: string): Promise<string[]> {
-      return glob(pattern, { dot: true });
-    }
+    const getFilenamesByPattern = (
+      filename: string,
+      reference: string,
+    ): Promise<string[]> => {
+      if (path.sep !== '\\') {
+        return glob(filename, { dot: true });
+      }
+      // The script or mapping directory is literal, even if it contains brackets.
+      const mapping = /^(~|<[^>]+>)/.exec(reference);
+      const cwd = mapping ? this.resolvePath(mapping[0], stack) : file.dir;
+      const pattern = path.relative(cwd, filename).split(path.sep).join('/');
+      const directory = path.isAbsolute(pattern)
+        ? ''
+        : fg.default.escapePath(path.resolve(cwd).split(path.sep).join('/')) +
+          '/';
+      return glob(directory + pattern, { dot: true });
+    };
 
     let res;
     let content = file.content;
@@ -252,11 +266,10 @@ export class ScriptLoader {
       let includePaths: string[];
 
       if (hasFilenamePattern(includeFilename)) {
-        const includePattern =
-          path.sep === '\\'
-            ? includeFilename.split(path.sep).join('/')
-            : includeFilename;
-        const filesMatched = await getFilenamesByPattern(includePattern);
+        const filesMatched = await getFilenamesByPattern(
+          includeFilename,
+          reference,
+        );
         includePaths = filesMatched.map((x: string) => path.resolve(x));
       } else {
         includePaths = [includeFilename];

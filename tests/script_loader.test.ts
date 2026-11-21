@@ -220,16 +220,19 @@ describe('scriptLoader', () => {
     });
 
     it.skipIf(path.sep !== '\\')(
-      'preserves ordinary Windows includes in a directory with literal brackets',
+      'keeps Windows include directories with literal brackets',
       async () => {
         const fixtures = path.join(__dirname, 'fixtures/scripts');
         const directory = path.join(fixtures, '[literal]');
         const filename = path.join(directory, 'plain.lua');
+        loader.addPathMapping('literal', directory);
 
         for (const [reference, includeDirectory] of [
           ['plain.lua', directory],
           [filename, directory],
           ['[literal]/plain.lua', fixtures],
+          ['p*.lua', directory],
+          ['<literal>/p*.lua', fixtures],
         ]) {
           const script = await loader.parseScript(
             'parent.lua',
