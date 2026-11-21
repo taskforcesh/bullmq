@@ -15,7 +15,8 @@ type manualState struct {
 	// waiting holds a token while a GetNextJob call blocks on the
 	// worker's dedicated connection, so concurrent calls wait in turn.
 	waiting chan struct{}
-	// mu orders StartStalledCheck with Close, which waits for wg.
+	// mu orders StartStalledCheck and the blocking waits of GetNextJob with
+	// Close, which waits for wg.
 	mu      sync.Mutex
 	started bool
 	wg      sync.WaitGroup
@@ -98,8 +99,18 @@ func (w *Worker) GetNextJob(ctx context.Context, token string, block bool) (*Job
 }
 
 // manualWait waits for a job on the worker's dedicated connection, one
-// GetNextJob call at a time.
+// GetNextJob call at a time. Close waits for it to return before it closes
+// the backend, which would otherwise close the connection under it.
 func (w *Worker) manualWait(ctx context.Context, timeout time.Duration) (WaitResult, error) {
+	w.manual.mu.Lock()
+	if w.stopping() {
+		w.manual.mu.Unlock()
+		return WaitResult{}, ErrWorkerClosed
+	}
+	w.manual.wg.Add(1)
+	w.manual.mu.Unlock()
+	defer w.manual.wg.Done()
+
 	sem := w.manualWaiting()
 	select {
 	case sem <- struct{}{}:
@@ -226,10 +237,11 @@ func (w *Worker) StartStalledCheck() error {
 	return nil
 }
 
-// stopManual waits for the stalled check started by StartStalledCheck. Close
-// calls it once the worker is stopping.
+// stopManual waits for the stalled check started by StartStalledCheck and
+// for the blocking waits of GetNextJob. Close calls it once the worker is
+// stopping, before it closes the backend.
 func (w *Worker) stopManual() {
 	w.manual.mu.Lock()
-	w.manual.mu.Unlock() //nolint:staticcheck // a barrier: StartStalledCheck sees the worker stopping from now on
+	w.manual.mu.Unlock() //nolint:staticcheck // a barrier: StartStalledCheck and manualWait see the worker stopping from now on
 	w.manual.wg.Wait()
 }
