@@ -707,8 +707,9 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def clean_jobs_by_state(%__MODULE__{} = b, state, grace, opts) do
     limit = Keyword.get(opts, :limit, 0)
-    timestamp = now_ms() - grace
-    result = run(b, "clean", [b.queue_name, to_string(state), timestamp, limit])
+    now = now_ms()
+    timestamp = now - grace
+    result = run(b, "clean", [b.queue_name, to_string(state), timestamp, limit, now])
     {:ok, Enum.map(maps(result), & &1["id"])}
   end
 

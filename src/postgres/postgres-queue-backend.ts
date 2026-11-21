@@ -1139,6 +1139,7 @@ export class PostgresQueueBackend
       state,
       timestamp,
       limit,
+      Date.now(),
     ]);
     return rows.map(r => r.id);
   }
