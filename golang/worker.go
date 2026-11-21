@@ -59,6 +59,13 @@ const (
 	EventDrained      EventType = "drained"
 	EventError        EventType = "error"
 	EventClosed       EventType = "closed"
+	// EventPaused is emitted by the Pause that paused the worker once it
+	// returns, as Node emits paused once pause has waited for the jobs in
+	// flight (whose EventCompleted or EventFailed may follow it); not when
+	// the worker was resumed or closed meanwhile.
+	EventPaused EventType = "paused"
+	// EventResumed is emitted by Resume when the worker was paused.
+	EventResumed EventType = "resumed"
 )
 
 // Event is emitted by a Worker through Worker.Events.
@@ -66,7 +73,7 @@ type Event struct {
 	// Type is the kind of event.
 	Type EventType
 	// Job is the job the event refers to; nil for EventDrained, EventError,
-	// EventClosed and the lock events. For EventStalled only ID and
+	// EventClosed, EventPaused, EventResumed and the lock events. For EventStalled only ID and
 	// QueueName are set, since the stalled check reports job ids; load the
 	// job with Queue.Job (or Job.State) if needed.
 	Job *Job
@@ -238,7 +245,9 @@ func (w *Worker) DroppedEvents() uint64 { return w.droppedEvents.Load() }
 // Pause stops this worker from starting new jobs, as Node's pause does.
 // Unless doNotWaitActive is set, it then waits until the jobs being processed
 // have finished, or until ctx is done (returning ctx's error), the worker is
-// resumed, or it is closed (returning ErrWorkerClosed).
+// resumed, or it is closed (returning ErrWorkerClosed). The Pause that paused
+// the worker then emits EventPaused, unless the worker was resumed or closed
+// meanwhile.
 //
 // It may be called from WorkerOptions.OnEvent: from EventDrained, or from the
 // EventCompleted or EventFailed of a job, it waits for the other jobs only. A
@@ -247,7 +256,8 @@ func (w *Worker) DroppedEvents() uint64 { return w.droppedEvents.Load() }
 // Pause would otherwise wait for that job.
 func (w *Worker) Pause(ctx context.Context, doNotWaitActive bool) error {
 	w.pauseMu.Lock()
-	if !w.paused.Load() {
+	pausing := !w.paused.Load()
+	if pausing {
 		w.paused.Store(true)
 		w.resumed = make(chan struct{})
 	}
@@ -255,24 +265,29 @@ func (w *Worker) Pause(ctx context.Context, doNotWaitActive bool) error {
 	w.pauseMu.Unlock()
 	signal(w.ctrl)
 
-	if doNotWaitActive || !busy {
-		return nil
+	var err error
+	if !doNotWaitActive && busy {
+		select {
+		case <-idle:
+		case <-resumed:
+			return nil
+		case <-w.stop:
+			return ErrWorkerClosed
+		case <-ctx.Done():
+			err = ctx.Err()
+		}
 	}
-	select {
-	case <-idle:
-		return nil
-	case <-resumed:
-		return nil
-	case <-w.stop:
-		return ErrWorkerClosed
-	case <-ctx.Done():
-		return ctx.Err()
+	if pausing && w.IsPaused() {
+		w.emit(Event{Type: EventPaused})
 	}
+	return err
 }
 
-// Resume restarts fetching jobs after Pause.
+// Resume restarts fetching jobs after Pause, and emits EventResumed when the
+// worker was paused.
 func (w *Worker) Resume() {
 	w.pauseMu.Lock()
+	wasPaused := w.paused.Load()
 	w.paused.Store(false)
 	if w.resumed != nil {
 		close(w.resumed)
@@ -280,6 +295,9 @@ func (w *Worker) Resume() {
 	}
 	w.pauseMu.Unlock()
 	signal(w.ctrl)
+	if wasPaused {
+		w.emit(Event{Type: EventResumed})
+	}
 }
 
 // beginJob counts a job about to be fetched into a free slot or started by

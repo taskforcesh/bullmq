@@ -601,6 +601,8 @@ go func() {
 | `EventDrained`           | A fetch found no job to process, once until a job is fetched again  | none                           |
 | `EventError`             | A background error, such as a lost connection                       | `Err`                          |
 | `EventClosed`            | `Run` is returning                                                  | none                           |
+| `EventPaused`            | The `Pause` that paused the worker returned                         | none                           |
+| `EventResumed`           | `Resume` resumed a paused worker                                    | none                           |
 
 The channel never blocks the worker: when its buffer (256 events) is full,
 events are dropped and `Worker.DroppedEvents` counts them. To see every event,
@@ -626,7 +628,9 @@ pausing its own worker must do so. `Pause` may also be called from `OnEvent`,
 for example to pause once the queue is drained: from `EventDrained`,
 `EventCompleted` or `EventFailed` it waits for the other jobs only, and a job
 fetched in the meantime is put back in the wait list rather than started.
-`Close` releases a pending `Pause` with `bullmq.ErrWorkerClosed`.
+`Close` releases a pending `Pause` with `bullmq.ErrWorkerClosed`. As Node's
+`paused` and `resumed`, `EventPaused` is emitted once the `Pause` that
+paused the worker returns, and `EventResumed` by `Resume`.
 
 ```go
 var worker *bullmq.Worker

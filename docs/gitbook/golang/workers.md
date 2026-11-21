@@ -144,6 +144,8 @@ go func() {
 | `EventDrained`           | A fetch found no job, once until a job is fetched again             |                                |
 | `EventError`             | A background error, such as a lost connection                       | `Err`                          |
 | `EventClosed`            | `Run` is returning                                                  |                                |
+| `EventPaused`            | The `Pause` that paused the worker returned                         |                                |
+| `EventResumed`           | `Resume` resumed a paused worker                                    |                                |
 
 The channel never blocks the worker: when its buffer (256 events) is full,
 events are dropped, and `worker.DroppedEvents()` counts them. To see every
@@ -181,6 +183,9 @@ if err != nil {
 	log.Fatal(err)
 }
 ```
+
+As Node's `paused` and `resumed` events, `EventPaused` is emitted once the
+`Pause` that paused the worker returns, and `EventResumed` by `Resume`.
 
 `worker.Pause` affects one worker; `queue.Pause` pauses the queue for every
 worker, in every language. See [Pausing queues](../guide/workers/pausing-queues.md).

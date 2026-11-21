@@ -162,3 +162,14 @@ func (l *eventLog) jobsWith(typ bullmq.EventType) []string {
 	}
 	return ids
 }
+
+// types returns the types of the events, in order.
+func (l *eventLog) types() []bullmq.EventType {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	types := make([]bullmq.EventType, len(l.events))
+	for i, ev := range l.events {
+		types[i] = ev.Type
+	}
+	return types
+}
