@@ -548,3 +548,63 @@ describe('Job Scheduler (redis-only)', () => {
     });
   });
 });
+
+describe('Job Scheduler (redis-only) endDate', () => {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+  let queue: Queue;
+  let queueName: string;
+  let connection: IRedisClient;
+
+  beforeAll(async () => {
+    connection = createTestConnection();
+  });
+
+  beforeEach(async () => {
+    queueName = `test-${randomUUID()}`;
+    queue = new Queue(queueName, { connection, prefix });
+    await queue.waitUntilReady();
+  });
+
+  afterEach(async () => {
+    try {
+      await queue.close();
+    } catch (error) {
+      // Ignore errors in cleanup
+    }
+  });
+
+  afterAll(async function () {
+    await connection.quit();
+  });
+
+  it('should not produce a job due after endDate for every schedulers', async () => {
+    // Use real timers so that the worker consumes real Redis delayed jobs.
+    const every = 200;
+    let processed = 0;
+    const worker = new Worker(
+      queueName,
+      async () => {
+        processed++;
+      },
+      { connection, prefix },
+    );
+    await worker.waitUntilReady();
+
+    // Captured after the worker is ready so the whole scheduling window is
+    // measured from the upsert moment, not from test start.
+    const endDate = Date.now() + 500;
+
+    await queue.upsertJobScheduler('every-enddate', { every, endDate });
+
+    // Jobs are due at ~t0, t200 and t400 (all before endDate at t500).
+    // Without the fix, a fourth job due at t600 (after endDate) would also
+    // be produced and processed.
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    const sched = await queue.getJobSchedulers();
+    expect(processed).toBe(3);
+    const delayed = await queue.getDelayed();
+    expect(delayed).toHaveLength(0);
+
+    await worker.close();
+  });
+});
