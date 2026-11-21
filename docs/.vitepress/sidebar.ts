@@ -134,7 +134,7 @@ export function loadNavigation(): {
     text: 'Bindings',
     items: [],
   };
-  for (const title of ['Python', 'Rust', 'Elixir', 'PHP']) {
+  for (const title of ['Python', 'Rust', 'Elixir', 'PHP', 'Go', '.NET']) {
     const link = sectionLink(title);
     if (link) {
       languageDropdown.items.push({ text: title, link });

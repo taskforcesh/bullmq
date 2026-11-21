@@ -1,0 +1,395 @@
+package redisbackend
+
+import (
+	"context"
+	"encoding/json"
+	"strconv"
+	"time"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+)
+
+// jobRecordFromHash rebuilds a job from its Redis hash representation.
+func jobRecordFromHash(id string, fields map[string]string) *bullmq.JobRecord {
+	r := &bullmq.JobRecord{
+		ID:   id,
+		Name: fields["name"],
+		Opts: &bullmq.JobOptions{},
+	}
+	if raw, ok := fields["data"]; ok && raw != "" {
+		r.Data = json.RawMessage(raw)
+	} else {
+		r.Data = json.RawMessage("null")
+	}
+	if raw, ok := fields["opts"]; ok && raw != "" {
+		_ = json.Unmarshal([]byte(raw), r.Opts)
+	}
+	if raw, ok := fields["progress"]; ok && raw != "" {
+		_ = r.Progress.UnmarshalJSON([]byte(raw))
+	}
+	if raw, ok := fields["returnvalue"]; ok && raw != "" {
+		r.ReturnValue = json.RawMessage(raw)
+	}
+	if raw, ok := fields["stacktrace"]; ok && raw != "" {
+		_ = json.Unmarshal([]byte(raw), &r.Stacktrace)
+	}
+	if raw, ok := fields["parent"]; ok && raw != "" {
+		var p bullmq.ParentKeys
+		if json.Unmarshal([]byte(raw), &p) == nil {
+			r.Parent = &p
+		}
+	}
+	r.ParentKey = fields["parentKey"]
+	r.ProcessedBy = fields["pb"]
+	r.RepeatJobKey = fields["rjk"]
+	r.DeduplicationID = fields["deid"]
+	r.FailedReason = fields["failedReason"]
+	r.DeferredFailure = fields["defa"]
+	r.Timestamp = parseInt(fields["timestamp"])
+	r.AttemptsMade = parseInt(fields["atm"])
+	r.AttemptsStarted = parseInt(fields["ats"])
+	r.ProcessedOn = parseInt(fields["processedOn"])
+	r.FinishedOn = parseInt(fields["finishedOn"])
+	r.StalledCounter = parseInt(fields["stc"])
+	r.Priority = parseInt(fields["priority"])
+	if raw, ok := fields["delay"]; ok && raw != "" {
+		r.Delay = parseInt(raw)
+	} else {
+		r.Delay = int64Val(r.Opts.Delay)
+	}
+	return r
+}
+
+// packFailureFields encodes the `fieldsToUpdate` argument of the commands that
+// record a failed attempt: a flat msgpack array of field, value pairs.
+func packFailureFields(f *bullmq.FailureInfo) ([]byte, error) {
+	if f == nil {
+		return nil, nil
+	}
+	trace, err := json.Marshal(f.Stacktrace)
+	if err != nil {
+		return nil, err
+	}
+	return packMsgpack([]any{
+		"failedReason", f.Reason,
+		"stacktrace", string(trace),
+	})
+}
+
+// fieldsArg turns packed fields into a script argument, using the empty
+// string for "no fields".
+func fieldsArg(fields []byte) any {
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields
+}
+
+// GetJob returns the stored job, or nil when it does not exist.
+func (b *Backend) GetJob(ctx context.Context, jobID string) (*bullmq.JobRecord, error) {
+	c, err := b.cmd(ctx)
+	if err != nil {
+		return nil, err
+	}
+	fields, err := c.HGetAll(ctx, b.keys.Job(jobID)).Result()
+	if err != nil {
+		return nil, err
+	}
+	if len(fields) == 0 {
+		return nil, nil
+	}
+	return jobRecordFromHash(jobID, fields), nil
+}
+
+// GetState returns the state of a job.
+func (b *Backend) GetState(ctx context.Context, jobID string) (bullmq.JobState, error) {
+	k := b.keys
+	res, err := b.runScript(ctx, "getStateV2", []string{
+		k.Completed(), k.Failed(), k.Delayed(), k.Active(),
+		k.Wait(), k.Paused(), k.WaitingChildren(), k.Prioritized(),
+	}, jobID)
+	if err != nil {
+		return bullmq.StateUnknown, err
+	}
+	s, ok := asString(res)
+	if !ok {
+		return bullmq.StateUnknown, nil
+	}
+	return bullmq.JobState(s), nil
+}
+
+// UpdateData replaces the job payload.
+func (b *Backend) UpdateData(ctx context.Context, jobID string, data []byte) error {
+	return b.runScriptStatus(ctx, "updateData", []string{b.keys.Job(jobID)}, string(data))
+}
+
+// UpdateProgress stores a new progress value and emits the progress event.
+func (b *Backend) UpdateProgress(ctx context.Context, jobID string, progress bullmq.Progress) error {
+	return b.runScriptStatus(ctx, "updateProgress",
+		[]string{b.keys.Job(jobID), b.keys.Events(), b.keys.Meta()},
+		jobID, progress.Raw())
+}
+
+// AddLog appends a row to the job log.
+func (b *Backend) AddLog(ctx context.Context, jobID, row string, keepLogs int64) (int64, error) {
+	keep := ""
+	if keepLogs > 0 {
+		keep = strconv.FormatInt(keepLogs, 10)
+	}
+	res, err := b.runScript(ctx, "addLog",
+		[]string{b.keys.Job(jobID), b.keys.JobLogs(jobID)},
+		jobID, row, keep)
+	if err != nil {
+		return 0, err
+	}
+	code, _ := asInt64(res)
+	if code < 0 {
+		return 0, scriptError("addLog", code)
+	}
+	return code, nil
+}
+
+// GetJobLogs returns the log rows in [start, end] together with the total count.
+func (b *Backend) GetJobLogs(ctx context.Context, jobID string, start, end int64) ([]string, int64, error) {
+	key := b.keys.JobLogs(jobID)
+	c, err := b.cmd(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := c.LRange(ctx, key, start, end).Result()
+	if err != nil {
+		return nil, 0, err
+	}
+	if c, err = b.cmd(ctx); err != nil {
+		return nil, 0, err
+	}
+	count, err := c.LLen(ctx, key).Result()
+	if err != nil {
+		return nil, 0, err
+	}
+	return rows, count, nil
+}
+
+// Remove deletes the job and optionally its children. It returns false when
+// the job is locked by another worker.
+func (b *Backend) Remove(ctx context.Context, jobID string, removeChildren bool) (bool, error) {
+	res, err := b.runScript(ctx, "removeJob",
+		[]string{b.keys.Job(jobID), b.keys.Repeat()},
+		jobID, boolToStr(removeChildren), b.keys.KeyPrefix())
+	if err != nil {
+		return false, err
+	}
+	code, ok := asInt64(res)
+	if !ok {
+		return true, nil
+	}
+	if code < 0 {
+		return false, scriptError("removeJob", code)
+	}
+	return code != 0, nil
+}
+
+// Promote moves a delayed job to the wait list immediately.
+func (b *Backend) Promote(ctx context.Context, jobID string) error {
+	k := b.keys
+	return b.runScriptStatus(ctx, "promote", []string{
+		k.Delayed(), k.Wait(), k.Paused(), k.Meta(),
+		k.Prioritized(), k.Active(), k.PC(), k.Events(), k.Marker(),
+	}, k.KeyPrefix(), jobID)
+}
+
+// ChangeDelay updates the delay of a job that is in the delayed set.
+func (b *Backend) ChangeDelay(ctx context.Context, jobID string, delay time.Duration) error {
+	k := b.keys
+	return b.runScriptStatus(ctx, "changeDelay", []string{
+		k.Delayed(), k.Meta(), k.Marker(), k.Events(),
+	}, delay.Milliseconds(), nowMillis(), jobID, k.Job(jobID))
+}
+
+// ChangePriority updates the priority of a waiting or prioritized job.
+func (b *Backend) ChangePriority(ctx context.Context, jobID string, priority int64, lifo bool) error {
+	k := b.keys
+	return b.runScriptStatus(ctx, "changePriority", []string{
+		k.Wait(), k.Paused(), k.Meta(), k.Prioritized(),
+		k.Active(), k.PC(), k.Marker(),
+	}, priority, k.KeyPrefix(), jobID, boolToStr(lifo))
+}
+
+// pushCommand returns the list command that puts a job back in the wait list.
+func pushCommand(lifo bool) string {
+	if lifo {
+		return "RPUSH"
+	}
+	return "LPUSH"
+}
+
+// RetryFinishedJob moves a completed or failed job back to the wait list.
+func (b *Backend) RetryFinishedJob(ctx context.Context, jobID string, state bullmq.JobState, lifo bool, opts bullmq.RetryOptions) error {
+	k := b.keys
+	propVal := "returnvalue"
+	if state == bullmq.StateFailed {
+		propVal = "failedReason"
+	}
+	res, err := b.runScript(ctx, "reprocessJob", []string{
+		k.Job(jobID), k.Events(), k.Get(string(state)),
+		k.Wait(), k.Meta(), k.Active(), k.Marker(), k.Prioritized(), k.PC(),
+	}, jobID, pushCommand(lifo), propVal, string(state),
+		boolToStr(opts.ResetAttemptsMade), boolToStr(opts.ResetAttemptsStarted))
+	if err != nil {
+		return err
+	}
+	if code, _ := asInt64(res); code != 1 {
+		return scriptError("reprocessJob", code)
+	}
+	return nil
+}
+
+// RetryJob puts an active job straight back into the wait list.
+func (b *Backend) RetryJob(ctx context.Context, jobID, token string, lifo bool, failure *bullmq.FailureInfo) error {
+	k := b.keys
+	fields, err := packFailureFields(failure)
+	if err != nil {
+		return err
+	}
+	return b.runScriptStatus(ctx, "retryJob", []string{
+		k.Active(), k.Wait(), k.Paused(), k.Job(jobID), k.Meta(), k.Events(),
+		k.Delayed(), k.Prioritized(), k.PC(), k.Marker(), k.Stalled(),
+	}, k.KeyPrefix(), nowMillis(), pushCommand(lifo), jobID, token, fieldsArg(fields))
+}
+
+// MoveToDelayed reschedules an active job and, when requested, fetches the
+// next one. The command only replies with a job it fetched, so the result
+// never carries the rate-limit or delayed-job hints.
+func (b *Backend) MoveToDelayed(ctx context.Context, jobID, token string, delay time.Duration, opts bullmq.MoveToDelayedOptions) (*bullmq.FetchResult, error) {
+	k := b.keys
+	ms := delay.Milliseconds()
+	if ms < 0 {
+		ms = 0
+	}
+	fields, err := packFailureFields(opts.Failure)
+	if err != nil {
+		return nil, err
+	}
+	var fetchOpts any = ""
+	if opts.FetchNext {
+		packed, err := packMoveToActiveOpts(bullmq.MoveToActiveOptions{
+			Token:        token,
+			LockDuration: opts.LockDuration,
+			WorkerName:   opts.WorkerName,
+			Limiter:      opts.Limiter,
+		})
+		if err != nil {
+			return nil, err
+		}
+		fetchOpts = packed
+	}
+	res, err := b.runScript(ctx, "moveToDelayed", []string{
+		k.Marker(), k.Active(), k.Prioritized(), k.Delayed(),
+		k.Job(jobID), k.Events(), k.Meta(), k.Stalled(),
+		k.Wait(), k.Limiter(), k.PC(),
+	},
+		k.KeyPrefix(), nowMillis(), jobID, token, ms,
+		boolToStr(opts.SkipAttempt),
+		fieldsArg(fields),
+		boolToStr(opts.FetchNext),
+		fetchOpts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if code, ok := asInt64(res); ok && code < 0 {
+		return nil, scriptError("moveToDelayed", code)
+	}
+	if !opts.FetchNext {
+		return nil, nil
+	}
+	return parseFetchResult(res), nil
+}
+
+// MoveJobFromActiveToWait puts an active job back in the wait list without
+// counting an attempt and returns the remaining rate-limit time.
+func (b *Backend) MoveJobFromActiveToWait(ctx context.Context, jobID, token string) (time.Duration, error) {
+	k := b.keys
+	if token == "" {
+		token = "0"
+	}
+	res, err := b.runScript(ctx, "moveJobFromActiveToWait", []string{
+		k.Active(), k.Wait(), k.Stalled(), k.Paused(), k.Meta(),
+		k.Limiter(), k.Prioritized(), k.Marker(), k.Events(),
+	}, jobID, token, k.Job(jobID))
+	if err != nil {
+		return 0, err
+	}
+	pttl, _ := asInt64(res)
+	if pttl < 0 {
+		return 0, scriptError("moveJobFromActiveToWait", pttl)
+	}
+	return time.Duration(pttl) * time.Millisecond, nil
+}
+
+// MoveToWaitingChildren parks an active parent job until its children finish.
+func (b *Backend) MoveToWaitingChildren(ctx context.Context, jobID, token string, child *bullmq.ParentKeys) (bool, error) {
+	k := b.keys
+	childKey := ""
+	if child != nil && child.ID != "" {
+		childKey = child.QueueKey + ":" + child.ID
+	}
+	res, err := b.runScript(ctx, "moveToWaitingChildren", []string{
+		k.Active(), k.WaitingChildren(), k.Job(jobID),
+		k.Dependencies(jobID), k.Job(jobID) + ":unsuccessful",
+		k.Stalled(), k.Events(),
+	}, token, childKey, nowMillis(), jobID, k.KeyPrefix())
+	if err != nil {
+		return false, err
+	}
+	code, _ := asInt64(res)
+	switch {
+	case code < 0:
+		return false, scriptError("moveToWaitingChildren", code)
+	case code == 1:
+		return false, nil
+	default:
+		return true, nil
+	}
+}
+
+// ExtendLock refreshes the lock held on an active job.
+func (b *Backend) ExtendLock(ctx context.Context, jobID, token string, duration time.Duration) error {
+	res, err := b.runScript(ctx, "extendLock",
+		[]string{b.keys.JobLock(jobID), b.keys.Stalled()},
+		token, duration.Milliseconds(), jobID)
+	if err != nil {
+		return err
+	}
+	if code, ok := asInt64(res); !ok || code != 1 {
+		return bullmq.ErrJobLockNotExist
+	}
+	return nil
+}
+
+// ExtendLocks renews the locks of the given jobs with one script call and
+// returns the ids whose lock could not be renewed (missing or owned by
+// another token).
+func (b *Backend) ExtendLocks(ctx context.Context, locks []bullmq.JobLock, duration time.Duration) ([]string, error) {
+	tokens := make([]string, len(locks))
+	ids := make([]string, len(locks))
+	for i, l := range locks {
+		tokens[i] = l.Token
+		ids[i] = l.JobID
+	}
+	packedTokens, err := packMsgpack(tokens)
+	if err != nil {
+		return nil, err
+	}
+	packedIDs, err := packMsgpack(ids)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := b.runScript(ctx, "extendLocks", []string{b.keys.Stalled()},
+		b.keys.KeyPrefix(), packedTokens, packedIDs, duration.Milliseconds())
+	if err != nil {
+		return nil, err
+	}
+	return asStrings(res), nil
+}

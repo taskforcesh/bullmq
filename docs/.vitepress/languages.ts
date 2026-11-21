@@ -16,6 +16,7 @@ export const LANGUAGES: RuntimeLanguage[] = [
   { id: 'elixir', label: 'Elixir', aliases: ['elixir', 'ex'] },
   { id: 'dotnet', label: '.NET', aliases: ['.net', 'dotnet', 'c#', 'csharp'] },
   { id: 'rust', label: 'Rust', aliases: ['rust', 'rs'] },
+  { id: 'go', label: 'Go', aliases: ['go', 'golang'] },
   { id: 'php', label: 'PHP', aliases: ['php'] },
 ];
 
