@@ -7,6 +7,10 @@ redisbackend/commands/*.lua
 postgresbackend/sql/migrations/*.sql
 postgresbackend/sql/commands/*.sql
 
+# Generated: the version of the root package.json, whose scripts the module
+# embeds, written by `yarn copy:lua:golang` and `yarn copy:sql:golang`.
+scripts_version.go
+
 # Go build output
 /bin/
 *.test

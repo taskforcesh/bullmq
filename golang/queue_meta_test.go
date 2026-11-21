@@ -133,7 +133,7 @@ func TestQueueWritesItsMetaBeforeItsFirstCommand(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Meta: %v", err)
 		}
-		if want := "bullmq:" + bullmq.Version; meta.Version != want {
+		if want := "bullmq:" + bullmq.ScriptsVersion; meta.Version != want {
 			t.Errorf("Version = %q, want %q", meta.Version, want)
 		}
 		if meta.MaxLenEvents == nil || *meta.MaxLenEvents != bullmq.DefaultEventsMaxLen {

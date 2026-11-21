@@ -996,8 +996,11 @@ a job by id without reading it first, and returns false while a worker holds
 it.
 
 `NewQueue` doesn't reach the datastore. Before its first command, a queue
-writes its metadata, as Node's `Queue` does: `version`
-(`bullmq:<bullmq.Version>`) and `opts.maxLenEvents`, the approximate maximum
+writes its metadata, as Node's `Queue` does: `version` and
+`opts.maxLenEvents`. The version is `bullmq:<bullmq.ScriptsVersion>`, the
+version of the Node.js package whose Lua and SQL scripts the module embeds,
+so dashboards enable the features of those scripts; `bullmq.Version` is the
+version of the Go module. `opts.maxLenEvents` is the approximate maximum
 length of the events stream, `QueueOptions.EventsMaxLen` (10,000 by default,
 Node's `streams.events.maxLen`). Set `QueueOptions.SkipMetasUpdate` for a
 role that may only read. After `Obliterate` or `Close`, the queue never
@@ -1421,7 +1424,8 @@ the main repository.
 
 The Lua commands and SQL files aren't committed to the `golang` directory:
 they are generated from the shared sources, so every port stays byte-for-byte
-identical. Before building or testing, run from the repository root:
+identical. So is `scripts_version.go`, which holds the version of the root
+`package.json` (`bullmq.ScriptsVersion`). Before building or testing, run from the repository root:
 
 ```sh
 yarn install
@@ -1433,7 +1437,8 @@ yarn copy:sql:golang
 This resolves the `--- @include` directives of `src/commands/*.lua` into
 `rawScripts/` and copies the result into `golang/redisbackend/commands/`, and
 copies the migrations and commands of `src/postgres` into
-`golang/postgresbackend/sql/`, where `go:embed` picks them up.
+`golang/postgresbackend/sql/`, where `go:embed` picks them up. Both copy
+steps also write `golang/scripts_version.go`.
 
 The tests need a Redis server, and a PostgreSQL database for the PostgreSQL
 backend. From the repository root:

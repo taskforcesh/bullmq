@@ -288,7 +288,9 @@ a job by id without reading it first, and returns false while a worker holds
 it.
 
 `NewQueue` doesn't reach the datastore. Before its first command, a queue
-writes its metadata, as Node's `Queue` does: `version` and
+writes its metadata, as Node's `Queue` does: `version`, which is
+`bullmq:<bullmq.ScriptsVersion>`, the version of the Node.js package whose
+scripts the module embeds, so dashboards enable the matching features; and
 `opts.maxLenEvents`, the approximate maximum length of the events stream,
 `QueueOptions.EventsMaxLen` (10,000 by default). Set
 `QueueOptions.SkipMetasUpdate` for a role that may only read. `queue.Meta`

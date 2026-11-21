@@ -1,6 +1,7 @@
 package bullmq_test
 
 import (
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -44,5 +45,30 @@ func TestVersionMatchesTheChangelog(t *testing.T) {
 	}
 	if latest := string(m[1]); bullmq.Version != latest {
 		t.Fatalf("Version = %q, but the latest release in the changelog is %q", bullmq.Version, latest)
+	}
+}
+
+// ScriptsVersion is generated from the root package.json, whose scripts the
+// module embeds, by `yarn copy:lua:golang` and `yarn copy:sql:golang`.
+func TestScriptsVersionMatchesThePackageJSON(t *testing.T) {
+	if !regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`).MatchString(bullmq.ScriptsVersion) {
+		t.Fatalf("ScriptsVersion %q is not a SemVer version", bullmq.ScriptsVersion)
+	}
+	b, err := os.ReadFile("../package.json")
+	if errors.Is(err, fs.ErrNotExist) {
+		t.Skip("no root package.json: this is the published module")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pkg struct{ Name, Version string }
+	if err := json.Unmarshal(b, &pkg); err != nil {
+		t.Fatal(err)
+	}
+	if pkg.Name != "bullmq" {
+		t.Skipf("../package.json is %q, not bullmq", pkg.Name)
+	}
+	if bullmq.ScriptsVersion != pkg.Version {
+		t.Fatalf("ScriptsVersion = %q, but the root package.json is %q: run `yarn copy:lua:golang`", bullmq.ScriptsVersion, pkg.Version)
 	}
 }

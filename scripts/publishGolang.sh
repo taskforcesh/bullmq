@@ -184,6 +184,16 @@ stage_version() {
     echo "::error::Generated Lua commands are missing for ${source_tag}"
     return 1
   fi
+  # Queues store the version of the package whose scripts the module embeds
+  # (the tag's package.json); the copy step generates it next to the scripts.
+  if [ -f "$SRC_TREE/scripts/generateGolangScriptsVersion.js" ]; then
+    local scripts_version
+    scripts_version=$(cd "$SRC_TREE" && node -p "require('./package.json').version")
+    if ! grep -qx "const ScriptsVersion = \"${scripts_version}\"" "$SRC_TREE/golang/scripts_version.go" 2> /dev/null; then
+      echo "::error::golang/scripts_version.go is missing or does not match package.json (${scripts_version}) for ${source_tag}"
+      return 1
+    fi
+  fi
 
   # Mirror the port; node tooling and the source .gitignore (which ignores the
   # generated Lua commands) are not published.

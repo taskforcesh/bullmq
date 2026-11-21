@@ -23,8 +23,9 @@ type QueueMeta struct {
 	MaxLenEvents *int64
 	// Paused reports whether the queue is paused.
 	Paused bool
-	// Version is the library that last wrote the queue's metadata, as
-	// `bullmq:<version>`, or "" when none did.
+	// Version is the BullMQ version of the scripts of the library that last
+	// wrote the queue's metadata, as `bullmq:<version>` (Go writes
+	// `bullmq:<ScriptsVersion>`), or "" when none did.
 	Version string
 }
 
@@ -48,8 +49,10 @@ func (q *Queue) Meta(ctx context.Context) (*QueueMeta, error) {
 	return meta, nil
 }
 
-// Version returns the library that last wrote the queue's metadata, as
-// `bullmq:<version>`, or "" when none did, as Node's getVersion does.
+// Version returns the BullMQ version of the scripts of the library that last
+// wrote the queue's metadata, as `bullmq:<version>` (Go writes
+// `bullmq:<ScriptsVersion>`), or "" when none did, as Node's getVersion
+// does.
 func (q *Queue) Version(ctx context.Context) (string, error) {
 	v, _, err := q.backend.GetQueueMetaField(ctx, "version")
 	return v, err
@@ -91,6 +94,6 @@ func (o *QueueOptions) metaValues() (map[string]any, error) {
 	}
 	return map[string]any{
 		"opts.maxLenEvents": maxLen,
-		"version":           "bullmq:" + Version,
+		"version":           "bullmq:" + ScriptsVersion,
 	}, nil
 }
