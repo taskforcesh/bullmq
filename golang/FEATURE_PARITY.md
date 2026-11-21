@@ -96,7 +96,9 @@ Streams every event published by any worker on the queue, in any language.
 `Queue.TrimEvents` trims the stream as Node's `trimEvents` does; like Node's,
 the PostgreSQL backend doesn't support it (`ErrNotSupported`).
 `QueueEventsProducer.PublishEvent` publishes custom events, as Node's
-`QueueEventsProducer.publishEvent` does.
+`QueueEventsProducer.publishEvent` does. Event fields are strings;
+`DecodeReturnValue`, `Progress`/`DecodeProgress` and `DelayedUntil` parse
+those Node's `QueueEvents` parses.
 
 ## Not implemented
 

@@ -1063,7 +1063,11 @@ for ev := range events.Events() {
 Each `QueueEvent` has the event name (`added`, `waiting`, `active`,
 `progress`, `completed`, `failed`, `delayed`, `stalled`, `removed`,
 `deduplicated`, `drained`...), the job id and every field of the event in
-`Data`. The listener starts with the events published after `Run` starts;
+`Data`, as strings. The helpers parse the fields Node's `QueueEvents`
+parses: `DecodeReturnValue(&v)` the JSON return value of `completed`,
+`Progress()` and `DecodeProgress(&v)` the progress of `progress`, and
+`DelayedUntil()` the `delay` of `delayed`, which is when the job is due
+(Unix milliseconds), not a duration. The listener starts with the events published after `Run` starts;
 set `LastEventID` to read from another point (`"0"` for the oldest event
 kept). `Events()` is closed when the listener stops, by `Close` or by
 cancelling `Run`'s context; `Run` then returns nil or the context's error,

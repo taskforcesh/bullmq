@@ -29,7 +29,10 @@ for ev := range events.Events() {
 	case "failed":
 		log.Printf("job %s failed: %s", ev.JobID, ev.FailedReason())
 	case "progress":
-		log.Printf("job %s progress: %s", ev.JobID, ev.Data["data"])
+		var progress map[string]any
+		if err := ev.DecodeProgress(&progress); err == nil {
+			log.Printf("job %s progress: %v", ev.JobID, progress)
+		}
 	}
 }
 ```
@@ -40,10 +43,16 @@ Each `bullmq.QueueEvent` has:
   `waiting`, `active`, `progress`, `completed`, `failed`, `delayed`,
   `stalled`, `removed`, `deduplicated`, `drained`, ...);
 - `JobID`: the job it refers to, when there is one;
-- `Data`: every field of the event; `ReturnValue()` and `FailedReason()`
-  read the usual ones;
+- `Data`: every field of the event, as strings; `ReturnValue()` and
+  `FailedReason()` read the usual ones;
 - `ID`: the event's id, opaque: a stream entry id on Redis, a number on
   PostgreSQL. Pass it as `LastEventID` to resume after that event.
+
+The helpers parse the fields that Node's `QueueEvents` parses:
+`ev.DecodeReturnValue(&v)` decodes the JSON return value of `completed`,
+`ev.Progress()` and `ev.DecodeProgress(&v)` the progress of `progress` (a
+number or any JSON value), and `ev.DelayedUntil()` reads the `delay` of
+`delayed`, which is when the job is due (Unix milliseconds), not a duration.
 
 | Option            | Default | Meaning                                                                                      |
 | ----------------- | ------- | -------------------------------------------------------------------------------------------- |
