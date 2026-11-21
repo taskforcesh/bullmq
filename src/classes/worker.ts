@@ -208,6 +208,15 @@ export class Worker<
   private stalledCheckerRunning = false;
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
+  /**
+   * The fetches and jobs tracked by the running main loop, so that `resume()`
+   * can wake it up.
+   */
+  private mainLoopQueue: AsyncFifoQueue<void | Job<
+    DataType,
+    ResultType,
+    NameType
+  >> | null = null;
   private _repeat: Repeat; // To be deprecated in v6 in favor of Job Scheduler
 
   protected _jobScheduler: JobScheduler;
@@ -591,6 +600,7 @@ export class Worker<
       ResultType,
       NameType
     >>();
+    this.mainLoopQueue = asyncFifoQueue;
 
     let tokenPostfix = 0;
 
@@ -658,6 +668,10 @@ export class Worker<
       } else if (asyncFifoQueue.numQueued() === 0) {
         await this.waitForRateLimit();
       }
+    }
+
+    if (this.mainLoopQueue === asyncFifoQueue) {
+      this.mainLoopQueue = null;
     }
   }
 
@@ -1292,6 +1306,8 @@ will never work with more accuracy than 1ms. */
           void this.startStalledCheckTimer().catch(err => {
             this.emit('error', err);
           });
+          // Wake the paused main loop without waiting for active jobs to finish.
+          this.mainLoopQueue?.add(Promise.resolve());
         }
         this.emit('resumed');
       }).catch(err => {
