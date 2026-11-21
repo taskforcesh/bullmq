@@ -105,6 +105,12 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0011_obliterate_producer_lock.sql'),
   },
+  {
+    version: 12,
+    name: '0012_get_range_ascending',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0012_get_range_ascending.sql'),
+  },
 ];
 
 /**

@@ -67,6 +67,12 @@ func (b *Backend) ensureReady(ctx context.Context) error {
 	if err := b.prepareSchema(ctx); err != nil {
 		return err
 	}
+	var version string
+	if err := b.pool.QueryRow(ctx, "SELECT current_setting('server_version_num')").Scan(&version); err != nil {
+		return err
+	}
+	b.serverMajor, _ = strconv.Atoi(version)
+	b.serverMajor /= 10000
 	b.ready.Store(true)
 	return nil
 }

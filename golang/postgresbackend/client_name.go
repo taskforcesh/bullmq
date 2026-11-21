@@ -83,11 +83,14 @@ func lowerHexDigit(c byte) (byte, bool) {
 // stored with `?` gets the queue name back, but the rest keeps its `?`. Other
 // names are returned as they are.
 func (b *Backend) clientNameAsSet(appName string) string {
-	if rest, ok := strings.CutPrefix(appName, escapeAppName(b.name)); ok {
-		return b.name + unescapeAppName(rest)
-	}
-	if rest, ok := strings.CutPrefix(appName, legacyAppName(b.name)); ok {
-		return b.name + rest
+	if b.serverMajor >= 16 {
+		if rest, ok := strings.CutPrefix(appName, escapeAppName(b.name)); ok {
+			return b.name + unescapeAppName(rest)
+		}
+	} else {
+		if rest, ok := strings.CutPrefix(appName, legacyAppName(b.name)); ok {
+			return b.name + rest
+		}
 	}
 	return appName
 }

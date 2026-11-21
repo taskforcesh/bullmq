@@ -149,11 +149,23 @@ func (qe *QueueEvents) run(ctx context.Context) error {
 
 	lastID := qe.opts.LastEventID
 	if lastID == "$" {
-		id, err := qe.backend.LastEventID(ctx)
-		if err != nil {
-			return err
+		for {
+			id, err := qe.backend.LastEventID(ctx)
+			if err == nil {
+				lastID = id
+				break
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			select {
+			case qe.errs <- err:
+			default:
+			}
+			if !sleepCtx(ctx, time.Second) {
+				return ctx.Err()
+			}
 		}
-		lastID = id
 	}
 
 	for {

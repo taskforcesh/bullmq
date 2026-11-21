@@ -112,6 +112,7 @@ func TestBackoffDelayIsClamped(t *testing.T) {
 		{ID: "custom", Opts: &JobOptions{Backoff: &Backoff{Type: "custom"}}},
 		{ID: "exponential", AttemptsMade: 5000, Opts: &JobOptions{Backoff: &Backoff{Type: BackoffExponential, Delay: 1000}}},
 		{ID: "jittered", AttemptsMade: 5000, Opts: &JobOptions{Backoff: &Backoff{Type: BackoffExponential, Delay: 1000, Jitter: 0.5}}},
+		{ID: "full-jitter", AttemptsMade: 5000, Opts: &JobOptions{Backoff: &Backoff{Type: BackoffExponential, Delay: 1000, Jitter: 1}}},
 	} {
 		d, err := w.backoffDelay(job, nil)
 		if err != nil {

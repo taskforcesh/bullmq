@@ -103,6 +103,7 @@ type Backend struct {
 	migrateKey       string
 	skipVersionCheck bool
 	skipMigrations   bool
+	serverMajor      int
 
 	ready   atomic.Bool
 	readyMu sync.Mutex

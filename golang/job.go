@@ -85,6 +85,30 @@ type Job struct {
 	discarded    bool
 }
 
+// snapshot returns an immutable copy of the fields that worker events expose.
+// It keeps the live backend private fields so mutating methods still work on
+// jobs returned to processors, while event consumers cannot observe later
+// progress or retry mutations to the same object.
+func (j *Job) snapshot() *Job {
+	if j == nil {
+		return nil
+	}
+	copy := *j
+	copy.Data = append(json.RawMessage(nil), j.Data...)
+	copy.Stacktrace = append([]string(nil), j.Stacktrace...)
+	copy.ReturnValue = append(json.RawMessage(nil), j.ReturnValue...)
+	copy.Progress.raw = append(json.RawMessage(nil), j.Progress.raw...)
+	if j.Opts != nil {
+		opts := *j.Opts
+		copy.Opts = &opts
+	}
+	if j.Parent != nil {
+		parent := *j.Parent
+		copy.Parent = &parent
+	}
+	return &copy
+}
+
 // newJob builds a Job bound to backend from the record it returned.
 func newJob(b Backend, rec *JobRecord) *Job {
 	job := &Job{

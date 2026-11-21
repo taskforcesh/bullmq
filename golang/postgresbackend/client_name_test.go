@@ -32,17 +32,20 @@ func TestAppNameEscaping(t *testing.T) {
 		}
 	}
 
-	b := &Backend{name: "café-queue"}
+	b := &Backend{name: "café-queue", serverMajor: 16}
 	for in, want := range map[string]string{
 		`caf\xc3\xa9-queue`:                 "café-queue",
 		`caf\xc3\xa9-queue:w:w\xc3\xb6rker`: "café-queue:w:wörker",
 		`caf\xc3\xa9-queue:qe`:              "café-queue:qe",
-		`caf??-queue:w:w??rker`:             "café-queue:w:w??rker",
 		`other:w:w\xc3\xb6rker`:             `other:w:w\xc3\xb6rker`,
 	} {
 		if got := b.clientNameAsSet(in); got != want {
 			t.Errorf("clientNameAsSet(%q) = %q, want %q", in, got, want)
 		}
+	}
+	legacy := &Backend{name: "café-queue", serverMajor: 15}
+	if got, want := legacy.clientNameAsSet(`caf??-queue:w:w??rker`), `café-queue:w:w??rker`; got != want {
+		t.Errorf("legacy clientNameAsSet = %q, want %q", got, want)
 	}
 }
 
@@ -81,11 +84,26 @@ func TestWorkersOfANonASCIIQueue(t *testing.T) {
 	}
 
 	admin := adminConn(t)
+	var num string
+	if err := admin.QueryRow(ctx, "SELECT current_setting('server_version_num')").Scan(&num); err != nil {
+		t.Fatal(err)
+	}
+	var version int
+	if _, err := fmt.Sscanf(num, "%d", &version); err != nil {
+		t.Fatal(err)
+	}
+	major := version / 10000
+	prefix := legacyAppName(queue)
+	wantWorkerName := "w??rker"
+	if major >= 16 {
+		prefix = escapeAppName(queue)
+		wantWorkerName = "wörker"
+	}
 	eventually(t, "the worker connections", func() bool {
 		var n int
 		err := admin.QueryRow(ctx,
 			`SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND starts_with(application_name, $1)`,
-			escapeAppName(queue)).Scan(&n)
+			prefix).Scan(&n)
 		return err == nil && n == 2
 	})
 	workers, err := q.Workers(ctx)
@@ -96,7 +114,7 @@ func TestWorkersOfANonASCIIQueue(t *testing.T) {
 	for _, w := range workers {
 		got[w.Name] = w.Fields["name"]
 	}
-	if want := map[string]string{"": queue, "wörker": queue + ":w:wörker"}; !maps.Equal(got, want) {
+	if want := map[string]string{"": queue, wantWorkerName: queue + ":w:" + wantWorkerName}; !maps.Equal(got, want) {
 		t.Fatalf("Workers = %+v, want the names and connection names %v", workers, want)
 	}
 }

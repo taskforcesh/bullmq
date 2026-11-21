@@ -174,6 +174,24 @@ func (b *Backend) IsJobScheduler(ctx context.Context, id string) (bool, error) {
 // GetJobSchedulersRange runs get_job_schedulers_range. As in Node.js, a
 // negative end means every remaining scheduler.
 func (b *Backend) GetJobSchedulersRange(ctx context.Context, start, end int64, asc bool) ([]bullmq.JobSchedulerNext, error) {
+	if start < 0 || end < 0 {
+		count, err := b.GetJobSchedulersCount(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if start < 0 {
+			start = count + start
+			if start < 0 {
+				start = 0
+			}
+		}
+		if end < 0 {
+			end = count + end
+			if end < 0 {
+				return []bullmq.JobSchedulerNext{}, nil
+			}
+		}
+	}
 	var count any
 	if end >= 0 {
 		if end < start {

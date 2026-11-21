@@ -81,9 +81,12 @@ func (b *Backend) AddLog(ctx context.Context, jobID, row string, keepLogs int64)
 		if err := b.exec(ctx, "trim_logs", b.name, jobID, count-keepLogs); err != nil {
 			return 0, err
 		}
-		return keepLogs, nil
 	}
-	return count, nil
+	var retained int64
+	if err := b.queryRow(ctx, "get_job_logs_count", []any{b.name, jobID}, &retained); err != nil {
+		return 0, err
+	}
+	return retained, nil
 }
 
 // GetJobLogs returns the log rows in [start, end], with the semantics of

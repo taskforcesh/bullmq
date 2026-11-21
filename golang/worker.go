@@ -1135,6 +1135,7 @@ func (w *Worker) moveToFailed(ctx context.Context, job *Job, cause error, fetchN
 	}
 	retriesLeft := !job.discarded &&
 		!IsUnrecoverable(cause) &&
+		!errors.Is(cause, ErrJobHasFailedChildren) &&
 		job.AttemptsMade+1 < attempts
 
 	if retriesLeft {
@@ -1213,6 +1214,10 @@ func (w *Worker) backoffDelay(job *Job, cause error) (time.Duration, error) {
 		if backoff.Type == BackoffExponential {
 			maxDelay = math.Round(math.Pow(2, float64(attempts-1)) * maxDelay)
 		}
+		// Clamp the saturated maximum before jitter. Otherwise an infinite
+		// exponential value multiplied by rand in full-jitter mode becomes NaN,
+		// which retryDelay would convert to an immediate retry.
+		maxDelay = min(maxDelay, float64(maxRetryDelayMillis))
 		ms := maxDelay
 		if backoff.Jitter > 0 {
 			// Uniform in [maxDelay*(1-jitter), maxDelay), as in the Node.js
@@ -1458,6 +1463,9 @@ func (w *Worker) Close() error {
 // the worker is closed, for example progress reported by a goroutine that
 // outlived its job, are discarded.
 func (w *Worker) emit(ev Event) {
+	if ev.Job != nil {
+		ev.Job = ev.Job.snapshot()
+	}
 	w.eventsMu.RLock()
 	closed := w.eventsClosed
 	w.eventsMu.RUnlock()

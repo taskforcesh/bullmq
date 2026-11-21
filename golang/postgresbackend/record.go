@@ -54,6 +54,18 @@ func decodeOpts(raw []byte) *bullmq.JobOptions {
 	if err != nil {
 		return opts
 	}
+	// PostgreSQL/Node may store a numeric backoff directly. Go's JSON decoder
+	// cannot fit that shape into *Backoff, so normalize it to the fixed strategy.
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(renamed, &m); err == nil {
+		if rawBackoff, ok := m["backoff"]; ok {
+			var delay int64
+			if err := json.Unmarshal(rawBackoff, &delay); err == nil {
+				m["backoff"], _ = json.Marshal(map[string]any{"type": "fixed", "delay": delay})
+				renamed, _ = json.Marshal(m)
+			}
+		}
+	}
 	_ = json.Unmarshal(renamed, opts)
 	return opts
 }

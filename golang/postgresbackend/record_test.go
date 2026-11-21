@@ -100,6 +100,9 @@ func TestDecodeOptsReadsOptionsWrittenByNode(t *testing.T) {
 	if opts.IgnoreDependencyOnFailure == nil || !*opts.IgnoreDependencyOnFailure {
 		t.Errorf("IgnoreDependencyOnFailure = %v, want true", opts.IgnoreDependencyOnFailure)
 	}
+	if opts.Backoff == nil || opts.Backoff.Type != bullmq.BackoffFixed || opts.Backoff.Delay != 1000 {
+		t.Errorf("Backoff = %+v, want fixed 1000ms", opts.Backoff)
+	}
 }
 
 func TestKeepArgsRemovesOnlyTheJobForRemoveAllAndACountOfZero(t *testing.T) {

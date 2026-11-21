@@ -36,6 +36,7 @@ func testWorkerConcurrencyAboveGlobalConcurrencyDoesNotStallQueuedJobs(t *testin
 		case running <- struct{}{}:
 		default:
 			t.Error("two jobs ran at once despite a global concurrency of 1")
+			return nil, nil
 		}
 		time.Sleep(100 * time.Millisecond)
 		<-running
