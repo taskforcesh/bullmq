@@ -15,6 +15,29 @@ func (j *Job) ChildrenValues(ctx context.Context) (map[string]json.RawMessage, e
 	return b.GetProcessedChildrenValues(ctx, j.ID)
 }
 
+// DecodeChildrenValues decodes the return values of the completed children
+// of the job into out, a pointer to a map from child key to the type of
+// the values, as DecodeData decodes the job's data:
+//
+//	var costs map[string]float64
+//	if err := job.DecodeChildrenValues(ctx, &costs); err != nil {
+//		return nil, err
+//	}
+func (j *Job) DecodeChildrenValues(ctx context.Context, out any) error {
+	values, err := j.ChildrenValues(ctx)
+	if err != nil {
+		return err
+	}
+	if values == nil {
+		values = map[string]json.RawMessage{}
+	}
+	raw, err := json.Marshal(values)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(raw, out)
+}
+
 // IgnoredChildrenFailures returns the failure reason of every child whose
 // failure was ignored, with IgnoreDependencyOnFailure or
 // ContinueParentOnFailure, by child key.
@@ -57,15 +80,16 @@ func (j *Job) DependenciesCount(ctx context.Context) (DependencyCounts, error) {
 // RemoveChildDependency detaches the job, which must not have finished yet,
 // from its parent, so the parent no longer waits for it; a parent left
 // without pending children is moved to wait. It returns false when the job
-// was not a pending child of its parent, or has no parent. On success the
-// job's Parent and ParentKey are cleared.
+// was not a pending child of its parent. As in Node.js, it returns an error
+// matching [ErrParentJobNotExist] when the job has no parent, or its parent
+// no longer exists. On success the job's Parent and ParentKey are cleared.
 func (j *Job) RemoveChildDependency(ctx context.Context) (bool, error) {
 	b, err := j.ctx()
 	if err != nil {
 		return false, err
 	}
 	if j.ParentKey == "" {
-		return false, nil
+		return false, scriptError("removeChildDependency", ErrCodeParentJobNotExist)
 	}
 	removed, err := b.RemoveChildDependency(ctx, j.ID, j.ParentKey)
 	if err != nil || !removed {

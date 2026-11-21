@@ -193,7 +193,7 @@ func TestObliterateLeavesNoQueueMeta(t *testing.T) {
 			if _, err := q.Add(ctx, "job", nil, nil); err != nil {
 				t.Fatalf("Add: %v", err)
 			}
-			if err := q.Obliterate(ctx, true, 0); err != nil {
+			if err := q.Obliterate(ctx, &bullmq.ObliterateOptions{Force: true}); err != nil {
 				t.Fatalf("Obliterate: %v", err)
 			}
 			wg.Wait()

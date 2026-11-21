@@ -432,6 +432,12 @@ func packJobOptions(opts *bullmq.JobOptions) ([]byte, error) {
 		if d.Replace {
 			de["replace"] = true
 		}
+		if d.Reschedule {
+			de["reschedule"] = true
+		}
+		if d.KeepLastIfActive {
+			de["keepLastIfActive"] = true
+		}
 		m["de"] = de
 	}
 	if opts.Repeat != nil {

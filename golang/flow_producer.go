@@ -40,7 +40,8 @@ type FlowJob struct {
 	Name string
 	// QueueName is the queue the job is added to.
 	QueueName string
-	// Data is the payload; it is marshalled to JSON.
+	// Data is the payload; it is marshalled to JSON. nil is stored as {}, as
+	// Node stores a job added without data.
 	Data any
 	// Opts are the job options. Opts.Parent is only honoured on the root of
 	// a flow, to add the whole flow under an existing job; the other nodes
@@ -243,6 +244,9 @@ func (fp *FlowProducer) addNode(build *flowBuild, node FlowJob, parent *ParentOp
 		opts = *node.Opts
 	}
 	opts.Parent = parent
+	if parent != nil && opts.Deduplication != nil && opts.Deduplication.KeepLastIfActive {
+		return nil, configError("keepLastIfActive deduplication cannot be used on flow nodes with a parent")
+	}
 
 	// A node is validated and built exactly as Queue.Add would for its
 	// queue, with the flow's default options for that queue.

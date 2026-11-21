@@ -23,7 +23,7 @@ func TestAddFlowSurvivesAFlushedScriptCache(t *testing.T) {
 		t.Fatalf("NewQueue: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = childQ.Obliterate(ctx, true, 1000)
+		_ = childQ.Obliterate(ctx, &bullmq.ObliterateOptions{Force: true})
 		_ = childQ.Close()
 	})
 

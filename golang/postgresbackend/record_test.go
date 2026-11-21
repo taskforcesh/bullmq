@@ -43,7 +43,7 @@ func TestEncodeOptsStoresTheLongNames(t *testing.T) {
 		"keepLogs":            float64(10),
 		"failParentOnFailure": true,
 		"deduplication":       map[string]any{"id": "d1", "ttl": float64(500), "extend": true},
-		"removeOnComplete":    map[string]any{"count": float64(5)},
+		"removeOnComplete":    float64(5),
 		"removeOnFail":        true,
 		"stackTraceLimit":     float64(2),
 		"backoff":             map[string]any{"type": "fixed", "delay": float64(100)},

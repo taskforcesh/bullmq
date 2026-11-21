@@ -3,6 +3,7 @@ package postgresbackend
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -99,27 +100,51 @@ func (b *Backend) GetCounts(ctx context.Context, states []bullmq.JobState) ([]in
 	return counts, nil
 }
 
-// GetRanges returns the ids of the jobs in state, in [start, end].
-func (b *Backend) GetRanges(ctx context.Context, state bullmq.JobState, start, end int64, asc bool) ([]string, error) {
-	name := stateName(state)
-	ids, err := b.queryStrings(ctx, "get_range", b.name, name, clampInt32(start), clampInt32(end), asc)
+// GetRanges returns the ids of the jobs of each state in turn, those in
+// [start, end] of that state, in one round trip.
+func (b *Backend) GetRanges(ctx context.Context, states []bullmq.JobState, start, end int64, asc bool) ([]string, error) {
+	groups := make([][]string, len(states))
+	err := b.run(ctx, "get_range", func(ctx context.Context, sql string) error {
+		batch := &pgx.Batch{}
+		for i, state := range states {
+			name := stateName(state)
+			batch.Queue(sql, b.name, name, clampInt32(start), clampInt32(end), asc).Query(func(rows pgx.Rows) error {
+				ids, err := pgx.CollectRows(rows, pgx.RowTo[string])
+				if err != nil {
+					return err
+				}
+				// As with the Redis lists, the list-like states come newest
+				// first and are reversed for ascending order.
+				if asc && (name == "wait" || name == "paused" || name == "active") {
+					slices.Reverse(ids)
+				}
+				groups[i] = ids
+				return nil
+			})
+		}
+		return b.pool.SendBatch(ctx, batch).Close()
+	})
 	if err != nil {
 		return nil, err
 	}
-	// As with the Redis lists, the list-like states come newest first and
-	// are reversed for ascending order.
-	if asc && (name == "wait" || name == "paused" || name == "active") {
-		for i, j := 0, len(ids)-1; i < j; i, j = i+1, j-1 {
-			ids[i], ids[j] = ids[j], ids[i]
+	ids := make([]string, 0)
+	seen := make(map[string]bool)
+	for _, group := range groups {
+		for _, id := range group {
+			if !seen[id] {
+				seen[id] = true
+				ids = append(ids, id)
+			}
 		}
 	}
 	return ids, nil
 }
 
-// GetJobs returns the jobs in state, in [start, end]. The jobs are read in
-// one round trip; a job removed after its id was read is skipped.
-func (b *Backend) GetJobs(ctx context.Context, state bullmq.JobState, start, end int64, asc bool) ([]*bullmq.JobRecord, error) {
-	ids, err := b.GetRanges(ctx, state, start, end, asc)
+// GetJobs returns the jobs of each state in turn, those in [start, end] of
+// that state. The jobs are read in one round trip after their ids; a job
+// removed after its id was read is skipped.
+func (b *Backend) GetJobs(ctx context.Context, states []bullmq.JobState, start, end int64, asc bool) ([]*bullmq.JobRecord, error) {
+	ids, err := b.GetRanges(ctx, states, start, end, asc)
 	if err != nil || len(ids) == 0 {
 		return []*bullmq.JobRecord{}, err
 	}

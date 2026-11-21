@@ -77,6 +77,9 @@ var (
 	ErrDelayed = errors.New("bullmq: job moved to delayed")
 	// ErrWaitingChildren is returned by a processor that moved its job to waiting-children.
 	ErrWaitingChildren = errors.New("bullmq: job moved to waiting children")
+	// ErrWaiting is returned by a processor that moved its job back to wait
+	// with Job.MoveToWait, as Node's WaitingError.
+	ErrWaiting = errors.New("bullmq: job moved to wait")
 
 	// ErrRateLimited is returned by a processor to put its job back in the
 	// wait list without using up an attempt, because the queue is rate

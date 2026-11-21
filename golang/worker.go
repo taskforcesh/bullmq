@@ -138,6 +138,9 @@ type Worker struct {
 
 	mu     sync.Mutex
 	active map[string]*activeJob
+
+	// manual holds the state of a worker without a processor.
+	manual manualState
 }
 
 type activeJob struct {
@@ -166,10 +169,11 @@ func clientNameSuffix(name string) string {
 }
 
 // NewWorker creates a worker for the given queue. Call Run to start processing.
+//
+// A worker created with a nil proc processes nothing by itself: its jobs are
+// fetched with GetNextJob and finished with Job.MoveToCompleted or
+// Job.MoveToFailed, as in Node's manual mode (see GetNextJob).
 func NewWorker(queueName string, proc Processor, opts *WorkerOptions) (*Worker, error) {
-	if proc == nil {
-		return nil, configError("a processor function is required")
-	}
 	if opts == nil {
 		opts = &WorkerOptions{}
 	}
@@ -346,11 +350,15 @@ func (w *Worker) CancelAllJobs(reason string) {
 //     recover (see [Processor]). Once their processors have returned, it
 //     returns ctx's error, even if Close was also called.
 //   - It returns [ErrWorkerClosed] straight away when Run was already called
-//     or the worker is closed.
+//     or the worker is closed, and a [ConfigError] for a worker without a
+//     processor.
 //
 // Call Close after Run returns because ctx was done, to release the
 // worker's connections.
 func (w *Worker) Run(ctx context.Context) error {
+	if w.proc == nil {
+		return configError("a worker without a processor can't Run: fetch its jobs with GetNextJob")
+	}
 	started := false
 	// runOnce only claims startup, so that a concurrent Run returns at once;
 	// Close waits for runDone instead.
@@ -897,7 +905,7 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 	}
 
 	// The processor took ownership of the job's next state.
-	if errors.Is(err, ErrDelayed) || errors.Is(err, ErrWaitingChildren) {
+	if errors.Is(err, ErrDelayed) || errors.Is(err, ErrWaitingChildren) || errors.Is(err, ErrWaiting) {
 		return w.fetchAfterHandOff(runCtx, job.token)
 	}
 
@@ -1006,8 +1014,8 @@ func (w *Worker) RateLimit(ctx context.Context, d time.Duration) error {
 }
 
 // fetchAfterHandOff fetches the slot's next job once the processor itself
-// moved its job out of active (to delayed or waiting-children), as finishing
-// would have.
+// moved its job out of active (to delayed, waiting-children or wait), as
+// finishing would have.
 func (w *Worker) fetchAfterHandOff(runCtx context.Context, token string) nextFetch {
 	if !w.canFetchNext(runCtx) {
 		return nextFetch{}
@@ -1406,6 +1414,7 @@ func (w *Worker) Close() error {
 		if ran {
 			<-w.runDone
 		}
+		w.stopManual()
 		w.closeErr = w.backend.Close()
 		w.eventsMu.Lock()
 		w.eventsClosed = true

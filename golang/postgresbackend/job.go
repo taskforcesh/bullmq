@@ -124,10 +124,10 @@ func (b *Backend) Promote(ctx context.Context, jobID string) error {
 }
 
 // RetryFinishedJob moves a completed or failed job back to the wait list.
-func (b *Backend) RetryFinishedJob(ctx context.Context, jobID string, state bullmq.JobState, lifo bool) error {
+func (b *Backend) RetryFinishedJob(ctx context.Context, jobID string, state bullmq.JobState, lifo bool, opts bullmq.RetryOptions) error {
 	var code int64
 	if err := b.queryRow(ctx, "reprocess_job",
-		[]any{b.name, jobID, string(state), lifo, false, false}, &code); err != nil {
+		[]any{b.name, jobID, string(state), lifo, opts.ResetAttemptsMade, opts.ResetAttemptsStarted}, &code); err != nil {
 		return err
 	}
 	if code != 1 {

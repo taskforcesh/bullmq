@@ -292,7 +292,7 @@ func testQueueJobIDsAndJobs(t *testing.T, be testBackend) {
 		}
 	}
 
-	ids, err := q.JobIDs(ctx, bullmq.StateWaiting, 0, -1, false)
+	ids, err := q.JobIDs(ctx, 0, -1, false, bullmq.StateWaiting)
 	if err != nil {
 		t.Fatalf("JobIDs: %v", err)
 	}
@@ -300,7 +300,7 @@ func testQueueJobIDsAndJobs(t *testing.T, be testBackend) {
 		t.Fatalf("len(ids) = %d, want 3", len(ids))
 	}
 
-	jobs, err := q.Jobs(ctx, bullmq.StateWaiting, 0, -1, false)
+	jobs, err := q.Jobs(ctx, 0, -1, false, bullmq.StateWaiting)
 	if err != nil {
 		t.Fatalf("Jobs: %v", err)
 	}
@@ -354,7 +354,7 @@ func testQueueObliterateRemovesEverything(t *testing.T, be testBackend) {
 			t.Fatalf("Add: %v", err)
 		}
 	}
-	if err := q.Obliterate(ctx, false, 100); err != nil {
+	if err := q.Obliterate(ctx, &bullmq.ObliterateOptions{Count: 100}); err != nil {
 		t.Fatalf("Obliterate: %v", err)
 	}
 
@@ -396,7 +396,7 @@ func testQueueObliterateRefusesActiveJobsWithoutForce(t *testing.T, be testBacke
 		t.Fatal("the job was never picked up")
 	}
 
-	if err := q.Obliterate(ctx, false, 100); err == nil {
+	if err := q.Obliterate(ctx, &bullmq.ObliterateOptions{Count: 100}); err == nil {
 		t.Error("Obliterate should refuse to run while there are active jobs")
 	}
 	close(release)
@@ -452,26 +452,29 @@ func testQueueGlobalConcurrency(t *testing.T, be testBackend) {
 	ctx := testContext(t)
 	q := newTestQueue(t, be, nil)
 
+	requireLimit := func(what string, want *int64) {
+		t.Helper()
+		got, err := q.GlobalConcurrency(ctx)
+		if err != nil {
+			t.Fatalf("%s: GlobalConcurrency: %v", what, err)
+		}
+		if (got == nil) != (want == nil) || (got != nil && *got != *want) {
+			t.Fatalf("%s: GlobalConcurrency() = %v, want %v", what, deref(got), deref(want))
+		}
+	}
+
+	requireLimit("unset", nil)
 	if err := q.SetGlobalConcurrency(ctx, 3); err != nil {
 		t.Fatalf("SetGlobalConcurrency: %v", err)
 	}
-	got, err := q.GlobalConcurrency(ctx)
-	if err != nil {
-		t.Fatalf("GlobalConcurrency: %v", err)
-	}
-	if got != 3 {
-		t.Fatalf("GlobalConcurrency() = %d, want 3", got)
-	}
+	requireLimit("set to 3", bullmq.Int64(3))
 
 	if err := q.SetGlobalConcurrency(ctx, 0); err != nil {
 		t.Fatalf("SetGlobalConcurrency(0): %v", err)
 	}
-	got, err = q.GlobalConcurrency(ctx)
-	if err != nil {
-		t.Fatalf("GlobalConcurrency: %v", err)
-	}
-	if got != 0 {
-		t.Fatalf("GlobalConcurrency() = %d, want 0", got)
+	requireLimit("SetGlobalConcurrency(0)", nil)
+	if maxed, err := q.IsMaxed(ctx); err != nil || maxed {
+		t.Fatalf("IsMaxed without a limit = %v, %v; want false", maxed, err)
 	}
 
 	if err := q.SetGlobalConcurrency(ctx, 2); err != nil {
@@ -480,9 +483,23 @@ func testQueueGlobalConcurrency(t *testing.T, be testBackend) {
 	if err := q.RemoveGlobalConcurrency(ctx); err != nil {
 		t.Fatalf("RemoveGlobalConcurrency: %v", err)
 	}
-	if got, err := q.GlobalConcurrency(ctx); err != nil || got != 0 {
-		t.Fatalf("GlobalConcurrency() after RemoveGlobalConcurrency = %d, %v; want 0", got, err)
+	requireLimit("RemoveGlobalConcurrency", nil)
+
+	// Node's setGlobalConcurrency(0) stores 0, which maxes the queue out.
+	if err := q.Backend().SetQueueMeta(ctx, map[string]any{"concurrency": 0}); err != nil {
+		t.Fatalf("SetQueueMeta: %v", err)
 	}
+	requireLimit("0 stored by Node", bullmq.Int64(0))
+	if maxed, err := q.IsMaxed(ctx); err != nil || !maxed {
+		t.Fatalf("IsMaxed with a limit of 0 = %v, %v; want true", maxed, err)
+	}
+}
+
+func deref[T any](p *T) any {
+	if p == nil {
+		return nil
+	}
+	return *p
 }
 
 // The global rate limit is stored as the max and duration queue metadata
@@ -683,7 +700,7 @@ func testQueueStatePausedIsTheLegacyPausedList(t *testing.T, be testBackend) {
 	if counts[bullmq.StateWaiting] != 2 || counts[bullmq.StatePaused] != 0 {
 		t.Fatalf("counts = %v, want 2 waiting and 0 paused", counts)
 	}
-	ids, err := q.JobIDs(ctx, bullmq.StatePaused, 0, -1, true)
+	ids, err := q.JobIDs(ctx, 0, -1, true, bullmq.StatePaused)
 	if err != nil || len(ids) != 0 {
 		t.Fatalf("JobIDs(paused) = %v, %v; want none", ids, err)
 	}
@@ -716,7 +733,7 @@ func testQueuePromoteJobsFarFuture(t *testing.T, be testBackend) {
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := q.PromoteJobs(ctx, 100); err != nil {
+	if err := q.PromoteJobs(ctx, 100); err != nil {
 		t.Fatalf("PromoteJobs: %v", err)
 	}
 	state, err := q.JobState(ctx, job.ID)
@@ -740,7 +757,7 @@ func testQueuePromoteJobs(t *testing.T, be testBackend) {
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := q.PromoteJobs(ctx, 100); err != nil {
+	if err := q.PromoteJobs(ctx, 100); err != nil {
 		t.Fatalf("PromoteJobs: %v", err)
 	}
 

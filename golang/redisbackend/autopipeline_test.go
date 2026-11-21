@@ -275,7 +275,7 @@ func TestCancelledContextSendsNoCommand(t *testing.T) {
 				t.Fatalf("NewQueue: %v", err)
 			}
 			t.Cleanup(func() {
-				_ = q.Obliterate(context.Background(), true, 1000)
+				_ = q.Obliterate(context.Background(), &bullmq.ObliterateOptions{Force: true})
 				_ = q.Close()
 			})
 			rb := redisOf(t, q)
@@ -326,8 +326,8 @@ func TestCancelledContextSendsNoCommand(t *testing.T) {
 			if n, err := q.Count(live); err != nil || n != 1 {
 				t.Errorf("Count = %d, %v; want no job added", n, err)
 			}
-			if max, err := q.GlobalConcurrency(live); err != nil || max != 0 {
-				t.Errorf("GlobalConcurrency = %d, %v; want it unset", max, err)
+			if max, err := q.GlobalConcurrency(live); err != nil || max != nil {
+				t.Errorf("GlobalConcurrency = %v, %v; want it unset", max, err)
 			}
 			if rl, err := q.GlobalRateLimit(live); err != nil || rl == nil {
 				t.Errorf("GlobalRateLimit = %v, %v; want it kept", rl, err)

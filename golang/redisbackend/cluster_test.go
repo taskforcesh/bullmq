@@ -181,7 +181,7 @@ func TestWorkerOnRedisCluster(t *testing.T) {
 		t.Fatalf("NewQueue: %v", err)
 	}
 	defer func() {
-		_ = q.Obliterate(context.Background(), true, 0)
+		_ = q.Obliterate(context.Background(), &bullmq.ObliterateOptions{Force: true})
 		_ = q.Close()
 	}()
 
