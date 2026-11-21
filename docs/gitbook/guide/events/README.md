@@ -610,7 +610,7 @@ import { Queue } from 'bullmq';
 
 const queue = new Queue('paint');
 
-await queue.trimEvents(10); // leaves 10 events
+await queue.trimEvents(10); // leaves at least 10 events
 ```
 
 {% endtab %}
@@ -622,7 +622,7 @@ from bullmq import Queue
 
 queue = Queue("paint")
 
-await queue.trimEvents(10)  # leaves 10 events
+await queue.trimEvents(10)  # leaves at least 10 events
 ```
 
 {% endtab %}
@@ -634,7 +634,7 @@ use bullmq::Queue;
 
 let queue = Queue::new("paint").await?;
 
-queue.trim_events(10).await?; // leaves 10 events
+queue.trim_events(10).await?; // leaves at least 10 events
 ```
 
 {% endtab %}
