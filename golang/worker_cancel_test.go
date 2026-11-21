@@ -195,6 +195,60 @@ func testWorkerCancelJobFailsTheJobWithTheReason(t *testing.T, be testBackend) {
 	})
 }
 
+// After CancelJob, a processor's own error is recorded as returned, as
+// Node.js records what the processor throws, even when it wraps ctx.Err();
+// only a bare ctx.Err() is replaced by the reason.
+func TestWorkerCancelJobKeepsTheProcessorsError(t *testing.T) {
+	forEachBackend(t, testWorkerCancelJobKeepsTheProcessorsError)
+}
+
+func testWorkerCancelJobKeepsTheProcessorsError(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	returns := map[string]func(ctx context.Context) error{
+		"wrapped": func(ctx context.Context) error {
+			return fmt.Errorf("Cancelled after processing 3 items: %w", ctx.Err())
+		},
+		"own":   func(context.Context) error { return errors.New("stopped early") },
+		"cause": func(ctx context.Context) error { return context.Cause(ctx) },
+		"bare":  func(ctx context.Context) error { return ctx.Err() },
+	}
+	want := map[string]string{
+		"wrapped": "Cancelled after processing 3 items: context canceled",
+		"own":     "stopped early",
+		"cause":   "Resource limit exceeded",
+		"bare":    "Resource limit exceeded",
+	}
+	w := newTestWorker(t, be, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
+		<-ctx.Done()
+		return nil, returns[job.Name](ctx)
+	}, &bullmq.WorkerOptions{Concurrency: len(returns)})
+	runWorker(t, w)
+	ids := map[string]string{}
+	for name := range returns {
+		job, err := q.Add(ctx, name, nil, nil)
+		if err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+		ids[name] = job.ID
+	}
+	waitFor(t, 10*time.Second, "the jobs to start", func() bool { return w.ActiveCount() == len(returns) })
+	w.CancelAllJobs("Resource limit exceeded")
+	for name, id := range ids {
+		waitFor(t, 10*time.Second, "the cancelled job to fail", func() bool {
+			state, err := q.JobState(ctx, id)
+			return err == nil && state == bullmq.StateFailed
+		})
+		stored, err := q.Job(ctx, id)
+		if err != nil {
+			t.Fatalf("Job: %v", err)
+		}
+		if stored.FailedReason != want[name] {
+			t.Errorf("%s: failedReason = %q, want %q", name, stored.FailedReason, want[name])
+		}
+	}
+}
+
 // A job cancelled with CancelAllJobs is retried when attempts remain.
 func TestWorkerCancelAllJobsRetriesJobsWithAttemptsLeft(t *testing.T) {
 	forEachBackend(t, testWorkerCancelAllJobsRetriesJobsWithAttemptsLeft)

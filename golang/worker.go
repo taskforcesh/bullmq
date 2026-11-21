@@ -27,7 +27,12 @@ import (
 // ([ErrJobCancelled]); context.Cause tells which. An error returned after the
 // worker itself cancelled ctx (Run or the lock) is not recorded: the job is left
 // active, without using up an attempt, for the stalled check to recover. After
-// CancelJob the job fails with the cancellation reason.
+// CancelJob the job fails with the error the processor returns, as in Node.js,
+// and with the cancellation reason when that error is ctx.Err() itself.
+//
+// Once ctx is cancelled, the job's methods called with it (UpdateProgress,
+// Log, ...) fail with ctx's error. Cleanup that must still reach the
+// datastore uses context.WithoutCancel(ctx).
 type Processor func(ctx context.Context, job *Job) (any, error)
 
 // EventType identifies a worker lifecycle event.
@@ -318,9 +323,12 @@ func (w *Worker) ActiveCount() int {
 
 // CancelJob cancels the context of a job this worker is processing, with a
 // cause (see context.Cause) that matches ErrJobCancelled and reads as reason.
-// When the processor then returns an error, the job fails with reason as
-// its failure (and is retried if attempts remain), as Node.js's cancelJob
-// does. It reports whether the job was being processed.
+// When the processor then returns an error, the job fails with it (and is
+// retried if attempts remain), as Node.js's cancelJob records what the
+// processor throws; a bare ctx.Err() fails it with reason. To keep the
+// reason in an error of your own, wrap context.Cause(ctx). A processor that
+// returns no error completes the job. It reports whether the job was being
+// processed.
 func (w *Worker) CancelJob(jobID, reason string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -918,8 +926,12 @@ func (w *Worker) processJob(runCtx context.Context, job *Job) nextFetch {
 			// active for the stalled check to recover, as Node.js does.
 			return nextFetch{}
 		}
-		// Cancelled with CancelJob: fail with the reason, as Node.js does.
-		if errors.Is(err, context.Canceled) {
+		// Cancelled with CancelJob: the job fails with the processor's
+		// error, as Node.js records what the processor throws. A bare
+		// ctx.Err() says nothing more than the cancellation, so the reason
+		// stands in for it, as when a Node.js processor throws the abort
+		// signal's reason.
+		if err == context.Canceled {
 			err = cause
 		}
 	}
