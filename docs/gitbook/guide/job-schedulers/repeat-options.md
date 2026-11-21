@@ -291,7 +291,7 @@ if err != nil {
 {% endtabs %}
 
 {% hint style="warning" %}
-An `every` scheduler compares `endDate` with the current time when it schedules its next job, not with that job's due time. So it can still produce one job due after `endDate`, up to one interval later ([#5190](https://github.com/taskforcesh/bullmq/issues/5190)).
+An `every` scheduler compares `endDate` with the current time when it schedules its next job, not with that job's due time. So it can still produce one job due after `endDate`, up to one interval later ([#5190](https://github.com/taskforcesh/bullmq/issues/5190)). The Go SDK compares the due time instead, and produces no such job.
 {% endhint %}
 
 #### Timezone (`tz`)

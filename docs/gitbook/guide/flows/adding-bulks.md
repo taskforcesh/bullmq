@@ -189,7 +189,7 @@ if err != nil {
 {% endtab %}
 {% endtabs %}
 
-Adding flows in bulk is not all-or-nothing, though: a job that the datastore rejects, for example a root job whose `parent` doesn't exist, is not added (nor are its children), while the jobs of the other flows are still added: nothing is rolled back.
+Adding flows in bulk is not all-or-nothing, though: a job that the datastore rejects, for example a root job whose `parent` doesn't exist, is not added (nor are its children), while the jobs of the other flows are still added: nothing is rolled back. The exception is Go on PostgreSQL, which adds the flows in one database transaction and rolls it back, so none of them is added.
 
 {% hint style="warning" %}
 The Node.js and Python SDKs don't report such a rejection yet: `addBulk` resolves as if every job had been added ([#5191](https://github.com/taskforcesh/bullmq/issues/5191)).

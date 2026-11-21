@@ -150,7 +150,7 @@ For performance reasons, the events emitted by a `QueueEvents` instance do not c
 
 ## Using PostgreSQL
 
-The same API runs on PostgreSQL 13 or newer. In TypeScript, install the [`pg`](https://node-postgres.com) package, apply BullMQ's schema migrations once (for example as a deployment step), and pass the `createPostgresBackend` factory as the last constructor argument. The Python, Elixir, .NET and Go SDKs apply the migrations automatically on first use (see their introduction pages for the PostgreSQL driver they require):
+The same API runs on PostgreSQL 13 or newer. In TypeScript, install the [`pg`](https://node-postgres.com) package, apply BullMQ's schema migrations once (for example as a deployment step), and pass the `createPostgresBackend` factory as the last constructor argument. The Python, Elixir, .NET and Go SDKs apply the migrations automatically on first use (see their introduction pages for the PostgreSQL driver they require; Go can also apply them as a deployment step with `postgresbackend.Migrate`, and skip them at startup with the `SkipMigrations` option):
 
 ```
 $ npm install pg

@@ -132,7 +132,8 @@ $queue->remove($job->id);
 Locked jobs (in active state) cannot be removed. In TypeScript and Python, an
 error will be thrown, and in Go `Job.Remove` returns an error matching
 `bullmq.ErrJobLocked`, while the other SDKs report it in the return value (for
-example, in Rust `Queue::remove` returns `Ok(false)`).
+example, in Rust `Queue::remove` returns `Ok(false)`). Go's `Queue.Remove`,
+which removes a job by id, also returns `false`.
 {% endhint %}
 
 ## Having a parent job
