@@ -247,7 +247,7 @@ func (w *Worker) DroppedEvents() uint64 { return w.droppedEvents.Load() }
 // have finished, or until ctx is done (returning ctx's error), the worker is
 // resumed, or it is closed (returning ErrWorkerClosed). The Pause that paused
 // the worker then emits EventPaused, unless the worker was resumed or closed
-// meanwhile.
+// meanwhile. A paused worker keeps checking for stalled jobs, unlike Node's.
 //
 // It may be called from WorkerOptions.OnEvent: from EventDrained, or from the
 // EventCompleted or EventFailed of a job, it waits for the other jobs only. A

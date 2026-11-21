@@ -62,3 +62,51 @@ func testWorkerPauseAndResumeEvents(t *testing.T, be testBackend) {
 		t.Errorf("%d EventPaused and %d EventResumed, want 2 of each", p, r)
 	}
 }
+
+// Unlike Node's, a paused worker keeps its stalled check running: it moves
+// the job of a dead worker back to wait, without processing it.
+func TestPausedWorkerRecoversStalledJobs(t *testing.T) {
+	forEachBackend(t, testPausedWorkerRecoversStalledJobs)
+}
+
+func testPausedWorkerRecoversStalledJobs(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+	job, err := q.Add(ctx, "orphan", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	// A worker that died while processing the job: active, with a lock that
+	// expires at once.
+	res, err := q.Backend().MoveToActive(ctx, bullmq.MoveToActiveOptions{Token: "dead", LockDuration: 50 * time.Millisecond})
+	if err != nil || res == nil || res.Job == nil || res.Job.ID != job.ID {
+		t.Fatalf("MoveToActive = %+v, %v; want job %s", res, err, job.ID)
+	}
+
+	var log eventLog
+	processed := make(chan struct{}, 1)
+	w := newTestWorker(t, be, q.Name(), func(context.Context, *bullmq.Job) (any, error) {
+		processed <- struct{}{}
+		return nil, nil
+	}, &bullmq.WorkerOptions{StalledInterval: 300 * time.Millisecond, OnEvent: log.add})
+	if err := w.Pause(ctx, true); err != nil {
+		t.Fatalf("Pause: %v", err)
+	}
+	runWorker(t, w)
+
+	waitFor(t, 10*time.Second, "the paused worker's stalled check", func() bool {
+		return len(log.jobsWith(bullmq.EventStalled)) > 0
+	})
+	requireState(t, ctx, q, job.ID, bullmq.StateWaiting)
+	select {
+	case <-processed:
+		t.Fatal("the paused worker processed the recovered job")
+	case <-time.After(300 * time.Millisecond):
+	}
+	w.Resume()
+	select {
+	case <-processed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the resumed worker did not process the recovered job")
+	}
+}

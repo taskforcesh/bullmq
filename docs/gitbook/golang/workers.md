@@ -186,6 +186,7 @@ if err != nil {
 
 As Node's `paused` and `resumed` events, `EventPaused` is emitted once the
 `Pause` that paused the worker returns, and `EventResumed` by `Resume`.
+Unlike Node, a paused worker keeps checking for stalled jobs.
 
 `worker.Pause` affects one worker; `queue.Pause` pauses the queue for every
 worker, in every language. See [Pausing queues](../guide/workers/pausing-queues.md).

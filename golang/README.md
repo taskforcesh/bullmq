@@ -630,7 +630,9 @@ for example to pause once the queue is drained: from `EventDrained`,
 fetched in the meantime is put back in the wait list rather than started.
 `Close` releases a pending `Pause` with `bullmq.ErrWorkerClosed`. As Node's
 `paused` and `resumed`, `EventPaused` is emitted once the `Pause` that
-paused the worker returns, and `EventResumed` by `Resume`.
+paused the worker returns, and `EventResumed` by `Resume`. Unlike Node, a
+paused worker keeps checking for stalled jobs, so a paused worker still
+recovers the jobs of workers that died.
 
 ```go
 var worker *bullmq.Worker
