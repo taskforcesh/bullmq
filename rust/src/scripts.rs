@@ -190,8 +190,8 @@ impl ScriptRegistry {
             ),
             (
                 "moveJobsToWait",
-                8,
-                include_str!("commands/moveJobsToWait-8.lua"),
+                10,
+                include_str!("commands/moveJobsToWait-10.lua"),
             ),
             ("extendLock", 2, include_str!("commands/extendLock-2.lua")),
             ("extendLocks", 1, include_str!("commands/extendLocks-1.lua")),

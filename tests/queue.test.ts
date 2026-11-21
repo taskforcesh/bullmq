@@ -824,6 +824,45 @@ describe('queues', () => {
         await worker.close();
       });
     });
+
+    describe('when jobs have a priority', () => {
+      it('moves them back to the prioritized state', async () => {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            throw new Error('failed');
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        const failing = new Promise(resolve => {
+          worker.on('failed', after(3, resolve));
+        });
+
+        const low = await queue.add('test', { idx: 0 }, { priority: 10 });
+        const standard = await queue.add('test', { idx: 1 });
+        const high = await queue.add('test', { idx: 2 }, { priority: 1 });
+
+        await failing;
+        await worker.close();
+
+        await queue.retryJobs();
+
+        const counts = await queue.getJobCounts(
+          'failed',
+          'wait',
+          'prioritized',
+        );
+        expect(counts).toEqual({ failed: 0, wait: 1, prioritized: 2 });
+
+        const waiting = await queue.getWaiting();
+        expect(waiting.map(job => job.id)).toEqual([standard.id]);
+
+        const prioritized = await queue.getPrioritized();
+        expect(prioritized.map(job => job.id)).toEqual([high.id, low.id]);
+      });
+    });
   });
 
   describe('.promoteJobs', () => {
@@ -862,6 +901,37 @@ describe('queues', () => {
       expect(promotedCount.delayed).toBe(0);
 
       await worker.close();
+    });
+
+    describe('when jobs have a priority', () => {
+      it('moves them to the prioritized state', async () => {
+        const low = await queue.add(
+          'test',
+          { idx: 0 },
+          { delay: 10000, priority: 10 },
+        );
+        const standard = await queue.add('test', { idx: 1 }, { delay: 10000 });
+        const high = await queue.add(
+          'test',
+          { idx: 2 },
+          { delay: 10000, priority: 1 },
+        );
+
+        await queue.promoteJobs();
+
+        const counts = await queue.getJobCounts(
+          'delayed',
+          'wait',
+          'prioritized',
+        );
+        expect(counts).toEqual({ delayed: 0, wait: 1, prioritized: 2 });
+
+        const waiting = await queue.getWaiting();
+        expect(waiting.map(job => job.id)).toEqual([standard.id]);
+
+        const prioritized = await queue.getPrioritized();
+        expect(prioritized.map(job => job.id)).toEqual([high.id, low.id]);
+      });
     });
   });
 });
