@@ -1198,7 +1198,8 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
 
     const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
 
-    const args = [
+    const args: (string | number | boolean | Buffer)[] = keys.slice();
+    args.push(
       job.id,
       timestamp,
       propVal,
@@ -1222,9 +1223,9 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
         rdof: !!job.opts?.removeDependencyOnFailure,
       }),
       fieldsToUpdate ? pack(objectToFlatArray(fieldsToUpdate)) : void 0,
-    ];
+    );
 
-    return keys.concat(args);
+    return args;
   }
 
   protected getKeepJobs(
@@ -1671,7 +1672,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
 
     const fetchNext = opts.fetchNext && !this.queue.closing ? 1 : 0;
 
-    return keys.concat([
+    keys.push(
       this.queue.keys[''],
       timestamp,
       jobId,
@@ -1690,7 +1691,9 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
             name: workerOpts.name,
           })
         : void 0,
-    ]);
+    );
+
+    return keys;
   }
 
   moveToWaitingChildrenArgs(
@@ -3035,11 +3038,9 @@ function optsFromJSON(
 ): JobsOptions {
   const opts = JSON.parse(rawOpts || '{}');
 
-  const optionEntries = Object.entries(opts) as Array<[string, any]>;
-
   const options: Partial<Record<string, any>> = {};
-  for (const item of optionEntries) {
-    const [attributeName, value] = item;
+  for (const attributeName of Object.keys(opts)) {
+    const value: any = opts[attributeName];
     if ((optsDecode as Record<string, any>)[<string>attributeName]) {
       options[(optsDecode as Record<string, any>)[<string>attributeName]] =
         value;
@@ -3121,10 +3122,10 @@ function optsAsJSON(
   opts: JobsOptions = {},
   optsEncode: Record<string, string> = optsEncodeMap,
 ): RedisJobOptions {
-  const optionEntries = Object.entries(opts) as Array<[keyof JobsOptions, any]>;
   const options: Record<string, any> = {};
 
-  for (const [attributeName, value] of optionEntries) {
+  for (const attributeName of Object.keys(opts) as Array<keyof JobsOptions>) {
+    const value: any = opts[attributeName];
     if (typeof value === 'undefined') {
       continue;
     }
