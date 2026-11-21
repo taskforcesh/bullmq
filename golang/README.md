@@ -1074,6 +1074,27 @@ retried and reported on `Errors()`.
 On PostgreSQL, a listener can miss events when several workers finish jobs at
 the same time; see [Known limitations](#known-limitations).
 
+A `QueueEventsProducer` publishes custom events, as Node's does with
+`publishEvent`; listeners in every runtime receive them with the event name
+in `Event` and the fields in `Data`. String values are stored as they are and
+other values as JSON. On Redis the stream is then trimmed to about
+`maxEvents` events (1,000 when it is 0); PostgreSQL trims it to
+`EventsMaxLen`. Don't use the names of job events (`completed`, `failed`,
+...) for your own.
+
+```go
+producer, err := bullmq.NewQueueEventsProducer("emails", &bullmq.QueueEventsProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer producer.Close()
+
+// Listeners see ev.Event == "example" and ev.Data["custom"] == "value".
+if _, err := producer.PublishEvent(ctx, "example", map[string]any{"custom": "value"}, 0); err != nil {
+	log.Fatal(err)
+}
+```
+
 The stream keeps about `QueueOptions.EventsMaxLen` events (10,000 by
 default). `Queue.TrimEvents(ctx, n)` trims it to about `n` events, as Node's
 `trimEvents` does, and returns how many it removed. On Redis the trim is

@@ -466,6 +466,11 @@ type Backend interface {
 	// returns how many it removed. A backend that can't returns an error
 	// wrapping ErrNotSupported.
 	TrimEvents(ctx context.Context, maxLength int64) (int64, error)
+
+	// PublishEvent appends an event called event with fields (besides the
+	// `event` field) to the event stream, trimmed to about maxEvents where
+	// the backend trims on add, and returns its id.
+	PublishEvent(ctx context.Context, event string, fields map[string]string, maxEvents int64) (string, error)
 }
 
 // BackendOptions describes the role of the backend being built by a
