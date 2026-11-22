@@ -340,7 +340,7 @@ export class PostgresQueueBackend
     // naming as "already started" and return before the first caller's setName
     // had actually completed, racing discovery (getWorkers/getQueueEvents).
     if (!this.readyPromise) {
-      this.readyPromise = (async () => {
+      const becomingReady = (async () => {
         await this.connection.waitUntilReady();
         // Name this backend's dedicated connection so it is discoverable via
         // getClientList (and thus getWorkers) — even an `autorun: false`
@@ -355,6 +355,13 @@ export class PostgresQueueBackend
           }
         }
       })();
+      this.readyPromise = becomingReady;
+      // Don't cache a failed readiness; same as the LISTEN client (#4781).
+      becomingReady.catch((): void => {
+        if (this.readyPromise === becomingReady) {
+          this.readyPromise = undefined;
+        }
+      });
     }
     return this.readyPromise;
   }
