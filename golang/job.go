@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -83,6 +84,20 @@ type Job struct {
 	token        string
 	lockDuration time.Duration
 	discarded    bool
+	// fieldsMu guards the exported fields the worker updates after the
+	// processor returns (see Worker.moveToCompleted) and Progress, against
+	// snapshot, which may run on a goroutine that outlived the job. It is a
+	// pointer so snapshot can copy the struct; nil on hand-built jobs.
+	fieldsMu *sync.Mutex
+}
+
+// lockFields locks fieldsMu, when the job has one, and returns its unlock.
+func (j *Job) lockFields() func() {
+	if j.fieldsMu == nil {
+		return func() {}
+	}
+	j.fieldsMu.Lock()
+	return j.fieldsMu.Unlock
 }
 
 // snapshot returns an immutable copy of the fields that worker events expose.
@@ -93,6 +108,7 @@ func (j *Job) snapshot() *Job {
 	if j == nil {
 		return nil
 	}
+	defer j.lockFields()()
 	copy := *j
 	copy.Data = append(json.RawMessage(nil), j.Data...)
 	copy.Stacktrace = append([]string(nil), j.Stacktrace...)
@@ -112,6 +128,7 @@ func (j *Job) snapshot() *Job {
 // newJob builds a Job bound to backend from the record it returned.
 func newJob(b Backend, rec *JobRecord) *Job {
 	job := &Job{
+		fieldsMu:        new(sync.Mutex),
 		ID:              rec.ID,
 		Name:            rec.Name,
 		Data:            rec.Data,
@@ -194,7 +211,9 @@ func (j *Job) UpdateProgress(ctx context.Context, progress any) error {
 	if err := b.UpdateProgress(ctx, j.ID, p); err != nil {
 		return err
 	}
+	unlock := j.lockFields()
 	j.Progress = p
+	unlock()
 	// worker is set before the job is handed to the processor and never
 	// changes, so goroutines that outlive the processor may read it; emit
 	// discards events once the worker is closed.

@@ -1002,7 +1002,9 @@ func (w *Worker) fail(runCtx context.Context, job *Job, cause error, release fun
 	fetchNext := w.canFetchNext(runCtx)
 	var next nextFetch
 	ferr := w.retryTransition(runCtx, func(c context.Context) error {
+		unlock := job.lockFields()
 		job.Stacktrace = baseTrace
+		unlock()
 		var err error
 		next, err = w.moveToFailed(c, job, cause, fetchNext)
 		return err
@@ -1117,17 +1119,21 @@ func (w *Worker) moveToCompleted(ctx context.Context, job *Job, raw []byte, fetc
 	if err != nil {
 		return nil, err
 	}
+	unlock := job.lockFields()
 	job.ReturnValue = raw
 	job.FinishedOn = res.FinishedOn
 	job.AttemptsMade++
+	unlock()
 	return res, nil
 }
 
 func (w *Worker) moveToFailed(ctx context.Context, job *Job, cause error, fetchNext bool) (nextFetch, error) {
 	reason := cause.Error()
 	failure := newFailureInfo(job, reason)
+	unlock := job.lockFields()
 	job.FailedReason = reason
 	job.Stacktrace = failure.Stacktrace
+	unlock()
 
 	attempts := int64(0)
 	if job.Opts != nil {
@@ -1151,7 +1157,9 @@ func (w *Worker) moveToFailed(ctx context.Context, job *Job, cause error, fetchN
 			if err := w.backend.RetryJob(ctx, job.ID, job.token, job.Opts.isLIFO(), &failure); err != nil {
 				return nextFetch{}, err
 			}
+			unlock := job.lockFields()
 			job.AttemptsMade++
+			unlock()
 			return nextFetch{refetch: true}, nil
 		}
 	}
@@ -1162,8 +1170,10 @@ func (w *Worker) moveToFailed(ctx context.Context, job *Job, cause error, fetchN
 	if err != nil {
 		return nextFetch{}, err
 	}
+	unlock = job.lockFields()
 	job.FinishedOn = res.FinishedOn
 	job.AttemptsMade++
+	unlock()
 	return nextFetch{res: res.Next}, nil
 }
 
@@ -1183,8 +1193,10 @@ func (w *Worker) retryLater(ctx context.Context, job *Job, delay time.Duration, 
 	// The backend increments the attempts counter; mirror it locally only
 	// once the transition has succeeded so retried transitions don't drift
 	// the counter.
+	unlock := job.lockFields()
 	job.Delay = max(delay.Milliseconds(), 0)
 	job.AttemptsMade++
+	unlock()
 	if !fetchNext {
 		return nextFetch{}, nil
 	}
