@@ -3,6 +3,7 @@ package postgresbackend
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -111,6 +112,11 @@ func (b *Backend) GetRanges(ctx context.Context, states []bullmq.JobState, start
 				ids, err := pgx.CollectRows(rows, pgx.RowTo[string])
 				if err != nil {
 					return err
+				}
+				// As with the Redis lists, the list-like states come newest
+				// first and are reversed for ascending order.
+				if asc && (name == "wait" || name == "paused" || name == "active") {
+					slices.Reverse(ids)
 				}
 				groups[i] = ids
 				return nil

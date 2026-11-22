@@ -81,9 +81,7 @@ func testQueueJobsInSeveralStates(t *testing.T, be testBackend) {
 	// shared get_range orders them by ascending priority either way.
 	requireIDs("pending, newest first", 0, -1, false, []string{w2, w1, d2, d1},
 		bullmq.StateWaiting, bullmq.StateDelayed)
-	// The range applies to each state. (A bounded ascending range of
-	// waiting or active jobs is wrong on PostgreSQL: the shared get_range
-	// slices them newest first.)
+	// The range applies to each state.
 	requireIDs("the first of each state", 0, 0, true, []string{d1, p1},
 		bullmq.StateDelayed, bullmq.StatePrioritized)
 	requireIDs("the last of each state", 0, 0, false, []string{w2, d2},
@@ -100,4 +98,46 @@ func testQueueJobsInSeveralStates(t *testing.T, be testBackend) {
 	if !slices.Equal(all, want) {
 		t.Fatalf("JobIDs() = %v, want every job %v", all, want)
 	}
+}
+
+// A bounded range of waiting jobs is a page of the state's order: ascending
+// pages start at the oldest job and descending pages at the newest, on every
+// backend.
+func TestQueueWaitingPages(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, be testBackend) {
+		ctx := testContext(t)
+		q := newTestQueue(t, be, nil)
+		var ids []string
+		for i := 0; i < 5; i++ {
+			job, err := q.Add(ctx, "page", nil, nil)
+			if err != nil {
+				t.Fatalf("Add: %v", err)
+			}
+			ids = append(ids, job.ID)
+		}
+		newest := slices.Clone(ids)
+		slices.Reverse(newest)
+
+		for _, tc := range []struct {
+			what       string
+			start, end int64
+			asc        bool
+			want       []string
+		}{
+			{"oldest two", 0, 1, true, ids[0:2]},
+			{"middle ascending page", 1, 3, true, ids[1:4]},
+			{"newest two", 0, 1, false, newest[0:2]},
+			{"middle descending page", 1, 3, false, newest[1:4]},
+			{"all ascending", 0, -1, true, ids},
+			{"all descending", 0, -1, false, newest},
+		} {
+			got, err := q.JobIDs(ctx, tc.start, tc.end, tc.asc, bullmq.StateWaiting)
+			if err != nil {
+				t.Fatalf("%s: JobIDs: %v", tc.what, err)
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("%s: JobIDs(%d, %d, asc=%v) = %v, want %v", tc.what, tc.start, tc.end, tc.asc, got, tc.want)
+			}
+		}
+	})
 }
