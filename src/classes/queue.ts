@@ -785,6 +785,7 @@ export class Queue<
    * @param limit - Max number of jobs to clean
    * @param type - The type of job to clean
    * Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed.
+   * @param name - Optional job name filter. When provided, only jobs matching this name are cleaned.
    * @returns Id jobs from the deleted records
    */
   async clean(
@@ -799,6 +800,7 @@ export class Queue<
       | 'prioritized'
       | 'delayed'
       | 'failed' = 'completed',
+    name?: NameType,
   ): Promise<string[]> {
     return this.trace<string[]>(
       SpanKind.INTERNAL,
@@ -819,6 +821,7 @@ export class Queue<
             normalizedType,
             timestamp,
             maxCountPerCall,
+            name,
           );
 
           this.emit('cleaned', jobsIds, normalizedType);
@@ -835,6 +838,9 @@ export class Queue<
           [TelemetryAttributes.JobType]: type,
           [TelemetryAttributes.QueueCleanLimit]: maxCount,
           [TelemetryAttributes.QueueCleanCount]: deletedCount,
+          ...(name !== undefined
+            ? { [TelemetryAttributes.JobName]: name }
+            : {}),
         });
 
         return deletedJobsIds;

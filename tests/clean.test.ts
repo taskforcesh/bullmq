@@ -803,6 +803,300 @@ describe('Cleaner', () => {
     expect(cleanedJobs.length).toEqual(1);
   });
 
+  describe('when cleaning by job name', () => {
+    it('should clean only completed jobs matching the given name', async () => {
+      const worker = new Worker(queueName, async () => 'ok', {
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', after(4, resolve));
+      });
+
+      await queue.addBulk([
+        { name: 'email', data: { idx: 1 } },
+        { name: 'sms', data: { idx: 2 } },
+        { name: 'email', data: { idx: 3 } },
+        { name: 'push', data: { idx: 4 } },
+      ]);
+
+      await completing;
+      await delay(50);
+
+      let emittedJobs: string[] = [];
+      let emittedType = '';
+      queue.once('cleaned', (jobs, type) => {
+        emittedJobs = jobs;
+        emittedType = type;
+      });
+
+      const cleaned = await queue.clean(0, 0, 'completed', 'email');
+      expect(cleaned).toHaveLength(2);
+      expect(emittedJobs).toEqual(cleaned);
+      expect(emittedType).toBe('completed');
+
+      const remaining = await queue.getCompleted();
+      expect(remaining.map(job => job.name).sort()).toEqual(['push', 'sms']);
+
+      await worker.close();
+    });
+
+    it('should clean only failed jobs matching the given name', async () => {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          throw new Error('boom');
+        },
+        { connection, prefix, autorun: false },
+      );
+      await worker.waitUntilReady();
+
+      await queue.addBulk([
+        { name: 'email', data: { idx: 1 } },
+        { name: 'sms', data: { idx: 2 } },
+        { name: 'email', data: { idx: 3 } },
+      ]);
+
+      const failing = new Promise(resolve => {
+        queueEvents.on('failed', after(3, resolve));
+      });
+
+      worker.run();
+      await failing;
+      await delay(50);
+
+      const cleaned = await queue.clean(0, 0, 'failed', 'email');
+      expect(cleaned).toHaveLength(2);
+
+      const remaining = await queue.getFailed();
+      expect(remaining.map(job => job.name)).toEqual(['sms']);
+
+      await worker.close();
+    });
+
+    it('should clean wait and waiting jobs by name (including when paused)', async () => {
+      await queue.add('keep', { idx: 1 });
+      await queue.add('target', { idx: 2 });
+      await queue.add('keep', { idx: 3 });
+      await delay(50);
+
+      const cleanedWait = await queue.clean(0, 0, 'wait', 'target');
+      expect(cleanedWait).toHaveLength(1);
+      expect((await queue.getWaiting()).map(j => j.name)).toEqual([
+        'keep',
+        'keep',
+      ]);
+
+      await queue.pause();
+      await queue.add('target', { idx: 4 });
+      await delay(50);
+      const cleanedWaiting = await queue.clean(0, 0, 'waiting', 'target');
+      expect(cleanedWaiting).toHaveLength(1);
+      expect((await queue.getWaiting()).map(j => j.name)).toEqual([
+        'keep',
+        'keep',
+      ]);
+      await queue.resume();
+    });
+
+    it('should clean delayed and prioritized jobs by name', async () => {
+      await queue.add('keep', { idx: 1 }, { delay: 10000 });
+      await queue.add('target', { idx: 2 }, { delay: 10000 });
+      await queue.add('keep', { idx: 3 }, { priority: 5 });
+      await queue.add('target', { idx: 4 }, { priority: 10 });
+      await delay(50);
+
+      const cleanedDelayed = await queue.clean(0, 0, 'delayed', 'target');
+      expect(cleanedDelayed).toHaveLength(1);
+      expect((await queue.getDelayed()).map(j => j.name)).toEqual(['keep']);
+
+      const cleanedPrioritized = await queue.clean(
+        0,
+        0,
+        'prioritized',
+        'target',
+      );
+      expect(cleanedPrioritized).toHaveLength(1);
+      expect((await queue.getPrioritized()).map(j => j.name)).toEqual(['keep']);
+    });
+
+    it('should respect limit when non-matching jobs precede matching jobs in zsets and lists', async () => {
+      // List state (wait): 5 non-matching jobs ahead of 3 target jobs
+      for (let i = 0; i < 5; i++) {
+        await queue.add('other', { idx: i });
+      }
+      for (let i = 0; i < 3; i++) {
+        await queue.add('target', { idx: i });
+      }
+      await delay(50);
+
+      const cleanedWait = await queue.clean(0, 2, 'wait', 'target');
+      expect(cleanedWait).toHaveLength(2);
+      const remainingWait = await queue.getWaiting();
+      expect(remainingWait.filter(j => j.name === 'other')).toHaveLength(5);
+      expect(remainingWait.filter(j => j.name === 'target')).toHaveLength(1);
+
+      // Clean leftover waiting jobs, then test completed zset with worker
+      await queue.clean(0, 0, 'wait');
+
+      const worker = new Worker(queueName, async () => 'done', {
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', after(8, resolve));
+      });
+
+      const bulk = [
+        ...Array.from({ length: 5 }, (_, idx) => ({
+          name: 'other',
+          data: { idx },
+        })),
+        ...Array.from({ length: 3 }, (_, idx) => ({
+          name: 'target',
+          data: { idx },
+        })),
+      ];
+      await queue.addBulk(bulk);
+      await completing;
+      await delay(50);
+
+      const cleanedCompleted = await queue.clean(0, 2, 'completed', 'target');
+      expect(cleanedCompleted).toHaveLength(2);
+      const remainingCompleted = await queue.getCompleted();
+      expect(remainingCompleted.filter(j => j.name === 'other')).toHaveLength(
+        5,
+      );
+      expect(remainingCompleted.filter(j => j.name === 'target')).toHaveLength(
+        1,
+      );
+
+      await worker.close();
+    });
+
+    it('should clean matching jobs across Lua 1000-item batch boundaries', async () => {
+      // Exact 1000 non-matching items followed by 2 targets in wait list exercises
+      // exact batch boundary (prevents Redis LRANGE negative-index clamping).
+      const waitBulk = [
+        { name: 'target', data: { pos: 'oldest' } },
+        ...Array.from({ length: 1000 }, (_, idx) => ({
+          name: 'other',
+          data: { idx },
+        })),
+        { name: 'target', data: { pos: 'newest' } },
+      ];
+      await queue.addBulk(waitBulk);
+      await delay(50);
+
+      const cleanedWait = await queue.clean(0, 0, 'wait', 'target');
+      expect(cleanedWait).toHaveLength(2);
+      expect(await queue.getJobCountByTypes('wait')).toBe(1000);
+    });
+
+    it('should enforce grace period together with job name filter', async () => {
+      await queue.add('target', { age: 'old' });
+      await queue.add('other', { age: 'old' });
+      await delay(200);
+      await queue.add('target', { age: 'fresh' });
+
+      const cleaned = await queue.clean(100, 0, 'wait', 'target');
+      expect(cleaned).toHaveLength(1);
+
+      const remaining = await queue.getWaiting();
+      expect(remaining).toHaveLength(2);
+      expect(remaining.map(j => `${j.name}:${j.data.age}`).sort()).toEqual([
+        'other:old',
+        'target:fresh',
+      ]);
+    });
+
+    it('should return empty array when no jobs match the given name', async () => {
+      await queue.add('email', { idx: 1 });
+      await delay(50);
+
+      const cleanedMissing = await queue.clean(0, 0, 'wait', 'non-existent');
+      expect(cleanedMissing).toEqual([]);
+
+      // Empty string is treated as an explicit name filter, not "no filter"
+      const cleanedEmpty = await queue.clean(0, 0, 'wait', '');
+      expect(cleanedEmpty).toEqual([]);
+      expect(await queue.count()).toBe(1);
+    });
+
+    it('should preserve scheduled jobs matching name until finished', async () => {
+      const worker = new Worker(queueName, async () => 'ok', {
+        connection,
+        prefix,
+        autorun: false,
+      });
+      await worker.waitUntilReady();
+
+      await queue.upsertJobScheduler(
+        'named-scheduler',
+        { every: 60000 },
+        { name: 'scheduled-job', data: {} },
+      );
+
+      const completing = new Promise(resolve => {
+        queueEvents.on('completed', resolve);
+      });
+      worker.run();
+      await completing;
+      await delay(50);
+
+      // Delayed next occurrence shares the same name and must NOT be cleaned
+      const cleanedDelayed = await queue.clean(
+        0,
+        0,
+        'delayed',
+        'scheduled-job',
+      );
+      expect(cleanedDelayed).toEqual([]);
+      expect(await queue.getJobCountByTypes('delayed')).toBe(1);
+
+      // Finished occurrence with the same name CAN be cleaned
+      const cleanedCompleted = await queue.clean(
+        0,
+        0,
+        'completed',
+        'scheduled-job',
+      );
+      expect(cleanedCompleted).toHaveLength(1);
+      expect(await queue.getJobCountByTypes('delayed')).toBe(1);
+
+      await worker.close();
+    });
+
+    it('should update flow parent dependencies when cleaning children by name', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const tree = await flow.add({
+        name: 'parent-job',
+        queueName,
+        data: {},
+        children: [
+          { name: 'clean-me', data: { idx: 0 }, queueName },
+          { name: 'keep-me', data: { idx: 1 }, queueName },
+        ],
+      });
+      await delay(50);
+
+      const cleanedFirst = await queue.clean(0, 0, 'wait', 'clean-me');
+      expect(cleanedFirst).toHaveLength(1);
+      expect(await tree.job.getState()).toBe('waiting-children');
+      expect(await queue.getJobCountByTypes('wait')).toBe(1);
+
+      const cleanedSecond = await queue.clean(0, 0, 'wait', 'keep-me');
+      expect(cleanedSecond).toHaveLength(1);
+      expect(await queue.count()).toBe(0);
+
+      await flow.close();
+    });
+  });
+
   describe('removeOrphanedJobs', () => {
     it('should return 0 on an empty queue', async () => {
       const removed = await queue.removeOrphanedJobs();

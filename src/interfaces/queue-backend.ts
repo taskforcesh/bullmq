@@ -400,12 +400,14 @@ export interface IQueueBackend {
 
   /**
    * Removes jobs in a given state that are older than `timestamp`.
+   * Optionally filters to jobs matching `name`.
    * @returns The ids of the removed jobs.
    */
   cleanJobsByState(
     state: string,
     timestamp: number,
     limit?: number,
+    name?: string,
   ): Promise<string[]>;
 
   /**
