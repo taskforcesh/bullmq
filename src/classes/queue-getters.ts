@@ -671,11 +671,20 @@ export class QueueGetters<
     lines.forEach((line: string) => {
       const client: { [index: string]: string } = {};
       const keyValues = line.split(' ');
+      // A word without `=` continues the previous value, so a PostgreSQL
+      // application_name containing spaces is read whole. Redis client names
+      // cannot contain spaces, so its lines are unaffected.
+      let lastKey: string | undefined;
       keyValues.forEach(function (keyValue) {
         const index = keyValue.indexOf('=');
+        if (index === -1 && lastKey !== undefined) {
+          client[lastKey] += ` ${keyValue}`;
+          return;
+        }
         const key = keyValue.substring(0, index);
         const value = keyValue.substring(index + 1);
         client[key] = value;
+        lastKey = key;
       });
       const name = client['name'];
       if (matcher(name)) {

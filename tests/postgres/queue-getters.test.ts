@@ -4,7 +4,9 @@ import { Pool } from 'pg';
 import {
   createPostgresBackend,
   Queue,
+  QueueEvents,
   setDefaultBackendFactory,
+  Worker,
 } from '../../src';
 import { getPostgresUrl } from './utils/postgres-url';
 
@@ -55,6 +57,35 @@ describe('PostgreSQL queue getters', () => {
         wait: 2,
       });
     } finally {
+      await queue.close();
+    }
+  });
+  // PostgreSQL keeps spaces in `application_name`, which the client-list
+  // parser used to split on.
+  it('discovers workers and QueueEvents of a queue with spaces', async () => {
+    const queueName = `my queue ${randomUUID().slice(0, 8)}`;
+    const opts = { autorun: false, connection: {} };
+    const queue = new Queue(queueName, { connection: {} });
+    const unnamed = new Worker(queueName, async () => {}, opts);
+    const named = new Worker(queueName, async () => {}, {
+      ...opts,
+      name: 'worker  1',
+    });
+    const queueEvents = new QueueEvents(queueName, { connection: {} });
+
+    try {
+      await Promise.all(
+        [unnamed, named, queueEvents].map(c => c.waitUntilReady()),
+      );
+
+      const workers = await queue.getWorkers();
+      expect(workers.map(w => w.rawname).sort()).toEqual(
+        [queueName, `${queueName}:w:worker  1`].sort(),
+      );
+      const listed = await queue.getQueueEvents();
+      expect(listed.map(c => c.rawname)).toEqual([`${queueName}:qe`]);
+    } finally {
+      await Promise.all([unnamed, named, queueEvents].map(c => c.close()));
       await queue.close();
     }
   });
