@@ -495,4 +495,15 @@ class QueueTest extends TestCase
         $this->assertArrayNotHasKey('idof', $storedOpts);
     }
 
+    public function testAddDeduplicatedJobTwiceReturnsSameId(): void
+    {
+        $opts = ['deduplication' => ['id' => 'dedup-' . uniqid()]];
+
+        $first = $this->queue->add('dedup-job', ['n' => 1], $opts);
+        $second = $this->queue->add('dedup-job', ['n' => 2], $opts);
+
+        $this->assertNotNull($first->id);
+        $this->assertSame($first->id, $second->id);
+        $this->assertEquals(1, $this->queue->getJobCountByTypes('waiting'));
+    }
 }

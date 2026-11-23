@@ -124,7 +124,9 @@ class Queue
             $job->id = $this->generateJobId();
         }
 
-        $this->scripts->addJob($job);
+        // The add scripts return the job id. For deduplicated jobs this is the
+        // id of the already existing job, not the one generated above.
+        $job->id = $this->scripts->addJob($job);
 
         return $job;
     }
