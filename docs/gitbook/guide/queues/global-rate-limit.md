@@ -25,6 +25,17 @@ await queue.setGlobalRateLimit(1, 1000)
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+// 1 job per second
+await queue.SetGlobalRateLimitAsync(1, 1000);
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
@@ -62,6 +73,16 @@ max_jobs, duration = rate_limit["max"], rate_limit["duration"]
 ```elixir
 {:ok, %{max: max, duration: duration}} =
   BullMQ.Queue.get_global_rate_limit("my-queue", connection: :my_redis)
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+// Null when no global rate limit is set.
+RateLimiterOptions? rateLimit = await queue.GetGlobalRateLimitAsync();
+var (max, duration) = (rateLimit!.Max, rateLimit.Duration);
 ```
 
 {% endtab %}
@@ -152,6 +173,14 @@ await queue.removeGlobalRateLimit();
 
 ```python
 await queue.removeGlobalRateLimit()
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+await queue.RemoveGlobalRateLimitAsync();
 ```
 
 {% endtab %}

@@ -2,6 +2,9 @@
 
 BullMQ provides queue rate limiting. It is possible to configure workers so that they obey a given rate limiting option:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Worker, QueueScheduler } from 'bullmq';
 
@@ -14,6 +17,23 @@ const worker = new Worker('painter', async job => paintCar(job), {
 
 const scheduler = new QueueScheduler('painter');
 ```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var worker = new Worker("painter", async (job, ct) => await PaintCar(job), new WorkerOptions
+{
+    Connection = connection,
+    Limiter = new RateLimiterOptions { Max = 10, Duration = 1000 },
+});
+```
+
+{% endtab %}
+{% endtabs %}
 
 {% hint style="warning" %}
 Jobs that get rate limited will actually stay in the waiting state.
@@ -64,6 +84,9 @@ Sometimes is useful to rate-limit a queue manually instead of based on some stat
 
 For this purpose, you can use the worker method **`rateLimit`** like this:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Worker } from 'bullmq';
 
@@ -89,6 +112,40 @@ const worker = new Worker(
 );
 ```
 
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+Worker? worker = null;
+worker = new Worker(
+    "myQueue",
+    async (job, ct) =>
+    {
+        var (isRateLimited, duration) = await DoExternalCall();
+        if (isRateLimited)
+        {
+            await worker!.RateLimitAsync(duration);
+            // Do not forget to throw this special exception,
+            // since we must differentiate this case from a failure
+            // in order to move the job to wait again.
+            throw new RateLimitException();
+        }
+
+        return null;
+    },
+    new WorkerOptions
+    {
+        Connection = connection,
+        Limiter = new RateLimiterOptions { Max = 1, Duration = 500 },
+    });
+```
+
+{% endtab %}
+{% endtabs %}
+
 {% hint style="warning" %}
 Don't forget to pass limiter options into your worker's options as _limiter.max_ is used to determine if we need to execute the rate limit validation.
 {% endhint %}
@@ -98,6 +155,9 @@ Don't forget to pass limiter options into your worker's options as _limiter.max_
 Sometimes is useful to know if our queue is rate limited.
 
 For this purpose, you can use the **`getRateLimitTtl`** method like this:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -112,11 +172,34 @@ if (ttl > 0) {
 }
 ```
 
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("myQueue", new QueueOptions { Connection = connection });
+
+var ttl = await queue.GetRateLimitTtlAsync();
+
+if (ttl > 0)
+{
+    Console.WriteLine("Queue is rate limited");
+}
+```
+
+{% endtab %}
+{% endtabs %}
+
 ### Remove Rate Limit Key
 
 Sometimes is useful to stop a rate limit delay.
 
 For this purpose, you can use the **`removeRateLimitKey`** method like this:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -125,6 +208,21 @@ const queue = new Queue('myQueue', { connection });
 
 await queue.removeRateLimitKey();
 ```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("myQueue", new QueueOptions { Connection = connection });
+
+await queue.RemoveRateLimitKeyAsync();
+```
+
+{% endtab %}
+{% endtabs %}
 
 By removing rate limit key, workers will be able to pick jobs again and your rate limit counter is reset to zero.
 

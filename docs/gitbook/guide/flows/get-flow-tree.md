@@ -52,6 +52,50 @@ const { children, job } = tree;
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var flow = new FlowProducer(new QueueBaseOptions { Connection = connection });
+
+var originalTree = await flow.AddAsync(new FlowJob
+{
+    Name = "root-job",
+    QueueName = "topQueueName",
+    Data = new { },
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = name,
+            Data = new { idx = 0, foo = "bar" },
+            QueueName = "childrenQueueName",
+            Children = new[]
+            {
+                new FlowJob { Name = name, Data = new { idx = 4, foo = "baz" }, QueueName = "grandchildrenQueueName" },
+            },
+        },
+        new FlowJob { Name = name, Data = new { idx = 2, foo = "foo" }, QueueName = "childrenQueueName" },
+        new FlowJob { Name = name, Data = new { idx = 3, foo = "bis" }, QueueName = "childrenQueueName" },
+    },
+});
+
+var topJob = originalTree.Job;
+
+// Returns null when the job does not exist.
+FlowJobNode? tree = await flow.GetFlowAsync(new GetFlowOptions
+{
+    Id = topJob.Id!,
+    QueueName = "topQueueName",
+});
+
+var job = tree!.Job;
+var children = tree.Children;
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
@@ -106,6 +150,23 @@ const limitedTree = await flow.getFlow({
 });
 
 const { children, job } = limitedTree;
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+var limitedTree = await flow.GetFlowAsync(new GetFlowOptions
+{
+    Id = topJob.Id!,
+    QueueName = "topQueueName",
+    Depth = 2, // the root job and its direct children (the root counts as 1)
+    MaxChildren = 2, // get only 2 children per node
+});
+
+var job = limitedTree!.Job;
+var children = limitedTree.Children;
 ```
 
 {% endtab %}
