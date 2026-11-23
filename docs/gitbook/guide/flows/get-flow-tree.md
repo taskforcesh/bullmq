@@ -52,6 +52,56 @@ const { children, job } = tree;
 
 {% endtab %}
 
+{% tab title="Python" %}
+
+```python
+from bullmq import FlowProducer
+
+flow = FlowProducer({"connection": connection})
+
+original_tree = await flow.add({
+    "name": "root-job",
+    "queueName": "topQueueName",
+    "data": {},
+    "children": [
+        {
+            "name": name,
+            "data": {"idx": 0, "foo": "bar"},
+            "queueName": "childrenQueueName",
+            "children": [
+                {
+                    "name": name,
+                    "data": {"idx": 4, "foo": "baz"},
+                    "queueName": "grandchildrenQueueName",
+                },
+            ],
+        },
+        {
+            "name": name,
+            "data": {"idx": 2, "foo": "foo"},
+            "queueName": "childrenQueueName",
+        },
+        {
+            "name": name,
+            "data": {"idx": 3, "foo": "bis"},
+            "queueName": "childrenQueueName",
+        },
+    ],
+})
+
+top_job = original_tree["job"]
+
+tree = await flow.getFlow({
+    "id": top_job.id,
+    "queueName": "topQueueName",
+})
+
+job = tree["job"]
+children = tree.get("children", [])
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
@@ -106,6 +156,22 @@ const limitedTree = await flow.getFlow({
 });
 
 const { children, job } = limitedTree;
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+limited_tree = await flow.getFlow({
+    "id": top_job.id,
+    "queueName": "topQueueName",
+    "depth": 1,  # get only the first level of children
+    "maxChildren": 2,  # get only 2 children per node
+})
+
+job = limited_tree["job"]
+children = limited_tree.get("children", [])
 ```
 
 {% endtab %}

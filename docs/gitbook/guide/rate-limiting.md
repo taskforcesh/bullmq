@@ -2,6 +2,9 @@
 
 BullMQ provides queue rate limiting. It is possible to configure workers so that they obey a given rate limiting option:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Worker, QueueScheduler } from 'bullmq';
 
@@ -14,6 +17,28 @@ const worker = new Worker('painter', async job => paintCar(job), {
 
 const scheduler = new QueueScheduler('painter');
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Worker
+
+async def process(job, token):
+    return await paint_car(job)
+
+worker = Worker("painter", process, {
+    "connection": connection,
+    "limiter": {
+        "max": 10,
+        "duration": 1000,
+    },
+})
+```
+
+{% endtab %}
+{% endtabs %}
 
 {% hint style="warning" %}
 Jobs that get rate limited will actually stay in the waiting state.
@@ -64,6 +89,9 @@ Sometimes is useful to rate-limit a queue manually instead of based on some stat
 
 For this purpose, you can use the worker method **`rateLimit`** like this:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Worker } from 'bullmq';
 
@@ -89,6 +117,38 @@ const worker = new Worker(
 );
 ```
 
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Worker
+
+async def process(job, token):
+    is_rate_limited, duration = await do_external_call()
+    if is_rate_limited:
+        await worker.rateLimit(duration)
+        # Do not forget to raise this special exception,
+        # since we must differentiate this case from a failure
+        # in order to move the job to wait again.
+        raise Worker.RateLimitError()
+
+worker = Worker("myQueue", process, {
+    "connection": connection,
+    "limiter": {
+        "max": 1,
+        "duration": 500,
+    },
+})
+```
+
+{% hint style="info" %}
+`RateLimitError` can also be imported directly: `from bullmq import RateLimitError`. The rate-limited job is moved back to wait without being marked as failed and without consuming an attempt.
+{% endhint %}
+
+{% endtab %}
+{% endtabs %}
+
 {% hint style="warning" %}
 Don't forget to pass limiter options into your worker's options as _limiter.max_ is used to determine if we need to execute the rate limit validation.
 {% endhint %}
@@ -98,6 +158,9 @@ Don't forget to pass limiter options into your worker's options as _limiter.max_
 Sometimes is useful to know if our queue is rate limited.
 
 For this purpose, you can use the **`getRateLimitTtl`** method like this:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -112,11 +175,32 @@ if (ttl > 0) {
 }
 ```
 
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Queue
+
+queue = Queue("myQueue", {"connection": connection})
+
+ttl = await queue.getRateLimitTtl()
+
+if ttl > 0:
+    print("Queue is rate limited")
+```
+
+{% endtab %}
+{% endtabs %}
+
 ### Remove Rate Limit Key
 
 Sometimes is useful to stop a rate limit delay.
 
 For this purpose, you can use the **`removeRateLimitKey`** method like this:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -125,6 +209,21 @@ const queue = new Queue('myQueue', { connection });
 
 await queue.removeRateLimitKey();
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Queue
+
+queue = Queue("myQueue", {"connection": connection})
+
+await queue.removeRateLimitKey()
+```
+
+{% endtab %}
+{% endtabs %}
 
 By removing rate limit key, workers will be able to pick jobs again and your rate limit counter is reset to zero.
 

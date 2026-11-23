@@ -192,6 +192,16 @@ class Backend(ABC):
         """Move a parent job to the waiting-children state."""
 
     @abstractmethod
+    async def moveJobFromActiveToWait(self, job_id: str, token: str = "0") -> int:
+        """Move an active job back to wait without consuming an attempt (used
+        for manual rate limiting). Returns the current rate-limit ttl in ms
+        (``0`` when the queue is not rate limited)."""
+
+    @abstractmethod
+    async def setRateLimit(self, expire_time_ms: int) -> None:
+        """Force the queue's rate limit window to last ``expire_time_ms`` ms."""
+
+    @abstractmethod
     async def retryJob(
         self, job_id: str, lifo: bool, token: str = "0", opts: dict = {}
     ) -> Any:
@@ -331,6 +341,33 @@ class Backend(ABC):
     @abstractmethod
     async def getProcessedChildrenValues(self, job_id: str) -> dict:
         """Return the raw processed-children map (child key -> serialized value)."""
+
+    @abstractmethod
+    async def getIgnoredChildrenFailures(self, job_id: str) -> dict:
+        """Return the failures of children that were ignored because they used
+        ``ignoreDependencyOnFailure`` (child key -> failed reason)."""
+
+    @abstractmethod
+    async def getDependencies(self, job_id: str, opts: Optional[dict] = None) -> dict:
+        """Return a parent's children grouped by status.
+
+        With no category in ``opts`` every category is returned in full as
+        ``{"processed": {key: value}, "unprocessed": [key], "ignored":
+        {key: reason}, "failed": [key]}``. When any of ``processed`` /
+        ``unprocessed`` / ``ignored`` / ``failed`` is given (each a
+        ``{"cursor": int, "count": int}`` dict) only those categories are
+        returned, one page each, together with the matching
+        ``next<Category>Cursor`` (``0`` when there are no more pages).
+        Processed values are JSON-decoded.
+        """
+
+    @abstractmethod
+    def parseNodeKey(self, key: str) -> dict:
+        """Split a flow child key into ``{"prefix", "queueName", "id"}``.
+
+        Inverse of :meth:`toKey`, used to walk a flow tree from the child keys
+        stored on a parent job.
+        """
 
     @abstractmethod
     async def isPaused(self) -> bool:

@@ -112,10 +112,7 @@ class Queue(EventEmitter):
         the limiter key with a large value that expires after
         `expire_time_ms` milliseconds. Mirrors `Queue.rateLimit` in Node.
         """
-        # 2^53 - 1, equivalent to Number.MAX_SAFE_INTEGER on the Node side.
-        await self.client.set(
-            self.keys["limiter"], 9007199254740991, px=expire_time_ms
-        )
+        await self.backend.setRateLimit(expire_time_ms)
 
     async def removeRateLimitKey(self) -> int:
         """

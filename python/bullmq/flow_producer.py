@@ -20,6 +20,7 @@ Design notes:
   (lenient path, used by `addBulk()`, matching Node's behavior).
 """
 
+import asyncio
 from typing import Optional, Union
 from uuid import uuid4
 
@@ -224,6 +225,77 @@ class FlowProducer(EventEmitter):
             )
 
         return [tree for tree, _ in queued]
+
+    async def getFlow(self, opts: dict) -> Optional[dict]:
+        """
+        Get a flow (a job and its descendants) as a ``JobNode``-shaped dict
+        ``{"job": Job, "children": [...]}``, mirroring ``FlowProducer.getFlow``
+        in Node. ``children`` is omitted for leaves and for nodes at the
+        maximum depth.
+
+        :param opts: dict with
+            - ``id``: root job id.
+            - ``queueName``: root job queue name.
+            - ``depth``: maximum depth or levels to visit in the tree
+              (default 10).
+            - ``maxChildren``: maximum quantity of children per type
+              (processed, unprocessed, failed, ignored) (default 20).
+            - ``prefix``: prefix included in the job key (defaults to the
+              producer's prefix).
+
+        Returns None if the producer is closing/closed or the root job does
+        not exist.
+        """
+        if self.closing:
+            return None
+
+        node_opts = {
+            "depth": 10,
+            "maxChildren": 20,
+            "prefix": self.prefix,
+            **{k: v for k, v in opts.items() if v is not None},
+        }
+        return await self._getNode(node_opts)
+
+    async def _getNode(self, node: dict) -> Optional[dict]:
+        queue = self.queueFromNode(node, node.get("prefix") or self.prefix)
+        job = await Job.fromId(queue, node["id"])
+        if not job:
+            return None
+
+        max_children = node["maxChildren"]
+        page = {"count": max_children}
+        dependencies = await job.getDependencies({
+            "failed": page,
+            "processed": page,
+            "unprocessed": page,
+            "ignored": page,
+        })
+        children_keys = [
+            *(dependencies.get("processed") or {}).keys(),
+            *(dependencies.get("unprocessed") or []),
+            *(dependencies.get("failed") or []),
+            *(dependencies.get("ignored") or {}).keys(),
+        ]
+
+        new_depth = node["depth"] - 1
+        if children_keys and new_depth:
+            children = await self._getChildren(children_keys, new_depth, max_children)
+            return {"job": job, "children": children}
+        return {"job": job}
+
+    async def _getChildren(self, children_keys: list, depth: int, max_children: int) -> list:
+        async def get_child(key: str):
+            parsed = self.backend.parseNodeKey(key)
+            return await self._getNode({
+                "id": parsed["id"],
+                "queueName": parsed["queueName"],
+                "prefix": parsed["prefix"],
+                "depth": depth,
+                "maxChildren": max_children,
+            })
+
+        return list(await asyncio.gather(*(get_child(key) for key in children_keys)))
 
     async def _queue_tree(
         self,

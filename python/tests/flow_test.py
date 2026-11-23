@@ -428,5 +428,280 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
 
+    async def test_get_flow_tree(self):
+        """Mirrors 'should get a flow tree' in tests/flow.test.ts."""
+        top_queue_name = f"__test_parent_queue__{uuid4().hex}"
+        child_queue_name = f"__test_queue__{uuid4().hex}"
+        name = "child-job"
+
+        flow = FlowProducer({"prefix": prefix})
+        try:
+            original_tree = await flow.add({
+                "name": "root-job",
+                "queueName": top_queue_name,
+                "data": {},
+                "children": [{
+                    "name": name,
+                    "data": {"idx": 0, "foo": "bar"},
+                    "queueName": child_queue_name,
+                    "children": [{
+                        "name": name,
+                        "data": {"idx": 1, "foo": "baz"},
+                        "queueName": child_queue_name,
+                        "children": [{
+                            "name": name,
+                            "data": {"idx": 2, "foo": "qux"},
+                            "queueName": child_queue_name,
+                        }],
+                    }],
+                }],
+            })
+            top_job = original_tree["job"]
+
+            tree = await flow.getFlow({
+                "id": top_job.id,
+                "queueName": top_queue_name,
+                "prefix": prefix,
+            })
+
+            self.assertIn("job", tree)
+            self.assertIn("children", tree)
+            job = tree["job"]
+            children = tree["children"]
+            self.assertEqual(job.id, top_job.id)
+            self.assertEqual(job.queueName, top_queue_name)
+            self.assertTrue(await job.isWaitingChildren())
+            self.assertEqual(len(children), 1)
+
+            self.assertTrue(children[0]["job"].id)
+            self.assertEqual(children[0]["job"].data["foo"], "bar")
+            self.assertEqual(children[0]["job"].queueName, child_queue_name)
+            self.assertEqual(len(children[0]["children"]), 1)
+
+            grandchild = children[0]["children"][0]
+            self.assertTrue(grandchild["job"].id)
+            self.assertEqual(grandchild["job"].queueName, child_queue_name)
+            self.assertEqual(grandchild["job"].data["foo"], "baz")
+
+            leaf = grandchild["children"][0]
+            self.assertTrue(leaf["job"].id)
+            self.assertEqual(leaf["job"].data["foo"], "qux")
+            # Leaves carry no "children" key, like JobNode in Node.
+            self.assertNotIn("children", leaf)
+
+            # Default prefix comes from the FlowProducer when omitted.
+            default_prefix_tree = await flow.getFlow({
+                "id": top_job.id,
+                "queueName": top_queue_name,
+            })
+            self.assertEqual(default_prefix_tree["job"].id, top_job.id)
+            self.assertEqual(len(default_prefix_tree["children"]), 1)
+
+            # Unknown root job.
+            self.assertIsNone(await flow.getFlow({
+                "id": "does-not-exist",
+                "queueName": top_queue_name,
+            }))
+        finally:
+            await flow.close()
+            for qn in (top_queue_name, child_queue_name):
+                q = Queue(qn, {"prefix": prefix})
+                await q.obliterate(force=True)
+                await q.close()
+
+    async def test_get_part_of_flow_tree(self):
+        """Mirrors 'should get part of flow tree' in tests/flow.test.ts:
+        `depth` limits the levels visited."""
+        top_queue_name = f"__test_parent_queue__{uuid4().hex}"
+        child_queue_name = f"__test_queue__{uuid4().hex}"
+        name = "child-job"
+
+        flow = FlowProducer({"prefix": prefix})
+        try:
+            original_tree = await flow.add({
+                "name": "root-job",
+                "queueName": top_queue_name,
+                "data": {},
+                "children": [
+                    {
+                        "name": name,
+                        "data": {"idx": 0, "foo": "bar"},
+                        "queueName": child_queue_name,
+                        "children": [{
+                            "name": name,
+                            "data": {"idx": 1, "foo": "baz"},
+                            "queueName": child_queue_name,
+                            "children": [{
+                                "name": name,
+                                "data": {"idx": 2, "foo": "qux"},
+                                "queueName": child_queue_name,
+                            }],
+                        }],
+                    },
+                    {"name": name, "data": {"idx": 3, "foo": "bax"}, "queueName": child_queue_name},
+                    {"name": name, "data": {"idx": 4, "foo": "baz"}, "queueName": child_queue_name},
+                ],
+            })
+            top_job = original_tree["job"]
+
+            tree = await flow.getFlow({
+                "id": top_job.id,
+                "queueName": top_queue_name,
+                "depth": 2,
+                "maxChildren": 2,
+                "prefix": prefix,
+            })
+
+            self.assertTrue(await tree["job"].isWaitingChildren())
+            children = tree["children"]
+            # SSCAN's COUNT is only a hint, so at least `maxChildren` come back.
+            self.assertGreaterEqual(len(children), 2)
+            for child in children:
+                self.assertTrue(child["job"].id)
+                # depth=2: the second level is returned without its children.
+                self.assertNotIn("children", child)
+
+            # depth=1 returns only the root job.
+            root_only = await flow.getFlow({
+                "id": top_job.id,
+                "queueName": top_queue_name,
+                "depth": 1,
+            })
+            self.assertEqual(root_only["job"].id, top_job.id)
+            self.assertNotIn("children", root_only)
+        finally:
+            await flow.close()
+            for qn in (top_queue_name, child_queue_name):
+                q = Queue(qn, {"prefix": prefix})
+                await q.obliterate(force=True)
+                await q.close()
+
+    async def test_get_flow_includes_processed_children(self):
+        """Processed children are still part of the tree."""
+        parent_queue_name = f"__test_parent_queue__{uuid4().hex}"
+        child_queue_name = f"__test_queue__{uuid4().hex}"
+
+        children_done = Future()
+        processed = 0
+
+        async def process_child(job: Job, token: str):
+            nonlocal processed
+            processed += 1
+            if processed == 2:
+                children_done.set_result(None)
+            return job.data["idx"]
+
+        child_worker = Worker(child_queue_name, process_child, {"prefix": prefix})
+        flow = FlowProducer({"prefix": prefix})
+        try:
+            tree = await flow.add({
+                "name": "parent",
+                "queueName": parent_queue_name,
+                "data": {},
+                "children": [
+                    {"name": "child", "data": {"idx": 0}, "queueName": child_queue_name},
+                    {"name": "child", "data": {"idx": 1}, "queueName": child_queue_name},
+                ],
+            })
+            await asyncio.wait_for(children_done, 10)
+            await child_worker.close()
+
+            flow_tree = await flow.getFlow({
+                "id": tree["job"].id,
+                "queueName": parent_queue_name,
+            })
+            self.assertEqual(len(flow_tree["children"]), 2)
+            self.assertEqual(
+                sorted(c["job"].data["idx"] for c in flow_tree["children"]),
+                [0, 1],
+            )
+            # Parent was moved to wait once both children completed.
+            self.assertEqual(await flow_tree["job"].getState(), "waiting")
+        finally:
+            await child_worker.close()
+            await flow.close()
+            for qn in (parent_queue_name, child_queue_name):
+                q = Queue(qn, {"prefix": prefix})
+                await q.obliterate(force=True)
+                await q.close()
+
+    async def test_get_ignored_children_failures(self):
+        """Mirrors 'when ignoreDependencyOnFailure is provided' in
+        tests/flow.test.ts."""
+        parent_queue_name = f"__test_parent_queue__{uuid4().hex}"
+        child_queue_name = f"__test_queue__{uuid4().hex}"
+        name = "child-job"
+
+        async def process_child(job: Job, token: str):
+            raise Exception("error")
+
+        parent_completed = Future()
+
+        async def process_parent(job: Job, token: str):
+            return "done"
+
+        child_worker = Worker(child_queue_name, process_child, {"prefix": prefix})
+        parent_worker = Worker(parent_queue_name, process_parent, {"prefix": prefix})
+        parent_worker.on(
+            "completed",
+            lambda job, result: parent_completed.done() or parent_completed.set_result(job),
+        )
+        child_queue = Queue(child_queue_name, {"prefix": prefix})
+
+        flow = FlowProducer({"prefix": prefix})
+        try:
+            tree = await flow.add({
+                "name": "parent-job",
+                "queueName": parent_queue_name,
+                "data": {},
+                "children": [
+                    {
+                        "name": name,
+                        "data": {"idx": i, "foo": foo},
+                        "queueName": child_queue_name,
+                        "opts": {"ignoreDependencyOnFailure": True},
+                    }
+                    for i, foo in enumerate(["bar", "baz", "qux"])
+                ],
+            })
+            job = tree["job"]
+            children = tree["children"]
+            self.assertEqual(await job.getState(), "waiting-children")
+            self.assertEqual(len(children), 3)
+
+            await asyncio.wait_for(parent_completed, 10)
+
+            ignored = await job.getIgnoredChildrenFailures()
+            self.assertEqual(ignored, {
+                f"{child_queue.qualifiedName}:{child['job'].id}": "error"
+                for child in children
+            })
+
+            dependencies = await job.getDependencies()
+            self.assertEqual(dependencies["ignored"], ignored)
+            self.assertEqual(dependencies["processed"], {})
+            self.assertEqual(dependencies["unprocessed"], [])
+
+            flow_tree = await flow.getFlow({
+                "id": job.id,
+                "queueName": parent_queue_name,
+            })
+            self.assertEqual(len(flow_tree["children"]), 3)
+
+            # A job without children has no ignored failures.
+            self.assertEqual(
+                await children[0]["job"].getIgnoredChildrenFailures(), {}
+            )
+        finally:
+            await child_worker.close()
+            await parent_worker.close()
+            await flow.close()
+            await child_queue.obliterate(force=True)
+            await child_queue.close()
+            parent_queue = Queue(parent_queue_name, {"prefix": prefix})
+            await parent_queue.obliterate(force=True)
+            await parent_queue.close()
+
+
 if __name__ == '__main__':
     unittest.main()

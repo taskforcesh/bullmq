@@ -395,6 +395,26 @@ class Scripts:
                     })
         return None
 
+    async def moveJobFromActiveToWait(self, job_id: str, token: str = "0") -> int:
+        """
+        Move an active job back to wait (used when the processor raises a
+        RateLimitError). Returns the ttl of the rate limiter key in ms, or 0.
+        """
+        keys = self.getKeys(['active', 'wait', 'stalled', 'paused', 'meta',
+                             'limiter', 'prioritized', 'marker', 'events'])
+        args = [job_id, token, self.toKey(job_id)]
+
+        result = await self.commands["moveJobFromActiveToWait"](keys=keys, args=args)
+
+        if result < 0:
+            raise self.finishedErrors({
+                "code": result,
+                "jobId": job_id,
+                "command": 'moveJobFromActiveToWait',
+                "state": 'active'
+                })
+        return result
+
     async def addJobScheduler(
         self,
         job_scheduler_id: str,

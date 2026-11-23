@@ -173,6 +173,14 @@ const ignoredChildrenFailures =
 
 {% endtab %}
 
+{% tab title="Python" %}
+
+```python
+ignored_children_failures = await originalTree["job"].getIgnoredChildrenFailures()
+```
+
+{% endtab %}
+
 {% tab title="Elixir" %}
 
 ```elixir
