@@ -68,8 +68,16 @@ defmodule BullMQ.FlowProducer do
   By default, if a child fails, the parent will also fail. You can control
   this behavior with options:
 
-    * `:fail_parent_on_failure` - If false, parent continues even if children fail
-    * `:ignore_dependency_on_failure` - Ignore failed child and continue
+    * `:fail_parent_on_failure` - A failed child fails the parent
+    * `:continue_parent_on_failure` - A failed child lets the parent be processed
+    * `:ignore_dependency_on_failure` - Ignore the failed child (recorded in
+      `BullMQ.Job.get_ignored_children_failures/1`) and continue
+    * `:remove_dependency_on_failure` - Remove the failed child from the
+      parent's dependencies and continue
+
+  ## Reading a Flow
+
+  Use `get_flow/2` to read a job and its children back as a tree.
 
   """
 
@@ -230,6 +238,150 @@ defmodule BullMQ.FlowProducer do
     end
   end
 
+  @doc """
+  Gets a flow tree: a job and, recursively, its children.
+
+  This is the Elixir version of Node.js `flowProducer.getFlow(opts)`. It reads
+  the root job and its dependencies (processed, pending, failed and ignored
+  children) and walks down the tree, returning the same structure as `add/2`:
+
+      %{job: %BullMQ.Job{}, children: [%{job: %BullMQ.Job{}, children: [...]}, ...]}
+
+  Children are ordered as in Node.js: processed first, then pending
+  (unprocessed), failed and ignored ones. Children whose job no longer exists
+  are left out.
+
+  ## Node options
+
+  The first argument identifies the root node (map or keyword list):
+
+    * `:id` - Root job id (required)
+    * `:queue_name` - Root job queue name (required)
+    * `:prefix` - Root job prefix (defaults to the `:prefix` option, then `"bull"`)
+    * `:depth` - Maximum number of levels to visit (default: `10`). A depth of
+      `1` returns only the root job.
+    * `:max_children` - Maximum children fetched **per dependency type**
+      (processed, unprocessed, failed, ignored) on every node (default: `20`).
+      As in Node.js this is the `COUNT` hint given to `HSCAN`/`SSCAN`, so
+      Redis may occasionally return a few more.
+
+  ## Options
+
+    * `:connection` - Redis connection (required)
+    * `:prefix` - Default prefix (default: `"bull"`)
+    * `:backend` - Backend module (defaults to the configured backend)
+
+  ## Returns
+
+    * `{:ok, flow_result}` - The job tree
+    * `{:ok, nil}` - The root job does not exist
+    * `{:error, reason}` - A datastore error
+
+  ## Examples
+
+      {:ok, tree} =
+        BullMQ.FlowProducer.get_flow(%{id: parent.id, queue_name: "orders"},
+          connection: :redis
+        )
+
+      tree.job.name
+      #=> "process_order"
+      Enum.map(tree.children, & &1.job.name)
+      #=> ["validate", "check_inventory", "process_payment"]
+
+      # Only the root and its direct children, at most 5 of each type
+      {:ok, tree} =
+        BullMQ.FlowProducer.get_flow(
+          %{id: parent.id, queue_name: "orders", depth: 2, max_children: 5},
+          connection: :redis
+        )
+  """
+  @spec get_flow(map() | keyword(), keyword()) :: {:ok, flow_result() | nil} | {:error, term()}
+  def get_flow(node, opts \\ []) do
+    node = Map.new(node)
+    conn = Keyword.fetch!(opts, :connection)
+
+    id = Map.get(node, :id) || raise ArgumentError, "get_flow/2 requires an :id"
+
+    queue_name =
+      Map.get(node, :queue_name) || Map.get(node, :queue) ||
+        raise ArgumentError, "get_flow/2 requires a :queue_name"
+
+    prefix = Map.get(node, :prefix) || Keyword.get(opts, :prefix, "bull")
+    depth = Map.get(node, :depth, 10)
+    max_children = Map.get(node, :max_children, 20)
+
+    backend =
+      Backend.create(queue_name,
+        connection: conn,
+        prefix: prefix,
+        backend: Keyword.get(opts, :backend),
+        owns_connection: false
+      )
+
+    get_node(backend, to_string(id), queue_name, prefix, depth, max_children)
+  catch
+    {:get_flow_error, reason} -> {:error, reason}
+  end
+
+  # Mirrors `getNode` in the Node.js FlowProducer.
+  defp get_node(backend, id, queue_name, prefix, depth, max_children) do
+    node_backend = Backend.for_queue(backend, queue_name, prefix)
+
+    case Backend.get_job_data(node_backend, id) do
+      {:ok, data} when is_map(data) and map_size(data) > 0 ->
+        job =
+          Job.from_redis(id, queue_name, data,
+            prefix: prefix,
+            connection: node_backend.connection,
+            backend: node_backend.__struct__
+          )
+
+        new_depth = depth - 1
+
+        children =
+          if new_depth > 0 do
+            node_backend
+            |> children_keys(id, max_children)
+            |> Enum.map(fn key ->
+              %{prefix: child_prefix, queue_name: child_queue, id: child_id} =
+                Backend.parse_node_key(node_backend, key)
+
+              child_prefix = if child_prefix == "", do: prefix, else: child_prefix
+
+              {:ok, child} =
+                get_node(backend, child_id, child_queue, child_prefix, new_depth, max_children)
+
+              child
+            end)
+            |> Enum.reject(&is_nil/1)
+          else
+            []
+          end
+
+        {:ok, %{job: job, children: children}}
+
+      {:ok, _} ->
+        {:ok, nil}
+
+      {:error, reason} ->
+        throw({:get_flow_error, reason})
+    end
+  end
+
+  # Child keys in the same order as Node.js:
+  # processed, unprocessed, failed, ignored.
+  defp children_keys(backend, id, max_children) do
+    case Backend.get_dependencies_page(backend, id, max_children) do
+      {:ok, deps} ->
+        Enum.map(deps.processed, &elem(&1, 0)) ++
+          deps.unprocessed ++ deps.failed ++ Enum.map(deps.ignored, &elem(&1, 0))
+
+      {:error, reason} ->
+        throw({:get_flow_error, reason})
+    end
+  end
+
   # Private functions - Command Building Phase
 
   # Builds all commands for a flow without executing them.
@@ -321,7 +473,7 @@ defmodule BullMQ.FlowProducer do
          backend
        ) do
     job = build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info)
-    encoded_opts = encode_job_opts(opts) |> Map.put(:defer_parent_release, true)
+    encoded_opts = Job.encode_add_opts(opts) |> Map.put(:defer_parent_release, true)
 
     node_backend = Backend.for_queue(backend, ctx.name, ctx.prefix)
     {:ok, cmd} = Backend.build_add_standard_command(node_backend, job, encoded_opts)
@@ -359,7 +511,7 @@ defmodule BullMQ.FlowProducer do
          backend
        ) do
     job = build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info)
-    encoded_opts = encode_job_opts(opts) |> Map.put(:defer_parent_release, true)
+    encoded_opts = Job.encode_add_opts(opts) |> Map.put(:defer_parent_release, true)
 
     node_backend = Backend.for_queue(backend, ctx.name, ctx.prefix)
     {:ok, cmd} = Backend.build_add_parent_command(node_backend, job, encoded_opts)
@@ -516,23 +668,6 @@ defmodule BullMQ.FlowProducer do
   defp normalize_opts(opts) when is_list(opts), do: Map.new(opts)
   defp normalize_opts(opts) when is_map(opts), do: opts
   defp normalize_opts(_), do: %{}
-
-  defp encode_job_opts(opts) do
-    opts
-    |> Map.take([
-      :attempts,
-      :backoff,
-      :lifo,
-      :timeout,
-      :remove_on_complete,
-      :remove_on_fail,
-      :deduplication,
-      :fail_parent_on_failure,
-      :ignore_dependency_on_failure,
-      :remove_dependency
-    ])
-    |> Map.reject(fn {_k, v} -> is_nil(v) end)
-  end
 
   defp generate_id do
     Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)

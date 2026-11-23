@@ -28,7 +28,16 @@ defmodule BullMQ.Worker do
     * `:ok` - Job completed successfully (no return value)
     * `{:error, reason}` - Job failed with reason
     * `{:delay, milliseconds}` - Delay job and retry later (does not increment attempts)
-    * `{:rate_limit, milliseconds}` - Move job to delayed due to rate limiting
+    * `{:rate_limit, milliseconds}` - Move **this job** to delayed for `milliseconds`
+      (does not rate limit the queue; kept for backwards compatibility)
+    * `:rate_limited` - Move the job back to wait without consuming an attempt
+      and stop fetching until the queue rate limit expires (Node.js
+      `throw Worker.RateLimitError()`, usually after `BullMQ.Queue.rate_limit/3`)
+    * `{:rate_limit_queue, milliseconds}` - Rate limit the queue for
+      `milliseconds` (`BullMQ.Queue.rate_limit/3`), then behave like `:rate_limited`
+    * `:delayed` - The processor already moved the job itself (for example with
+      `BullMQ.Job.move_to_delayed/3`); the worker leaves it alone (Node.js
+      `throw new DelayedError()`)
     * `:waiting` - Move job back to waiting queue
     * `:waiting_children` - Move job to waiting-children state (waits for child jobs)
 
@@ -207,12 +216,22 @@ defmodule BullMQ.Worker do
                  ]
                )
 
+  @type processor_result ::
+          {:ok, term()}
+          | :ok
+          | {:error, term()}
+          | {:delay, non_neg_integer()}
+          | {:rate_limit, non_neg_integer()}
+          | :rate_limited
+          | {:rate_limit_queue, pos_integer()}
+          | :delayed
+          | :waiting
+          | :waiting_children
+
   @type processor ::
-          (Job.t() -> {:ok, term()} | :ok | {:error, term()} | {:delay, non_neg_integer()})
-          | (Job.t(), String.t() ->
-               {:ok, term()} | :ok | {:error, term()} | {:delay, non_neg_integer()})
-          | (Job.t(), String.t(), BullMQ.CancellationToken.t() ->
-               {:ok, term()} | :ok | {:error, term()} | {:delay, non_neg_integer()})
+          (Job.t() -> processor_result())
+          | (Job.t(), String.t() -> processor_result())
+          | (Job.t(), String.t(), BullMQ.CancellationToken.t() -> processor_result())
 
   @type t :: %__MODULE__{
           name: atom() | nil,
@@ -303,7 +322,14 @@ defmodule BullMQ.Worker do
     # as soon as the worker is paused or closing.
     pause_flag: nil,
     # Callers of pause/2 waiting for the active jobs to finish.
-    pause_waiters: []
+    pause_waiters: [],
+    # Shared with the processes running jobs: the time (ms) until which the
+    # worker must not fetch new jobs because a processor rate limited the
+    # queue (`:rate_limited` / `{:rate_limit_queue, ms}`), like Node.js
+    # `worker.limitUntil`.
+    rate_limit_until: nil,
+    # Timer that resumes fetching once `rate_limit_until` has passed.
+    rate_limit_timer: nil
   ]
 
   # Client API
@@ -708,7 +734,8 @@ defmodule BullMQ.Worker do
       on_progress: Keyword.get(opts, :on_progress),
       on_stalled: Keyword.get(opts, :on_stalled),
       on_lock_renewal_failed: Keyword.get(opts, :on_lock_renewal_failed),
-      pause_flag: :atomics.new(1, [])
+      pause_flag: :atomics.new(1, []),
+      rate_limit_until: :atomics.new(1, [])
     }
 
     if autorun do
@@ -973,18 +1000,25 @@ defmodule BullMQ.Worker do
     {:noreply, state}
   end
 
-  def handle_info(:fetch_jobs, state) do
-    # Count active jobs and workers that have not yet registered their next job
-    # to prevent spawning more than concurrency workers.
-    in_use = map_size(state.active_jobs) + MapSet.size(state.in_flight_workers)
-    available_slots = state.concurrency - in_use
+  def handle_info(:fetch_jobs, %{rate_limit_until: ref} = state) when is_reference(ref) do
+    case rate_limit_remaining(state) do
+      0 -> do_fetch_jobs(state)
+      remaining -> schedule_rate_limit_fetch(state, remaining)
+    end
+  end
 
-    if available_slots > 0 do
-      # Spawn autonomous worker processes for available slots
-      new_state = spawn_worker_processes(state, available_slots)
-      {:noreply, new_state}
+  def handle_info(:fetch_jobs, state), do: do_fetch_jobs(state)
+
+  def handle_info(:rate_limit_expired, state) do
+    state = %{state | rate_limit_timer: nil}
+
+    if state.closing || state.paused do
+      check_closing_or_fetch(state)
     else
-      {:noreply, state}
+      # Like Node.js after `limitUntil`: try to fetch right away (non-blocking
+      # moveToActive) instead of waiting on the marker, which may already
+      # have been consumed while the queue was rate limited.
+      handle_info(:fetch_jobs, state)
     end
   end
 
@@ -1397,6 +1431,21 @@ defmodule BullMQ.Worker do
 
   # Private functions
 
+  defp do_fetch_jobs(state) do
+    # Count active jobs and workers that have not yet registered their next job
+    # to prevent spawning more than concurrency workers.
+    in_use = map_size(state.active_jobs) + MapSet.size(state.in_flight_workers)
+    available_slots = state.concurrency - in_use
+
+    if available_slots > 0 do
+      # Spawn autonomous worker processes for available slots
+      new_state = spawn_worker_processes(state, available_slots)
+      {:noreply, new_state}
+    else
+      {:noreply, state}
+    end
+  end
+
   # Spawn autonomous worker processes that handle their own job lifecycle
   defp spawn_worker_processes(state, 0), do: state
 
@@ -1420,6 +1469,7 @@ defmodule BullMQ.Worker do
       remove_on_fail: state.remove_on_fail || %{"count" => -1},
       coordinator: self(),
       pause_flag: state.pause_flag,
+      rate_limit_until: state.rate_limit_until,
       # Include callbacks so autonomous workers can emit events
       on_completed: state.on_completed,
       on_failed: state.on_failed,
@@ -1454,7 +1504,7 @@ defmodule BullMQ.Worker do
     try do
       maybe_handle_autonomous_shutdown(ctx)
 
-      fetched = if paused_flag_set?(ctx), do: {:ok, nil}, else: do_fetch_job(ctx)
+      fetched = if fetch_allowed?(ctx), do: do_fetch_job(ctx), else: {:ok, nil}
 
       case fetched do
         {:ok, nil} ->
@@ -1470,8 +1520,10 @@ defmodule BullMQ.Worker do
           send(ctx.coordinator, {:worker_got_job, self(), job, cancel_token})
           autonomous_worker_loop(job, ctx, cancel_token)
 
-        {:rate_limited, _delay} ->
-          # Rate limited on first fetch, notify and exit
+        {:rate_limited, delay} ->
+          # Rate limited: like Node.js `limitUntil`, do not fetch again until
+          # the limiter window has passed, then notify and exit.
+          set_rate_limit_until(ctx, System.system_time(:millisecond) + delay)
           send(ctx.coordinator, {:worker_stopped, self()})
 
         {:error, _reason} ->
@@ -1621,7 +1673,7 @@ defmodule BullMQ.Worker do
 
   # Try to get next job directly (for retry case)
   defp try_get_next_job(ctx) do
-    if paused_flag_set?(ctx) do
+    if not fetch_allowed?(ctx) do
       :no_jobs
     else
       case do_fetch_job(ctx) do
@@ -1686,8 +1738,24 @@ defmodule BullMQ.Worker do
         :stop
 
       {:rate_limit, delay_ms} ->
+        # Kept for backwards compatibility: moves the job to *delayed* for
+        # `delay_ms` (see `:rate_limited` for the Node.js-like behaviour).
         Backend.move_to_delayed(ctx.backend, job.id, job.token, delay_ms, skip_attempt: true)
 
+        :stop
+
+      :delayed ->
+        # The processor already moved the job (e.g. `Job.move_to_delayed/3`),
+        # like throwing a `DelayedError` in Node.js: leave the job alone.
+        :stop
+
+      :rate_limited ->
+        move_limited_back_to_wait(job, ctx)
+        :stop
+
+      {:rate_limit_queue, expire_ms} ->
+        Backend.set_rate_limit(ctx.backend, expire_ms)
+        move_limited_back_to_wait(job, ctx, expire_ms)
         :stop
 
       :waiting ->
@@ -1768,7 +1836,7 @@ defmodule BullMQ.Worker do
              effective_delay,
              failed_reason: error_msg,
              stacktrace: format_stacktrace(stacktrace),
-             fetch_next: not paused_flag_set?(ctx),
+             fetch_next: fetch_allowed?(ctx),
              lock_duration: ctx.lock_duration,
              limiter: ctx.limiter
            ) do
@@ -1846,12 +1914,15 @@ defmodule BullMQ.Worker do
   defp normalize_result({:rate_limit, delay_ms}), do: {:rate_limit, delay_ms}
   defp normalize_result(:waiting), do: :waiting
   defp normalize_result(:waiting_children), do: :waiting_children
+  defp normalize_result(:delayed), do: :delayed
+  defp normalize_result(:rate_limited), do: :rate_limited
+  defp normalize_result({:rate_limit_queue, ms}), do: {:rate_limit_queue, ms}
   defp normalize_result(other), do: other
 
   defp build_worker_move_opts(ctx, job) do
     [
       lock_duration: ctx.lock_duration,
-      fetch_next: not paused_flag_set?(ctx),
+      fetch_next: fetch_allowed?(ctx),
       name: name_as_string(ctx.name),
       attempts: get_job_opt(job, :attempts, "attempts", 0),
       limiter: ctx.limiter,
@@ -2107,6 +2178,9 @@ defmodule BullMQ.Worker do
         {:rate_limit, delay_ms} -> {:rate_limit, delay_ms}
         :waiting -> :waiting
         :waiting_children -> :waiting_children
+        :delayed -> :delayed
+        :rate_limited -> :rate_limited
+        {:rate_limit_queue, ms} -> {:rate_limit_queue, ms}
         other -> other
       end
 
@@ -2135,6 +2209,19 @@ defmodule BullMQ.Worker do
             skip_attempt: true
           )
 
+          nil
+
+        :delayed ->
+          # Already moved by the processor (Node.js DelayedError semantics).
+          nil
+
+        :rate_limited ->
+          move_limited_back_to_wait(job, state)
+          nil
+
+        {:rate_limit_queue, expire_ms} ->
+          Backend.set_rate_limit(state.backend, expire_ms)
+          move_limited_back_to_wait(job, state, expire_ms)
           nil
 
         :waiting ->
@@ -2177,6 +2264,8 @@ defmodule BullMQ.Worker do
         is_soft_return =
           match?({:delay, _}, return_value) or
             match?({:rate_limit, _}, return_value) or
+            match?({:rate_limit_queue, _}, return_value) or
+            return_value in [:delayed, :rate_limited] or
             return_value == :waiting or
             return_value == :waiting_children
 
@@ -2269,7 +2358,7 @@ defmodule BullMQ.Worker do
                effective_delay,
                failed_reason: error_message,
                stacktrace: formatted_stacktrace,
-               fetch_next: not state.paused,
+               fetch_next: not state.paused and rate_limit_remaining(state) == 0,
                lock_duration: state.lock_duration,
                limiter: state.limiter
              ) do
@@ -2365,6 +2454,10 @@ defmodule BullMQ.Worker do
       state.waiting_for_jobs ->
         # Already waiting, don't start another wait or spawn more workers
         {:noreply, state}
+
+      rate_limit_remaining(state) > 0 ->
+        # A processor rate limited the queue: resume once the window ends.
+        schedule_rate_limit_fetch(state, rate_limit_remaining(state))
 
       not has_active_work?(state) ->
         # No active work remains - start blocking wait
@@ -2474,7 +2567,7 @@ defmodule BullMQ.Worker do
   defp build_move_opts(state, job) do
     [
       lock_duration: state.lock_duration,
-      fetch_next: not state.paused,
+      fetch_next: not state.paused and rate_limit_remaining(state) == 0,
       name: name_as_string(state.name),
       attempts: get_job_opt(job, :attempts, "attempts", 0),
       limiter: state.limiter,
@@ -2528,6 +2621,60 @@ defmodule BullMQ.Worker do
   defp paused_flag_set?(%{pause_flag: nil}), do: false
   defp paused_flag_set?(%{pause_flag: flag}), do: :atomics.get(flag, 1) == 1
   defp paused_flag_set?(_ctx), do: false
+
+  # Whether a worker process may fetch a new job: not paused and not inside a
+  # rate limit window set by a processor.
+  defp fetch_allowed?(ctx), do: not paused_flag_set?(ctx) and rate_limit_remaining(ctx) == 0
+
+  # Milliseconds left in the processor-triggered rate limit window (0 if none).
+  defp rate_limit_remaining(%{rate_limit_until: ref}) when is_reference(ref) do
+    max(:atomics.get(ref, 1) - System.system_time(:millisecond), 0)
+  end
+
+  defp rate_limit_remaining(_ctx), do: 0
+
+  # Node.js `moveLimitedBackToWait`: put the job back in wait without
+  # consuming an attempt or emitting `failed`, and stop fetching until the
+  # limiter's remaining TTL (returned by the backend) has elapsed.
+  #
+  # Fetching is blocked *before* the job is moved back (for `expected_ms`, or
+  # provisionally when the window is not known yet) so that no other process of
+  # this worker can pick the job up again in between.
+  @provisional_rate_limit_ms 60_000
+  defp move_limited_back_to_wait(job, ctx, expected_ms \\ @provisional_rate_limit_ms) do
+    set_rate_limit_until(ctx, System.system_time(:millisecond) + expected_ms)
+
+    pttl =
+      try do
+        case Backend.move_job_from_active_to_wait(ctx.backend, job.id, job.token) do
+          {:ok, pttl} when is_integer(pttl) and pttl > 0 -> pttl
+          _ -> 0
+        end
+      rescue
+        e ->
+          set_rate_limit_until(ctx, 0)
+          reraise e, __STACKTRACE__
+      end
+
+    set_rate_limit_until(ctx, System.system_time(:millisecond) + pttl)
+  end
+
+  defp set_rate_limit_until(%{rate_limit_until: ref}, until_ms) when is_reference(ref) do
+    :atomics.put(ref, 1, until_ms)
+  end
+
+  defp set_rate_limit_until(_ctx, _until_ms), do: :ok
+
+  # While rate limited, arm (once) a timer that resumes fetching when the
+  # window ends instead of spawning workers or starting a blocking wait.
+  defp schedule_rate_limit_fetch(state, remaining_ms) do
+    if state.rate_limit_timer do
+      {:noreply, state}
+    else
+      timer = Process.send_after(self(), :rate_limit_expired, remaining_ms)
+      {:noreply, %{state | rate_limit_timer: timer}}
+    end
+  end
 
   defp has_active_work?(state) do
     map_size(state.active_jobs) > 0 or MapSet.size(state.in_flight_workers) > 0

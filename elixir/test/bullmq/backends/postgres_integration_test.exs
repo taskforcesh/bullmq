@@ -591,4 +591,83 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
 
     Worker.close(worker)
   end
+
+  test "global concurrency / rate limit setters and manual rate limit", %{conn: conn, queue: queue} do
+    opts = [connection: conn]
+
+    assert :ok = Queue.set_global_concurrency(queue, 3, opts)
+    assert {:ok, 3} = Queue.get_global_concurrency(queue, opts)
+    assert :ok = Queue.remove_global_concurrency(queue, opts)
+    assert {:ok, nil} = Queue.get_global_concurrency(queue, opts)
+
+    assert :ok = Queue.set_global_rate_limit(queue, 5, 1_000, opts)
+    assert {:ok, %{max: 5, duration: 1_000}} = Queue.get_global_rate_limit(queue, opts)
+    assert :ok = Queue.remove_global_rate_limit(queue, opts)
+    assert {:ok, nil} = Queue.get_global_rate_limit(queue, opts)
+
+    assert :ok = Queue.rate_limit(queue, 2_000, opts)
+    assert {:ok, ttl} = Queue.get_rate_limit_ttl(queue, opts ++ [max_jobs: 1])
+    assert ttl > 1_000
+    assert {:ok, 1} = Queue.remove_rate_limit_key(queue, opts)
+  end
+
+  test "processor :rate_limited moves the job back to wait without failing it", %{
+    conn: conn,
+    queue: queue
+  } do
+    test_pid = self()
+    {:ok, job} = Queue.add(queue, "api", %{}, connection: conn)
+
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue,
+        connection: conn,
+        limiter: %{max: 10, duration: 100},
+        processor: fn job ->
+          send(test_pid, {:processing, job.attempts_started, System.system_time(:millisecond)})
+          if job.attempts_started == 1, do: {:rate_limit_queue, 500}, else: :ok
+        end,
+        on_completed: fn job, _ -> send(test_pid, {:completed, job.id}) end,
+        on_failed: fn job, reason -> send(test_pid, {:failed, job.id, reason}) end
+      )
+
+    job_id = job.id
+    assert_receive {:processing, 1, t1}, 10_000
+    assert_receive {:processing, 2, t2}, 10_000
+    assert t2 - t1 >= 450
+    assert_receive {:completed, ^job_id}, 10_000
+    refute_received {:failed, _, _}
+
+    Worker.close(worker)
+  end
+
+  test "FlowProducer.get_flow reads the tree and failure options are stored", %{
+    conn: conn,
+    queue: queue
+  } do
+    {:ok, added} =
+      FlowProducer.add(
+        %{
+          name: "root",
+          queue_name: queue,
+          children: [
+            %{name: "a", queue_name: queue, opts: %{fail_parent_on_failure: true}},
+            %{name: "b", queue_name: queue, children: [%{name: "c", queue_name: queue}]}
+          ]
+        },
+        connection: conn
+      )
+
+    {:ok, tree} = FlowProducer.get_flow(%{id: added.job.id, queue_name: queue}, connection: conn)
+
+    assert tree.job.name == "root"
+    assert tree.children |> Enum.map(& &1.job.name) |> Enum.sort() == ["a", "b"]
+    b = Enum.find(tree.children, &(&1.job.name == "b"))
+    assert [%{job: %Job{name: "c"}}] = b.children
+
+    a = Enum.find(tree.children, &(&1.job.name == "a"))
+    # Stored with the Node.js option name, which the PostgreSQL functions read
+    assert a.job.opts["failParentOnFailure"] == true
+    assert {:ok, "waiting-children"} = Job.get_state(tree.job)
+  end
 end

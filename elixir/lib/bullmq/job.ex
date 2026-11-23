@@ -561,6 +561,41 @@ defmodule BullMQ.Job do
     end
   end
 
+  # Job options forwarded to the datastore when a job is added, keyed by the
+  # option name Node.js stores (`JobsOptions`). Parent-dependency flags use the
+  # long camelCase names here; the Redis adapter compresses them to the short
+  # keys (`fpof`, `cpof`, `idof`, `rdof`) exactly as Node.js `optsAsJSON`.
+  @add_opts_names [
+    attempts: "attempts",
+    backoff: "backoff",
+    lifo: "lifo",
+    timeout: "timeout",
+    remove_on_complete: "removeOnComplete",
+    remove_on_fail: "removeOnFail",
+    repeat: "repeat",
+    deduplication: "deduplication",
+    fail_parent_on_failure: "failParentOnFailure",
+    continue_parent_on_failure: "continueParentOnFailure",
+    ignore_dependency_on_failure: "ignoreDependencyOnFailure",
+    remove_dependency_on_failure: "removeDependencyOnFailure"
+  ]
+
+  @doc false
+  # Builds the option map handed to the backend's add commands from the
+  # Elixir (snake_case) job options, using the Node.js option names so the
+  # stored `opts` match what the TypeScript library writes.
+  @spec encode_add_opts(map() | keyword()) :: %{String.t() => term()}
+  def encode_add_opts(opts) when is_list(opts), do: encode_add_opts(Map.new(opts))
+
+  def encode_add_opts(opts) when is_map(opts) do
+    Enum.reduce(@add_opts_names, %{}, fn {key, name}, acc ->
+      case Map.get(opts, key) do
+        nil -> acc
+        value -> Map.put(acc, name, value)
+      end
+    end)
+  end
+
   @removal_opt_keys %{
     remove_on_complete: ["removeOnComplete", "remove_on_complete"],
     remove_on_fail: ["removeOnFail", "remove_on_fail"]
@@ -727,12 +762,83 @@ defmodule BullMQ.Job do
   ## Examples
 
       # Move job back to wait due to rate limiting
-      await Queue.rate_limit(queue, 60_000)
+      :ok = BullMQ.Queue.rate_limit(job.queue_name, 60_000, connection: :redis)
       {:ok, _pttl} = Job.move_to_wait(job, token)
+
+  Inside a worker processor, prefer returning `:rate_limited` (or
+  `{:rate_limit_queue, ms}`), which moves the job back to wait **and** makes
+  the worker honour the rate limit before fetching more jobs.
   """
   @spec move_to_wait(t(), String.t()) :: {:ok, non_neg_integer()} | {:error, term()}
   def move_to_wait(%__MODULE__{} = job, token \\ "0") do
     Backend.move_job_from_active_to_wait(backend(job), job.id, token)
+  end
+
+  @doc """
+  Moves an active job to the delayed set until `timestamp` (an absolute Unix
+  time in milliseconds), like Node.js `job.moveToDelayed(timestamp, token)`.
+
+  The move does **not** consume an attempt (`attempts_made` is unchanged), so
+  it can be used from inside a processor to postpone the job as many times as
+  needed. After calling it from a processor, return `:delayed` so the worker
+  knows the job was already moved and leaves it alone:
+
+      def process(job) do
+        if ready?(job.data) do
+          {:ok, do_work(job.data)}
+        else
+          :ok = BullMQ.Job.move_to_delayed(job, System.system_time(:millisecond) + 5_000)
+          :delayed
+        end
+      end
+
+  A `timestamp` in the past moves the job with a delay of `0` (it is promoted
+  on the next fetch).
+
+  ## Parameters
+
+    * `job` - The active job (must have `connection` set)
+    * `timestamp` - Absolute time in ms at which the job should be processed again
+    * `token` - The lock token (defaults to `job.token`, the token of the
+      worker processing the job)
+
+  ## Returns
+
+    * `:ok` - The job was moved to delayed
+    * `{:error, reason}` - The job could not be moved (for example the job no
+      longer exists or the token does not own its lock)
+  """
+  @spec move_to_delayed(t(), non_neg_integer(), String.t() | nil) :: :ok | {:error, term()}
+  def move_to_delayed(%__MODULE__{} = job, timestamp, token \\ nil) when is_integer(timestamp) do
+    now = System.system_time(:millisecond)
+    delay = max(timestamp - now, 0)
+
+    case Backend.move_to_delayed(backend(job), job.id, token || job.token, delay,
+           skip_attempt: true,
+           timestamp: now
+         ) do
+      {:ok, code} when is_integer(code) and code < 0 -> {:error, {:move_to_delayed_failed, code}}
+      {:ok, _} -> :ok
+      {:error, _} = error -> error
+    end
+  end
+
+  @doc """
+  Returns the current state of the job, read from the datastore (Node.js
+  `job.getState()`).
+
+  The state is returned as a string, with the same values as
+  `BullMQ.Queue.get_job_state/3`: `"completed"`, `"failed"`, `"delayed"`,
+  `"active"`, `"waiting"`, `"waiting-children"`, `"prioritized"` or
+  `"unknown"` (the job does not exist).
+
+  ## Examples
+
+      {:ok, "waiting"} = BullMQ.Job.get_state(job)
+  """
+  @spec get_state(t()) :: {:ok, String.t()} | {:error, term()}
+  def get_state(%__MODULE__{} = job) do
+    Backend.get_state(backend(job), job.id)
   end
 
   @doc """
