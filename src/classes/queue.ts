@@ -859,6 +859,8 @@ export class Queue<
       'obliterate',
       this.name,
       async () => {
+        // The constructor's metadata write can finish on another connection.
+        await this.queueMetaInitialized;
         await this.pause();
 
         let cursor = 0;

@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
-import { createPostgresBackend, IQueueBackend, JobJson } from '../../src';
+import {
+  createPostgresBackend,
+  IQueueBackend,
+  JobJson,
+  Queue,
+} from '../../src';
 import { getPostgresUrl } from './utils/postgres-url';
 
 /**
@@ -1090,6 +1095,52 @@ describe('PostgreSQL backend operations', () => {
       expect(logs).toEqual(['line 1', 'line 2']);
     } finally {
       await backend.close();
+    }
+  });
+
+  it('waits for initial queue metadata before obliterating', async () => {
+    const connection = { connectionString: url, schema, migrate: true };
+    const queue = new Queue(
+      `ops-${randomUUID()}`,
+      { connection },
+      createPostgresBackend,
+    );
+    const backend = queue.getBackend();
+    const setQueueMeta = backend.setQueueMeta.bind(backend);
+    const pause = backend.pause.bind(backend);
+    let metadataWritten = false;
+    let releaseWrite!: () => void;
+    let markStarted!: () => void;
+    const writeGate = new Promise<void>(resolve => {
+      releaseWrite = resolve;
+    });
+    const writeStarted = new Promise<void>(resolve => {
+      markStarted = resolve;
+    });
+    // Hold the constructor's write open while the queue starts obliterating.
+    vi.spyOn(backend, 'setQueueMeta').mockImplementation(async values => {
+      markStarted();
+      await writeGate;
+      const result = await setQueueMeta(values);
+      metadataWritten = true;
+      return result;
+    });
+    vi.spyOn(backend, 'pause').mockImplementation(paused => {
+      expect(metadataWritten).toBe(true);
+      return pause(paused);
+    });
+
+    try {
+      await queue.waitUntilReady();
+      await writeStarted;
+      const removal = queue.obliterate();
+      releaseWrite();
+
+      await removal;
+      await expect(backend.getQueueMeta()).resolves.toEqual({});
+    } finally {
+      releaseWrite();
+      await queue.close();
     }
   });
 
