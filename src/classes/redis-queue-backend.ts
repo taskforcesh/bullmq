@@ -1046,6 +1046,26 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     return result;
   }
 
+  async removeJobs(
+    jobIds: string[],
+    removeChildren: boolean,
+  ): Promise<string[]> {
+    if (jobIds.length === 0) {
+      return [];
+    }
+
+    const client = await this.queue.client;
+
+    const args = [
+      this.queue.keys.repeat,
+      this.queue.toKey(''),
+      removeChildren ? 1 : 0,
+      ...jobIds,
+    ];
+
+    return this.execCommand(client, 'removeJobs', args);
+  }
+
   async removeUnprocessedChildren(jobId: string): Promise<void> {
     const client = await this.queue.client;
 
