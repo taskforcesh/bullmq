@@ -427,4 +427,72 @@ class QueueTest extends TestCase
         $this->assertEquals($complexData['nested'], $retrieved->data['nested']);
         $this->assertEquals($complexData['unicode'], $retrieved->data['unicode']);
     }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function parentFailureFlagProvider(): array
+    {
+        return [
+            'failParentOnFailure' => ['failParentOnFailure', 'fpof'],
+            'continueParentOnFailure' => ['continueParentOnFailure', 'cpof'],
+            'ignoreDependencyOnFailure' => ['ignoreDependencyOnFailure', 'idof'],
+            'removeDependencyOnFailure' => ['removeDependencyOnFailure', 'rdof'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('parentFailureFlagProvider')]
+    public function testChildStoresParentFailureFlagInParentField(string $option, string $shortKey): void
+    {
+        $parentJob = $this->queue->add('parent', ['p' => 1]);
+        $parentQueueKey = $this->queue->getQualifiedName();
+
+        $child = $this->queue->add('child', ['c' => 1], [
+            'parent' => ['id' => $parentJob->id, 'queue' => $parentQueueKey],
+            $option => true,
+        ]);
+
+        $client = $this->queue->getConnection()->getClient();
+        $rawParent = $client->hget("{$parentQueueKey}:{$child->id}", 'parent');
+        $this->assertNotNull($rawParent);
+
+        $storedParent = json_decode($rawParent, true);
+        $this->assertSame($parentJob->id, $storedParent['id']);
+        $this->assertSame($parentQueueKey, $storedParent['queueKey']);
+        $this->assertTrue($storedParent[$shortKey]);
+
+        foreach (['fpof', 'cpof', 'idof', 'rdof'] as $other) {
+            if ($other !== $shortKey) {
+                $this->assertArrayNotHasKey($other, $storedParent);
+            }
+        }
+
+        $rawOpts = $client->hget("{$parentQueueKey}:{$child->id}", 'opts');
+        $this->assertNotNull($rawOpts);
+        $storedOpts = json_decode($rawOpts, true);
+        $this->assertTrue($storedOpts[$shortKey]);
+    }
+
+    public function testRemoveDependencyOnFailureStoresRdofNotIdof(): void
+    {
+        $parentJob = $this->queue->add('parent', ['p' => 1]);
+        $parentQueueKey = $this->queue->getQualifiedName();
+
+        $child = $this->queue->add('child', ['c' => 1], [
+            'parent' => ['id' => $parentJob->id, 'queue' => $parentQueueKey],
+            'removeDependencyOnFailure' => true,
+        ]);
+
+        $client = $this->queue->getConnection()->getClient();
+        $jobKey = "{$parentQueueKey}:{$child->id}";
+
+        $storedParent = json_decode((string) $client->hget($jobKey, 'parent'), true);
+        $this->assertTrue($storedParent['rdof']);
+        $this->assertArrayNotHasKey('idof', $storedParent);
+
+        $storedOpts = json_decode((string) $client->hget($jobKey, 'opts'), true);
+        $this->assertTrue($storedOpts['rdof']);
+        $this->assertArrayNotHasKey('idof', $storedOpts);
+    }
+
 }

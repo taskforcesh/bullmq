@@ -108,4 +108,36 @@ class JobOptionsTest extends TestCase
         $array = $options->toArray();
         $this->assertArrayHasKey('parent', $array);
     }
+
+    public function testParentFailureOptionsMapToShortKeys(): void
+    {
+        $options = JobOptions::fromArray([
+            'failParentOnFailure' => true,
+            'continueParentOnFailure' => true,
+            'ignoreDependencyOnFailure' => true,
+            'removeDependencyOnFailure' => true,
+        ]);
+
+        $array = $options->toArray();
+        $this->assertTrue($array['fpof']);
+        $this->assertTrue($array['cpof']);
+        $this->assertTrue($array['idof']);
+        $this->assertTrue($array['rdof']);
+    }
+
+    public function testRemoveDependencyOnFailureMapsToRdofNotIdof(): void
+    {
+        $array = JobOptions::fromArray(['removeDependencyOnFailure' => true])->toArray();
+
+        $this->assertTrue($array['rdof']);
+        $this->assertArrayNotHasKey('idof', $array);
+    }
+
+    public function testIgnoreDependencyOnFailureMapsToIdof(): void
+    {
+        $array = JobOptions::fromArray(['ignoreDependencyOnFailure' => true])->toArray();
+
+        $this->assertTrue($array['idof']);
+        $this->assertArrayNotHasKey('rdof', $array);
+    }
 }

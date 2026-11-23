@@ -79,9 +79,17 @@ class JobOptions
     public bool $continueParentOnFailure = false;
 
     /**
-     * If true, the child will be removed when the parent is removed.
+     * If true, this child job will be removed from the parent's dependencies
+     * when it fails, so the parent can complete without it.
      */
     public bool $removeDependencyOnFailure = false;
+
+    /**
+     * If true, the parent job will ignore this child's failure: the child is
+     * moved out of the parent's dependencies and its failure is recorded as
+     * an ignored failure.
+     */
+    public bool $ignoreDependencyOnFailure = false;
 
     /**
      * Maximum number of logs to keep for this job.
@@ -153,6 +161,9 @@ class JobOptions
         if (isset($options['removeDependencyOnFailure'])) {
             $instance->removeDependencyOnFailure = (bool) $options['removeDependencyOnFailure'];
         }
+        if (isset($options['ignoreDependencyOnFailure'])) {
+            $instance->ignoreDependencyOnFailure = (bool) $options['ignoreDependencyOnFailure'];
+        }
         if (isset($options['keepLogs'])) {
             $instance->keepLogs = (int) $options['keepLogs'];
         }
@@ -209,7 +220,10 @@ class JobOptions
             $result['cpof'] = $this->continueParentOnFailure;
         }
         if ($this->removeDependencyOnFailure) {
-            $result['idof'] = $this->removeDependencyOnFailure;
+            $result['rdof'] = $this->removeDependencyOnFailure;
+        }
+        if ($this->ignoreDependencyOnFailure) {
+            $result['idof'] = $this->ignoreDependencyOnFailure;
         }
         if ($this->keepLogs !== null) {
             $result['kl'] = $this->keepLogs;
