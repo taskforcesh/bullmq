@@ -5,7 +5,9 @@
 -- the same discovery surface. Pooled query connections leave `application_name`
 -- empty and are excluded. One row per connection; the backend formats them into
 -- `name=<application_name>` lines for the shared client-list parser.
-SELECT application_name
+-- server_version_num tells how non-ASCII bytes were escaped (see #5194).
+SELECT application_name,
+       current_setting('server_version_num')::int AS server_version_num
 FROM pg_stat_activity
 WHERE datname = current_database()
   AND application_name <> '';
