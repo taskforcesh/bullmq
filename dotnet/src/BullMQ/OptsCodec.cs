@@ -88,6 +88,28 @@ internal static class OptsCodec
             map["keepLogs"] = keepLogs;
         }
 
+        // Child failure options: persisted (as fpof/cpof/idof/rdof on Redis)
+        // only when enabled, like the reference runtimes.
+        if (opts.FailParentOnFailure == true)
+        {
+            map["failParentOnFailure"] = true;
+        }
+
+        if (opts.ContinueParentOnFailure == true)
+        {
+            map["continueParentOnFailure"] = true;
+        }
+
+        if (opts.IgnoreDependencyOnFailure == true)
+        {
+            map["ignoreDependencyOnFailure"] = true;
+        }
+
+        if (opts.RemoveDependencyOnFailure == true)
+        {
+            map["removeDependencyOnFailure"] = true;
+        }
+
         if (opts.Deduplication is { } dedup)
         {
             var values = new Dictionary<string, object?> { ["id"] = dedup.Id };

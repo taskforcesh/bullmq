@@ -433,6 +433,26 @@ public sealed class Worker : IAsyncDisposable
             // throw DelayedException to stop the normal completion path without
             // marking the job as failed.
         }
+        catch (Exception ex) when (IsRateLimit(ex))
+        {
+            // The processor rate limited the queue manually: put the job back in
+            // wait (no attempt consumed, no failed event) and sleep until the
+            // limit lifts, like the reference worker's moveLimitedBackToWait.
+            if (!backend.Closing)
+            {
+                try
+                {
+                    var ttl = await job.MoveToWaitAsync(token).ConfigureAwait(false);
+                    Volatile.Write(
+                        ref _limitUntil,
+                        ttl > 0 ? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + ttl : 0);
+                }
+                catch (Exception moveError)
+                {
+                    Error?.Invoke(moveError);
+                }
+            }
+        }
         catch (Exception ex)
         {
             try
@@ -455,6 +475,21 @@ public sealed class Worker : IAsyncDisposable
         }
 
         return next;
+    }
+
+    private static bool IsRateLimit(Exception ex) =>
+        ex is RateLimitException || ex.Message == RateLimitException.DefaultMessage;
+
+    /// <summary>
+    /// Rate limits the queue for <paramref name="expireTimeMs"/> ms (same as
+    /// <see cref="Queue.RateLimitAsync"/>). Call it from a processor and then
+    /// throw <see cref="RateLimitException"/> to put the current job back in
+    /// wait without consuming an attempt.
+    /// </summary>
+    public async Task RateLimitAsync(long expireTimeMs)
+    {
+        var backend = await _backend.Value.ConfigureAwait(false);
+        await backend.SetRateLimitAsync(expireTimeMs).ConfigureAwait(false);
     }
 
     /// <summary>

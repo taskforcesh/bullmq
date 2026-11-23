@@ -99,7 +99,10 @@ public sealed class Queue : IAsyncDisposable
     {
         if (types.Length == 0)
         {
-            types = new[] { "waiting", "active", "completed", "failed", "delayed", "paused" };
+            types = new[]
+            {
+                "active", "completed", "delayed", "failed", "paused", "prioritized", "waiting", "waiting-children",
+            };
         }
 
         var backend = await _backend.Value.ConfigureAwait(false);
@@ -323,6 +326,80 @@ public sealed class Queue : IAsyncDisposable
         return await backend.GetRateLimitTtlAsync().ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Rate limits the queue for <paramref name="expireTimeMs"/> ms: no worker
+    /// fetches new jobs until it lifts. Typically called from a processor
+    /// before throwing <see cref="RateLimitException"/>.
+    /// </summary>
+    public async Task RateLimitAsync(long expireTimeMs)
+    {
+        var backend = await _backend.Value.ConfigureAwait(false);
+        await backend.SetRateLimitAsync(expireTimeMs).ConfigureAwait(false);
+    }
+
+    /// <summary>Removes the current rate-limit window. Returns the number of removed keys.</summary>
+    public async Task<long> RemoveRateLimitKeyAsync()
+    {
+        var backend = await _backend.Value.ConfigureAwait(false);
+        return await backend.RemoveRateLimitKeyAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sets the global concurrency: the maximum number of jobs of this queue
+    /// processed at the same time across all workers.
+    /// </summary>
+    public async Task SetGlobalConcurrencyAsync(int concurrency)
+    {
+        var backend = await _backend.Value.ConfigureAwait(false);
+        await backend.SetQueueMetaAsync(new Dictionary<string, object> { ["concurrency"] = concurrency })
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Removes the global concurrency. Returns the number of removed fields.</summary>
+    public async Task<long> RemoveGlobalConcurrencyAsync()
+    {
+        var backend = await _backend.Value.ConfigureAwait(false);
+        return await backend.RemoveQueueMetaFieldsAsync(new[] { "concurrency" }).ConfigureAwait(false);
+    }
+
+    /// <summary>Returns the global concurrency, or null when unset.</summary>
+    public async Task<int?> GetGlobalConcurrencyAsync()
+    {
+        var backend = await _backend.Value.ConfigureAwait(false);
+        var value = await backend.GetQueueMetaFieldAsync("concurrency").ConfigureAwait(false);
+        return int.TryParse(value, out var concurrency) ? concurrency : null;
+    }
+
+    /// <summary>
+    /// Sets the global rate limit: at most <paramref name="max"/> jobs are
+    /// processed every <paramref name="duration"/> ms across all workers. It
+    /// takes precedence over <see cref="WorkerOptions.Limiter"/>.
+    /// </summary>
+    public async Task SetGlobalRateLimitAsync(int max, long duration)
+    {
+        var backend = await _backend.Value.ConfigureAwait(false);
+        await backend.SetQueueMetaAsync(new Dictionary<string, object> { ["max"] = max, ["duration"] = duration })
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Removes the global rate limit. Returns the number of removed fields.</summary>
+    public async Task<long> RemoveGlobalRateLimitAsync()
+    {
+        var backend = await _backend.Value.ConfigureAwait(false);
+        return await backend.RemoveQueueMetaFieldsAsync(new[] { "max", "duration" }).ConfigureAwait(false);
+    }
+
+    /// <summary>Returns the global rate limit, or null when unset.</summary>
+    public async Task<RateLimiterOptions?> GetGlobalRateLimitAsync()
+    {
+        var backend = await _backend.Value.ConfigureAwait(false);
+        var max = await backend.GetQueueMetaFieldAsync("max").ConfigureAwait(false);
+        var duration = await backend.GetQueueMetaFieldAsync("duration").ConfigureAwait(false);
+        return int.TryParse(max, out var m) && long.TryParse(duration, out var d)
+            ? new RateLimiterOptions { Max = m, Duration = d }
+            : null;
+    }
+
     /// <summary>Returns the stored <c>meta.version</c> field, or null when unset.</summary>
     public async Task<string?> GetVersionAsync()
     {
@@ -375,6 +452,11 @@ public sealed class Queue : IAsyncDisposable
         merged.RemoveOnFail = opts.RemoveOnFail ?? merged.RemoveOnFail;
         merged.KeepLogs = opts.KeepLogs ?? merged.KeepLogs;
         merged.Deduplication = opts.Deduplication ?? merged.Deduplication;
+        merged.Parent = opts.Parent ?? merged.Parent;
+        merged.FailParentOnFailure = opts.FailParentOnFailure ?? merged.FailParentOnFailure;
+        merged.ContinueParentOnFailure = opts.ContinueParentOnFailure ?? merged.ContinueParentOnFailure;
+        merged.IgnoreDependencyOnFailure = opts.IgnoreDependencyOnFailure ?? merged.IgnoreDependencyOnFailure;
+        merged.RemoveDependencyOnFailure = opts.RemoveDependencyOnFailure ?? merged.RemoveDependencyOnFailure;
         return merged;
     }
 }

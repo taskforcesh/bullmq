@@ -87,6 +87,49 @@ public class Job
         Priority = opts.Priority ?? 0;
         Attempts = opts.Attempts ?? 0;
         DeduplicationId = opts.Deduplication?.Id;
+
+        if (opts.Parent is { } parent)
+        {
+            Parent = BuildParent(parent.Id, parent.Queue, opts);
+            ParentKey = $"{parent.Queue}:{parent.Id}";
+        }
+    }
+
+    /// <summary>
+    /// Builds the stored <c>parent</c> object of a child job: <c>{id, queueKey}</c>
+    /// plus the child failure flags (<c>fpof</c>, <c>cpof</c>, <c>idof</c>,
+    /// <c>rdof</c>) the scripts read when the child fails, matching the
+    /// reference Job.
+    /// </summary>
+    internal static Dictionary<string, object?> BuildParent(string id, string queueKey, JobsOptions opts)
+    {
+        var parent = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["id"] = id,
+            ["queueKey"] = queueKey,
+        };
+
+        if (opts.FailParentOnFailure == true)
+        {
+            parent["fpof"] = true;
+        }
+
+        if (opts.RemoveDependencyOnFailure == true)
+        {
+            parent["rdof"] = true;
+        }
+
+        if (opts.IgnoreDependencyOnFailure == true)
+        {
+            parent["idof"] = true;
+        }
+
+        if (opts.ContinueParentOnFailure == true)
+        {
+            parent["cpof"] = true;
+        }
+
+        return parent;
     }
 
     /// <summary>Creates a job and adds it to the queue via the backend.</summary>
@@ -140,6 +183,7 @@ public class Job
         }
 
         job.Repeat = ParseRepeat(raw.Opts);
+        job.Parent = ParseParent(raw.Parent);
 
         return job;
     }
@@ -229,6 +273,32 @@ public class Job
 
         return result;
     }
+
+    /// <summary>
+    /// Returns the failures of this parent's children that were ignored because
+    /// they were added with <see cref="JobsOptions.IgnoreDependencyOnFailure"/>
+    /// (child key -&gt; failed reason).
+    /// </summary>
+    public async Task<Dictionary<string, string>> GetIgnoredChildrenFailuresAsync()
+    {
+        var raw = await _backend.GetIgnoredChildrenFailuresAsync(Id!).ConfigureAwait(false);
+        return new Dictionary<string, string>(raw, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Removes this parent's children that have not started processing yet
+    /// (e.g. after a child failed with <see cref="JobsOptions.ContinueParentOnFailure"/>).
+    /// Active, completed and failed children are kept.
+    /// </summary>
+    public Task RemoveUnprocessedChildrenAsync() => _backend.RemoveUnprocessedChildrenAsync(Id!);
+
+    /// <summary>
+    /// Moves this active job back to the wait list, e.g. after the processor
+    /// hit a manual rate limit. Does not consume an attempt. Returns the
+    /// remaining rate-limit ttl in ms (0 when the queue is not rate limited).
+    /// </summary>
+    public Task<long> MoveToWaitAsync(string? token = null) =>
+        _backend.MoveJobFromActiveToWaitAsync(Id!, token ?? Token ?? "0");
 
     /// <summary>Returns whether this job has completed.</summary>
     public async Task<bool> IsCompletedAsync() => await GetStateAsync().ConfigureAwait(false) == JobState.Completed;
@@ -455,6 +525,11 @@ public class Job
             opts.KeepLogs = klv;
         }
 
+        opts.FailParentOnFailure = ReadFlag(root, "fpof", "failParentOnFailure");
+        opts.ContinueParentOnFailure = ReadFlag(root, "cpof", "continueParentOnFailure");
+        opts.IgnoreDependencyOnFailure = ReadFlag(root, "idof", "ignoreDependencyOnFailure");
+        opts.RemoveDependencyOnFailure = ReadFlag(root, "rdof", "removeDependencyOnFailure");
+
         if (root.TryGetProperty("removeOnComplete", out var roc))
         {
             opts.RemoveOnComplete = ParseRemoveOn(roc);
@@ -466,6 +541,55 @@ public class Job
         }
 
         return opts;
+    }
+
+    // Reads a boolean option stored under its short (Redis) or long (PostgreSQL) name.
+    private static bool? ReadFlag(JsonElement root, string shortName, string longName)
+    {
+        if ((root.TryGetProperty(shortName, out var value) || root.TryGetProperty(longName, out value)) &&
+            value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            return value.GetBoolean();
+        }
+
+        return null;
+    }
+
+    // Parses the stored `parent` JSON object ({id, queueKey, fpof?, ...}).
+    private static Dictionary<string, object?>? ParseParent(string? parentJson)
+    {
+        if (string.IsNullOrEmpty(parentJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(parentJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            var parent = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                parent[prop.Name] = prop.Value.ValueKind switch
+                {
+                    JsonValueKind.String => prop.Value.GetString(),
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    JsonValueKind.Null => null,
+                    _ => prop.Value.GetRawText(),
+                };
+            }
+
+            return parent;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
