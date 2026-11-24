@@ -277,6 +277,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   }
 
   private _handleConnected(): Promise<void> {
+    const raw = this.raw;
     this.hasConnected = true;
     this.ready = false;
     this.closed = false;
@@ -289,6 +290,11 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     this.loadedScriptShas.clear();
 
     const markReady = () => {
+      // The socket dropped (or was replaced or closed) while CLIENT SETNAME
+      // was in flight: its onclose already took over.
+      if (this.raw !== raw || !raw?.connected || this.closing) {
+        return;
+      }
       this.ready = true;
       this.emit('ready');
     };
@@ -406,7 +412,9 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     }
     if (!this.raw && (this.rawFactory || this.materializing)) {
       await this._materializeRaw();
-      if (stale()) {throw new ConnectionClosedError();}
+      if (stale()) {
+        throw new ConnectionClosedError();
+      }
     }
     if (!this.raw) {
       // quit() dropped the lazy factory before it ran.
@@ -442,7 +450,9 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
         ? new ConnectionClosedError(err.message, err)
         : err;
     });
-    if (stale()) {throw new ConnectionClosedError();}
+    if (stale()) {
+      throw new ConnectionClosedError();
+    }
     if (!this.raw.connected) {
       // The socket dropped before this continuation ran: its onclose already
       // scheduled the recovery, so leave the lifecycle flags to it.

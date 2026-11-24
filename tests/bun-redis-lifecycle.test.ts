@@ -219,6 +219,36 @@ describe('bun adapter connection lifecycle', () => {
     }
   });
 
+  it('a drop during CLIENT SETNAME does not emit ready', async () => {
+    const created: ControlledRaw[] = [];
+    const { raw, adapter: primary } = await connectedAdapter(created);
+    const child = primary.duplicate({ connectionName: 'lifecycle' });
+    child.on('error', () => {});
+    let ready = 0;
+    child.on('ready', () => {
+      ready++;
+    });
+    const pending = child.connect();
+    pending.catch(() => {});
+    try {
+      await flush();
+      raw.resolveDuplicate();
+      await flush();
+      const childRaw = created[1];
+      childRaw.resolveConnect();
+      childRaw.drop();
+      childRaw.rejectSend(new Error('Connection closed'));
+      await flush();
+      expect(ready).toBe(0);
+      expect(child.status).not.toBe('ready');
+      pending.catch(() => {});
+    } finally {
+      await pending.catch(() => {});
+      await child.quit();
+      await primary.quit();
+    }
+  });
+
   it('disconnect(true) does not report ready while the replacement connects', async () => {
     const created: ControlledRaw[] = [];
     const { raw, adapter } = await connectedAdapter(created);
