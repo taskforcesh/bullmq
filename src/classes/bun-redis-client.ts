@@ -331,6 +331,12 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
           ? await this._duplicateRaw(this.raw)
           : await this.rawFactory!();
         this.rawFactory = undefined;
+        if (this.closing) {
+          this._retireRaw(newRaw);
+          this.reconnecting = false;
+          return;
+        }
+        this._retireRaw(this.raw);
 
         // Swap the raw client reference
         this.raw = newRaw;
@@ -400,7 +406,9 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       // reconnecting on the same instance. Create a fresh raw client aimed at
       // the same server via Bun's native `duplicate()` (see #4582).
       if (replaceRaw) {
+        const old = this.raw;
         this.raw = await this._duplicateRaw(this.raw);
+        this._retireRaw(old);
         this._setupCallbacks();
       }
 
@@ -468,19 +476,29 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     raw.onconnect = () => {};
     raw.onclose = () => {};
     raw.onerror = () => {};
-    if (raw.connected) {
-      // Defer close so that Bun's native error is raised outside the
-      // calling test's synchronous scope, preventing it from being
-      // attributed to the test as an unhandled error.
-      setImmediate(() => {
-        try {
-          if (raw.connected) {
-            raw.close();
-          }
-        } catch (_err) {
-          // swallow
-        }
-      });
+    // Defer close so that Bun's native error is raised outside the
+    // calling test's synchronous scope, preventing it from being
+    // attributed to the test as an unhandled error. Always close: a Bun
+    // client reconnecting by itself has `connected === false`.
+    setImmediate(() => {
+      try {
+        raw.close();
+      } catch (_err) {
+        // swallow
+      }
+    });
+  }
+
+  private _retireRaw(raw: TClient | undefined): void {
+    if (!raw) {
+      return;
+    }
+    raw.onconnect = () => {};
+    raw.onclose = () => {};
+    try {
+      raw.close();
+    } catch {
+      /* already closed */
     }
   }
 
@@ -498,17 +516,13 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       const raw = this.raw;
       if (raw) {
         raw.onclose = () => {};
-        if (raw.connected) {
-          setImmediate(() => {
-            try {
-              if (raw.connected) {
-                raw.close();
-              }
-            } catch (_err) {
-              // swallow
-            }
-          });
-        }
+        setImmediate(() => {
+          try {
+            raw.close();
+          } catch (_err) {
+            // swallow
+          }
+        });
       }
 
       this.emit('close');

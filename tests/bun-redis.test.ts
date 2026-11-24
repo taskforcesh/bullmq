@@ -514,6 +514,35 @@ describe('bun redis adapter', () => {
         await adapter.quit();
       }
     });
+
+    it('a raw client Bun is still reconnecting is closed when the adapter replaces it', async () => {
+      const proxy = createProxy();
+      proxy.start();
+      const raw = new RedisClient(proxy.url);
+      const adapter = createBunRedisClient(raw);
+      adapter.on('error', () => {});
+      try {
+        await adapter.connect();
+        expect(proxy.upstreamCount()).toBe(1);
+        const oldId = await adapter.sendCommand('CLIENT', ['ID']);
+        proxy.stop();
+        const deadline = Date.now() + 5000;
+        while (raw.connected && Date.now() < deadline) {
+          await Bun.sleep(20);
+        }
+        expect(raw.connected).toBe(false);
+        adapter.disconnect(true);
+        proxy.start();
+        await Bun.sleep(4000);
+        expect(proxy.upstreamCount()).toBe(1);
+        expect(await adapter.sendCommand('CLIENT', ['ID'])).not.toEqual(oldId);
+        const list = String(await rawClient.send('CLIENT', ['LIST']));
+        expect(list.includes(`id=${oldId} `)).toBe(false);
+      } finally {
+        await adapter.quit();
+        proxy.stop();
+      }
+    });
   });
 
   describe('Queue operations via bun adapter', () => {
