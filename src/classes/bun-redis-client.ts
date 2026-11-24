@@ -236,7 +236,12 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     // When connectionName is set (via duplicate()), delay the 'ready'
     // event until CLIENT SETNAME completes so callers waiting for 'ready'
     // see the name already applied.
+    const raw = this.raw;
     this.raw.onconnect = () => {
+      if (this.closing) {
+        this._retireRaw(raw);
+        return;
+      }
       this._handleConnected();
     };
     this.raw.onclose = (error?: Error) => {
@@ -503,7 +508,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   }
 
   disconnect(reconnect?: boolean): void {
-    if (this.closed && !reconnect) {
+    if (this.closing && !reconnect) {
       return;
     }
 
@@ -538,7 +543,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   }
 
   async quit(): Promise<string> {
-    if (this.closed) {
+    if (this.closing) {
       setImmediate(() => {
         this.emit('end');
         this.emit('close');

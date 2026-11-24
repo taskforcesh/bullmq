@@ -543,6 +543,33 @@ describe('bun redis adapter', () => {
         proxy.stop();
       }
     });
+
+    it('quit() after an unexpected drop stops reconnecting', async () => {
+      const url = `redis://${redisHost}:${redisPort}`;
+      const raw = new RedisClient(url, { autoReconnect: false });
+      const parent = createBunRedisClient(raw);
+      const connectionName = `bun-quit-${randomUUID()}`;
+      // duplicate({ connectionName }) is what stores the name the adapter
+      // re-applies with CLIENT SETNAME after a reconnect.
+      const adapter = parent.duplicate({ connectionName });
+      adapter.on('error', () => {});
+      parent.on('error', () => {});
+      await adapter.connect();
+      try {
+        const id = await adapter.sendCommand('CLIENT', ['ID']);
+        const closed = new Promise(resolve => adapter.once('close', resolve));
+        await rawClient.send('CLIENT', ['KILL', 'ID', String(id)]);
+        await closed;
+        await adapter.quit();
+        await Bun.sleep(2500);
+        expect(adapter.status).toBe('end');
+        const list = String(await rawClient.send('CLIENT', ['LIST']));
+        expect(list.includes(`name=${connectionName}`)).toBe(false);
+      } finally {
+        await adapter.quit();
+        await parent.quit();
+      }
+    });
   });
 
   describe('Queue operations via bun adapter', () => {
