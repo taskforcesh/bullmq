@@ -134,6 +134,9 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   private closed = false;
   private closing = false;
   private connecting?: Promise<void>;
+  // Bumped by quit()/disconnect(): an attempt started under an older
+  // generation must not install or keep a raw client.
+  private generation = 0;
   private connectionName: string | undefined;
   // Factory that lazily creates the raw client on first connect. Used by
   // `duplicate()`, whose IRedisClient contract is synchronous while Bun's
@@ -164,21 +167,23 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     if (this.reconnecting && !this.closing) {
       return 'reconnecting';
     }
-    if (this.closed) {
-      return 'end';
-    }
-    // `raw` may not exist yet on a duplicate whose raw client is created
-    // lazily (via `rawFactory`) on first connect.
     if (this.ready) {
       return 'ready';
     }
     // RedisConnection.waitUntilReady calls connect() on 'wait' and keeps its
     // one-shot rejection; 'connecting' makes it wait for 'ready' like ioredis.
-    // Checked after `ready`: the connect promise is still set for a tick after
-    // 'ready' is emitted, and reporting 'connecting' there drops the event.
+    // Checked after 'ready' (the attempt is still set for a tick after
+    // 'ready' is emitted) and before 'end' (the adapter stays closed until
+    // the replacement raw is connected, so commands never reach the retired
+    // one).
     if (!this.closing && (this.connecting || this.materializing)) {
       return 'connecting';
     }
+    if (this.closed) {
+      return 'end';
+    }
+    // `raw` may not exist yet on a duplicate whose raw client is created
+    // lazily (via `rawFactory`) on first connect.
     if (this.raw?.connected) {
       return 'connect';
     }
@@ -292,13 +297,13 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       ? this.clientSetName(this.connectionName).then(markReady, markReady)
       : (markReady(), Promise.resolve());
 
-    this.readying = readying.finally(() => {
-      if (this.readying === readying) {
+    const published: Promise<void> = readying.finally(() => {
+      if (this.readying === published) {
         this.readying = undefined;
       }
     });
-
-    return this.readying;
+    this.readying = published;
+    return published;
   }
 
   /**
@@ -317,49 +322,25 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       1000,
     );
 
-    this.reconnectTimer = setTimeout(async () => {
+    this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-
       if (this.closing) {
         this.reconnecting = false;
         return;
       }
-
-      try {
-        // Create a fresh raw client aimed at the *same* server. Bun's native
-        // `duplicate()` preserves the connection target and options; the old
-        // `new BunRedisClient(this.raw.url)` produced a client pointed at Bun's
-        // default target because `url` is always undefined (#4582). If the raw
-        // client was never created (a duplicate reconnecting before its first
-        // connect), fall back to its lazy factory.
-        const newRaw = this.raw
-          ? await this._duplicateRaw(this.raw)
-          : await this.rawFactory!();
-        this.rawFactory = undefined;
-        if (this.closing) {
-          this._retireRaw(newRaw);
-          this.reconnecting = false;
+      const generation = this.generation;
+      // Same path as an explicit connect(): a fresh raw via duplicate() or the
+      // lazy factory, one attempt at a time, cancelled by quit()/disconnect().
+      this.connect().catch(() => {
+        if (generation !== this.generation) {
           return;
         }
-        this._retireRaw(this.raw);
-
-        // Swap the raw client reference
-        this.raw = newRaw;
-        this.closed = false;
-        this.connecting = undefined;
-
-        // Re-wire callbacks on the new raw client
-        this._setupCallbacks();
-
-        // Connect – onconnect callback will emit 'ready' and reset state
-        await newRaw.connect();
-      } catch (_err) {
-        // Reconnect failed – schedule another attempt
-        this.reconnecting = false;
-        if (!this.closing) {
+        // A failed attempt's onclose normally schedules the next one already.
+        if (!this.closing && !this.reconnectTimer) {
+          this.reconnecting = false;
           this._scheduleReconnect();
         }
-      }
+      });
     }, delay);
   }
 
@@ -368,73 +349,24 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   // ---------------------------------------------------------------
 
   async connect(): Promise<void> {
-    // A duplicate created with a `rawFactory` builds its raw client lazily on
-    // the first connect (Bun's native `duplicate()` is async). Concurrent
-    // connect()/_ensureRaw() share one in-flight materialization so we don't
-    // create two native clients and overwrite an unclosed raw.
-    if (!this.raw && (this.rawFactory || this.materializing)) {
-      await this._materializeRaw();
-    }
-
-    const replaceRaw =
-      this.hasConnected && (this.closed || !this.raw.connected);
-
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
     this.reconnecting = false;
 
-    if (this.raw.connected && !replaceRaw) {
-      this.hasConnected = true;
-      this.closed = false;
-      this.closing = false;
-      this.statusOverride = undefined;
-      if (!this.ready) {
-        await (this.readying ?? this._handleConnected());
-      }
-      // The auto-connect started in the constructor can still own
-      // `this.connecting` after the socket is up. Wait for it to settle so a
-      // resolved connect() does not keep reporting 'connecting'.
-      if (this.connecting) {
-        await this.connecting;
-      }
-      return;
-    }
-
+    // One attempt at a time: concurrent callers share it, and it is claimed
+    // before any await so `status` reports 'connecting' for its whole length.
     if (!this.connecting) {
-      this.closed = false;
-      this.closing = false;
-      this.statusOverride = undefined;
-
-      // If the raw client was previously closed, Bun doesn't support
-      // reconnecting on the same instance. Create a fresh raw client aimed at
-      // the same server via Bun's native `duplicate()` (see #4582).
-      if (replaceRaw) {
-        const old = this.raw;
-        this.raw = await this._duplicateRaw(this.raw);
-        this._retireRaw(old);
-        this._setupCallbacks();
-      }
-
-      this.connecting = this.raw
-        .connect()
-        .catch(err => {
-          throw isBunConnectionClosedError(err)
-            ? new ConnectionClosedError(err.message, err)
-            : err;
-        })
-        .then(() => {
-          this.hasConnected = true;
-          this.closed = false;
-          this.closing = false;
-          this.statusOverride = undefined;
-        })
-        .finally(() => {
+      const attempt: Promise<void> = this._connectAttempt(
+        this.generation,
+      ).finally(() => {
+        if (this.connecting === attempt) {
           this.connecting = undefined;
-        });
+        }
+      });
+      this.connecting = attempt;
     }
-
     await this.connecting;
     await this.readying;
 
@@ -461,6 +393,69 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
           onDone();
         }
       });
+    }
+  }
+
+  private async _connectAttempt(generation: number): Promise<void> {
+    const stale = () => generation !== this.generation;
+    // Let connect() publish this attempt as `this.connecting` before anything
+    // here can emit (a synchronous 'ready' listener may call connect() again).
+    await Promise.resolve();
+    if (stale()) {
+      throw new ConnectionClosedError();
+    }
+    if (!this.raw && (this.rawFactory || this.materializing)) {
+      await this._materializeRaw();
+      if (stale()) {throw new ConnectionClosedError();}
+    }
+    if (!this.raw) {
+      // quit() dropped the lazy factory before it ran.
+      throw new ConnectionClosedError();
+    }
+    // A raw that closed (after a drop, a failed first connect, or quit()) cannot
+    // be reopened: Bun needs a fresh client via duplicate() (#4582).
+    const replaceRaw =
+      this.closed || (this.hasConnected && !this.raw.connected);
+    this.closing = false;
+    this.statusOverride = undefined;
+
+    if (this.raw.connected && !replaceRaw) {
+      this.hasConnected = true;
+      if (!this.ready) {
+        await (this.readying ?? this._handleConnected());
+      }
+      return;
+    }
+    if (replaceRaw) {
+      const old = this.raw;
+      const fresh = await this._duplicateRaw(old);
+      if (stale()) {
+        this._retireRaw(fresh);
+        throw new ConnectionClosedError();
+      }
+      this._retireRaw(old);
+      this.raw = fresh;
+      this._setupCallbacks();
+    }
+    await this.raw.connect().catch(err => {
+      throw isBunConnectionClosedError(err)
+        ? new ConnectionClosedError(err.message, err)
+        : err;
+    });
+    if (stale()) {throw new ConnectionClosedError();}
+    if (!this.raw.connected) {
+      // The socket dropped before this continuation ran: its onclose already
+      // scheduled the recovery, so leave the lifecycle flags to it.
+      throw new ConnectionClosedError();
+    }
+    this.hasConnected = true;
+    this.closed = false;
+    this.closing = false;
+    this.statusOverride = undefined;
+    // A raw from Bun's duplicate() of a live client is already connected, so
+    // its onconnect never fires: finish the handshake here.
+    if (!this.ready) {
+      await (this.readying ?? this._handleConnected());
     }
   }
 
@@ -511,6 +506,10 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     if (this.closing && !reconnect) {
       return;
     }
+    this.generation++;
+    this.connecting = undefined;
+    this.ready = false;
+    this.readying = undefined;
 
     if (reconnect) {
       // Close the current raw connection and schedule a reconnect.
@@ -530,8 +529,8 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
         });
       }
 
-      this.emit('close');
       this._scheduleReconnect();
+      this.emit('close');
     } else {
       this.closing = true;
       this.closed = true;
@@ -550,6 +549,10 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       });
       return 'OK';
     }
+    this.generation++;
+    this.ready = false;
+    this.readying = undefined;
+    this.connecting = undefined;
     this.closing = true;
     this.closed = true;
     this.statusOverride = 'end';
@@ -595,8 +598,13 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       return Promise.resolve(this.raw);
     }
 
+    const generation = this.generation;
     const materializing = factory()
       .then(raw => {
+        if (generation !== this.generation) {
+          this._retireRaw(raw);
+          throw new ConnectionClosedError();
+        }
         this.raw = raw;
         this.rawFactory = undefined;
         this._setupCallbacks();
