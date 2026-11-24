@@ -98,6 +98,19 @@ export interface QueueEventsListener<ReturnType = any> extends IoredisListener {
   delayed: (args: { jobId: string; delay: number }, id: string) => void;
 
   /**
+   * Listen to 'signaled' event.
+   *
+   * This event is triggered when a signal is sent to a job with
+   * `queue.signal()`.
+   *
+   * @param args - An object containing details about the signal.
+   *   - `jobId` - The unique identifier of the job.
+   *   - `name` - The name of the signal.
+   * @param id - The identifier of the event.
+   */
+  signaled: (args: { jobId: string; name: string }, id: string) => void;
+
+  /**
    * Listen to 'drained' event.
    *
    * This event is triggered when the queue has drained its waiting list, meaning there are no jobs

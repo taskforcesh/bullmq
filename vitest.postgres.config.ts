@@ -12,6 +12,8 @@ export default defineConfig({
       // Backend-agnostic relay tests, run against PostgreSQL.
       'tests/relay.test.ts',
       'tests/relay_stress.test.ts',
+      // Backend-agnostic job signal tests.
+      'tests/job_signals.test.ts',
     ],
     env: { BULLMQ_TEST_BACKEND: 'postgres' },
     exclude: ['node_modules/**'],

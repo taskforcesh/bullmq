@@ -12,6 +12,7 @@ import {
   RetryJobOpts,
   RetryOptions,
   StreamReadRaw,
+  WaitForSignalResult,
   WorkerOptions,
 } from '../interfaces';
 import {
@@ -1075,6 +1076,55 @@ export class PostgresQueueBackend
         command: 'promote',
         state: 'delayed',
       });
+    }
+  }
+
+  async signal(jobId: string, name: string, data: string): Promise<boolean> {
+    const { rows } = await this.run<{ code: number }>('signal_job', [
+      this.queueName,
+      jobId,
+      name,
+      data,
+      Date.now(),
+    ]);
+    const code = rows[0].code;
+    if (code < 0) {
+      throw finishedErrors({ code, jobId, command: 'signal' });
+    }
+    return code === 1;
+  }
+
+  async moveToWaitingForSignal(
+    jobId: string,
+    token: string,
+    name: string,
+    timeout: number,
+    timestamp: number,
+  ): Promise<WaitForSignalResult> {
+    let rows: { code: number; data: string | null }[];
+    try {
+      ({ rows } = await this.run<{ code: number; data: string | null }>(
+        'wait_for_signal',
+        [this.queueName, jobId, token, name, timeout, timestamp],
+      ));
+    } catch (err) {
+      this.mapFinishError(err, jobId, 'waitForSignal');
+    }
+    const { code, data } = rows[0];
+    switch (code) {
+      case 1:
+        return { status: 'signal', data };
+      case 0:
+        return { status: 'delayed' };
+      case 2:
+        return { status: 'timeout' };
+      default:
+        throw finishedErrors({
+          code,
+          jobId,
+          command: 'waitForSignal',
+          state: 'active',
+        });
     }
   }
 
