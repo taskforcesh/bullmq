@@ -1066,7 +1066,7 @@ describe('deduplication', () => {
 
           expect(count).toEqual(1);
 
-          expect(deduplicatedCounter).toBe(2);
+          await expect.poll(() => deduplicatedCounter).toBe(2);
           await worker.close();
         });
       });

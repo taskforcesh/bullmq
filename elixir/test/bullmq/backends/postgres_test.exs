@@ -392,6 +392,25 @@ defmodule BullMQ.Backends.PostgresTest do
     assert {:ok, "waiting"} = Backend.get_state(b, id)
   end
 
+  test "move_job_from_active_to_wait returns an error when the job was not moved", %{
+    backend: b,
+    queue: q
+  } do
+    {:ok, id} = Backend.add_job(b, Job.new(q, "m", %{}, []))
+    {:ok, [_, ^id, 0, 0]} = Backend.move_to_active(b, "t", [])
+
+    # Lock held by another token: the job stays active.
+    assert {:error, -6} = Backend.move_job_from_active_to_wait(b, id, "other")
+    assert {:ok, "active"} = Backend.get_state(b, id)
+
+    # Token "0" bypasses the lock check and releases the lock, so the
+    # former owner now gets a missing lock.
+    assert {:ok, _} = Backend.move_job_from_active_to_wait(b, id, "0")
+    assert {:error, -2} = Backend.move_job_from_active_to_wait(b, id, "t")
+
+    assert {:error, -1} = Backend.move_job_from_active_to_wait(b, "missing-job", "t")
+  end
+
   test "extend_lock and extend_locks", %{backend: b, queue: q} do
     {:ok, id} = Backend.add_job(b, Job.new(q, "l", %{}, []))
     {:ok, id2} = Backend.add_job(b, Job.new(q, "l2", %{}, []))

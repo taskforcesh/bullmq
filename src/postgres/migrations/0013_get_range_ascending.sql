@@ -1,4 +1,4 @@
--- Fix ascending pagination of the list-backed states (wait, active).
+-- Fix ascending pagination of the list-backed states (wait, active), schema version 13.
 --
 -- Like Redis LRANGE on an LPUSHed list, get_range returns these states newest
 -- first, and every client (Node, Python, .NET, Go) reverses the page when asc

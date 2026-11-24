@@ -107,9 +107,19 @@ export const MIGRATIONS: readonly Migration[] = [
   },
   {
     version: 12,
-    name: '0012_get_range_ascending',
+    name: '0012_move_active_to_wait_lock_check',
+    // Function-body fix only (CREATE OR REPLACE, identical signature). The
+    // only behaviour change is on a wrong or missing lock token, where the
+    // function now returns -2/-6 instead of silently skipping the move, so
+    // clients from the same major keep working against the updated schema.
     minClientVersion: 6,
-    load: () => loadMigrationSql('0012_get_range_ascending.sql'),
+    load: () => loadMigrationSql('0012_move_active_to_wait_lock_check.sql'),
+  },
+  {
+    version: 13,
+    name: '0013_get_range_ascending',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0013_get_range_ascending.sql'),
   },
 ];
 
