@@ -101,6 +101,7 @@ export interface BaseJobOptions extends DefaultJobOptions {
    * If you use this option, it is up to you to ensure the
    * jobId is unique. If you attempt to add a job with an id that
    * already exists, it will not be added.
+   * It cannot be longer than 32768 bytes.
    */
   jobId?: string;
 

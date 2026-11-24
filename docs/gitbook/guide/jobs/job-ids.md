@@ -97,6 +97,10 @@ Custom job ids must not contain the **:** separator as it will be translated in 
 Custom job ids must not be strings that consist only of digits (for example `"123"`), as these collide with the format used for automatically generated ids. An `Error: Custom Id cannot be integers` will be thrown when adding such a job. If you need to use a numeric business identifier, add a non-digit prefix such as `"job-123"` or `"#123"`.
 {% endhint %}
 
+{% hint style="danger" %}
+Custom job ids must not be longer than 32768 bytes, as the id is part of the job's key and some Redis services limit the size of key names. An `Error: Custom Id cannot be longer than 32768 bytes` will be thrown when adding such a job. If the id is built from a value that you do not control, use a hash of that value instead.
+{% endhint %}
+
 ## Read more:
 
 - 💡 [Duplicated Event Reference](https://docs.bullmq.io/api/interfaces/v6.QueueEventsListener.html#duplicated)
