@@ -257,7 +257,12 @@ class Worker(EventEmitter):
         """
         await self._ensure_client_names()
         job_instance = None
-        if self.isRateLimited():
+        # Branch on any pending rate limit, even one that has already expired:
+        # the rate-limited fetch left `drained` set, and falling through to
+        # waitForJob() could then add a full drainDelay with no marker left.
+        # _waitForRateLimit() returns at once for an expired deadline and
+        # clears `drained`, so we retry activation immediately.
+        if self.limitUntil:
             await self._waitForRateLimit()
             if self.closing or self.paused:
                 return None
@@ -303,6 +308,8 @@ class Worker(EventEmitter):
         await self.backend.setRateLimit(expire_time_ms)
 
     def isRateLimited(self) -> bool:
+        # Kept for API parity with Node; getNextJob checks `limitUntil`
+        # directly so an already-expired limit still clears `drained`.
         return self.limitUntil > int(time.time() * 1000)
 
     async def _waitForRateLimit(self):
@@ -310,7 +317,9 @@ class Worker(EventEmitter):
         `maximumRateLimitDelay`), or until close()/pause() wakes us up."""
         delay = self.limitUntil - int(time.time() * 1000)
         delay = min(delay, self.opts.get("maximumRateLimitDelay", 30000))
-        if delay > 0:
+        # close()/pause() may have sent its wakeup before this sleeper was
+        # registered, so check the flags before sleeping, not only after.
+        if delay > 0 and not (self.closing or self.paused):
             wakeup = asyncio.Event()
             self._rate_limit_wakeups.add(wakeup)
             try:

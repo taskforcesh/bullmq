@@ -666,7 +666,9 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
             })
             job = tree["job"]
             children = tree["children"]
-            self.assertEqual(await job.getState(), "waiting-children")
+            # No state assertion here: the workers are already running and the
+            # children fail at once, so the parent may already have left
+            # 'waiting-children' by the time we could check it.
             self.assertEqual(len(children), 3)
 
             await asyncio.wait_for(parent_completed, 10)
