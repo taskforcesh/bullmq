@@ -273,28 +273,92 @@ public class Job
     }
 
     /// <summary>
-    /// Moves the job to the failed state, optionally fetching the next job to
-    /// process. Retries are handled by the shared scripts based on the job's
-    /// attempts/backoff configuration.
+    /// Moves the job to the failed state, or retries it when it has attempts
+    /// left: after its backoff delay (moving it to delayed) or immediately
+    /// (moving it back to wait). An <see cref="UnrecoverableException"/> is never
+    /// retried. The failed reason and stack trace are persisted in every case.
     /// </summary>
+    /// <param name="error">The error thrown by the processor.</param>
+    /// <param name="token">The worker token that holds the job's lock.</param>
+    /// <param name="fetchNext">When true, fetches the next job to process.</param>
+    /// <param name="backoffStrategy">Computes the delay for custom backoff types.</param>
+    /// <param name="maxStartedAttempts">
+    /// When positive, a job started at least this many times is not retried.
+    /// </param>
     public async Task<NextJobData?> MoveToFailedAsync(
-        Exception error, string token, bool fetchNext = true)
+        Exception error,
+        string token,
+        bool fetchNext = true,
+        BackoffStrategy? backoffStrategy = null,
+        int? maxStartedAttempts = null)
     {
         var message = error.Message;
         FailedReason = message;
-        StackTrace.Add(error.StackTrace ?? string.Empty);
 
-        var result = await _backend
-            .MoveToFailedAsync(this, message, Opts.RemoveOnFail, token, fetchNext)
+        var (shouldRetry, retryDelay) = await ShouldRetryJobAsync(error, backoffStrategy, maxStartedAttempts)
             .ConfigureAwait(false);
 
-        if (result.FinishedOn > 0)
+        StackTrace.Add(error.ToString());
+        var stackTraceJson = JsonUtil.Serialize(StackTrace);
+
+        NextJobData? next = null;
+        if (!shouldRetry)
         {
-            FinishedOn = result.FinishedOn;
+            var result = await _backend
+                .MoveToFailedAsync(this, message, Opts.RemoveOnFail, token, fetchNext, stackTraceJson)
+                .ConfigureAwait(false);
+
+            if (result.FinishedOn > 0)
+            {
+                FinishedOn = result.FinishedOn;
+            }
+
+            next = result.Next;
+        }
+        else if (retryDelay > 0)
+        {
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            // Saturated or custom delays (e.g. long.MaxValue) must not overflow the
+            // backend's `timestamp + delay` and wrap into an already-due deadline.
+            retryDelay = Math.Min(retryDelay, long.MaxValue - now);
+            next = await _backend
+                .MoveToDelayedAsync(
+                    Id!,
+                    now,
+                    retryDelay,
+                    token,
+                    fetchNext,
+                    skipAttempt: false,
+                    failedReason: message,
+                    stackTraceJson: stackTraceJson)
+                .ConfigureAwait(false);
+            Delay = retryDelay;
+        }
+        else
+        {
+            await _backend
+                .RetryJobAsync(Id!, Opts.Lifo ?? false, token, message, stackTraceJson)
+                .ConfigureAwait(false);
         }
 
         AttemptsMade += 1;
-        return result.Next;
+        return next;
+    }
+
+    private async Task<(bool Retry, long Delay)> ShouldRetryJobAsync(
+        Exception error, BackoffStrategy? backoffStrategy, int? maxStartedAttempts)
+    {
+        var reachedMaxStartedAttempts = maxStartedAttempts is > 0 && maxStartedAttempts <= AttemptsStarted;
+        if (AttemptsMade + 1 >= Attempts || error is UnrecoverableException || reachedMaxStartedAttempts)
+        {
+            return (false, 0);
+        }
+
+        var delay = await Backoffs
+            .CalculateAsync(Opts.Backoff, AttemptsMade + 1, error, this, backoffStrategy)
+            .ConfigureAwait(false);
+
+        return delay == -1 ? (false, 0) : (true, delay ?? 0);
     }
 
     // -- Internal serialization helpers used by the backend --
@@ -371,6 +435,12 @@ public class Job
                 bo.Delay = bdv;
             }
 
+            if (backoff.TryGetProperty("jitter", out var bj) && bj.TryGetDouble(out var bjv) &&
+                bjv >= 0 && bjv <= 1)
+            {
+                bo.Jitter = bjv;
+            }
+
             opts.Backoff = bo;
         }
 
@@ -385,8 +455,76 @@ public class Job
             opts.KeepLogs = klv;
         }
 
+        if (root.TryGetProperty("removeOnComplete", out var roc))
+        {
+            opts.RemoveOnComplete = ParseRemoveOn(roc);
+        }
+
+        if (root.TryGetProperty("removeOnFail", out var rof))
+        {
+            opts.RemoveOnFail = ParseRemoveOn(rof);
+        }
+
         return opts;
     }
+
+    /// <summary>
+    /// Reads a stored <c>removeOnComplete</c>/<c>removeOnFail</c> value in any
+    /// of the forms the BullMQ runtimes write: a boolean, a number (keep the
+    /// last N) or a <c>{count, age, limit}</c> object. Returns null for an
+    /// unrecognized value so the worker default (or keep-all) applies.
+    /// </summary>
+    private static object? ParseRemoveOn(JsonElement value)
+    {
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.True:
+                return true;
+            case JsonValueKind.False:
+                return false;
+            case JsonValueKind.Number:
+                return ReadCount(value);
+            case JsonValueKind.Object:
+                return new KeepJobs
+                {
+                    Count = value.TryGetProperty("count", out var count) ? ReadCount(count) : null,
+                    Age = value.TryGetProperty("age", out var age) ? ReadAge(age) : null,
+                    Limit = value.TryGetProperty("limit", out var limit) ? ReadCount(limit) : null,
+                };
+            default:
+                return null;
+        }
+    }
+
+    // Fractions round away from zero so a value never crosses into a different
+    // meaning: a positive count stays >= 1 (0 means remove) and a negative count
+    // (keep all) stays negative, e.g. 0.5 -> 1 and -0.5 -> -1.
+    private static int? ReadCount(JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Number)
+        {
+            return null;
+        }
+
+        if (value.TryGetInt32(out var i))
+        {
+            return i;
+        }
+
+        if (!value.TryGetDouble(out var d) || !double.IsFinite(d))
+        {
+            return null;
+        }
+
+        var rounded = d < 0 ? Math.Floor(d) : Math.Ceiling(d);
+        return (int)Math.Clamp(rounded, int.MinValue, int.MaxValue);
+    }
+
+    // Fractional ages round up (a longer window keeps more). A negative age is
+    // ignored, as the PostgreSQL backend does; on Redis it would evict every
+    // finished job, including the current one.
+    private static int? ReadAge(JsonElement value) =>
+        ReadCount(value) is { } age && age >= 0 ? age : null;
 
     private static RepeatOptions? ParseRepeat(string optsJson)
     {

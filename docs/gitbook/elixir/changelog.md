@@ -1,3 +1,10 @@
+## [2.4.2](https://github.com/taskforcesh/bullmq/compare/vex2.4.1...vex2.4.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* **postgres:** don't report a claimable job while the queue is maxed (python)(elixir)(dotnet) ([#5163](https://github.com/taskforcesh/bullmq/issues/5163)) ([42745d5](https://github.com/taskforcesh/bullmq/commit/42745d5e29fae50bf5f255bf2285cde903c2497a))
+
 ## [2.4.1](https://github.com/taskforcesh/bullmq/compare/vex2.4.0...vex2.4.1) (2026-11-12)
 
 

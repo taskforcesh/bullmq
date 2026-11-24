@@ -64,8 +64,8 @@ export default defineConfig({
       const version = changelog[2] ? ` ${changelog[2]}` : '';
       pageData.title = `${product}${version} changelog`;
       pageData.description =
-        `Release notes of ${product}${version}: features, bug fixes and performance ` +
-        'improvements of every release.';
+        `Release notes of ${product}${version}: features, bug fixes and ` +
+        'performance improvements of every release.';
     }
   },
 

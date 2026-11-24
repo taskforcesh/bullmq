@@ -1,3 +1,17 @@
+## [3.6.3](https://github.com/taskforcesh/bullmq/compare/vpy3.6.2...vpy3.6.3) (2026-11-19)
+
+
+### Bug Fixes
+
+* **postgres:** don't report a claimable job while the queue is maxed (python)(elixir)(dotnet) ([#5163](https://github.com/taskforcesh/bullmq/issues/5163)) ([42745d5](https://github.com/taskforcesh/bullmq/commit/42745d5e29fae50bf5f255bf2285cde903c2497a))
+
+## [3.6.2](https://github.com/taskforcesh/bullmq/compare/vpy3.6.1...vpy3.6.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* **worker:** stop spinning on a canceled helper task in close() and pause() [python] ([#5054](https://github.com/taskforcesh/bullmq/issues/5054)) fixes [#5053](https://github.com/taskforcesh/bullmq/issues/5053) ([9ea047f](https://github.com/taskforcesh/bullmq/commit/9ea047fd43cc530eef73a04ccab0d8519f20cbb9))
+
 ## [3.6.1](https://github.com/taskforcesh/bullmq/compare/vpy3.6.0...vpy3.6.1) (2026-11-12)
 
 
