@@ -1076,6 +1076,58 @@ describe('PostgreSQL backend operations', () => {
     }
   });
 
+  describe('moveJobFromActiveToWait lock check', () => {
+    it('moves an active job back to wait with the right token', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const id = await backend.addJob(makeJob(), '');
+        await backend.moveToActive('right-token');
+
+        await expect(
+          backend.moveJobFromActiveToWait(id, 'right-token'),
+        ).resolves.toBeGreaterThanOrEqual(0);
+        expect(await backend.getState(id)).toBe('waiting');
+      } finally {
+        await backend.close();
+      }
+    });
+
+    it('rejects a lock mismatch and leaves the job active', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const id = await backend.addJob(makeJob(), '');
+        await backend.moveToActive('right-token');
+
+        await expect(
+          backend.moveJobFromActiveToWait(id, 'wrong-token'),
+        ).rejects.toThrow(/Lock mismatch/);
+        expect(await backend.getState(id)).toBe('active');
+      } finally {
+        await backend.close();
+      }
+    });
+
+    it('rejects a missing lock', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const id = await backend.addJob(makeJob(), '');
+        await backend.moveToActive('right-token');
+        // Token '0' bypasses the lock check and releases the lock.
+        await backend.moveJobFromActiveToWait(id, '0');
+
+        await expect(
+          backend.moveJobFromActiveToWait(id, 'right-token'),
+        ).rejects.toThrow(/Missing lock/);
+        expect(await backend.getState(id)).toBe('waiting');
+      } finally {
+        await backend.close();
+      }
+    });
+  });
+
   it('appends and reads job logs', async () => {
     const backend = newBackend();
     try {
