@@ -314,6 +314,150 @@ describe('bun redis adapter', () => {
     });
   });
 
+  describe('outages', () => {
+    /**
+     * TCP proxy in front of Redis, so a test can make Redis unreachable and
+     * reachable again without restarting it.
+     */
+    function createProxy() {
+      const probe = Bun.listen({
+        hostname: '127.0.0.1',
+        port: 0,
+        socket: { data() {} },
+      });
+      const port = probe.port;
+      probe.stop(true);
+
+      type ProxyData = {
+        upstream?: Bun.Socket<undefined>;
+        pending: Buffer[];
+      };
+      let listener: ReturnType<typeof Bun.listen<ProxyData>> | undefined;
+      const upstreamSockets = new Set<Bun.Socket<undefined>>();
+      const openSockets = new Set<{ end(): void }>();
+      const endSocket = (socket?: { end(): void }) => {
+        try {
+          socket?.end();
+        } catch {
+          // already ended
+        }
+      };
+
+      return {
+        url: `redis://127.0.0.1:${port}`,
+        start() {
+          if (listener) {
+            return;
+          }
+          listener = Bun.listen<ProxyData>({
+            hostname: '127.0.0.1',
+            port,
+            socket: {
+              open(client) {
+                openSockets.add(client);
+                client.data = { pending: [] };
+                Bun.connect({
+                  hostname: redisHost,
+                  port: redisPort,
+                  socket: {
+                    open(upstream) {
+                      client.data.upstream = upstream;
+                      upstreamSockets.add(upstream);
+                      openSockets.add(upstream);
+                      for (const chunk of client.data.pending.splice(0)) {
+                        upstream.write(chunk);
+                      }
+                    },
+                    data(_upstream, chunk) {
+                      client.write(chunk);
+                    },
+                    close(upstream) {
+                      upstreamSockets.delete(upstream);
+                      endSocket(client);
+                    },
+                    error(upstream) {
+                      upstreamSockets.delete(upstream);
+                      endSocket(upstream);
+                      endSocket(client);
+                    },
+                  },
+                }).catch(() => endSocket(client));
+              },
+              data(client, chunk) {
+                const upstream = client.data.upstream;
+                if (upstream) {
+                  upstream.write(chunk);
+                } else {
+                  client.data.pending.push(Buffer.from(chunk));
+                }
+              },
+              close(client) {
+                openSockets.delete(client);
+                endSocket(client.data?.upstream);
+              },
+              error(client) {
+                openSockets.delete(client);
+                endSocket(client);
+                endSocket(client.data?.upstream);
+              },
+            },
+          });
+        },
+        stop() {
+          listener?.stop(true);
+          listener = undefined;
+          for (const socket of openSockets) {
+            endSocket(socket);
+          }
+          openSockets.clear();
+          upstreamSockets.clear();
+        },
+        upstreamCount: () => upstreamSockets.size,
+      };
+    }
+
+    it('a Queue and Worker created before the first connection work once Redis is up', async () => {
+      const proxy = createProxy();
+      const adapter = createBunRedisClient(
+        new RedisClient(proxy.url, { autoReconnect: false }),
+      );
+      const firstError = new Promise(resolve => adapter.once('error', resolve));
+      adapter.on('error', () => {});
+      const queueName = `test-bun-cold-${randomUUID()}`;
+      const processed: string[] = [];
+      let queue: Queue | undefined;
+      let worker: Worker | undefined;
+      try {
+        await firstError;
+        expect(['connecting', 'reconnecting']).toContain(adapter.status);
+        queue = new Queue(queueName, { connection: adapter, prefix });
+        worker = new Worker(
+          queueName,
+          async job => {
+            processed.push(job.name);
+          },
+          { connection: adapter, prefix },
+        );
+        worker.on('error', () => {});
+        queue.on('error', () => {});
+        proxy.start();
+        await Bun.sleep(200);
+        await queue.add('cold', {});
+        const deadline = Date.now() + 10000;
+        while (processed.length === 0 && Date.now() < deadline) {
+          await Bun.sleep(50);
+        }
+        expect(processed).toEqual(['cold']);
+      } finally {
+        await worker?.close();
+        await queue?.close();
+        await cleanQueue(queueName);
+        await adapter.quit();
+        proxy.stop();
+      }
+    });
+  });
+
   describe('Queue operations via bun adapter', () => {
     let queue: Queue;
     let queueName: string;

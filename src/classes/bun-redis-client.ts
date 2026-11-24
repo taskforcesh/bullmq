@@ -172,6 +172,13 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     if (this.ready) {
       return 'ready';
     }
+    // RedisConnection.waitUntilReady calls connect() on 'wait' and keeps its
+    // one-shot rejection; 'connecting' makes it wait for 'ready' like ioredis.
+    // Checked after `ready`: the connect promise is still set for a tick after
+    // 'ready' is emitted, and reporting 'connecting' there drops the event.
+    if (!this.closing && (this.connecting || this.materializing)) {
+      return 'connecting';
+    }
     if (this.raw?.connected) {
       return 'connect';
     }
@@ -369,6 +376,12 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       this.statusOverride = undefined;
       if (!this.ready) {
         await (this.readying ?? this._handleConnected());
+      }
+      // The auto-connect started in the constructor can still own
+      // `this.connecting` after the socket is up. Wait for it to settle so a
+      // resolved connect() does not keep reporting 'connecting'.
+      if (this.connecting) {
+        await this.connecting;
       }
       return;
     }
