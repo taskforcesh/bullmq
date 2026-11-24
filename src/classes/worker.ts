@@ -702,6 +702,7 @@ export class Worker<
         >>(() => this._getNextJob(token, { block: true }), {
           delayInMs: this.opts.runRetryDelay,
           onlyEmitError: true,
+          delayAfterEmit: true,
         });
         asyncFifoQueue.add(fetchedJob);
 
@@ -1583,6 +1584,7 @@ export class Worker<
       span?: Span;
       maxRetries?: number;
       onlyEmitError?: boolean;
+      delayAfterEmit?: boolean;
     },
   ): Promise<T> {
     let retry = 0;
@@ -1601,6 +1603,17 @@ export class Worker<
           }
 
           if (opts.onlyEmitError) {
+            if (
+              opts.delayAfterEmit &&
+              opts.delayInMs &&
+              !this.paused &&
+              !this.closing
+            ) {
+              if (!this.abortDelayController) {
+                this.abortDelayController = new AbortController();
+              }
+              await this.delay(opts.delayInMs, this.abortDelayController);
+            }
             return;
           } else {
             throw err;

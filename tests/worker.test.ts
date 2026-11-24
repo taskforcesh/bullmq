@@ -1256,6 +1256,99 @@ describe('workers', () => {
     });
   });
 
+  describe('when a non-connection error is emitted and onlyEmitError is set', () => {
+    const offlineQueueMessage =
+      "Stream isn't writeable and enableOfflineQueue options is false";
+
+    it('waits delayInMs before returning', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const errors: Error[] = [];
+      worker.on('error', err => errors.push(err));
+
+      const start = Date.now();
+      await worker['retryIfFailed'](
+        () => Promise.reject(new Error(offlineQueueMessage)),
+        { delayInMs: 200, onlyEmitError: true, delayAfterEmit: true },
+      );
+
+      expect(Date.now() - start).toBeGreaterThanOrEqual(190);
+      expect(errors).toHaveLength(1);
+      expect(errors[0].message).toBe(offlineQueueMessage);
+
+      await worker.close();
+    });
+
+    it('does not wait when delayAfterEmit is not set', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+      worker.on('error', () => {});
+
+      const start = Date.now();
+      await worker['retryIfFailed'](
+        () => Promise.reject(new Error(offlineQueueMessage)),
+        { delayInMs: 5000, onlyEmitError: true },
+      );
+
+      expect(Date.now() - start).toBeLessThan(1000);
+
+      await worker.close();
+    });
+
+    it('does not wait while the worker is closing', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+      worker.on('error', () => {});
+
+      const closePromise = worker.close();
+
+      const start = Date.now();
+      await worker['retryIfFailed'](
+        () => Promise.reject(new Error(offlineQueueMessage)),
+        { delayInMs: 5000, onlyEmitError: true, delayAfterEmit: true },
+      );
+
+      expect(Date.now() - start).toBeLessThan(1000);
+
+      await closePromise;
+    });
+
+    it('stops waiting when the worker is closed during the delay', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+      worker.on('error', () => {});
+
+      const start = Date.now();
+      const retrying = worker['retryIfFailed'](
+        () => Promise.reject(new Error(offlineQueueMessage)),
+        { delayInMs: 5000, onlyEmitError: true, delayAfterEmit: true },
+      );
+
+      await delay(100);
+      await worker.close();
+      await retrying;
+
+      expect(Date.now() - start).toBeLessThan(2000);
+    });
+  });
+
   describe('when waiting for a job', () => {
     it('reconnects blocking transport after a connection error (#4378)', async () => {
       const worker = new Worker(queueName, NoopProc, {
@@ -2686,6 +2779,7 @@ describe('workers', () => {
         autorun: false,
         connection,
         prefix,
+        runRetryDelay: 50,
       },
     );
     await worker.waitUntilReady();
