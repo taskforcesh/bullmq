@@ -105,6 +105,16 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0011_obliterate_producer_lock.sql'),
   },
+  {
+    version: 12,
+    name: '0012_move_active_to_wait_lock_check',
+    // Function-body fix only (CREATE OR REPLACE, identical signature). The
+    // only behaviour change is on a wrong or missing lock token, where the
+    // function now returns -2/-6 instead of silently skipping the move, so
+    // clients from the same major keep working against the updated schema.
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0012_move_active_to_wait_lock_check.sql'),
+  },
 ];
 
 /**
