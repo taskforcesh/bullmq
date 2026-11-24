@@ -776,14 +776,12 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     // are written contiguously without any other command interleaving.
     return (this.raw.send<T>(command, args) as Promise<T>).catch((err: any) => {
       if (isBunConnectionClosedError(err)) {
-        // During an intentional teardown (quit()/disconnect()) resolve to
-        // null instead of rejecting. Bun's close() abruptly rejects every
-        // in-flight command, so without this a shared client shut down at app
-        // exit floods dozens of unhandled ConnectionClosedError rejections.
-        // This mirrors the node-redis adapter, which swallows connection-closed
-        // errors while destroying. Unexpected drops still reject so BullMQ can
-        // react (reconnect / retry).
-        if (this.closing || this.closed) {
+        // Only an intentional teardown (quit/disconnect) resolves in-flight
+        // commands to null. `onclose` sets `closed` before Bun rejects pending
+        // commands, so checking `closed` turned every unexpected drop into a
+        // null reply (for example a `queue.add` reporting a job that was
+        // never stored).
+        if (this.closing) {
           return null as unknown as T;
         }
         return Promise.reject<T>(new ConnectionClosedError(err.message, err));

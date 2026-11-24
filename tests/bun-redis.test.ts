@@ -570,6 +570,35 @@ describe('bun redis adapter', () => {
         await parent.quit();
       }
     });
+
+    it('in-flight commands reject on an unexpected drop', async () => {
+      const raw = new RedisClient(`redis://${redisHost}:${redisPort}`, {
+        autoReconnect: false,
+      });
+      const adapter = createBunRedisClient(raw);
+      adapter.on('error', () => {});
+      await adapter.connect();
+      try {
+        const id = await raw.send('CLIENT', ['ID']);
+        const pending = [0, 1].map(() =>
+          adapter.sendCommand('BLPOP', [`${prefix}:never`, '0']).then(
+            value => ({ ok: true as const, value }),
+            (err: unknown) => ({ ok: false as const, err }),
+          ),
+        );
+        await Bun.sleep(100);
+        await rawClient.send('CLIENT', ['KILL', 'ID', String(id)]);
+        const settled = await Promise.all(pending);
+        for (const result of settled) {
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.err).toBeInstanceOf(ConnectionClosedError);
+          }
+        }
+      } finally {
+        await adapter.quit();
+      }
+    });
   });
 
   describe('Queue operations via bun adapter', () => {
