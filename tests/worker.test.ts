@@ -568,49 +568,65 @@ describe('workers', () => {
     { timeout: 12000 },
     async () => {
       let err;
+      let resolveProcessingStarted!: () => void;
+      let releaseProcessing!: () => void;
+      const processingStarted = new Promise<void>(resolve => {
+        resolveProcessingStarted = resolve;
+      });
+      const processingGate = new Promise<void>(resolve => {
+        releaseProcessing = resolve;
+      });
+      const addedJob = await queue.add('test', { foo: 'bar' });
 
       const worker = new Worker(
         queueName,
         async job => {
-          expect(job.data.foo).toBe('bar');
+          resolveProcessingStarted();
+          if (job.data.foo !== 'bar') {
+            err = new Error('Processed job data does not match');
+          }
 
           if (addedJob.id !== job.id) {
             err = new Error(
               'Processed job id does not match that of added job',
             );
           }
+          await processingGate;
           await delay(500);
         },
         { connection, prefix },
       );
 
-      await worker.waitUntilReady();
+      let anotherWorker: Worker | undefined;
+      try {
+        await worker.waitUntilReady();
+        await processingStarted;
 
-      const addedJob = await queue.add('test', { foo: 'bar' });
+        anotherWorker = new Worker(
+          queueName,
+          async () => {
+            err = new Error(
+              'The second queue should not have received a job to process',
+            );
+          },
+          { connection, prefix },
+        );
 
-      const anotherWorker = new Worker(
-        queueName,
-        async () => {
-          err = new Error(
-            'The second queue should not have received a job to process',
-          );
-        },
-        { connection, prefix },
-      );
+        await anotherWorker.waitUntilReady();
 
-      await anotherWorker.waitUntilReady();
-
-      await new Promise<void>(resolve => {
-        worker.on('completed', async () => {
-          resolve();
+        const completed = new Promise<void>(resolve => {
+          worker.once('completed', () => resolve());
         });
-      });
+        releaseProcessing();
+        await completed;
 
-      await worker.close();
-      await anotherWorker.close();
-
-      if (err) {
-        throw err;
+        if (err) {
+          throw err;
+        }
+      } finally {
+        releaseProcessing();
+        await worker.close();
+        await anotherWorker?.close();
       }
     },
   );

@@ -41,9 +41,10 @@
     "copy:sql:dotnet": "rm -f ./dotnet/src/BullMQ/Postgres/migrations/*.sql ./dotnet/src/BullMQ/Postgres/commands/*.sql && cpx \"./src/postgres/migrations/*.sql\" ./dotnet/src/BullMQ/Postgres/migrations && cpx \"./src/postgres/commands/*.sql\" ./dotnet/src/BullMQ/Postgres/commands",
     "copy:main:type": "cpx \"./dist/esm/classes/main.d.ts\" ./dist/cjs/classes && cpx \"./dist/esm/classes/main-worker.d.ts\" ./dist/cjs/classes",
     "coverage": "vitest run --no-file-parallelism --coverage --config vitest.coverage.config.ts",
-    "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
+    "docs": "yarn docs:patch && typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
     "docs:api": "yarn docs:json && typedoc --includeVersion --excludeExternals --excludeProtected --excludePrivate --readme ./README.md --entryPointStrategy merge --out ./docs/gitbook/public/api $(find ./apiVersions -maxdepth 1 -name 'v*.json' | sort -r)",
-    "docs:json": "mkdir -p ./apiVersions && yarn pretest && typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v6.json --name v6",
+    "docs:json": "mkdir -p ./apiVersions && yarn pretest && yarn docs:patch && typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v6.json --name v6",
+    "docs:patch": "node scripts/patch-typedoc-minimatch.js",
     "docs:dev": "yarn docs:api && vitepress dev docs",
     "docs:build": "yarn docs:api && vitepress build docs",
     "docs:preview": "vitepress preview docs",
@@ -242,6 +243,7 @@
     "brace-expansion": "5.0.12",
     "fast-uri": "3.1.9",
     "js-yaml": "5.5.0",
+    "minimatch": "11.0.8",
     "tar": "7.5.22",
     "yaml": "2.9.1"
   }
