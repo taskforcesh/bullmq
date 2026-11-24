@@ -195,6 +195,141 @@ class TestRateLimiter(unittest.IsolatedAsyncioTestCase):
             await worker.close()
             await queue.close()
 
+    async def test_maximum_rate_limit_delay_rechecks_without_processing_early(self):
+        duration = 1400
+        maximum_delay = 180
+        queue = Queue(self.queueName, {"prefix": prefix})
+        await queue.addBulk([
+            {"name": "rate test", "data": {}},
+            {"name": "rate test", "data": {}},
+        ])
+        rate_limited = asyncio.Event()
+        rechecked = asyncio.Event()
+        completed = asyncio.Event()
+        processed_at = []
+        rate_limited_at = []
+        rechecked_at = []
+        activation_attempts = 0
+        completed_count = 0
+
+        async def process(job: Job, token: str):
+            processed_at.append(time.monotonic())
+            if len(processed_at) == 1:
+                await queue.rateLimit(duration)
+                rate_limited_at.append(time.monotonic())
+                rate_limited.set()
+                raise RateLimitError()
+            return "done"
+
+        worker = Worker(self.queueName, process, {
+            "prefix": prefix,
+            "maximumRateLimitDelay": maximum_delay,
+            "limiter": {"max": 1, "duration": duration},
+            "autorun": False,
+        })
+        move_to_active = worker.backend.moveToActive
+
+        async def track_activation(token, opts):
+            nonlocal activation_attempts
+            activation_attempts += 1
+            if activation_attempts == 2:
+                rechecked_at.append(time.monotonic())
+                rechecked.set()
+            return await move_to_active(token, opts)
+
+        worker.backend.moveToActive = track_activation
+
+        def on_completed(job, result):
+            nonlocal completed_count
+            completed_count += 1
+            if completed_count == 2:
+                completed.set()
+
+        worker.on("completed", on_completed)
+        run_task = asyncio.create_task(worker.run())
+        try:
+            await asyncio.wait_for(rate_limited.wait(), 5)
+            await asyncio.wait_for(rechecked.wait(), 2)
+            self.assertEqual(len(processed_at), 1)
+            delay_until_recheck = rechecked_at[0] - rate_limited_at[0]
+            self.assertGreaterEqual(delay_until_recheck, maximum_delay * 0.75 / 1000)
+            self.assertLess(delay_until_recheck, maximum_delay * 3 / 1000)
+
+            await asyncio.wait_for(completed.wait(), 5)
+            self.assertEqual(len(processed_at), 3)
+            self.assertGreaterEqual(
+                processed_at[1] - rate_limited_at[0], duration * 0.9 / 1000
+            )
+        finally:
+            await worker.close()
+            await run_task
+            await queue.close()
+
+    async def test_pause_resume_preserves_rate_limit_with_concurrent_fetches(self):
+        duration = 1400
+        queue = Queue(self.queueName, {"prefix": prefix})
+        limit_started = time.monotonic()
+        await queue.rateLimit(duration)
+        await queue.addBulk([
+            {"name": "rate test", "data": {}},
+            {"name": "rate test", "data": {}},
+        ])
+        processed_at = []
+        completed = asyncio.Event()
+        activation_attempts = 0
+
+        async def process(job: Job, token: str):
+            processed_at.append(time.monotonic())
+            if len(processed_at) == 2:
+                completed.set()
+            return "done"
+
+        worker = Worker(self.queueName, process, {
+            "prefix": prefix,
+            "concurrency": 2,
+            "maximumRateLimitDelay": 5000,
+            "limiter": {"max": 1, "duration": duration},
+            "autorun": False,
+        })
+        move_to_active = worker.backend.moveToActive
+
+        async def track_activation(token, opts):
+            nonlocal activation_attempts
+            activation_attempts += 1
+            return await move_to_active(token, opts)
+
+        worker.backend.moveToActive = track_activation
+        run_task = asyncio.create_task(worker.run())
+        try:
+            deadline = asyncio.get_running_loop().time() + 5
+            while len(worker._rate_limit_wakeups) < 2:
+                if asyncio.get_running_loop().time() >= deadline:
+                    self.fail(
+                        "Both concurrent fetches did not enter the rate-limit wait"
+                    )
+                await asyncio.sleep(0.01)
+
+            pause_started = time.monotonic()
+            await worker.pause()
+            self.assertLess(time.monotonic() - pause_started, 0.5)
+            attempts_while_paused = activation_attempts
+
+            await asyncio.sleep(0.2)
+            self.assertEqual(activation_attempts, attempts_while_paused)
+            self.assertEqual(processed_at, [])
+            self.assertEqual(await queue.getJobCounts("wait"), {"wait": 2})
+
+            worker.resume()
+            await asyncio.wait_for(completed.wait(), 5)
+            self.assertEqual(len(processed_at), 2)
+            self.assertGreaterEqual(
+                processed_at[0] - limit_started, duration * 0.9 / 1000
+            )
+        finally:
+            await worker.close()
+            await run_task
+            await queue.close()
+
     async def test_move_to_wait_fails_for_missing_job(self):
         """Mirrors 'when job does not exist / should fail with job existence
         error'."""
