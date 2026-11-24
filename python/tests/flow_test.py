@@ -704,6 +704,162 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
             await parent_queue.obliterate(force=True)
             await parent_queue.close()
 
+    async def test_get_dependencies_pagination(self):
+        parent_queue_name = f"__test_parent_queue__{uuid4().hex}"
+        queue_names = {
+            category: f"__test_{category}_queue__{uuid4().hex}"
+            for category in ("processed", "unprocessed", "ignored", "failed")
+        }
+        queues = {
+            category: Queue(name, {"prefix": prefix})
+            for category, name in queue_names.items()
+        }
+        children_per_category = 8
+        job_ids = {
+            category: [
+                f"{category}-{i}-{uuid4().hex}-{'x' * 64}"
+                for i in range(children_per_category)
+            ]
+            for category in queue_names
+        }
+
+        flow = FlowProducer({"prefix": prefix})
+        workers = []
+        try:
+            tree = await flow.add({
+                "name": "parent",
+                "queueName": parent_queue_name,
+                "data": {},
+                "children": [
+                    {
+                        "name": category,
+                        "queueName": queue_names[category],
+                        "data": {"idx": i},
+                        "opts": {
+                            "jobId": job_id,
+                            **(
+                                {"ignoreDependencyOnFailure": True}
+                                if category == "ignored"
+                                else (
+                                    {"failParentOnFailure": True}
+                                    if category == "failed"
+                                    else {}
+                                )
+                            ),
+                        },
+                    }
+                    for category in queue_names
+                    for i, job_id in enumerate(job_ids[category])
+                ],
+            })
+
+            done = {
+                category: asyncio.Event()
+                for category in ("processed", "ignored", "failed")
+            }
+            finished_counts = {category: 0 for category in done}
+
+            def mark_finished(category):
+                finished_counts[category] += 1
+                if finished_counts[category] == children_per_category:
+                    done[category].set()
+
+            def make_processor(category):
+                async def process(job: Job, token: str):
+                    if category == "processed":
+                        return {"idx": job.data["idx"]}
+                    raise Exception(category)
+
+                return process
+
+            for category in done:
+                worker = Worker(
+                    queue_names[category],
+                    make_processor(category),
+                    {"prefix": prefix},
+                )
+                worker.on(
+                    "completed" if category == "processed" else "failed",
+                    lambda *args, category=category: mark_finished(category),
+                )
+                workers.append(worker)
+
+            await asyncio.wait_for(
+                asyncio.gather(*(event.wait() for event in done.values())),
+                10,
+            )
+
+            job = tree["job"]
+            options = {
+                category: {"cursor": 0, "count": 1}
+                for category in queue_names
+            }
+            page = await job.getDependencies(options)
+            next_cursors = {
+                "processed": "nextProcessedCursor",
+                "unprocessed": "nextUnprocessedCursor",
+                "ignored": "nextIgnoredCursor",
+                "failed": "nextFailedCursor",
+            }
+
+            expected_keys = {
+                category: {
+                    f"{queues[category].qualifiedName}:{job_id}"
+                    for job_id in job_ids[category]
+                }
+                for category in queue_names
+            }
+            expected_processed = {
+                f"{queues['processed'].qualifiedName}:{job_id}": {"idx": i}
+                for i, job_id in enumerate(job_ids["processed"])
+            }
+            expected_ignored = {
+                f"{queues['ignored'].qualifiedName}:{job_id}": "ignored"
+                for job_id in job_ids["ignored"]
+            }
+            results = {
+                "processed": dict(page["processed"]),
+                "unprocessed": set(page["unprocessed"]),
+                "ignored": dict(page["ignored"]),
+                "failed": set(page["failed"]),
+            }
+            for category in queue_names:
+                nonzero_cursor_page = await job.getDependencies({
+                    category: {"cursor": 1, "count": 1},
+                })
+                self.assertEqual(
+                    set(nonzero_cursor_page),
+                    {category, next_cursors[category]},
+                )
+                cursor = page[next_cursors[category]]
+                for _ in range(children_per_category * 4):
+                    if cursor == 0:
+                        break
+                    next_page = await job.getDependencies({
+                        category: {"cursor": cursor, "count": 1},
+                    })
+                    self.assertEqual(
+                        set(next_page),
+                        {category, next_cursors[category]},
+                    )
+                    results[category].update(next_page[category])
+                    cursor = next_page[next_cursors[category]]
+                self.assertEqual(cursor, 0)
+                self.assertEqual(set(results[category]), expected_keys[category])
+
+            self.assertEqual(results["processed"], expected_processed)
+            self.assertEqual(results["ignored"], expected_ignored)
+        finally:
+            for worker in workers:
+                await worker.close()
+            await flow.close()
+            for queue in queues.values():
+                await queue.obliterate(force=True)
+                await queue.close()
+            parent_queue = Queue(parent_queue_name, {"prefix": prefix})
+            await parent_queue.obliterate(force=True)
+            await parent_queue.close()
+
 
 if __name__ == '__main__':
     unittest.main()

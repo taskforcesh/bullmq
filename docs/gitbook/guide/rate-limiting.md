@@ -212,7 +212,7 @@ await queue.removeRateLimitKey();
 
 {% endtab %}
 
-{% tab title="Python" %}
+{% tab title="Python (Redis only)" %}
 
 ```python
 from bullmq import Queue
