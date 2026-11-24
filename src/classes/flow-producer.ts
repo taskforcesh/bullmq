@@ -274,6 +274,15 @@ export class FlowProducer<
         });
 
         const results = await this.backend.addFlow(entries);
+
+        // There is one result per node, root first. A child whose command
+        // failed was not stored, so don't resolve as if the whole tree was.
+        for (const [err] of results || []) {
+          if (err) {
+            throw err;
+          }
+        }
+
         const [result] = results || [];
         if (result) {
           const [err, jobId] = result;
