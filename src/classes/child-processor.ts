@@ -39,7 +39,10 @@ export class ChildProcessor {
   public async init(processorFile: string): Promise<void> {
     let processor;
     try {
-      const { default: processorFn } = await import(processorFile);
+      // The caller supplies the processor path at runtime.
+      const { default: processorFn } = await import(
+        /* webpackIgnore: true */ processorFile
+      );
       processor = processorFn;
 
       if (processor.default) {
