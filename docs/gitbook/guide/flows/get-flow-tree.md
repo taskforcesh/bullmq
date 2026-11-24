@@ -166,7 +166,7 @@ const { children, job } = limitedTree;
 limited_tree = await flow.getFlow({
     "id": top_job.id,
     "queueName": "topQueueName",
-    "depth": 1,  # get only the first level of children
+    "depth": 2,  # get only the first level of children
     "maxChildren": 2,  # get only 2 children per node
 })
 
