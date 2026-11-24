@@ -1109,6 +1109,35 @@ describe('PostgreSQL backend operations', () => {
       }
     });
 
+    it('treats an expired lock as missing, even for its owner', async () => {
+      const queueName = `ops-${randomUUID()}`;
+      const backend = createPostgresBackend(queueName, {
+        connection: { connectionString: url, schema, migrate: true },
+      });
+      try {
+        await backend.waitUntilReady();
+        const id = await backend.addJob(makeJob(), '');
+        await backend.moveToActive('right-token');
+        // Expire the lock without clearing lock_token, as happens before
+        // stalled recovery runs.
+        await pool.query(
+          `UPDATE "${schema}".job SET locked_until_ms = 1
+            WHERE queue = $1 AND id = $2`,
+          [queueName, id],
+        );
+
+        await expect(
+          backend.moveJobFromActiveToWait(id, 'right-token'),
+        ).rejects.toThrow(/Missing lock/);
+        await expect(
+          backend.moveJobFromActiveToWait(id, 'other-token'),
+        ).rejects.toThrow(/Missing lock/);
+        expect(await backend.getState(id)).toBe('active');
+      } finally {
+        await backend.close();
+      }
+    });
+
     it('rejects a missing lock', async () => {
       const backend = newBackend();
       try {

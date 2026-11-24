@@ -5,8 +5,10 @@
 -- still returned the limiter window, so the caller could not tell the move had
 -- not happened. It now mirrors removeLock in moveJobFromActiveToWait-9.lua:
 --   * -1 when the job no longer exists,
---   * -2 when the job has no lock (missing lock),
---   * -6 when the lock is held by another token (lock mismatch).
+--   * -2 when the job has no lock (missing lock). An expired lock counts as
+--     missing, as on Redis where the lock key's TTL has already removed it,
+--     even if stalled recovery has not cleared lock_token yet,
+--   * -6 when a live lock is held by another token (lock mismatch).
 -- A token of '0' still bypasses the lock check. Same signature as before.
 CREATE OR REPLACE FUNCTION move_active_to_wait(
   p_queue text, p_id text, p_token text, p_now bigint
@@ -17,11 +19,13 @@ AS $$
 DECLARE
   v_state    job_state;
   v_lock     text;
+  v_until    bigint;
   v_priority integer;
   v_seq      bigint;
   v_expire   bigint;
 BEGIN
-  SELECT state, lock_token, priority INTO v_state, v_lock, v_priority
+  SELECT state, lock_token, locked_until_ms, priority
+    INTO v_state, v_lock, v_until, v_priority
     FROM job WHERE queue = p_queue AND id = p_id
     FOR UPDATE;
   IF NOT FOUND THEN
@@ -29,7 +33,7 @@ BEGIN
   END IF;
 
   IF p_token <> '0' THEN
-    IF v_lock IS NULL THEN
+    IF v_lock IS NULL OR v_until IS NULL OR v_until <= p_now THEN
       RETURN -2;
     ELSIF v_lock <> p_token THEN
       RETURN -6;
