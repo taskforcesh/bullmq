@@ -15,6 +15,7 @@ import {
 } from 'bun:test';
 import { RedisClient } from 'bun';
 import {
+  ConnectionClosedError,
   createBunRedisClient,
   FlowProducer,
   Job,
@@ -454,6 +455,63 @@ describe('bun redis adapter', () => {
         await cleanQueue(queueName);
         await adapter.quit();
         proxy.stop();
+      }
+    });
+
+    it('connect() rejects with ConnectionClosedError while Redis is down', async () => {
+      const proxy = createProxy();
+      const adapter = createBunRedisClient(
+        new RedisClient(proxy.url, { autoReconnect: false }),
+        { lazyConnect: true },
+      );
+      adapter.on('error', () => {});
+      try {
+        await expect(adapter.connect()).rejects.toBeInstanceOf(
+          ConnectionClosedError,
+        );
+      } finally {
+        await adapter.quit();
+        proxy.stop();
+      }
+    });
+
+    it('an unexpected drop is emitted as a ConnectionClosedError', async () => {
+      const adapter = createBunRedisClient(
+        new RedisClient(`redis://${redisHost}:${redisPort}`, {
+          autoReconnect: false,
+        }),
+      );
+      try {
+        await adapter.connect();
+        const id = await adapter.sendCommand('CLIENT', ['ID']);
+        const emitted = new Promise<unknown>(resolve =>
+          adapter.once('error', resolve),
+        );
+        await rawClient.send('CLIENT', ['KILL', 'ID', String(id)]);
+        expect(await emitted).toBeInstanceOf(ConnectionClosedError);
+      } finally {
+        await adapter.quit();
+      }
+    });
+
+    it('a transaction on a dropped connection rejects with ConnectionClosedError', async () => {
+      // IRedisTransaction has no set(); this file has no other MULTI. hset is
+      // the write the transaction type actually exposes.
+      const url = `redis://${redisHost}:${redisPort}`;
+      const raw = new RedisClient(url, { autoReconnect: false });
+      const adapter = createBunRedisClient(raw);
+      adapter.on('error', () => {});
+      await adapter.connect();
+      try {
+        const id = await adapter.sendCommand('CLIENT', ['ID']);
+        const closed = new Promise(resolve => adapter.once('close', resolve));
+        await rawClient.send('CLIENT', ['KILL', 'ID', String(id)]);
+        await closed;
+        await expect(
+          adapter.multi().hset(`${prefix}:tx`, { field: 'v' }).exec(),
+        ).rejects.toBeInstanceOf(ConnectionClosedError);
+      } finally {
+        await adapter.quit();
       }
     });
   });

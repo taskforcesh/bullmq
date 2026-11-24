@@ -256,7 +256,12 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       this.emit('close');
 
       if (error) {
-        this.emit('error', error);
+        this.emit(
+          'error',
+          isBunConnectionClosedError(error)
+            ? new ConnectionClosedError(error.message, error)
+            : error,
+        );
       }
     };
   }
@@ -401,6 +406,11 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
 
       this.connecting = this.raw
         .connect()
+        .catch(err => {
+          throw isBunConnectionClosedError(err)
+            ? new ConnectionClosedError(err.message, err)
+            : err;
+        })
         .then(() => {
           this.hasConnected = true;
           this.closed = false;
@@ -1489,14 +1499,16 @@ class BunRedisTransaction implements IRedisTransaction {
         const value = transformer ? transformer(result) : result;
         return [null, value];
       });
-    } catch (err) {
+    } catch (err: any) {
       // Try to discard the MULTI state on error
       try {
         await raw.send('DISCARD', []);
       } catch {
         // ignore
       }
-      throw err;
+      throw isBunConnectionClosedError(err)
+        ? new ConnectionClosedError(err.message, err)
+        : err;
     }
   }
 }
