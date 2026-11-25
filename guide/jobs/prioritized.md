@@ -82,6 +82,44 @@ queue.add("wall", serde_json::json!({ "color": "blue" })).priority(7).await?;
 // finally pink.
 ```
 
+**Go**
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("Paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	if _, err := queue.Add(ctx, "wall", map[string]string{"color": "pink"}, &bullmq.JobOptions{Priority: bullmq.Int64(10)}); err != nil {
+		log.Fatal(err)
+	}
+	if _, err := queue.Add(ctx, "wall", map[string]string{"color": "brown"}, &bullmq.JobOptions{Priority: bullmq.Int64(5)}); err != nil {
+		log.Fatal(err)
+	}
+	if _, err := queue.Add(ctx, "wall", map[string]string{"color": "blue"}, &bullmq.JobOptions{Priority: bullmq.Int64(7)}); err != nil {
+		log.Fatal(err)
+	}
+
+	// The wall will be painted first brown, then blue and
+	// finally pink.
+}
+```
+
 **PHP**
 
 ```php
@@ -144,6 +182,19 @@ let job = queue
 job.change_priority(1, false).await?;
 ```
 
+**Go**
+
+```go
+job, err := queue.Add(ctx, "test2", map[string]string{"foo": "bar"}, &bullmq.JobOptions{Priority: bullmq.Int64(16)})
+if err != nil {
+	log.Fatal(err)
+}
+
+if err := job.ChangePriority(ctx, 1, false); err != nil {
+	log.Fatal(err)
+}
+```
+
 or if you want to use the [LIFO (_Last In, First Out_)](https://docs.bullmq.io/guide/jobs/lifo.md) option:
 
 **TypeScript**
@@ -183,6 +234,19 @@ let job = queue
     .await?;
 
 job.change_priority(0, true).await?;
+```
+
+**Go**
+
+```go
+job, err := queue.Add(ctx, "test2", map[string]string{"foo": "bar"}, &bullmq.JobOptions{Priority: bullmq.Int64(16)})
+if err != nil {
+	log.Fatal(err)
+}
+
+if err := job.ChangePriority(ctx, 0, true); err != nil {
+	log.Fatal(err)
+}
 ```
 
 ## Get Prioritized jobs
@@ -225,6 +289,15 @@ var jobs = await queue.GetJobsAsync(new[] { "prioritized" });
 let jobs = queue.get_jobs(&["prioritized"], 0, -1, false).await?;
 
 let jobs2 = queue.get_prioritized(0, -1).await?;
+```
+
+**Go**
+
+```go
+jobs, err := queue.Jobs(ctx, 0, -1, false, bullmq.StatePrioritized)
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 **PHP**
@@ -282,6 +355,16 @@ var counts = await queue.GetCountsPerPriorityAsync(new long[] { 1, 0 });
 ```rust
 let counts = queue.get_counts_per_priority(&[1, 0]).await?;
 // {1: 11, 0: 10}
+```
+
+**Go**
+
+```go
+counts, err := queue.CountsPerPriority(ctx, 1, 0)
+if err != nil {
+	log.Fatal(err)
+}
+// map[0:10 1:11]
 ```
 
 **PHP**

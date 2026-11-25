@@ -1,7 +1,7 @@
 
 # What is BullMQ
 
-BullMQ is a fast and robust distributed job and message queue. It is available natively for **TypeScript/JavaScript** ([Node.js](https://nodejs.org) and [Bun](https://bun.sh)), **Python**, **Elixir**, **Rust**, **.NET** and **PHP**, and it can run on top of [Redis™](https://redis.io) (or compatible datastores such as [Valkey](https://valkey.io) and [Dragonfly](https://www.dragonflydb.io)) as well as on [PostgreSQL](https://www.postgresql.org).
+BullMQ is a fast and robust distributed job and message queue. It is available natively for **TypeScript/JavaScript** ([Node.js](https://nodejs.org) and [Bun](https://bun.sh)), **Python**, **Elixir**, **Rust**, **.NET**, **Go** and **PHP**, and it can run on top of [Redis™](https://redis.io) (or compatible datastores such as [Valkey](https://valkey.io) and [Dragonfly](https://www.dragonflydb.io)) as well as on [PostgreSQL](https://www.postgresql.org).
 
 BullMQ helps you solve many of the problems found in modern architectures, from offloading heavy work out of your web servers to orchestrating complex workflows across micro-services written in different languages.
 
@@ -26,6 +26,7 @@ All the SDKs are developed in the same [repository](https://github.com/taskforce
 | [Elixir](https://docs.bullmq.io/elixir/introduction.md)               | [bullmq](https://hex.pm/packages/bullmq)                                        | `{:bullmq, "~> 2.3"}`                       | ✅     | ✅         |
 | [.NET](https://docs.bullmq.io/dotnet/introduction.md)                 | [BullMQ](https://www.nuget.org/packages/BullMQ)                                 | `dotnet add package BullMQ`                 | ✅     | ✅         |
 | [Rust](https://docs.bullmq.io/rust/introduction.md)                   | [bullmq-official](https://crates.io/crates/bullmq-official)                     | `cargo add bullmq-official --rename bullmq` | ✅     | ❌         |
+| [Go](https://docs.bullmq.io/golang/introduction.md)                   | [bullmq-go](https://pkg.go.dev/github.com/taskforcesh/bullmq-go)                | `go get github.com/taskforcesh/bullmq-go`   | ✅     | ✅         |
 | [PHP](https://docs.bullmq.io/php/introduction.md)                     | [taskforcesh/bullmq-php](https://github.com/taskforcesh/bullmq/tree/master/php) | Composer                                    | ✅     | ❌         |
 
 The TypeScript package is the reference implementation and the one covered by the [Guide](https://docs.bullmq.io/guide/introduction.md), so it is usually the first to receive new features. The other SDKs implement the core classes (`Queue`, `Worker`, `QueueEvents`, `FlowProducer` and job schedulers), with the exception of PHP, which provides a producer-only `Queue` client. Check the introduction page of each language for the details.
@@ -47,7 +48,7 @@ If you are new to Message Queues, you may wonder why they are needed after all. 
 
 - [x] **Minimal CPU usage due to a polling-free design**
 - [x] **Distributed job execution based on Redis™ or PostgreSQL**
-- [x] **Native SDKs for TypeScript, Python, Elixir, Rust, .NET and PHP, all interoperable**
+- [x] **Native SDKs for TypeScript, Python, Elixir, Rust, .NET, Go and PHP, all interoperable**
 - [x] **LIFO and FIFO jobs**
 - [x] **Priorities**
 - [x] **Delayed jobs**

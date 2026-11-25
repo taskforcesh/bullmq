@@ -61,6 +61,37 @@ queue
     .await?;
 ```
 
+**Go**
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("Paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	// Add a job that will be processed before all others
+	_, err = queue.Add(ctx, "wall", map[string]string{"color": "pink"}, &bullmq.JobOptions{LIFO: bullmq.Bool(true)})
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
 **PHP**
 
 ```php

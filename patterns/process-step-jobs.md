@@ -164,6 +164,55 @@ let worker = Worker::with_options(
 .await?;
 ```
 
+**Go**
+
+```go
+type Step int
+
+const (
+	StepInitial Step = iota
+	StepSecond
+	StepFinish
+)
+
+worker, err := bullmq.NewWorker("queueName", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	var data struct {
+		Step Step `json:"step"`
+	}
+	if err := job.DecodeData(&data); err != nil {
+		return nil, err
+	}
+	step := data.Step
+	for step != StepFinish {
+		switch step {
+		case StepInitial:
+			if err := doInitialStepStuff(ctx); err != nil {
+				return nil, err
+			}
+			if err := job.UpdateData(ctx, map[string]Step{"step": StepSecond}); err != nil {
+				return nil, err
+			}
+			step = StepSecond
+		case StepSecond:
+			if err := doSecondStepStuff(ctx); err != nil {
+				return nil, err
+			}
+			if err := job.UpdateData(ctx, map[string]Step{"step": StepFinish}); err != nil {
+				return nil, err
+			}
+			return StepFinish, nil
+		default:
+			return nil, errors.New("invalid step")
+		}
+	}
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+go worker.Run(ctx)
+```
+
 By saving the next step value every time we complete the previous step (here, saving it in the job's data), we can ensure that if the job errors and retries, it does so starting from the correct step.
 
 ## Delaying
@@ -203,6 +252,7 @@ const worker = new Worker(
             step: Step.Finish,
           });
           step = Step.Finish;
+          break;
         }
         default: {
           throw new Error('invalid step');
@@ -339,6 +389,69 @@ let worker = Worker::with_options(
 )
 .await?;
 ```
+
+**Go**
+
+```go
+import (
+	"context"
+	"errors"
+	"log"
+	"time"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+)
+
+type Step int
+
+const (
+	StepInitial Step = iota
+	StepSecond
+	StepFinish
+)
+
+worker, err := bullmq.NewWorker("queueName", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	var data struct {
+		Step Step `json:"step"`
+	}
+	if err := job.DecodeData(&data); err != nil {
+		return nil, err
+	}
+	step := data.Step
+	for step != StepFinish {
+		switch step {
+		case StepInitial:
+			if err := doInitialStepStuff(ctx); err != nil {
+				return nil, err
+			}
+			if err := job.UpdateData(ctx, map[string]Step{"step": StepSecond}); err != nil {
+				return nil, err
+			}
+			if err := job.MoveToDelayed(ctx, 200*time.Millisecond); err != nil {
+				return nil, err
+			}
+			return nil, bullmq.ErrDelayed
+		case StepSecond:
+			if err := doSecondStepStuff(ctx); err != nil {
+				return nil, err
+			}
+			if err := job.UpdateData(ctx, map[string]Step{"step": StepFinish}); err != nil {
+				return nil, err
+			}
+			step = StepFinish
+		default:
+			return nil, errors.New("invalid step")
+		}
+	}
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+go worker.Run(ctx)
+```
+
+> **Note:** In Go, `job.MoveToDelayed` takes the delay, a `time.Duration`, instead of a timestamp, and always uses the job's token. The processor then returns `bullmq.ErrDelayed`.
 
 ## Waiting Children
 
@@ -547,6 +660,86 @@ let worker = Worker::with_options(
     WorkerOptions::new().connection(connection),
 )
 .await?;
+```
+
+**Go**
+
+```go
+import (
+	"context"
+	"errors"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+)
+
+type Step int
+
+const (
+	StepInitial Step = iota
+	StepSecond
+	StepThird
+	StepFinish
+)
+
+worker, err := bullmq.NewWorker("parentQueueName", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	var data struct {
+		Step Step `json:"step"`
+	}
+	if err := job.DecodeData(&data); err != nil {
+		return nil, err
+	}
+	step := data.Step
+	for step != StepFinish {
+		switch step {
+		case StepInitial:
+			if err := doInitialStepStuff(ctx); err != nil {
+				return nil, err
+			}
+			if _, err := childrenQueue.Add(ctx, "child-1", map[string]string{"foo": "bar"}, &bullmq.JobOptions{
+				Parent: &bullmq.ParentOptions{ID: job.ID, Queue: job.QueueName},
+			}); err != nil {
+				return nil, err
+			}
+			if err := job.UpdateData(ctx, map[string]Step{"step": StepSecond}); err != nil {
+				return nil, err
+			}
+			step = StepSecond
+		case StepSecond:
+			if err := doSecondStepStuff(ctx); err != nil {
+				return nil, err
+			}
+			if _, err := childrenQueue.Add(ctx, "child-2", map[string]string{"foo": "bar"}, &bullmq.JobOptions{
+				Parent: &bullmq.ParentOptions{ID: job.ID, Queue: job.QueueName},
+			}); err != nil {
+				return nil, err
+			}
+			if err := job.UpdateData(ctx, map[string]Step{"step": StepThird}); err != nil {
+				return nil, err
+			}
+			step = StepThird
+		case StepThird:
+			shouldWait, err := job.MoveToWaitingChildren(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+			if !shouldWait {
+				if err := job.UpdateData(ctx, map[string]Step{"step": StepFinish}); err != nil {
+					return nil, err
+				}
+				return StepFinish, nil
+			}
+			return nil, bullmq.ErrWaitingChildren
+		default:
+			return nil, errors.New("invalid step")
+		}
+	}
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+go worker.Run(ctx)
 ```
 
 > **Note:** Bullmq-Pro: this pattern could be handled by using observables; in that case, we do not need to save next step.
@@ -782,6 +975,104 @@ let worker = Worker::with_options(
     WorkerOptions::new().connection(connection),
 )
 .await?;
+```
+
+**Go**
+
+```go
+import (
+	"context"
+	"errors"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+)
+
+type Step int
+
+const (
+	StepInitial Step = iota
+	StepSecond
+	StepThird
+	StepFinish
+)
+
+flow, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+
+worker, err := bullmq.NewWorker("parentQueueName", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	var data struct {
+		Step Step `json:"step"`
+	}
+	if err := job.DecodeData(&data); err != nil {
+		return nil, err
+	}
+	step := data.Step
+	for step != StepFinish {
+		switch step {
+		case StepInitial:
+			if err := doInitialStepStuff(ctx); err != nil {
+				return nil, err
+			}
+			if _, err := flow.Add(ctx, bullmq.FlowJob{
+				Name:      "child-job",
+				QueueName: "childrenQueueName",
+				Data:      map[string]any{},
+				Children: []bullmq.FlowJob{
+					{
+						Name:      name,
+						Data:      map[string]any{"idx": 0, "foo": "bar"},
+						QueueName: "grandchildrenQueueName",
+					},
+					{
+						Name:      name,
+						Data:      map[string]any{"idx": 1, "foo": "baz"},
+						QueueName: "grandchildrenQueueName",
+					},
+				},
+				Opts: &bullmq.JobOptions{
+					Parent: &bullmq.ParentOptions{ID: job.ID, Queue: job.QueueName},
+				},
+			}, nil); err != nil {
+				return nil, err
+			}
+
+			if err := job.UpdateData(ctx, map[string]Step{"step": StepSecond}); err != nil {
+				return nil, err
+			}
+			step = StepSecond
+		case StepSecond:
+			if err := doSecondStepStuff(ctx); err != nil {
+				return nil, err
+			}
+			if err := job.UpdateData(ctx, map[string]Step{"step": StepThird}); err != nil {
+				return nil, err
+			}
+			step = StepThird
+		case StepThird:
+			shouldWait, err := job.MoveToWaitingChildren(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+			if !shouldWait {
+				if err := job.UpdateData(ctx, map[string]Step{"step": StepFinish}); err != nil {
+					return nil, err
+				}
+				return StepFinish, nil
+			}
+			return nil, bullmq.ErrWaitingChildren
+		default:
+			return nil, errors.New("invalid step")
+		}
+	}
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+go worker.Run(ctx)
 ```
 
 > **Note:** Manually moving jobs using special errors does **not** increment the attemptsMade property. This property is incremented on regular job completion or failure (this includes retries using a backoff strategy). To control how many times a job is allowed to skip an attempt made using one of our special errors like: **DelayedError**, **RateLimitError**, **WaitingChildrenError** or **WaitingError**. To control how many times a job is allowed to start processing, use the **maxStartedAttempts** option.

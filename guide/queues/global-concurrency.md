@@ -26,6 +26,14 @@ use bullmq::Queue;
 queue.set_global_concurrency(4).await?;
 ```
 
+**Go**
+
+```go
+if err := queue.SetGlobalConcurrency(ctx, 4); err != nil {
+	log.Fatal(err)
+}
+```
+
 And in order to get this value:
 
 **TypeScript**
@@ -53,6 +61,15 @@ global_concurrency = await queue.getGlobalConcurrency()
 let global_concurrency = queue.get_global_concurrency().await?;
 ```
 
+**Go**
+
+```go
+globalConcurrency, err := queue.GlobalConcurrency(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+```
+
 > **Note:** Note that if you choose a concurrency level in your workers, it will not override the global one, it will just be the maximum jobs a given worker can process in parallel but never more than the global one.
 
 ### Remove Global Concurrency
@@ -75,6 +92,14 @@ await queue.removeGlobalConcurrency()
 
 ```rust
 queue.remove_global_concurrency().await?;
+```
+
+**Go**
+
+```go
+if err := queue.RemoveGlobalConcurrency(ctx); err != nil {
+	log.Fatal(err)
+}
 ```
 
 ## Read more:

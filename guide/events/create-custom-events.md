@@ -58,6 +58,50 @@ await queueEventsProducer.publishEvent({
 })
 ```
 
+**Go**
+
+```go
+const queueName = "customQueue"
+queueEventsProducer, err := bullmq.NewQueueEventsProducer(queueName, &bullmq.QueueEventsProducerOptions{
+	Backend: backend,
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer queueEventsProducer.Close()
+
+// Run resolves the default "$" cursor asynchronously, so an event published
+// right after starting it could be missed. Read from the start of the stream.
+queueEvents, err := bullmq.NewQueueEvents(queueName, &bullmq.QueueEventsOptions{
+	Backend:     backend,
+	LastEventID: "0",
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer queueEvents.Close()
+
+go func() {
+	if err := queueEvents.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		log.Print(err)
+	}
+}()
+go func() {
+	for ev := range queueEvents.Events() {
+		if ev.Event == "example" {
+			// custom logic with ev.Data["custom"]
+		}
+	}
+}()
+
+_, err = queueEventsProducer.PublishEvent(ctx, "example", map[string]any{
+	"custom": "value",
+}, 0)
+if err != nil {
+	log.Fatal(err)
+}
+```
+
 Only eventName attribute is required.
 
 > **Warning:** Some event names are reserved from [Queue Listener API Reference](https://docs.bullmq.io/api/interfaces/v6.QueueListener.html).

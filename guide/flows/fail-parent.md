@@ -7,7 +7,7 @@ In certain workflows, you may need a parent job to fail immediately if any of it
 
 - Selective Application: Only child jobs with failParentOnFailure: true will trigger the failure of their parent job upon failing. Child jobs without this option will not affect the parent's state if they fail.
 - Recursive Behavior: If a child with this option fails, and its parent also has failParentOnFailure: true, the failure propagates upward through the job tree, potentially affecting grandparents and beyond.
-- Immediate Effect: As soon as a qualifying child job fails, the parent job is moved to the failed state.
+- Deferred Failure: As soon as a qualifying child job fails, the parent job is marked to fail and moved out of waiting-children. It moves to the failed state when a worker picks it up, without running its processor (see the hint below).
 
 ### Example
 
@@ -174,6 +174,61 @@ let original_tree = flow
             .add_child(FlowJob::new(name, "childrenQueueName", json!({ "idx": 3, "foo": "foo" }))?),
     )
     .await?;
+```
+
+**Go**
+
+```go
+import (
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+)
+
+flow, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flow.Close()
+
+originalTree, err := flow.Add(ctx, bullmq.FlowJob{
+	Name:      "root-job",
+	QueueName: "topQueueName",
+	Data:      map[string]any{},
+	Children: []bullmq.FlowJob{
+		{
+			Name:      "child-job",
+			Data:      map[string]any{"idx": 0, "foo": "bar"},
+			QueueName: "childrenQueueName",
+			// This child will fail its parent if it fails
+			Opts: &bullmq.JobOptions{FailParentOnFailure: bullmq.Bool(true)},
+			Children: []bullmq.FlowJob{
+				{
+					Name:      name,
+					Data:      map[string]any{"idx": 1, "foo": "bah"},
+					QueueName: "grandChildrenQueueName",
+					// This grandchild will fail its parent if it fails
+					Opts: &bullmq.JobOptions{FailParentOnFailure: bullmq.Bool(true)},
+				},
+				{
+					Name:      name,
+					Data:      map[string]any{"idx": 2, "foo": "baz"},
+					QueueName: "grandChildrenQueueName",
+					// No FailParentOnFailure; its failure won't affect the parent
+				},
+			},
+		},
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 3, "foo": "foo"},
+			QueueName: "childrenQueueName",
+			// No FailParentOnFailure; its failure won't affect the parent
+		},
+	},
+}, nil)
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 > **Note:** As soon as a _child_ with this option fails, the parent job will be marked as failed lazily. A worker must process the parent job before it transitions to the failed state. The failure will result in an _UnrecoverableError_ with the message **child {childKey} failed**. Additionally, this option will be validated recursively, meaning a grandparent or higher-level ancestor could also fail depending on the configuration.

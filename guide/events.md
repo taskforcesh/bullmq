@@ -122,6 +122,28 @@ while let Some(event) = my_worker.next_event().await {
 }
 ```
 
+**Go**
+
+```go
+myWorker, err := bullmq.NewWorker("Paint", processor, &bullmq.WorkerOptions{
+	Backend: backend,
+	OnEvent: func(ev bullmq.Event) {
+		switch ev.Type {
+		case bullmq.EventDrained:
+			// Queue is drained, no more jobs left
+		case bullmq.EventCompleted:
+			// job has completed
+		case bullmq.EventFailed:
+			// job has failed
+		}
+	},
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer myWorker.Close()
+```
+
 The events above are local for the workers that actually completed the jobs. However, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the [`QueueEvents`](https://docs.bullmq.io/api/classes/v6.QueueEvents.html) class:
 
 **TypeScript**
@@ -224,6 +246,31 @@ while let Some(entry) = queue_events.next_event().await {
         }
         _ => {}
     }
+}
+```
+
+**Go**
+
+```go
+queueEvents, err := bullmq.NewQueueEvents("Paint", &bullmq.QueueEventsOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer queueEvents.Close()
+
+go func() {
+	if err := queueEvents.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		log.Print(err)
+	}
+}()
+
+for ev := range queueEvents.Events() {
+	switch ev.Event {
+	case "completed":
+		// Called every time a job is completed in any worker.
+	case "progress":
+		// ev.JobID received a progress event: ev.DecodeProgress(&data)
+	}
 }
 ```
 
@@ -362,6 +409,34 @@ while let Some(entry) = queue_events.next_event().await {
 }
 ```
 
+**Go**
+
+```go
+queueEvents, err := bullmq.NewQueueEvents("Paint", &bullmq.QueueEventsOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer queueEvents.Close()
+
+go func() {
+	if err := queueEvents.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		log.Print(err)
+	}
+}()
+
+// The return value and the progress data are JSON documents.
+for ev := range queueEvents.Events() {
+	switch ev.Event {
+	case "completed":
+		sendToDashboard(map[string]any{"type": "completed", "jobId": ev.JobID, "returnvalue": json.RawMessage(ev.ReturnValue())})
+	case "failed":
+		sendToDashboard(map[string]any{"type": "failed", "jobId": ev.JobID, "failedReason": ev.FailedReason()})
+	case "progress":
+		sendToDashboard(map[string]any{"type": "progress", "jobId": ev.JobID, "data": json.RawMessage(ev.Data["data"])})
+	}
+}
+```
+
 Publish progress from the worker with `job.updateProgress(...)` (number or
 object). That pairs well with [working with batches](https://docs.bullmq.io/guide/queues/batches.md)
 when one job represents many items, or when you want a live bar for a long job:
@@ -397,6 +472,14 @@ job.update_progress(bullmq::JobProgress::Object(serde_json::json!({ "completed":
     .await?;
 ```
 
+**Go**
+
+```go
+if err := job.UpdateProgress(ctx, map[string]int{"completed": 3, "total": 10}); err != nil {
+	return nil, err
+}
+```
+
 Close `QueueEvents` on shutdown so its Redis connection is released:
 
 **TypeScript**
@@ -429,6 +512,14 @@ await queueEvents.CloseAsync();
 queue_events.close().await;
 ```
 
+**Go**
+
+```go
+if err := queueEvents.Close(); err != nil {
+	log.Fatal(err)
+}
+```
+
 > **Note:** For jobs processed with [BullMQ Pro batches](https://docs.bullmq.io/bullmq-pro/batches.md),
 > worker-local `completed` / `failed` listeners see the wrapper batch job. Use
 > `QueueEvents` / `QueueEventsPro` when you need per-job lifecycle events.
@@ -444,7 +535,7 @@ import { Queue } from 'bullmq';
 
 const queue = new Queue('paint');
 
-await queue.trimEvents(10); // leaves 10 events
+await queue.trimEvents(10); // leaves at least 10 events
 ```
 
 **Python**
@@ -454,7 +545,7 @@ from bullmq import Queue
 
 queue = Queue("paint")
 
-await queue.trimEvents(10)  # leaves 10 events
+await queue.trimEvents(10)  # leaves at least 10 events
 ```
 
 **Rust**
@@ -464,7 +555,22 @@ use bullmq::Queue;
 
 let queue = Queue::new("paint").await?;
 
-queue.trim_events(10).await?; // leaves 10 events
+queue.trim_events(10).await?; // leaves at least 10 events
+```
+
+**Go**
+
+```go
+queue, err := bullmq.NewQueue("paint", &bullmq.QueueOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer queue.Close()
+
+// leaves at least 10 events
+if _, err := queue.TrimEvents(ctx, 10); err != nil {
+	log.Fatal(err)
+}
 ```
 
 ## Read more:

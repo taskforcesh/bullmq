@@ -67,7 +67,18 @@ let first_job = queue
     .await?;
 ```
 
-This example will create a new Job Scheduler that will produce a new job every second. It will also return the first job created for this Job Scheduler, which will be in "delayed" status waiting to be processed after 1 second.
+**Go**
+
+```go
+// Creates a new Job Scheduler that generates a job every 1000 milliseconds (1 second)
+firstJob, err := queue.UpsertJobScheduler(ctx, "my-scheduler-id",
+	bullmq.RepeatOptions{Every: 1000}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+This example will create a new Job Scheduler that will produce a new job every second. It will also return the first job created for this Job Scheduler, which is added without any delay, so it is processed right away; the following jobs are produced every second after it.
 
 Now there are also a few important considerations that need to be explained here.:
 
@@ -180,6 +191,26 @@ let first_job = queue
         ),
     )
     .await?;
+```
+
+**Go**
+
+```go
+// Create jobs every day at 3:15 (am)
+firstJob, err := queue.UpsertJobScheduler(ctx, "my-scheduler-id",
+	bullmq.RepeatOptions{Pattern: "0 15 3 * * *"},
+	&bullmq.JobTemplate{
+		Name: "my-job-name",
+		Data: map[string]string{"foo": "bar"},
+		Opts: &bullmq.JobOptions{
+			Backoff:      &bullmq.Backoff{Type: bullmq.BackoffFixed, Delay: 3},
+			Attempts:     bullmq.Int64(5),
+			RemoveOnFail: bullmq.KeepCount(1000),
+		},
+	})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 All jobs produced by this scheduler will use the given settings. Note that in the future you could call "upsertJobScheduler" again with the given "my-scheduler-id" in order to update any settings of this particular job scheduler, such as the repeat options or/and the job's template settings.

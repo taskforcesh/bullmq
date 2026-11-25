@@ -82,6 +82,61 @@ let tree = flow
 let JobNode { children, job } = tree;
 ```
 
+**Go**
+
+```go
+flow, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flow.Close()
+
+originalTree, err := flow.Add(ctx, bullmq.FlowJob{
+	Name:      "root-job",
+	QueueName: "topQueueName",
+	Data:      map[string]any{},
+	Children: []bullmq.FlowJob{
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 0, "foo": "bar"},
+			QueueName: "childrenQueueName",
+			Children: []bullmq.FlowJob{
+				{
+					Name:      name,
+					Data:      map[string]any{"idx": 4, "foo": "baz"},
+					QueueName: "grandchildrenQueueName",
+				},
+			},
+		},
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 2, "foo": "foo"},
+			QueueName: "childrenQueueName",
+		},
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 3, "foo": "bis"},
+			QueueName: "childrenQueueName",
+		},
+	},
+}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+
+topJob := originalTree.Job
+
+tree, err := flow.GetFlow(ctx, bullmq.FlowGetOptions{
+	ID:        topJob.ID,
+	QueueName: "topQueueName",
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+children, job := tree.Children, tree.Job
+```
+
 > **Note:** Each _child_ may have a `job` property and in the case they have children as well, they would have the `children` property
 
 You may also need a way to limit that information if you have many children for one of the job nodes.
@@ -92,8 +147,8 @@ You may also need a way to limit that information if you have many children for 
 const limitedTree = await flow.getFlow({
   id: topJob.id,
   queueName: 'topQueueName',
-  depth: 1, // get only the first level of children
-  maxChildren: 2, // get only 2 children per node
+  depth: 2, // the root and its first level of children
+  maxChildren: 2, // about 2 children of each status per node
 });
 
 const { children, job } = limitedTree;
@@ -112,6 +167,26 @@ let limited_tree = flow
 
 let JobNode { children, job } = limited_tree;
 ```
+
+**Go**
+
+```go
+limitedTree, err := flow.GetFlow(ctx, bullmq.FlowGetOptions{
+	ID:          topJob.ID,
+	QueueName:   "topQueueName",
+	Depth:       2, // the root and its first level of children
+	MaxChildren: 2, // about 2 children of each status per node
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+children, job := limitedTree.Children, limitedTree.Job
+```
+
+> **Note:** `depth` counts the levels of the tree, the root included: `depth: 1` returns only the root job. In Rust, `depth` counts the levels below the root, so `.depth(1)` returns the same tree as `depth: 2` above.
+> 
+> `maxChildren` limits each group of children (processed, unprocessed, failed and ignored) separately. On Redis it is only a hint, passed as the `COUNT` of `SSCAN`/`HSCAN`: small groups are returned whole, so a node may get more children than `maxChildren`. Rust caps the total number of children per node at `max_children`.
 
 ## Read more:
 

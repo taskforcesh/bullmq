@@ -49,6 +49,18 @@ my_queue
     .await?;
 ```
 
+**Go**
+
+```go
+_, err := myQueue.Add(ctx, "test", map[string]string{"foo": "bar"}, &bullmq.JobOptions{
+	RemoveOnComplete: bullmq.RemoveAll(),
+	RemoveOnFail:     bullmq.RemoveAll(),
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
 **PHP**
 
 ```php
@@ -106,6 +118,18 @@ my_queue
     .remove_on_complete(RemoveOnFinish::Count(1000))
     .remove_on_fail(RemoveOnFinish::Count(5000))
     .await?;
+```
+
+**Go**
+
+```go
+_, err := myQueue.Add(ctx, "test", map[string]string{"foo": "bar"}, &bullmq.JobOptions{
+	RemoveOnComplete: bullmq.KeepCount(1000),
+	RemoveOnFail:     bullmq.KeepCount(5000),
+})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 **PHP**
@@ -198,6 +222,21 @@ my_queue
         limit: None,
     }))
     .await?;
+```
+
+**Go**
+
+```go
+_, err := myQueue.Add(ctx, "test", map[string]string{"foo": "bar"}, &bullmq.JobOptions{
+	RemoveOnComplete: &bullmq.RemoveOnFinish{
+		Age:   bullmq.Int64(3600), // keep up to 1 hour
+		Count: bullmq.Int64(1000), // keep up to 1000 jobs
+	},
+	RemoveOnFail: bullmq.KeepAge(24 * 3600), // keep up to 24 hours
+})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 **PHP**

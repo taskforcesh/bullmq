@@ -1,7 +1,7 @@
 
 # Quick Start
 
-> **Note:** This guide uses the TypeScript package, which runs on [Node.js](https://nodejs.org) and [Bun](https://bun.sh). If you are using another language, check the getting started section of the [Python](https://docs.bullmq.io/python/introduction.md), [Elixir](https://docs.bullmq.io/elixir/introduction.md), [.NET](https://docs.bullmq.io/dotnet/introduction.md), [Rust](https://docs.bullmq.io/rust/introduction.md) or [PHP](https://docs.bullmq.io/php/introduction.md) SDKs. All of them can work on the same queues.
+> **Note:** This guide uses the TypeScript package, which runs on [Node.js](https://nodejs.org) and [Bun](https://bun.sh). If you are using another language, check the getting started section of the [Python](https://docs.bullmq.io/python/introduction.md), [Elixir](https://docs.bullmq.io/elixir/introduction.md), [.NET](https://docs.bullmq.io/dotnet/introduction.md), [Rust](https://docs.bullmq.io/rust/introduction.md), [Go](https://docs.bullmq.io/golang/introduction.md) or [PHP](https://docs.bullmq.io/php/introduction.md) SDKs. All of them can work on the same queues.
 
 ## Install
 
@@ -135,7 +135,7 @@ queueEvents.on('progress', ({ jobId, data }, timestamp) => {
 
 ## Using PostgreSQL
 
-The same API runs on PostgreSQL 13 or newer. In TypeScript, install the [`pg`](https://node-postgres.com) package, apply BullMQ's schema migrations once (for example as a deployment step), and pass the `createPostgresBackend` factory as the last constructor argument. The Python, Elixir and .NET SDKs apply the migrations automatically on first use (see their introduction pages for the PostgreSQL driver they require):
+The same API runs on PostgreSQL 13 or newer. In TypeScript, install the [`pg`](https://node-postgres.com) package, apply BullMQ's schema migrations once (for example as a deployment step), and pass the `createPostgresBackend` factory as the last constructor argument. The Python, Elixir, .NET and Go SDKs apply the migrations automatically on first use (see their introduction pages for the PostgreSQL driver they require; Go can also apply them as a deployment step with `postgresbackend.Migrate`, and skip them at startup with the `SkipMigrations` option):
 
 ```
 $ npm install pg
@@ -245,6 +245,53 @@ await using var worker = new Worker(
     new WorkerOptions { Postgres = postgres });
 
 await worker.RunAsync();
+```
+
+**Go**
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/postgresbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	// Migrations are applied automatically on first use.
+	backend := postgresbackend.New(postgresbackend.Options{
+		ConnString: "postgres://postgres:postgres@localhost:5432/mydb",
+	})
+
+	queue, err := bullmq.NewQueue("foo", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	_, err = queue.Add(ctx, "myJobName", map[string]string{"foo": "bar"}, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	worker, err := bullmq.NewWorker("foo", func(ctx context.Context, job *bullmq.Job) (any, error) {
+		log.Println(string(job.Data))
+		return nil, nil
+	}, &bullmq.WorkerOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer worker.Close()
+
+	if err := worker.Run(ctx); err != nil {
+		log.Fatal(err)
+	}
+}
 ```
 
 Read more in the [PostgreSQL backend](https://docs.bullmq.io/guide/postgresql.md) section.

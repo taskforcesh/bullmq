@@ -38,4 +38,12 @@ await worker.CloseAsync();
 worker.close(30_000).await?;
 ```
 
-The shutdown behavior and timeout depend on the SDK. TypeScript, Python, and .NET wait for active jobs to finish without a built-in timeout. Rust's `close(30_000)` waits for up to 30 seconds and aborts unfinished processing when the deadline expires. Elixir waits up to 30 seconds by default; pass `timeout: milliseconds` to choose another deadline, or `force: true` to skip waiting. If shutdown ends before active jobs finish, they can be recovered as stalled by other workers (when stalled-job checking is configured).
+**Go**
+
+```go
+if err := worker.Close(); err != nil {
+	log.Fatal(err)
+}
+```
+
+The shutdown behavior and timeout depend on the SDK. TypeScript, Python, .NET, and Go wait for active jobs to finish without a built-in timeout. Rust's `close(30_000)` waits for up to 30 seconds and aborts unfinished processing when the deadline expires. Elixir waits up to 30 seconds by default; pass `timeout: milliseconds` to choose another deadline, or `force: true` to skip waiting. In Go, cancelling the context passed to `worker.Run` stops the worker sooner: it cancels the context of every active job, and `Run` returns once their processors have returned. If shutdown ends before active jobs finish, they can be recovered as stalled by other workers (when stalled-job checking is configured).

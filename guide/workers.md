@@ -102,6 +102,29 @@ let worker = Worker::new(queue_name, |mut job: Job, _token: CancellationToken| a
 .await?;
 ```
 
+**Go**
+
+```go
+worker, err := bullmq.NewWorker(queueName, func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// Optionally report some progress
+	if err := job.UpdateProgress(ctx, 42); err != nil {
+		return nil, err
+	}
+
+	// Optionally sending an object as progress
+	if err := job.UpdateProgress(ctx, map[string]string{"foo": "bar"}); err != nil {
+		return nil, err
+	}
+
+	// Do something with job
+	return "some value", nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+```
+
 The processor function can also receive an optional third parameter for job cancellation support:
 
 **TypeScript**
@@ -150,9 +173,22 @@ let worker = Worker::new(queue_name, |job: Job, token: CancellationToken| async 
 .await?;
 ```
 
+**Go**
+
+```go
+worker, err := bullmq.NewWorker(queueName, func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// ctx can be used to detect when a job has been cancelled
+	return "some value", nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+```
+
 > **Note:** Learn more about [cancelling jobs](https://docs.bullmq.io/guide/workers/cancelling-jobs.md) in the dedicated guide.
 
-> **Note:** When a worker instance is created, it launches the processor immediately
+> **Note:** When a worker instance is created, it launches the processor immediately. Go is the exception: a Go worker only starts processing when you call `worker.Run`.
 
 In order to decide when your processor should start its execution, pass `autorun: false` as part of worker options:
 
@@ -253,6 +289,35 @@ let worker = Worker::with_options(
 worker.run().await?;
 ```
 
+**Go**
+
+```go
+worker, err := bullmq.NewWorker(queueName, func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// Optionally report some progress
+	if err := job.UpdateProgress(ctx, 42); err != nil {
+		return nil, err
+	}
+
+	// Optionally sending an object as progress
+	if err := job.UpdateProgress(ctx, map[string]string{"foo": "bar"}); err != nil {
+		return nil, err
+	}
+
+	// Do something with job
+	return "some value", nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+// A Go worker never starts by itself: Run processes jobs until ctx is
+// cancelled or Close is called.
+if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	log.Fatal(err)
+}
+```
+
 Note that a processor can optionally return a value. This value can be retrieved either by getting the job and accessing the `returnvalue` property or by listening to the `completed` event:
 
 **TypeScript**
@@ -309,6 +374,16 @@ while let Some(event) = worker.next_event().await {
 }
 ```
 
+**Go**
+
+```go
+for ev := range worker.Events() {
+	if ev.Type == bullmq.EventCompleted {
+		// Do something with the return value (ev.Result).
+	}
+}
+```
+
 #### Progress
 
 Inside the worker process function it is also possible to emit progress events. Calling `job.progress` you can specify a number or an object if you have more complex needs. The `progress` event can be listened for in the same way as the `completed` event:
@@ -345,6 +420,16 @@ while let Some(event) = worker.next_event().await {
     if let WorkerEvent::Progress { job_id, progress } = event {
         // Do something with the return value.
     }
+}
+```
+
+**Go**
+
+```go
+for ev := range worker.Events() {
+	if ev.Type == bullmq.EventProgress {
+		// Do something with the progress (ev.Result).
+	}
 }
 ```
 
@@ -401,6 +486,16 @@ while let Some(event) = worker.next_event().await {
     if let WorkerEvent::Failed { job_id, error } = event {
         // Do something with the return value.
     }
+}
+```
+
+**Go**
+
+```go
+for ev := range worker.Events() {
+	if ev.Type == bullmq.EventFailed {
+		// Do something with the error (ev.Err).
+	}
 }
 ```
 
@@ -524,6 +619,35 @@ while let Some(entry) = queue_events.next_event().await {
 }
 ```
 
+**Go**
+
+```go
+queueEvents, err := bullmq.NewQueueEvents("Paint", &bullmq.QueueEventsOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer queueEvents.Close()
+
+go func() {
+	if err := queueEvents.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		log.Print(err)
+	}
+}()
+
+for ev := range queueEvents.Events() {
+	switch ev.Event {
+	case "completed":
+		// Called every time a job is completed by any worker:
+		// ev.JobID, ev.DecodeReturnValue(&returnvalue)
+	case "failed":
+		// Called whenever a job is moved to failed by any worker:
+		// ev.JobID, ev.FailedReason()
+	case "progress":
+		// ev.JobID received a progress event: ev.DecodeProgress(&data)
+	}
+}
+```
+
 Finally, you should attach an error listener to your worker to avoid NodeJS raising an unhandled exception when an error occurs. For example:
 
 **TypeScript**
@@ -581,6 +705,22 @@ while let Some(event) = worker.next_event().await {
         eprintln!("{err}");
     }
 }
+```
+
+**Go**
+
+```go
+worker, err := bullmq.NewWorker(queueName, process, &bullmq.WorkerOptions{
+	Backend: backend,
+	OnError: func(err error) {
+		// log the error
+		log.Print(err)
+	},
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
 ```
 
 > **Danger:** If the error handler is missing, your worker may stop processing jobs when an error is emitted! Find more info [here](https://nodejs.org/api/events.html#events_error_events).

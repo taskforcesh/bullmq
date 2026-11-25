@@ -40,6 +40,17 @@ let (concurrency, max, duration, max_len_events, paused) = (
 );
 ```
 
+**Go**
+
+```go
+meta, err := queue.Meta(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+concurrency, max, duration := meta.Concurrency, meta.Max, meta.Duration
+maxLenEvents, paused, version := meta.MaxLenEvents, meta.Paused, meta.Version
+```
+
 ## Read more:
 
 - 💡 [Get Meta API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#getmeta)

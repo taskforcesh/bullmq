@@ -126,6 +126,53 @@ let my_worker = Worker::with_options(
 .await?;
 ```
 
+**Go**
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	"github.com/redis/go-redis/v9"
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	// Create a new connection in every instance
+	backend := redisbackend.New(redisbackend.Options{Addr: "myredis.taskforce.run:32856"})
+
+	myQueue, err := bullmq.NewQueue("myqueue", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer myQueue.Close()
+
+	myWorker, err := bullmq.NewWorker("myqueue", func(ctx context.Context, job *bullmq.Job) (any, error) {
+		return nil, nil
+	}, &bullmq.WorkerOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer myWorker.Close()
+
+	// Or reuse your own go-redis client, which BullMQ never closes. Workers
+	// still open a dedicated connection for their blocking commands.
+	rdb := redis.NewClient(&redis.Options{Addr: "myredis.taskforce.run:32856"})
+	defer rdb.Close()
+
+	sharedQueue, err := bullmq.NewQueue("myqueue", &bullmq.QueueOptions{
+		Backend: redisbackend.New(redisbackend.Options{Client: rdb}),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer sharedQueue.Close()
+}
+```
+
 **PHP**
 
 ```php

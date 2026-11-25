@@ -34,6 +34,14 @@ await myQueue.PauseAsync();
 my_queue.pause().await?;
 ```
 
+**Go**
+
+```go
+if err := myQueue.Pause(ctx); err != nil {
+	log.Fatal(err)
+}
+```
+
 **PHP**
 
 ```php
@@ -66,9 +74,17 @@ await my_worker.pause()
 my_worker.pause();
 ```
 
-TypeScript and Python wait for active jobs to complete (or fail) when pausing a worker. Rust and Elixir pause calls return immediately while active jobs continue running. Rust has no `force` option, and Elixir's `force` option currently has no effect.
+**Go**
 
-In TypeScript and Python, pass `true` to return immediately while current jobs continue running:
+```go
+if err := myWorker.Pause(ctx, false); err != nil {
+	log.Fatal(err)
+}
+```
+
+TypeScript, Python and Go wait for active jobs to complete (or fail) when pausing a worker; Go's `Pause` stops waiting when its `ctx` is done, and the worker stays paused. Rust and Elixir pause calls return immediately while active jobs continue running. Rust has no `force` option, and Elixir's `force` option currently has no effect.
+
+In TypeScript, Python and Go, pass `true` to return immediately while current jobs continue running:
 
 **TypeScript**
 
@@ -80,6 +96,14 @@ await myWorker.pause(true);
 
 ```python
 await my_worker.pause(True)
+```
+
+**Go**
+
+```go
+if err := myWorker.Pause(ctx, true); err != nil {
+	log.Fatal(err)
+}
 ```
 
 ## Read more:

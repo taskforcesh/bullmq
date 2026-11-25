@@ -84,6 +84,22 @@ let worker = Worker::with_options(
 .await?;
 ```
 
+**Go**
+
+```go
+worker, err := bullmq.NewWorker(queueName, func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// Do something with job
+	return "some value", nil
+}, &bullmq.WorkerOptions{
+	Backend:     backend,
+	Concurrency: 50,
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+```
+
 > **Note:** Note that the concurrency is only possible when workers perform asynchronous operations such as a call to a database or a external HTTP service, as this is how node supports concurrency natively. If your workers are very CPU intensive it is better to use [Sandboxed processors](https://docs.bullmq.io/guide/workers/sandboxed-processors.md).
 
 In addition, you can update the concurrency value as you need while your worker is running:
@@ -98,6 +114,14 @@ worker.concurrency = 5;
 
 ```rust
 worker.set_concurrency(5);
+```
+
+**Go**
+
+```go
+if err := worker.SetConcurrency(5); err != nil {
+	log.Fatal(err)
+}
 ```
 
 #### Multiple workers

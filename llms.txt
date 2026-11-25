@@ -1,6 +1,6 @@
 # BullMQ
 
-> BullMQ is an open source background job and message queue. It is available natively for TypeScript/JavaScript (Node.js and Bun), Python, Elixir, Rust, .NET and PHP, and runs on Redis (or compatible datastores such as Valkey and Dragonfly) and on PostgreSQL. All SDKs share the same data model, so producers and workers written in different languages can work on the same queues.
+> BullMQ is an open source background job and message queue. It is available natively for TypeScript/JavaScript (Node.js and Bun), Python, Elixir, Rust, .NET, Go and PHP, and runs on Redis (or compatible datastores such as Valkey and Dragonfly) and on PostgreSQL. All SDKs share the same data model, so producers and workers written in different languages can work on the same queues.
 
 This is the index of the BullMQ documentation. Every page is also available as Markdown by appending `.md` to its URL, and [llms-full.txt](https://docs.bullmq.io/llms-full.txt) contains all the pages except the changelogs in a single file.
 
@@ -185,7 +185,18 @@ This is the index of the BullMQ documentation. Every page is also available as M
 
 - [Introduction](https://docs.bullmq.io/php/introduction.md): BullMQ PHP client for adding jobs to queues.
 
-## .Net
+## Go
+
+- [Introduction](https://docs.bullmq.io/golang/introduction.md): BullMQ is available as a native Go package, running on Redis™ or PostgreSQL.
+- [Queues and Jobs](https://docs.bullmq.io/golang/queues-and-jobs.md): Adding jobs with BullMQ for Go - job options, delayed and prioritized jobs, deduplication and queue operations.
+- [Workers](https://docs.bullmq.io/golang/workers.md): Processing jobs with BullMQ for Go - concurrency, events, pausing, shutdown, cancellation, retries and rate limiting.
+- [Queue Events](https://docs.bullmq.io/golang/queue-events.md): Listening to the global events of a queue with BullMQ for Go.
+- [Flows](https://docs.bullmq.io/golang/flows.md): Adding flows (trees of parent and child jobs) with BullMQ for Go.
+- [Job Schedulers](https://docs.bullmq.io/golang/job-schedulers.md): Repeating jobs on a cron pattern or at a fixed interval with BullMQ for Go.
+- [PostgreSQL](https://docs.bullmq.io/golang/postgresql.md): Running BullMQ for Go on PostgreSQL - options, migrations, connections and known issues.
+- [API Reference](https://pkg.go.dev/github.com/taskforcesh/bullmq-go)
+
+## .NET
 
 - [Introduction](https://docs.bullmq.io/dotnet/introduction.md): BullMQ is available as a native .NET package, running on Redis™ or PostgreSQL.
 
@@ -221,4 +232,5 @@ This is the index of the BullMQ documentation. Every page is also available as M
 - [Elixir changelog v1](https://docs.bullmq.io/elixir/changelogs/changelog-v1.md)
 - [PHP changelog](https://docs.bullmq.io/php/changelog.md)
 - [PHP changelog v1](https://docs.bullmq.io/php/changelogs/changelog-v1.md)
-- [.Net changelog](https://docs.bullmq.io/dotnet/changelog.md)
+- [Go changelog](https://docs.bullmq.io/golang/changelog.md)
+- [.NET changelog](https://docs.bullmq.io/dotnet/changelog.md)

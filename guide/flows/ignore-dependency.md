@@ -147,6 +147,50 @@ let original_tree = flow
     .await?;
 ```
 
+**Go**
+
+```go
+flow, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flow.Close()
+
+originalTree, err := flow.Add(ctx, bullmq.FlowJob{
+	Name:      "root-job",
+	QueueName: "topQueueName",
+	Data:      map[string]any{},
+	Children: []bullmq.FlowJob{
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 0, "foo": "bar"},
+			QueueName: "childrenQueueName",
+			Opts:      &bullmq.JobOptions{IgnoreDependencyOnFailure: bullmq.Bool(true)},
+			Children: []bullmq.FlowJob{
+				{
+					Name:      name,
+					Data:      map[string]any{"idx": 1, "foo": "bah"},
+					QueueName: "grandChildrenQueueName",
+				},
+				{
+					Name:      name,
+					Data:      map[string]any{"idx": 2, "foo": "baz"},
+					QueueName: "grandChildrenQueueName",
+				},
+			},
+		},
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 3, "foo": "foo"},
+			QueueName: "childrenQueueName",
+		},
+	},
+}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+```
+
 > **Note:** As soon as a **child** with this option fails, the parent job will be moved to a waiting state only if there are no more pending children.
 
 Failed children using this option can be retrieved by **getIgnoredChildrenFailures** method:
@@ -169,6 +213,15 @@ const ignoredChildrenFailures =
 
 ```rust
 let ignored_children_failures = original_tree.job.get_ignored_children_failures().await?;
+```
+
+**Go**
+
+```go
+ignoredChildrenFailures, err := originalTree.Job.IgnoredChildrenFailures(ctx)
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 ## Read more:

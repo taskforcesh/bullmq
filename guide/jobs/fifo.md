@@ -59,6 +59,37 @@ let queue = Queue::new("Paint").await?;
 queue.add("wall", serde_json::json!({ "color": "pink" })).await?;
 ```
 
+**Go**
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("Paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	// Add a job that will be processed after all others
+	_, err = queue.Add(ctx, "wall", map[string]string{"color": "pink"}, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
 **PHP**
 
 ```php
@@ -124,6 +155,18 @@ queue
     .remove_on_complete(RemoveOnFinish::Bool(true))
     .remove_on_fail(RemoveOnFinish::Count(1000))
     .await?;
+```
+
+**Go**
+
+```go
+_, err := queue.Add(ctx, "wall", map[string]string{"color": "pink"}, &bullmq.JobOptions{
+	RemoveOnComplete: bullmq.RemoveAll(),
+	RemoveOnFail:     bullmq.KeepCount(1000),
+})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 **PHP**
@@ -198,6 +241,22 @@ let queue = Queue::with_options(
     ),
 )
 .await?;
+```
+
+**Go**
+
+```go
+queue, err := bullmq.NewQueue("Paint", &bullmq.QueueOptions{
+	Backend: backend,
+	DefaultJobOptions: &bullmq.JobOptions{
+		RemoveOnComplete: bullmq.RemoveAll(),
+		RemoveOnFail:     bullmq.KeepCount(1000),
+	},
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer queue.Close()
 ```
 
 ## Read more:

@@ -29,6 +29,15 @@ use bullmq::Queue;
 queue.set_global_rate_limit(1, 1000).await?;
 ```
 
+**Go**
+
+```go
+// 1 job per second
+if err := queue.SetGlobalRateLimit(ctx, 1, time.Second); err != nil {
+	log.Fatal(err)
+}
+```
+
 In order to get these values:
 
 **TypeScript**
@@ -56,6 +65,18 @@ max_jobs, duration = rate_limit["max"], rate_limit["duration"]
 ```rust
 if let Some((max, duration)) = queue.get_global_rate_limit().await? {
     println!("{max} jobs every {duration} ms");
+}
+```
+
+**Go**
+
+```go
+limit, err := queue.GlobalRateLimit(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+if limit != nil {
+	log.Printf("%d jobs every %v", limit.Max, limit.Duration)
 }
 ```
 
@@ -91,6 +112,15 @@ long ttl = await queue.GetRateLimitTtlAsync();
 let ttl = queue.get_rate_limit_ttl(None).await?;
 ```
 
+**Go**
+
+```go
+ttl, err := queue.RateLimitTTL(ctx, 0)
+if err != nil {
+	log.Fatal(err)
+}
+```
+
 **PHP**
 
 ```php
@@ -121,6 +151,14 @@ await queue.removeGlobalRateLimit()
 
 ```rust
 queue.remove_global_rate_limit().await?;
+```
+
+**Go**
+
+```go
+if err := queue.RemoveGlobalRateLimit(ctx); err != nil {
+	log.Fatal(err)
+}
 ```
 
 ## Read more:

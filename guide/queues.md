@@ -37,6 +37,16 @@ var queue = new Queue("Cars", new QueueOptions
 let queue = Queue::new("Cars").await?;
 ```
 
+**Go**
+
+```go
+queue, err := bullmq.NewQueue("Cars", &bullmq.QueueOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer queue.Close()
+```
+
 **PHP**
 
 ```php
@@ -79,6 +89,15 @@ await queue.AddAsync("paint", new { color = "red" });
 
 ```rust
 queue.add("paint", serde_json::json!({"color": "red"})).await?;
+```
+
+**Go**
+
+```go
+_, err := queue.Add(ctx, "paint", map[string]string{"color": "red"}, nil)
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 **PHP**
@@ -124,6 +143,17 @@ queue
     .add("paint", serde_json::json!({"color": "blue"}))
     .delay(std::time::Duration::from_millis(5000))
     .await?;
+```
+
+**Go**
+
+```go
+_, err := queue.Add(ctx, "paint", map[string]string{"color": "blue"}, &bullmq.JobOptions{
+	Delay: bullmq.Int64(5000),
+})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 **PHP**

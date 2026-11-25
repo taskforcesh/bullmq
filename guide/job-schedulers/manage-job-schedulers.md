@@ -4,6 +4,8 @@ In BullMQ, managing the lifecycle and inventory of job schedulers is crucial for
 
 The scheduler ID passed to `upsertJobScheduler` is returned as the `key` property by `getJobScheduler` and `getJobSchedulers`. Use this `key` when retrieving, updating, or removing a scheduler. It is distinct from the scheduler's `name` and the IDs of the jobs it produces; the optional `id` property on `JobSchedulerJson` is not the scheduler identifier.
 
+> **Note:** In Go, the scheduler id is the `ID` field of `bullmq.JobScheduler`, which Node.js calls `key`.
+
 #### Remove job scheduler
 
 The **removeJobScheduler** method is designed to delete a specific job scheduler from the queue. This is particularly useful when a scheduled task is no longer needed or if you wish to clean up inactive or obsolete schedulers to optimize resource usage.
@@ -58,6 +60,21 @@ println!(
 );
 ```
 
+**Go**
+
+```go
+// Remove a job scheduler with ID 'scheduler-123'
+result, err := queue.RemoveJobScheduler(ctx, "scheduler-123")
+if err != nil {
+	log.Fatal(err)
+}
+if result {
+	fmt.Println("Scheduler removed successfully")
+} else {
+	fmt.Println("Missing Job Scheduler")
+}
+```
+
 The method will return true if there was a Job Scheduler to remove with the given ID, or false if there wasn't any.
 
 #### Get Job Schedulers
@@ -104,6 +121,20 @@ Console.WriteLine($"Current job schedulers: {JsonSerializer.Serialize(schedulers
 // Retrieve the first 10 job schedulers in ascending order of their next execution time
 let schedulers = queue.get_job_schedulers(0, 9, true).await?;
 println!("Current job schedulers: {:?}", schedulers);
+```
+
+**Go**
+
+```go
+// Retrieve the first 10 job schedulers in ascending order of their next execution time
+schedulers, err := queue.JobSchedulers(ctx, 0, 9, true)
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Println("Current job schedulers:")
+for _, scheduler := range schedulers {
+	fmt.Printf("%+v\n", *scheduler)
+}
 ```
 
 For example, to remove a scheduler returned by `getJobSchedulers`, pass its `key` to `removeJobScheduler`:
@@ -156,6 +187,20 @@ if let Some(scheduler) = schedulers.first() {
 }
 ```
 
+**Go**
+
+```go
+schedulers, err := queue.JobSchedulers(ctx, 0, 0, false)
+if err != nil {
+	log.Fatal(err)
+}
+if len(schedulers) > 0 {
+	if _, err := queue.RemoveJobScheduler(ctx, schedulers[0].ID); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
 This method can be particularly useful for generating reports or dashboards that provide insights into when jobs are scheduled to run, aiding in system monitoring and troubleshooting.
 
 #### Get Job Scheduler
@@ -195,6 +240,16 @@ Console.WriteLine($"Current job scheduler: {JsonSerializer.Serialize(scheduler)}
 ```rust
 let scheduler = queue.get_job_scheduler("test").await?;
 println!("Current job scheduler: {:?}", scheduler);
+```
+
+**Go**
+
+```go
+scheduler, err := queue.JobScheduler(ctx, "test")
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Printf("Current job scheduler: %+v\n", scheduler)
 ```
 
 ## Read more:

@@ -1,6 +1,6 @@
 # Repeat Strategies
 
-BullMQ comes with two predefined strategies for creating repeatable jobs. The ‘every’ strategy is straightforward, allowing you to schedule jobs to repeat at specific intervals, measured in seconds. The more complex ‘cron’ strategy uses cron expressions, as defined by the [cron-parser](https://www.npmjs.com/package/cron-parser) to schedule jobs in intricate patterns. Additionally, BullMQ lets you create custom strategies, giving you the flexibility to define your own logic for setting job intervals.
+BullMQ comes with two predefined strategies for creating repeatable jobs. The ‘every’ strategy is straightforward, allowing you to schedule jobs to repeat at specific intervals, measured in milliseconds. The more complex ‘cron’ strategy uses cron expressions, as defined by the [cron-parser](https://www.npmjs.com/package/cron-parser) to schedule jobs in intricate patterns. Additionally, BullMQ lets you create custom strategies, giving you the flexibility to define your own logic for setting job intervals.
 
 ### "Every" strategy
 
@@ -182,6 +182,62 @@ let worker = Worker::with_options(
     WorkerOptions::new().connection(connection),
 )
 .await?;
+```
+
+**Go**
+
+```go
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+
+myQueue, err := bullmq.NewQueue("my-repeatable-jobs", &bullmq.QueueOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer myQueue.Close()
+
+// Upserting a repeatable job in the queue
+_, err = myQueue.UpsertJobScheduler(ctx, "repeat-every-10s",
+	bullmq.RepeatOptions{
+		Every: 10000, // Job will repeat every 10000 milliseconds (10 seconds)
+	},
+	&bullmq.JobTemplate{
+		Name: "every-job",
+		Data: map[string]string{"jobData": "data"},
+		Opts: &bullmq.JobOptions{}, // Optional additional job options
+	})
+if err != nil {
+	log.Fatal(err)
+}
+
+// Worker to process the jobs
+worker, err := bullmq.NewWorker("my-repeatable-jobs", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	var data struct {
+		JobData string `json:"jobData"`
+	}
+	if err := job.DecodeData(&data); err != nil {
+		return nil, err
+	}
+	fmt.Printf("Processing job %s with data: %s\n", job.ID, data.JobData)
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	log.Fatal(err)
+}
 ```
 
 ### "Cron" strategy
@@ -397,6 +453,63 @@ let worker = Worker::with_options(
 .await?;
 ```
 
+**Go**
+
+```go
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"time"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+
+myQueue, err := bullmq.NewQueue("my-cron-jobs", &bullmq.QueueOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer myQueue.Close()
+
+// Upserting a job with a cron expression
+_, err = myQueue.UpsertJobScheduler(ctx, "weekday-morning-job",
+	bullmq.RepeatOptions{
+		Pattern: "0 0 9 * * 1-5", // Runs at 9:00 AM every Monday to Friday
+	},
+	&bullmq.JobTemplate{
+		Name: "cron-job",
+		Data: map[string]string{"jobData": "morning data"},
+		Opts: &bullmq.JobOptions{}, // Optional additional job options
+	})
+if err != nil {
+	log.Fatal(err)
+}
+
+// Worker to process the jobs
+worker, err := bullmq.NewWorker("my-cron-jobs", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	var data struct {
+		JobData string `json:"jobData"`
+	}
+	if err := job.DecodeData(&data); err != nil {
+		return nil, err
+	}
+	fmt.Printf("Processing job %s at %s with data: %s\n", job.ID, time.Now(), data.JobData)
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	log.Fatal(err)
+}
+```
+
 ### Custom Strategy
 
 It is possible to define a different strategy to schedule repeatable jobs. The idea is that the repeat strategy, based on a pattern and the latest job's milliseconds, return the next desired timestamp. Although not used in the following example, you could have different behaviours on your repeat strategies based on the current job's name if you want to. However note that **only** **one** repeatStrategy can be defined for a given queue.
@@ -404,6 +517,8 @@ It is possible to define a different strategy to schedule repeatable jobs. The i
 The strategy receives the scheduler's repeat options, which also include a read-only `count` with the number of iterations already produced. It is managed internally and is only defined when the worker picks up a job to schedule the next iteration, before that job's processor runs; it cannot be set through `upsertJobScheduler`.
 
 For example we can create a custom one for [RRULE](https://jkbrzt.github.io/rrule/) like this:
+
+**TypeScript**
 
 ```typescript
 import { JobSchedulerRepeatOptions, Queue, Worker } from 'bullmq';
@@ -462,6 +577,86 @@ const worker = new Worker(
   },
   { settings },
 );
+```
+
+**Go**
+
+```go
+import (
+	"context"
+	"errors"
+	"log"
+	"time"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+	"github.com/teambition/rrule-go"
+)
+
+repeatStrategy := func(millis int64, opts bullmq.RepeatOptions, _ string) (int64, error) {
+	currentDate := time.UnixMilli(millis)
+	if opts.StartDate > millis {
+		currentDate = time.UnixMilli(opts.StartDate)
+	}
+
+	rule, err := rrule.StrToRRule(opts.Pattern)
+	if err != nil {
+		return 0, err
+	}
+
+	if rule.OrigOptions.Count > 0 && rule.OrigOptions.Dtstart.IsZero() {
+		return 0, errors.New("DTSTART must be defined to use COUNT with rrule")
+	}
+
+	nextOccurrence := rule.After(currentDate, false)
+	if nextOccurrence.IsZero() {
+		return 0, nil // no next run
+	}
+	return nextOccurrence.UnixMilli(), nil
+}
+
+backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+
+myQueue, err := bullmq.NewQueue("Paint", &bullmq.QueueOptions{
+	Backend:        backend,
+	RepeatStrategy: repeatStrategy,
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer myQueue.Close()
+
+// Repeat job every 10 seconds
+_, err = myQueue.UpsertJobScheduler(ctx, "collibris",
+	bullmq.RepeatOptions{Pattern: "RRULE:FREQ=SECONDLY;INTERVAL=10;WKST=MO"},
+	&bullmq.JobTemplate{Data: map[string]string{"color": "green"}})
+if err != nil {
+	log.Fatal(err)
+}
+
+// Repeat job every 20 seconds
+_, err = myQueue.UpsertJobScheduler(ctx, "pingeons",
+	bullmq.RepeatOptions{Pattern: "RRULE:FREQ=SECONDLY;INTERVAL=20;WKST=MO"},
+	&bullmq.JobTemplate{Data: map[string]string{"color": "gray"}})
+if err != nil {
+	log.Fatal(err)
+}
+
+worker, err := bullmq.NewWorker("Paint", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	doSomething()
+	return nil, nil
+}, &bullmq.WorkerOptions{
+	Backend:        backend,
+	RepeatStrategy: repeatStrategy,
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	log.Fatal(err)
+}
 ```
 
 > **Danger:** As you may have noticed, the repeat strategy setting should be provided in **both** the Queue and Worker classes. The reason we need it in both places is that when we first add the job to the Queue, we need to calculate when the next iteration will occur. After that, the Worker takes over, and we use the settings configured in the Worker.

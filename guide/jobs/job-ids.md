@@ -63,6 +63,17 @@ queue
     .await?;
 ```
 
+**Go**
+
+```go
+_, err := queue.Add(ctx, "wall", map[string]string{"color": "pink"}, &bullmq.JobOptions{
+	JobID: customJobID,
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
 **PHP**
 
 ```php
