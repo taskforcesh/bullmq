@@ -1,3 +1,10 @@
+## [1.3.8](https://github.com/taskforcesh/bullmq/compare/vnet1.3.7...vnet1.3.8) (2026-11-24)
+
+
+### Bug Fixes
+
+* **postgres:** validate the lock token in move_active_to_wait (python) (elixir) (dotnet) ([#5215](https://github.com/taskforcesh/bullmq/issues/5215)) ([c105166](https://github.com/taskforcesh/bullmq/commit/c105166858ca2244d18130229befb920d1704927))
+
 ## [1.3.7](https://github.com/taskforcesh/bullmq/compare/vnet1.3.6...vnet1.3.7) (2026-11-19)
 
 ### Bug Fixes
