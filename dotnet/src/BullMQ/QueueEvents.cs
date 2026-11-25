@@ -34,6 +34,10 @@ public readonly record struct QueueEvent(
 
     /// <summary>The delay timestamp (ms since epoch) for <c>delayed</c> events.</summary>
     public string? Delay => Get("delay");
+    /// <summary>The deduplication identifier.</summary>
+    public string? DeduplicationId => Get("deduplicationId");
+    /// <summary>The other job ID reported by a deduplicated event.</summary>
+    public string? DeduplicatedJobId => Get("deduplicatedJobId");
 }
 
 /// <summary>
@@ -81,6 +85,9 @@ public sealed class QueueEvents : IAsyncDisposable
 
     /// <summary>Raised when a job is scheduled with a delay.</summary>
     public event Action<QueueEvent>? Delayed;
+
+    /// <summary>Raised when an add is deduplicated.</summary>
+    public event Action<QueueEvent>? Deduplicated;
 
     /// <summary>Raised when a job is removed from the queue.</summary>
     public event Action<QueueEvent>? Removed;
@@ -202,6 +209,9 @@ public sealed class QueueEvents : IAsyncDisposable
                 break;
             case "delayed":
                 Delayed?.Invoke(evt);
+                break;
+            case "deduplicated":
+                Deduplicated?.Invoke(evt);
                 break;
             case "removed":
                 Removed?.Invoke(evt);

@@ -66,4 +66,4 @@ In this way, you can deduplicate a job when using job schedulers.
 - 💡 [Add Job API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#add)
 - 💡 [Deduplication Reference](../guide/jobs/deduplication.md)
 - 💡 [Remove Deduplication Key API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#removededuplicationkey)
-- 💡 [Upsert Job Scheduler API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#upsertJobScheduler)
+- 💡 [Upsert Job Scheduler API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#upsertjobscheduler)

@@ -1,5 +1,6 @@
 import redis.asyncio as redis
-from typing import Optional, Union
+from redis.asyncio.cluster import RedisCluster
+from typing import Optional
 from redis.backoff import ExponentialBackoff
 from redis.asyncio.retry import Retry
 from redis.exceptions import (
@@ -9,6 +10,7 @@ from redis.exceptions import (
 )
 import warnings
 import os
+from bullmq.types.connection_options import ConnectionOptions
 from bullmq.utils import isRedisVersionLowerThan, is_redis_cluster, get_cluster_nodes, get_node_client
 
 basePath = os.path.dirname(os.path.realpath(__file__))
@@ -29,6 +31,7 @@ SCRIPT_DEFINITIONS = {
     "getCounts": "getCounts-1.lua",
     "getCountsPerPriority": "getCountsPerPriority-2.lua",
     "getJobs": "getJobs-1.lua",
+    "getMetrics": "getMetrics-2.lua",
     "getRanges": "getRanges-1.lua",
     "getState": "getState-8.lua",
     "getStateV2": "getStateV2-8.lua",
@@ -41,9 +44,10 @@ SCRIPT_DEFINITIONS = {
     "obliterate": "obliterate-2.lua",
     "pause": "pause-7.lua",
     "promote": "promote-9.lua",
+    "releaseParentIfNoPendingDependencies": "releaseParentIfNoPendingDependencies-2.lua",
     "removeJob": "removeJob-2.lua",
     "removeJobScheduler": "removeJobScheduler-3.lua",
-    "reprocessJob": "reprocessJob-7.lua",
+    "reprocessJob": "reprocessJob-9.lua",
     "retryJob": "retryJob-11.lua",
     "moveJobsToWait": "moveJobsToWait-8.lua",
     "saveStacktrace": "saveStacktrace-1.lua",
@@ -76,9 +80,10 @@ class RedisConnection:
 
     def __init__(
         self,
-        redisOpts: Union[dict, str, redis.Redis] = {},
+        redisOpts: ConnectionOptions = {},
         skipVersionCheck: bool = False,
         skipWaitingForReady: bool = False,
+        blockingTimeout: Optional[float] = None,
     ):
         if skipWaitingForReady:
             warnings.warn(
@@ -91,7 +96,7 @@ class RedisConnection:
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
-        if isinstance(redisOpts, redis.Redis):
+        if isinstance(redisOpts, (redis.Redis, RedisCluster)):
             self.conn = redisOpts
         elif isinstance(redisOpts, dict):
             defaultOpts = {
@@ -109,8 +114,38 @@ class RedisConnection:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
                 retry_on_error=retry_errors, single_connection_client=True)
 
+        if blockingTimeout is not None and self.conn is not redisOpts:
+            self._ensure_socket_timeout_exceeds(blockingTimeout)
+
         self.commands = {}
         self.loadCommands()
+
+    def _ensure_socket_timeout_exceeds(self, blocking_timeout: float) -> None:
+        """
+        Make sure a client-side socket read cannot time out before a blocking
+        command (BZPOPMIN, XREAD BLOCK, ...) of up to ``blocking_timeout``
+        seconds returns. redis-py >= 8 defaults ``socket_timeout`` to 5s,
+        which would otherwise abort longer blocking calls and make the retry
+        layer silently reconnect. Only clients created by this class are
+        adjusted; user-provided client instances are left untouched.
+        """
+        pool = getattr(self.conn, "connection_pool", None)
+        connection_kwargs = getattr(pool, "connection_kwargs", None)
+        if not isinstance(connection_kwargs, dict):
+            return
+        if blocking_timeout <= 0:
+            connection_kwargs["socket_timeout"] = None
+            if "orig_socket_timeout" in connection_kwargs:
+                connection_kwargs["orig_socket_timeout"] = None
+            return
+        socket_timeout = connection_kwargs.get("socket_timeout")
+        if "socket_timeout" not in connection_kwargs:
+            socket_timeout = connection_kwargs.get("orig_socket_timeout")
+        if socket_timeout is not None and socket_timeout <= blocking_timeout:
+            adjusted_timeout = blocking_timeout + socket_timeout
+            connection_kwargs["socket_timeout"] = adjusted_timeout
+            if "orig_socket_timeout" in connection_kwargs:
+                connection_kwargs["orig_socket_timeout"] = adjusted_timeout
 
     def loadCommands(self) -> None:
         """
@@ -161,6 +196,15 @@ class RedisConnection:
         }
         return self.version
 
+    async def cluster_nodes(self) -> list:
+        """
+        The nodes of a cluster client, connecting first: a fresh redis-py
+        RedisCluster only discovers its nodes when it first connects.
+        """
+        if isinstance(self.conn, RedisCluster):
+            await self.conn.initialize()
+        return get_cluster_nodes(self.conn)
+
     async def set_client_name(self, name: str) -> None:
         if not name:
             return
@@ -168,8 +212,7 @@ class RedisConnection:
         self.client_name = name
 
         if is_redis_cluster(self.conn):
-            nodes = get_cluster_nodes(self.conn)
-            for node in nodes:
+            for node in await self.cluster_nodes():
                 node_client = get_node_client(node)
                 self._set_client_name_on_pool(node_client, name)
                 await self._set_client_name_on_client(node_client, name)
@@ -184,10 +227,8 @@ class RedisConnection:
             await client.execute_command("CLIENT", "SETNAME", name)
 
     def _set_client_name_on_pool(self, client, name: str) -> None:
-        pool = getattr(client, "connection_pool", None)
-        if pool is None:
-            return
-
+        # Cluster nodes hold their connection settings directly, without a pool.
+        pool = getattr(client, "connection_pool", client)
         connection_kwargs = getattr(pool, "connection_kwargs", None)
         if isinstance(connection_kwargs, dict):
             connection_kwargs["client_name"] = name

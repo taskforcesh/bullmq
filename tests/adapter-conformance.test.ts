@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createClient } from 'redis';
 import { createNodeRedisClient } from '../src/classes';
 import { IRedisClient } from '../src/interfaces';
-import { Readable } from 'stream';
+import { Readable } from 'node:stream';
 
 // ---------------------------------------------------------------------------
 // Adapter factory – change this to test a different adapter
@@ -100,6 +100,36 @@ describe('Adapter Conformance', () => {
       });
       dup.disconnect();
       await closePromise;
+    });
+
+    it('should report status "ready" after connect following disconnect', async () => {
+      const dup = client.duplicate();
+      dup.on('error', () => {});
+      await dup.connect();
+
+      // RedisConnection.reconnect() calls connect() after a disconnect()
+      dup.disconnect();
+      expect(dup.status).toBe('end');
+      await dup.connect();
+
+      expect(dup.status).toBe('ready');
+      await dup.set(key('reconnect'), 'ok');
+      expect(await dup.get(key('reconnect'))).toBe('ok');
+      await dup.quit();
+    });
+
+    it('should report status "ready" after connect following a disconnect during the initial connect', async () => {
+      // duplicate() starts connecting eagerly in the constructor
+      const dup = client.duplicate();
+      dup.on('error', () => {});
+      dup.disconnect();
+      expect(dup.status).toBe('end');
+      await dup.connect();
+
+      expect(dup.status).toBe('ready');
+      await dup.set(key('reconnect-pending'), 'ok');
+      expect(await dup.get(key('reconnect-pending'))).toBe('ok');
+      await dup.quit();
     });
 
     it('should support setMaxListeners/getMaxListeners', () => {

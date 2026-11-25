@@ -298,7 +298,12 @@ defmodule BullMQ.Worker do
     opts: %{},
     drain_delay: @default_drain_delay,
     # Timestamp (ms) of next delayed job, used for calculating block timeout
-    block_until: nil
+    block_until: nil,
+    # Shared with the processes running jobs, so they stop fetching new jobs
+    # as soon as the worker is paused or closing.
+    pause_flag: nil,
+    # Callers of pause/2 waiting for the active jobs to finish.
+    pause_waiters: []
   ]
 
   # Client API
@@ -335,15 +340,18 @@ defmodule BullMQ.Worker do
   Pauses the worker.
 
   When paused, the worker will not pick up new jobs but will continue
-  processing active jobs until completion.
+  processing active jobs until completion. Like the Node.js `worker.pause()`,
+  this call returns once the active jobs have finished, unless `force: true`
+  is given.
 
   ## Options
 
     * `:force` - Don't wait for active jobs to complete (default: false)
+    * `:timeout` - Max time in ms to wait for the active jobs (default: `:infinity`)
   """
   @spec pause(GenServer.server(), keyword()) :: :ok
   def pause(worker, opts \\ []) do
-    GenServer.call(worker, {:pause, opts})
+    GenServer.call(worker, {:pause, opts}, Keyword.get(opts, :timeout, :infinity))
   end
 
   @doc """
@@ -699,7 +707,8 @@ defmodule BullMQ.Worker do
       on_active: Keyword.get(opts, :on_active),
       on_progress: Keyword.get(opts, :on_progress),
       on_stalled: Keyword.get(opts, :on_stalled),
-      on_lock_renewal_failed: Keyword.get(opts, :on_lock_renewal_failed)
+      on_lock_renewal_failed: Keyword.get(opts, :on_lock_renewal_failed),
+      pause_flag: :atomics.new(1, [])
     }
 
     if autorun do
@@ -710,13 +719,19 @@ defmodule BullMQ.Worker do
   end
 
   @impl true
-  def handle_call({:pause, _opts}, _from, state) do
-    {:reply, :ok, %{state | paused: true}}
+  def handle_call({:pause, opts}, from, state) do
+    state = set_paused(state, true)
+
+    if Keyword.get(opts, :force, false) or not has_active_work?(state) do
+      {:reply, :ok, state}
+    else
+      {:noreply, %{state | pause_waiters: [from | state.pause_waiters]}}
+    end
   end
 
-  def handle_call(:resume, _from, %{paused: true} = state) do
+  def handle_call(:resume, _from, %{paused: true, closing: false} = state) do
     send(self(), :fetch_jobs)
-    {:reply, :ok, %{state | paused: false}}
+    {:reply, :ok, set_paused(state, false)}
   end
 
   def handle_call(:resume, _from, state) do
@@ -837,11 +852,12 @@ defmodule BullMQ.Worker do
     force = Keyword.get(opts, :force, false)
     timeout = Keyword.get(opts, :timeout, 30_000)
 
-    new_state = %{state | closing: true, paused: true}
+    new_state = set_paused(%{state | closing: true}, true)
 
-    if force or map_size(state.active_jobs) == 0 do
+    if force or not has_active_work?(state) do
+      Enum.each(new_state.pause_waiters, &GenServer.reply(&1, :ok))
       # Let terminate/2 handle cleanup
-      {:stop, :normal, :ok, new_state}
+      {:stop, :normal, :ok, %{new_state | pause_waiters: []}}
     else
       # Wait for active jobs with timeout
       Process.send_after(self(), {:close_timeout, from}, timeout)
@@ -958,8 +974,8 @@ defmodule BullMQ.Worker do
   end
 
   def handle_info(:fetch_jobs, state) do
-    # Count both active jobs and in-flight workers (spawned but not yet with a job)
-    # to prevent spawning more than concurrency workers
+    # Count active jobs and workers that have not yet registered their next job
+    # to prevent spawning more than concurrency workers.
     in_use = map_size(state.active_jobs) + MapSet.size(state.in_flight_workers)
     available_slots = state.concurrency - in_use
 
@@ -1038,7 +1054,7 @@ defmodule BullMQ.Worker do
   end
 
   def handle_info({:worker_job_finished, worker_pid, job_id}, state) do
-    # Autonomous worker finished a job - clean up tracking
+    # Keep the process in flight until it reports its next job or stops.
     # The worker handles Redis updates itself, coordinator just tracks state
     if state.lock_manager do
       LockManager.untrack_job(state.lock_manager, job_id)
@@ -1052,6 +1068,7 @@ defmodule BullMQ.Worker do
       state
       | active_jobs: active_jobs,
         worker_pids: worker_pids,
+        in_flight_workers: MapSet.put(state.in_flight_workers, worker_pid),
         cancellation_tokens: cancellation_tokens
     }
 
@@ -1254,22 +1271,24 @@ defmodule BullMQ.Worker do
   def handle_info({:close_timeout, from}, state) do
     # Let terminate/2 handle cleanup
     GenServer.reply(from, :ok)
-    {:stop, :normal, %{state | closing: true}}
+    Enum.each(state.pause_waiters, &GenServer.reply(&1, :ok))
+    {:stop, :normal, %{state | closing: true, pause_waiters: []}}
   end
 
   # Handle EXIT signals from autonomous worker processes
   # Note: LockManager exits are handled separately above
   def handle_info({:EXIT, pid, reason}, state) do
-    # Check if this is an in-flight worker (spawned but hasn't got a job yet)
+    # Check if this worker is between jobs.
     if MapSet.member?(state.in_flight_workers, pid) do
       Logger.warning(
-        "[BullMQ.Worker] In-flight worker #{inspect(pid)} crashed before getting a job: #{inspect(reason)}"
+        "[BullMQ.Worker] Worker #{inspect(pid)} crashed without an active job: #{inspect(reason)}"
       )
 
       in_flight_workers = MapSet.delete(state.in_flight_workers, pid)
       # Schedule replacement worker
       send(self(), :fetch_jobs)
-      {:noreply, %{state | in_flight_workers: in_flight_workers}}
+      new_state = %{state | in_flight_workers: in_flight_workers}
+      check_closing_or_fetch(new_state)
     else
       case Map.get(state.worker_pids, pid) do
         nil ->
@@ -1293,7 +1312,8 @@ defmodule BullMQ.Worker do
           # Schedule replacement worker
           send(self(), :fetch_jobs)
 
-          {:noreply, %{state | active_jobs: active_jobs, worker_pids: worker_pids}}
+          new_state = %{state | active_jobs: active_jobs, worker_pids: worker_pids}
+          check_closing_or_fetch(new_state)
       end
     end
   end
@@ -1399,6 +1419,7 @@ defmodule BullMQ.Worker do
       remove_on_complete: state.remove_on_complete || %{"count" => -1},
       remove_on_fail: state.remove_on_fail || %{"count" => -1},
       coordinator: self(),
+      pause_flag: state.pause_flag,
       # Include callbacks so autonomous workers can emit events
       on_completed: state.on_completed,
       on_failed: state.on_failed,
@@ -1433,7 +1454,9 @@ defmodule BullMQ.Worker do
     try do
       maybe_handle_autonomous_shutdown(ctx)
 
-      case do_fetch_job(ctx) do
+      fetched = if paused_flag_set?(ctx), do: {:ok, nil}, else: do_fetch_job(ctx)
+
+      case fetched do
         {:ok, nil} ->
           # No jobs available
           send(ctx.coordinator, {:worker_stopped, self()})
@@ -1598,10 +1621,14 @@ defmodule BullMQ.Worker do
 
   # Try to get next job directly (for retry case)
   defp try_get_next_job(ctx) do
-    case do_fetch_job(ctx) do
-      {:ok, nil} -> :no_jobs
-      {:ok, job} -> {:ok, job}
-      _ -> :error
+    if paused_flag_set?(ctx) do
+      :no_jobs
+    else
+      case do_fetch_job(ctx) do
+        {:ok, nil} -> :no_jobs
+        {:ok, job} -> {:ok, job}
+        _ -> :error
+      end
     end
   end
 
@@ -1741,7 +1768,7 @@ defmodule BullMQ.Worker do
              effective_delay,
              failed_reason: error_msg,
              stacktrace: format_stacktrace(stacktrace),
-             fetch_next: true,
+             fetch_next: not paused_flag_set?(ctx),
              lock_duration: ctx.lock_duration,
              limiter: ctx.limiter
            ) do
@@ -1824,12 +1851,12 @@ defmodule BullMQ.Worker do
   defp build_worker_move_opts(ctx, job) do
     [
       lock_duration: ctx.lock_duration,
-      fetch_next: true,
+      fetch_next: not paused_flag_set?(ctx),
       name: name_as_string(ctx.name),
       attempts: get_job_opt(job, :attempts, "attempts", 0),
       limiter: ctx.limiter,
-      remove_on_complete: ctx.remove_on_complete,
-      remove_on_fail: ctx.remove_on_fail,
+      remove_on_complete: keep_jobs_opt(job, :remove_on_complete, ctx.remove_on_complete),
+      remove_on_fail: keep_jobs_opt(job, :remove_on_fail, ctx.remove_on_fail),
       fail_parent_on_failure:
         get_job_opt(job, :fail_parent_on_failure, "fail_parent_on_failure", false),
       continue_parent_on_failure:
@@ -2242,7 +2269,7 @@ defmodule BullMQ.Worker do
                effective_delay,
                failed_reason: error_message,
                stacktrace: formatted_stacktrace,
-               fetch_next: true,
+               fetch_next: not state.paused,
                lock_duration: state.lock_duration,
                limiter: state.limiter
              ) do
@@ -2319,10 +2346,12 @@ defmodule BullMQ.Worker do
   end
 
   defp check_closing_or_fetch(state) do
+    state = maybe_release_pause_waiters(state)
+
     cond do
       is_reference(state.closing) or is_tuple(state.closing) ->
         # We're waiting to close
-        if map_size(state.active_jobs) == 0 do
+        if not has_active_work?(state) do
           cleanup(state)
           GenServer.reply(state.closing, :ok)
           {:stop, :normal, %{state | closing: true}}
@@ -2337,8 +2366,8 @@ defmodule BullMQ.Worker do
         # Already waiting, don't start another wait or spawn more workers
         {:noreply, state}
 
-      map_size(state.worker_pids) == 0 and map_size(state.active_jobs) == 0 ->
-        # All workers have stopped AND no active jobs - start blocking wait
+      not has_active_work?(state) ->
+        # No active work remains - start blocking wait
         # This matches Node.js behavior: only one blocking call when queue is empty
         start_blocking_wait(state)
 
@@ -2445,12 +2474,12 @@ defmodule BullMQ.Worker do
   defp build_move_opts(state, job) do
     [
       lock_duration: state.lock_duration,
-      fetch_next: true,
+      fetch_next: not state.paused,
       name: name_as_string(state.name),
       attempts: get_job_opt(job, :attempts, "attempts", 0),
       limiter: state.limiter,
-      remove_on_complete: state.remove_on_complete || %{"count" => -1},
-      remove_on_fail: state.remove_on_fail || %{"count" => -1},
+      remove_on_complete: keep_jobs_opt(job, :remove_on_complete, state.remove_on_complete),
+      remove_on_fail: keep_jobs_opt(job, :remove_on_fail, state.remove_on_fail),
       fail_parent_on_failure:
         get_job_opt(job, :fail_parent_on_failure, "fail_parent_on_failure", false),
       continue_parent_on_failure:
@@ -2478,6 +2507,42 @@ defmodule BullMQ.Worker do
   end
 
   defp get_job_opt(_, _, _, default), do: default
+
+  # The job's own removal setting takes precedence over the worker's, like in
+  # the Node.js implementation.
+  defp keep_jobs_opt(%Job{} = job, key, worker_value) do
+    case Job.removal_opt(job, key) do
+      nil -> worker_value || %{"count" => -1}
+      value -> value
+    end
+  end
+
+  defp keep_jobs_opt(_job, _key, worker_value), do: worker_value || %{"count" => -1}
+
+  defp set_paused(state, paused) do
+    if state.pause_flag, do: :atomics.put(state.pause_flag, 1, if(paused, do: 1, else: 0))
+    %{state | paused: paused}
+  end
+
+  # Read by the processes running jobs, which only have the worker context.
+  defp paused_flag_set?(%{pause_flag: nil}), do: false
+  defp paused_flag_set?(%{pause_flag: flag}), do: :atomics.get(flag, 1) == 1
+  defp paused_flag_set?(_ctx), do: false
+
+  defp has_active_work?(state) do
+    map_size(state.active_jobs) > 0 or MapSet.size(state.in_flight_workers) > 0
+  end
+
+  defp maybe_release_pause_waiters(%{pause_waiters: []} = state), do: state
+
+  defp maybe_release_pause_waiters(state) do
+    if has_active_work?(state) do
+      state
+    else
+      Enum.each(state.pause_waiters, &GenServer.reply(&1, :ok))
+      %{state | pause_waiters: []}
+    end
+  end
 
   defp find_job_by_ref(active_jobs, ref) do
     Enum.find(active_jobs, fn {_id, {_job, task_ref}} -> task_ref == ref end)

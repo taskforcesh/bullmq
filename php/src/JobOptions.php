@@ -97,8 +97,11 @@ class JobOptions
 
     /**
      * Deduplication options.
+     * reschedule applies the incoming delay only while the existing job is delayed,
+     * preserving its ID and data. An omitted delay is zero. Independent of extend;
+     * ignored when replace is true.
      *
-     * @var array{id?: string, ttl?: int, extend?: bool, replace?: bool, keepLastIfActive?: bool}|null
+     * @var array{id?: string, ttl?: int, extend?: bool, replace?: bool, reschedule?: bool, keepLastIfActive?: bool}|null
      */
     public ?array $deduplication = null;
 

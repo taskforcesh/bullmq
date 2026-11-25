@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
           cache: 'yarn'
@@ -93,10 +93,37 @@ jobs:
         working-directory: rust
         run: cargo build --all-targets
 
+      - name: Start Redis Cluster
+        run: |
+          docker run -d --name redis-cluster --network host redis:8-alpine sh -c '
+            for port in 7000 7001 7002; do
+              redis-server --port $port --cluster-enabled yes --cluster-config-file nodes-$port.conf --daemonize yes
+            done
+            sleep 1
+            redis-cli --cluster create 127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 --cluster-replicas 0 --cluster-yes
+            tail -f /dev/null'
+          for i in $(seq 1 30); do
+            ready=true
+            for port in 7000 7001 7002; do
+              if ! docker exec redis-cluster redis-cli -p "$port" cluster info 2>/dev/null | grep -q 'cluster_state:ok'; then
+                ready=false
+                break
+              fi
+            done
+            if [ "$ready" = true ]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Redis Cluster did not become ready" >&2
+          docker logs redis-cluster
+          exit 1
+
       - name: Run tests
         working-directory: rust
         env:
           REDIS_URL: redis://127.0.0.1:6379
+          REDIS_CLUSTER_NODES: redis://127.0.0.1:7000,redis://127.0.0.1:7001,redis://127.0.0.1:7002
         run: cargo test --all-targets
 
       - name: Build documentation

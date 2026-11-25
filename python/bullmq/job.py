@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Any, TYPE_CHECKING
+from typing import List, Any, Optional, TYPE_CHECKING
 from bullmq.custom_errors import UnrecoverableError
 from bullmq.backoffs import Backoffs
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ class Job:
     A Job instance is also passed to the Worker's process function.
     """
 
-    def __init__(self, queue: Queue, name: str, data: Any, opts: JobOptions = {}, job_id: str = None):
+    def __init__(self, queue: Queue, name: str, data: Any, opts: JobOptions = {}, job_id: Optional[str] = None):
         self.name = name
         self.id = opts.get("jobId", None) or job_id
         self.progress = 0
@@ -58,7 +58,7 @@ class Job:
         self.deferredFailure = None
         self.failedReason = None
         self.repeatJobKey = None
-        self.token: str = None
+        self.token: Optional[str] = None
         parent = opts.get("parent")
         self.parentKey = get_parent_key(parent)
         self.parent = {"id": parent.get("id"), "queueKey": parent.get("queue")} if parent else None
@@ -136,8 +136,9 @@ class Job:
     def getState(self):
         return self.backend.getState(self.id)
 
-    def changePriority(self, opts: dict):
-        return self.backend.changePriority(self.id, opts.get("priority", 0), opts.get("lifo", False))
+    async def changePriority(self, opts: dict):
+        await self.backend.changePriority(self.id, opts.get("priority", 0), opts.get("lifo", False))
+        self.priority = opts.get("priority", 0)
 
     def updateProgress(self, progress):
         self.progress = progress
@@ -276,7 +277,7 @@ class Job:
             if self.opts.get("stackTraceLimit") == 0:
                 self.stacktrace = []
             elif self.opts.get("stackTraceLimit"):
-                self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
+                self.stacktrace = self.stacktrace[-stackTraceLimit:]
 
     async def moveToDelayed(self, timestamp: int, token: str):
         """
@@ -318,6 +319,7 @@ class Job:
 
         job.progress = json.loads(rawData.get("progress",  '0'))
         job.delay = int(rawData.get("delay", "0"))
+        job.priority = int(rawData.get("priority", "0"))
         job.timestamp = int(rawData.get("timestamp", "0"))
 
         if rawData.get("finishedOn"):

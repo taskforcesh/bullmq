@@ -1,4 +1,21 @@
+---
+description: >-
+  How to retry failed jobs in BullMQ with the attempts option and fixed,
+  exponential or custom backoff strategies.
+---
+
 # Retrying failing jobs
+
+To retry a job automatically when it fails, add it with the `attempts` option set to the maximum number of attempts, and optionally a `backoff` strategy (fixed, exponential or custom) that sets the delay between them:
+
+```typescript
+await queue.add('send-email', data, {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 1000 },
+});
+```
+
+Without `attempts`, a failed job is not retried, and without `backoff` it is retried as soon as it fails. The rest of this page explains when a job is considered failed and each backoff strategy in detail.
 
 As your queues process jobs, it is inevitable that over time some of these jobs will fail. In BullMQ, a job is considered failed in the following scenarios:
 

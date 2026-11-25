@@ -29,6 +29,8 @@ public sealed class RedisBackend : IQueueBackend
 
     private readonly int _lockDuration;
     private readonly string? _workerName;
+    private readonly KeepJobs? _removeOnComplete;
+    private readonly KeepJobs? _removeOnFail;
 
     private Task? _closing;
 
@@ -45,7 +47,9 @@ public sealed class RedisBackend : IQueueBackend
         bool ownsConnection,
         RedisConnection? blocking = null,
         int lockDuration = 0,
-        string? workerName = null)
+        string? workerName = null,
+        KeepJobs? removeOnComplete = null,
+        KeepJobs? removeOnFail = null)
     {
         Name = name;
         Prefix = prefix;
@@ -54,11 +58,18 @@ public sealed class RedisBackend : IQueueBackend
         _ownsConnection = ownsConnection;
         _lockDuration = lockDuration;
         _workerName = workerName;
+        _removeOnComplete = removeOnComplete;
+        _removeOnFail = removeOnFail;
         _queueKeys = new QueueKeys(prefix);
         _keys = _queueKeys.GetKeys(name);
     }
 
-    /// <summary>Creates a Redis backend, establishing a connection from the options.</summary>
+    /// <summary>
+    /// Creates a Redis backend, establishing a connection from the options.
+    /// When <paramref name="options"/> is a <see cref="WorkerOptions"/>, its
+    /// <c>RemoveOnComplete</c>/<c>RemoveOnFail</c> are used as defaults for jobs
+    /// that do not define their own.
+    /// </summary>
     public static async Task<RedisBackend> CreateAsync(
         string name,
         QueueBaseOptions options,
@@ -71,7 +82,10 @@ public sealed class RedisBackend : IQueueBackend
         var blocking = withBlockingConnection
             ? await RedisConnection.CreateAsync(options.Connection, blocking: true).ConfigureAwait(false)
             : null;
-        return new RedisBackend(name, connection, options.Prefix, ownsConnection, blocking, lockDuration, workerName);
+        var worker = options as WorkerOptions;
+        return new RedisBackend(
+            name, connection, options.Prefix, ownsConnection, blocking, lockDuration, workerName,
+            worker?.RemoveOnComplete, worker?.RemoveOnFail);
     }
 
     // ============================================================
@@ -256,12 +270,36 @@ public sealed class RedisBackend : IQueueBackend
 
         var tran = _connection.Db.CreateTransaction();
         var tasks = new List<Task<RedisResult>>(entries.Count);
+
+        // Parents touched by this flow, deduplicated by key. They are validated
+        // once every node is in the transaction (see below).
+        var parents = new Dictionary<string, (string QueueKey, string Id)>(StringComparer.Ordinal);
+
         foreach (var entry in entries)
         {
             var keys = new QueueKeys(entry.Prefix).GetKeys(entry.QueueName);
             var (cmd, redisKeys, args) = BuildAddJobForFlow(keys, entry.Job, entry.IsParent);
             var scriptText = LuaScripts.Get(cmd).Content;
             tasks.Add(tran.ScriptEvaluateAsync(scriptText, redisKeys, args));
+
+            if (entry.Job.ParentKey is { } parentKey && entry.Job.Parent is IReadOnlyDictionary<string, object?> parent)
+            {
+                parents[parentKey] = (
+                    (string)parent["queueKey"]!,
+                    (string)parent["id"]!);
+            }
+        }
+
+        // A parent that ended up without pending dependencies (e.g. all of its
+        // children already existed and were completed) is released here. The
+        // script is a no-op for any other parent.
+        var releaseScript = LuaScripts.Get("releaseParentIfNoPendingDependencies").Content;
+        foreach (var (parentKey, parent) in parents)
+        {
+            tasks.Add(tran.ScriptEvaluateAsync(
+                releaseScript,
+                new RedisKey[] { parentKey, $"{parentKey}:dependencies" },
+                new RedisValue[] { parent.QueueKey, parent.Id, NowMs() }));
         }
 
         var committed = await tran.ExecuteAsync().ConfigureAwait(false);
@@ -275,6 +313,12 @@ public sealed class RedisBackend : IQueueBackend
         {
             ids[i] = ParseAddJobResult(await tasks[i].ConfigureAwait(false), entries[i].Job);
             entries[i].Job.Id = ids[i];
+        }
+
+        // Drain the trailing parent-release replies so none is left unobserved.
+        for (var i = entries.Count; i < tasks.Count; i++)
+        {
+            await tasks[i].ConfigureAwait(false);
         }
 
         return ids;
@@ -342,6 +386,9 @@ public sealed class RedisBackend : IQueueBackend
             job.Parent,
             job.RepeatJobKey,
             deduplicationKey,
+            // Flow inserts never release the parent from "waiting-children"
+            // mid-transaction: later siblings have not been attached to it yet.
+            1,
         });
 
         var list = new List<RedisValue> { packedArgs, job.DataJson(), job.PackedOpts() };
@@ -407,7 +454,7 @@ public sealed class RedisBackend : IQueueBackend
         {
             ["token"] = token,
             ["name"] = _workerName,
-            ["keepJobs"] = GetKeepJobs(shouldRemove),
+            ["keepJobs"] = GetKeepJobs(shouldRemove ?? (target == "completed" ? _removeOnComplete : _removeOnFail)),
             ["limiter"] = null,
             ["lockDuration"] = _lockDuration,
             ["attempts"] = job.Attempts,
@@ -431,6 +478,11 @@ public sealed class RedisBackend : IQueueBackend
             packedOpts,
         };
 
+        if (stackTraceJson is not null)
+        {
+            args.Add(PackFieldsToUpdate(value, stackTraceJson));
+        }
+
         var result = await _connection
             .EvalAsync("moveToFinished", keyList.ToArray(), args.ToArray())
             .ConfigureAwait(false);
@@ -453,7 +505,9 @@ public sealed class RedisBackend : IQueueBackend
         long delay,
         string token = "0",
         bool fetchNext = false,
-        bool skipAttempt = false)
+        bool skipAttempt = false,
+        string? failedReason = null,
+        string? stackTraceJson = null)
     {
         var keys = MapKeys("marker", "active", "prioritized", "delayed");
         var keyList = new List<RedisKey>(keys)
@@ -475,7 +529,7 @@ public sealed class RedisBackend : IQueueBackend
             token,
             delay,
             skipAttempt ? "1" : "0",
-            string.Empty, // fieldsToUpdate placeholder
+            PackFieldsToUpdate(failedReason, stackTraceJson),
             fetchNext ? "1" : "0",
         };
 
@@ -545,7 +599,8 @@ public sealed class RedisBackend : IQueueBackend
         return false;
     }
 
-    public async Task RetryJobAsync(string jobId, bool lifo, string token = "0")
+    public async Task RetryJobAsync(
+        string jobId, bool lifo, string token = "0", string? failedReason = null, string? stackTraceJson = null)
     {
         var keys = MapKeys("active", "wait", "paused");
         var keyList = new List<RedisKey>(keys)
@@ -561,10 +616,35 @@ public sealed class RedisBackend : IQueueBackend
         };
 
         var pushCmd = lifo ? "RPUSH" : "LPUSH";
-        var args = new RedisValue[] { _keys[""], NowMs(), pushCmd, jobId, token };
+        var args = new RedisValue[]
+        {
+            _keys[""], NowMs(), pushCmd, jobId, token, PackFieldsToUpdate(failedReason, stackTraceJson),
+        };
 
         var result = await _connection.EvalAsync("retryJob", keyList.ToArray(), args).ConfigureAwait(false);
         ThrowIfNegative(result, jobId, "retryJob", "active");
+    }
+
+    /// <summary>
+    /// Packs the optional job fields written by the scripts' <c>updateJobFields</c>
+    /// helper as a msgpack flat <c>[field, value, ...]</c> array (empty when none).
+    /// </summary>
+    private static RedisValue PackFieldsToUpdate(string? failedReason, string? stackTraceJson)
+    {
+        var fields = new List<object?>(4);
+        if (failedReason is not null)
+        {
+            fields.Add("failedReason");
+            fields.Add(failedReason);
+        }
+
+        if (stackTraceJson is not null)
+        {
+            fields.Add("stacktrace");
+            fields.Add(stackTraceJson);
+        }
+
+        return fields.Count == 0 ? RedisValue.EmptyString : (RedisValue)MsgPack.Encode(fields);
     }
 
     public async Task ReprocessJobAsync(
@@ -579,6 +659,8 @@ public sealed class RedisBackend : IQueueBackend
             _keys["meta"],
             _keys["active"],
             _keys["marker"],
+            _keys["prioritized"],
+            _keys["pc"],
         };
 
         var pushCmd = (job.Opts.Lifo ?? false) ? "RPUSH" : "LPUSH";
@@ -782,6 +864,17 @@ public sealed class RedisBackend : IQueueBackend
             .ConfigureAwait(false);
         return !pos.IsNull;
     }
+
+    public async Task<string?> GetDeduplicationJobIdAsync(string id) =>
+        (string?)await _connection.Db.StringGetAsync($"{_keys[""]}de:{id}").ConfigureAwait(false);
+
+    public async Task<long> DeleteDeduplicationKeyAsync(string id) =>
+        await _connection.Db.KeyDeleteAsync($"{_keys[""]}de:{id}").ConfigureAwait(false) ? 1 : 0;
+
+    public async Task<long> RemoveDeduplicationKeyAsync(string id, string jobId) =>
+        (long)await _connection.EvalAsync("removeDeduplicationKey",
+            new RedisKey[] { $"{_keys[""]}de:{id}" },
+            new RedisValue[] { jobId }).ConfigureAwait(false);
 
     public async Task<JobJson?> GetJobDataAsync(string jobId)
     {
@@ -1118,14 +1211,17 @@ public sealed class RedisBackend : IQueueBackend
             return Array.Empty<EventEntry>();
         }
 
-        // Shape: [[streamKey, [[id, [f1, v1, ...]], ...]]]
+        // RESP2 shape: [[streamKey, [[id, [f1, v1, ...]], ...]]]
+        // RESP3 maps are returned as a flat [streamKey, entries] array.
         var streams = (RedisResult[]?)result;
         if (streams is null || streams.Length == 0)
         {
             return Array.Empty<EventEntry>();
         }
 
-        var firstStream = (RedisResult[]?)streams[0];
+        var firstStream = result.Resp3Type == ResultType.Map
+            ? streams
+            : (RedisResult[]?)streams[0];
         if (firstStream is null || firstStream.Length < 2)
         {
             return Array.Empty<EventEntry>();
@@ -1234,6 +1330,11 @@ public sealed class RedisBackend : IQueueBackend
             map["age"] = age;
         }
 
+        if (keep.Limit is { } limit)
+        {
+            map["limit"] = limit;
+        }
+
         return map;
     }
 
@@ -1251,7 +1352,7 @@ public sealed class RedisBackend : IQueueBackend
         }
 
         JobJson? job = null;
-        if (!arr[0].IsNull)
+        if (!arr[0].IsNull && arr[0].Resp2Type == ResultType.Array)
         {
             var flat = (RedisResult[]?)arr[0];
             if (flat is { Length: > 0 })
@@ -1260,7 +1361,7 @@ public sealed class RedisBackend : IQueueBackend
             }
         }
 
-        string? jobId = arr.Length > 1 && !arr[1].IsNull ? (string?)arr[1] : null;
+        string? jobId = job is not null && arr.Length > 1 && !arr[1].IsNull ? (string?)arr[1] : null;
         long rateLimitDelay = arr.Length > 2 ? ToLong(arr[2]) : 0;
         long delayUntil = arr.Length > 3 ? ToLong(arr[3]) : 0;
 

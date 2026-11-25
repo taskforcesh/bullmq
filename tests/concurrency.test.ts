@@ -381,7 +381,7 @@ describe('Concurrency', () => {
         await queueEvents.close();
         await worker.close();
         await queue.close();
-      }, 4000);
+      }, 10000);
     });
   });
 

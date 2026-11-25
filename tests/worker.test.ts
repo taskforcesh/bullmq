@@ -15,7 +15,7 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import {
   Queue,
   QueueEvents,
@@ -563,52 +563,73 @@ describe('workers', () => {
   // (they spy on the blocking client's `bzpopmin`) and live in
   // `worker.redis.test.ts`.
 
-  it('does not process a job that is being processed when a new queue starts', async () => {
-    // TODO: Move timeout to test options: { timeout: 12000 }
-    let err;
-
-    const worker = new Worker(
-      queueName,
-      async job => {
-        expect(job.data.foo).toBe('bar');
-
-        if (addedJob.id !== job.id) {
-          err = new Error('Processed job id does not match that of added job');
-        }
-        await delay(500);
-      },
-      { connection, prefix },
-    );
-
-    await worker.waitUntilReady();
-
-    const addedJob = await queue.add('test', { foo: 'bar' });
-
-    const anotherWorker = new Worker(
-      queueName,
-      async () => {
-        err = new Error(
-          'The second queue should not have received a job to process',
-        );
-      },
-      { connection, prefix },
-    );
-
-    await anotherWorker.waitUntilReady();
-
-    await new Promise<void>(resolve => {
-      worker.on('completed', async () => {
-        resolve();
+  it(
+    'does not process a job that is being processed when a new queue starts',
+    { timeout: 12000 },
+    async () => {
+      let err;
+      let resolveProcessingStarted!: () => void;
+      let releaseProcessing!: () => void;
+      const processingStarted = new Promise<void>(resolve => {
+        resolveProcessingStarted = resolve;
       });
-    });
+      const processingGate = new Promise<void>(resolve => {
+        releaseProcessing = resolve;
+      });
+      const addedJob = await queue.add('test', { foo: 'bar' });
 
-    await worker.close();
-    await anotherWorker.close();
+      const worker = new Worker(
+        queueName,
+        async job => {
+          resolveProcessingStarted();
+          if (job.data.foo !== 'bar') {
+            err = new Error('Processed job data does not match');
+          }
 
-    if (err) {
-      throw err;
-    }
-  });
+          if (addedJob.id !== job.id) {
+            err = new Error(
+              'Processed job id does not match that of added job',
+            );
+          }
+          await processingGate;
+          await delay(500);
+        },
+        { connection, prefix },
+      );
+
+      let anotherWorker: Worker | undefined;
+      try {
+        await worker.waitUntilReady();
+        await processingStarted;
+
+        anotherWorker = new Worker(
+          queueName,
+          async () => {
+            err = new Error(
+              'The second queue should not have received a job to process',
+            );
+          },
+          { connection, prefix },
+        );
+
+        await anotherWorker.waitUntilReady();
+
+        const completed = new Promise<void>(resolve => {
+          worker.once('completed', () => resolve());
+        });
+        releaseProcessing();
+        await completed;
+
+        if (err) {
+          throw err;
+        }
+      } finally {
+        releaseProcessing();
+        await worker.close();
+        await anotherWorker?.close();
+      }
+    },
+  );
 
   it('process a job that throws an exception', async () => {
     const jobError = new Error('Job Failed');
@@ -854,6 +875,42 @@ describe('workers', () => {
         await worker.close();
       });
     });
+
+    describe('when the job has a priority', () => {
+      it('moves the retried job back to the prioritized state', async () => {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            throw new Error('Not even!');
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        const failing = new Promise<void>(resolve => {
+          worker.once('failed', () => resolve());
+        });
+
+        const job = await queue.add('test', { foo: 'bar' }, { priority: 10 });
+
+        await failing;
+        await worker.close();
+
+        const prioritizedJob = await queue.add(
+          'test',
+          { foo: 'baz' },
+          { priority: 10 },
+        );
+        await job.retry();
+
+        expect(await job.getState()).toBe('prioritized');
+        const prioritized = await queue.getPrioritized();
+        expect(prioritized.map(job => job.id)).toEqual([
+          prioritizedJob.id,
+          job.id,
+        ]);
+      });
+    });
   });
 
   describe('when job is in completed state', () => {
@@ -979,6 +1036,29 @@ describe('workers', () => {
         await completing2;
 
         await worker.close();
+      });
+    });
+
+    describe('when the job has a priority', () => {
+      it('moves the retried job back to the prioritized state', async () => {
+        const worker = new Worker(queueName, async () => 1, {
+          connection,
+          prefix,
+        });
+        await worker.waitUntilReady();
+
+        const completing = new Promise<void>(resolve => {
+          worker.once('completed', () => resolve());
+        });
+
+        const job = await queue.add('test', { foo: 'bar' }, { priority: 10 });
+
+        await completing;
+        await worker.close();
+
+        await job.retry('completed');
+
+        expect(await job.getState()).toBe('prioritized');
       });
     });
   });
@@ -4187,11 +4267,9 @@ describe('workers', () => {
               worker.on('failed', async (job, err) => {
                 try {
                   expect(job.data.foo).toBe('bar');
-                  if (job.attemptsMade === 2) {
-                    expect(err.message).toBe(
-                      'job started more than allowable limit',
-                    );
-                    expect(job?.attemptsStarted).toBe(2);
+                  if (job.attemptsMade === 1) {
+                    expect(err.message).toBe(failedError.message);
+                    expect(job?.attemptsStarted).toBe(1);
                     await job.retry();
                     resolve();
                   }
@@ -4204,11 +4282,11 @@ describe('workers', () => {
             const failedAgain = new Promise<void>((resolve, reject) => {
               worker.on('failed', async (job, err) => {
                 try {
-                  if (job.attemptsMade === 3) {
+                  if (job.attemptsMade === 2) {
                     expect(err.message).toBe(
                       'job started more than allowable limit',
                     );
-                    expect(job?.attemptsStarted).toBe(3);
+                    expect(job?.attemptsStarted).toBe(2);
                     resolve();
                   }
                 } catch (error) {

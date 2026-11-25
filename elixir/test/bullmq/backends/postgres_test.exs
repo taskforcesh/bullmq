@@ -58,6 +58,27 @@ defmodule BullMQ.Backends.PostgresTest do
     assert {:ok, nil} = Backend.get_job_data(b, id)
   end
 
+  test "reschedule keeps the existing payload and updates its delay", %{backend: b, queue: q} do
+    deduplication = %{id: "reschedule", reschedule: true}
+
+    original =
+      Job.new(q, "original", %{"color" => "white"}, delay: 60_000, deduplication: deduplication)
+
+    assert {:ok, id} = Backend.add_job(b, original)
+    assert Backends.Postgres.Migrator.latest_schema_version() >= 6
+
+    for delay <- [120_000, 30_000] do
+      incoming =
+        Job.new(q, "incoming", %{"color" => "blue"}, delay: delay, deduplication: deduplication)
+
+      assert {:ok, ^id} = Backend.add_job(b, incoming)
+      assert {:ok, stored} = Backend.get_job_data(b, id)
+      assert stored["name"] == "original"
+      assert Jason.decode!(stored["data"]) == %{"color" => "white"}
+      assert stored["delay"] == Integer.to_string(delay)
+    end
+  end
+
   test "remove_deduplication_key only deletes the matching job owner", %{backend: b, queue: q} do
     job = Job.new(q, "dedup", %{}, deduplication: %{id: "dk1"})
     assert {:ok, id} = Backend.add_job(b, job)
@@ -369,6 +390,25 @@ defmodule BullMQ.Backends.PostgresTest do
     {:ok, [_, ^id, 0, 0]} = Backend.move_to_active(b, "t2", [])
     assert {:ok, _} = Backend.release_lock(b, id, "t2")
     assert {:ok, "waiting"} = Backend.get_state(b, id)
+  end
+
+  test "move_job_from_active_to_wait returns an error when the job was not moved", %{
+    backend: b,
+    queue: q
+  } do
+    {:ok, id} = Backend.add_job(b, Job.new(q, "m", %{}, []))
+    {:ok, [_, ^id, 0, 0]} = Backend.move_to_active(b, "t", [])
+
+    # Lock held by another token: the job stays active.
+    assert {:error, -6} = Backend.move_job_from_active_to_wait(b, id, "other")
+    assert {:ok, "active"} = Backend.get_state(b, id)
+
+    # Token "0" bypasses the lock check and releases the lock, so the
+    # former owner now gets a missing lock.
+    assert {:ok, _} = Backend.move_job_from_active_to_wait(b, id, "0")
+    assert {:error, -2} = Backend.move_job_from_active_to_wait(b, id, "t")
+
+    assert {:error, -1} = Backend.move_job_from_active_to_wait(b, "missing-job", "t")
   end
 
   test "extend_lock and extend_locks", %{backend: b, queue: q} do

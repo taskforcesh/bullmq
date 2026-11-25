@@ -11,9 +11,37 @@ import asyncio
 import redis.asyncio as redis
 import unittest
 import os
+import time
 
 queueName = ""
 prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
+
+class TestDeduplicationReschedule(unittest.IsolatedAsyncioTestCase):
+    async def test_reschedule_preserves_payload_and_updates_due_time(self):
+        queue = Queue(f"reschedule-{uuid4().hex}", {"prefix": prefix})
+        try:
+            original = await queue.add("original", {"color": "white"}, {
+                "delay": 60000,
+                "deduplication": {"id": "reschedule"},
+            })
+            for delay in (120000, 30000):
+                timestamp = int(time.time() * 1000)
+                duplicate = await queue.add("incoming", {"color": "blue"}, {
+                    "timestamp": timestamp,
+                    "delay": delay,
+                    "deduplication": {"id": "reschedule", "reschedule": True},
+                })
+                self.assertEqual(duplicate.id, original.id)
+                stored = await queue.getJob(original.id)
+                self.assertEqual(stored.name, "original")
+                self.assertEqual(stored.data, {"color": "white"})
+                self.assertEqual(stored.delay, delay)
+                score = await queue.client.zscore(queue.keys["delayed"], original.id)
+                self.assertEqual(int(score) // 4096, timestamp + delay)
+        finally:
+            await queue.obliterate(force=True)
+            await queue.close()
+
 
 class TestDeduplication(unittest.IsolatedAsyncioTestCase):
 

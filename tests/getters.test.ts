@@ -834,6 +834,61 @@ describe('Jobs getters', () => {
     expect(count).toBe(0);
   });
 
+  describe('.getDelayedCount', () => {
+    it('counts delayed jobs strictly before the cutoff without changing total counts', async () => {
+      const timestamp = Date.now();
+      await queue.addBulk([
+        { name: 'waiting', data: {} },
+        { name: 'before', data: {}, opts: { timestamp, delay: 1000 } },
+        { name: 'at-first', data: {}, opts: { timestamp, delay: 2000 } },
+        { name: 'at-second', data: {}, opts: { timestamp, delay: 2000 } },
+        { name: 'after', data: {}, opts: { timestamp, delay: 3000 } },
+      ]);
+
+      expect(await queue.getDelayedCount(timestamp + 1000)).toBe(0);
+      expect(await queue.getDelayedCount(timestamp + 2000)).toBe(1);
+      expect(await queue.getDelayedCount(timestamp + 2001)).toBe(3);
+      expect(await queue.getDelayedCount(timestamp + 3001)).toBe(4);
+      expect(await queue.getDelayedCount(0)).toBe(0);
+      expect(await queue.getDelayedCount()).toBe(4);
+      expect((await queue.getJobCounts('delayed')).delayed).toBe(4);
+      expect(await queue.getWaitingCount()).toBe(1);
+      expect(
+        await queue
+          .getBackend()
+          .getCounts(
+            ['waiting', 'delayed', 'delayed', 'active'],
+            timestamp + 2000,
+          ),
+      ).toEqual([1, 1, 1, 0]);
+    });
+
+    it('preserves millisecond precision at the cutoff', async () => {
+      const timestamp = 1700000000000;
+      await queue.addBulk([
+        { name: 'first', data: {}, opts: { timestamp, delay: 1 } },
+        { name: 'second', data: {}, opts: { timestamp, delay: 1 } },
+      ]);
+
+      expect(await queue.getDelayedCount(timestamp + 1)).toBe(0);
+      expect(await queue.getDelayedCount(timestamp + 2)).toBe(2);
+    });
+
+    it('returns zero for an empty queue', async () => {
+      expect(await queue.getDelayedCount(Date.now())).toBe(0);
+      expect(await queue.getDelayedCount()).toBe(0);
+    });
+
+    it.each([NaN, Infinity, -Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+      'rejects an invalid timestamp: %s',
+      async timestamp => {
+        await expect(queue.getDelayedCount(timestamp)).rejects.toThrow(
+          'timestamp must be a safe integer in milliseconds',
+        );
+      },
+    );
+  });
+
   describe('.getJobCounts', () => {
     it(`returns job counts for active, completed, delayed, failed, prioritized,
     waiting and waiting-children`, async () => {

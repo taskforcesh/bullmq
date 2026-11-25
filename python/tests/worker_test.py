@@ -15,6 +15,8 @@ import asyncio
 import unittest
 import time
 import os
+import sys
+import textwrap
 
 queueName = ""
 prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
@@ -57,6 +59,289 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(completedJob.finishedOn, None)
 
         await worker.close()
+        await queue.close()
+
+    async def test_fetches_next_job_when_completing_a_job(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        job_count = 5
+        added_jobs = [await queue.add("test", {"idx": i}) for i in range(job_count)]
+
+        async def process(job: Job, token: str):
+            return job.data["idx"]
+
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+
+        move_to_active_calls = 0
+        original_move_to_active = worker.backend.moveToActive
+
+        async def counting_move_to_active(*args, **kwargs):
+            nonlocal move_to_active_calls
+            move_to_active_calls += 1
+            return await original_move_to_active(*args, **kwargs)
+
+        worker.backend.moveToActive = counting_move_to_active
+
+        active_ids = []
+        completed_ids = []
+        all_completed = Future()
+
+        def on_completed(job, result):
+            completed_ids.append(job.id)
+            if len(completed_ids) == job_count:
+                all_completed.set_result(None)
+
+        worker.on("active", lambda job, prev: active_ids.append(job.id))
+        worker.on("completed", on_completed)
+
+        asyncio.ensure_future(worker.run())
+        await all_completed
+
+        expected_ids = [job.id for job in added_jobs]
+        self.assertEqual(completed_ids, expected_ids)
+        self.assertEqual(active_ids, expected_ids)
+        # Only the first job (and the final "queue is empty" check) go
+        # through moveToActive; every other job comes back from moveToFinished.
+        self.assertLessEqual(move_to_active_calls, 2)
+
+        await worker.close()
+        await queue.close()
+
+    async def test_does_not_fetch_next_job_when_paused(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        first_job = await queue.add("test", {"idx": 0})
+        second_job = await queue.add("test", {"idx": 1})
+
+        worker = None
+
+        async def process(job: Job, token: str):
+            if job.id == first_job.id:
+                await worker.pause(True)
+            return "done"
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        first_completed = Future()
+        worker.on("completed", lambda job, result: first_completed.set_result(job.id)
+                  if not first_completed.done() else None)
+
+        self.assertEqual(await first_completed, first_job.id)
+        await asyncio.sleep(0.1)
+
+        self.assertEqual(await second_job.getState(), "waiting")
+
+        await worker.close(force=True)
+        await queue.close()
+
+    async def test_close_waits_for_job_fetched_while_closing(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        await queue.add("test", {"idx": 0})
+        second_job = await queue.add("test", {"idx": 1})
+
+        started_ids = []
+        finished_ids = []
+
+        async def process(job: Job, token: str):
+            started_ids.append(job.id)
+            if job.id == second_job.id:
+                await asyncio.sleep(0.2)
+            finished_ids.append(job.id)
+            return "done"
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        # Hold the first moveToCompleted call (which already asked to fetch
+        # the next job) until close() has started.
+        move_to_completed_entered = asyncio.Event()
+        release_move_to_completed = asyncio.Event()
+        original_move_to_completed = worker.backend.moveToCompleted
+
+        async def gated_move_to_completed(*args, **kwargs):
+            if not move_to_completed_entered.is_set():
+                move_to_completed_entered.set()
+                await release_move_to_completed.wait()
+            return await original_move_to_completed(*args, **kwargs)
+
+        worker.backend.moveToCompleted = gated_move_to_completed
+
+        await move_to_completed_entered.wait()
+        close_task = asyncio.ensure_future(worker.close())
+        await asyncio.sleep(0.05)
+        release_move_to_completed.set()
+        await close_task
+
+        # A job fetched while closing must be fully processed before close()
+        # returns, never left active with the connection already closed.
+        self.assertEqual(started_ids, finished_ids)
+        self.assertIn(second_job.id, finished_ids)
+        self.assertEqual(await second_job.getState(), "completed")
+
+        await queue.close()
+
+    def _count_move_to_active_calls(self, worker: Worker) -> list[int]:
+        calls = [0]
+        original_move_to_active = worker.backend.moveToActive
+
+        async def counting_move_to_active(*args, **kwargs):
+            calls[0] += 1
+            return await original_move_to_active(*args, **kwargs)
+
+        worker.backend.moveToActive = counting_move_to_active
+        return calls
+
+    async def test_fetches_next_job_when_failing_a_job(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        job_count = 5
+        added_jobs = [await queue.add("test", {"idx": i}) for i in range(job_count)]
+
+        async def process(job: Job, token: str):
+            raise Exception("boom")
+
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+        move_to_active_calls = self._count_move_to_active_calls(worker)
+
+        active_ids = []
+        failed_ids = []
+        all_failed = Future()
+
+        def on_failed(job, err):
+            failed_ids.append(job.id)
+            if len(failed_ids) == job_count:
+                all_failed.set_result(None)
+
+        worker.on("active", lambda job, prev: active_ids.append(job.id))
+        worker.on("failed", on_failed)
+
+        asyncio.ensure_future(worker.run())
+        await all_failed
+
+        expected_ids = [job.id for job in added_jobs]
+        self.assertEqual(failed_ids, expected_ids)
+        self.assertEqual(active_ids, expected_ids)
+        # Only the first job (and the final "queue is empty" check) go
+        # through moveToActive; every other job comes back from moveToFinished.
+        self.assertLessEqual(move_to_active_calls[0], 2)
+        for job in added_jobs:
+            self.assertEqual(await queue.getJobState(job.id), "failed")
+
+        await worker.close()
+        await queue.close()
+
+    async def test_fetches_next_job_when_delaying_a_failed_job_for_retry(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        job_count = 3
+        added_jobs = [
+            await queue.add("test", {"idx": i},
+                            {"attempts": 2, "backoff": {"type": "fixed", "delay": 60000}})
+            for i in range(job_count)
+        ]
+
+        async def process(job: Job, token: str):
+            raise Exception("boom")
+
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+        move_to_active_calls = self._count_move_to_active_calls(worker)
+
+        failed_ids = []
+        all_failed = Future()
+
+        def on_failed(job, err):
+            failed_ids.append(job.id)
+            if len(failed_ids) == job_count:
+                all_failed.set_result(None)
+
+        worker.on("failed", on_failed)
+
+        asyncio.ensure_future(worker.run())
+        await all_failed
+
+        self.assertEqual(failed_ids, [job.id for job in added_jobs])
+        # Moving a job to delayed also returns the next job, as in Node.
+        self.assertLessEqual(move_to_active_calls[0], 2)
+        for job in added_jobs:
+            self.assertEqual(await queue.getJobState(job.id), "delayed")
+
+        await worker.close()
+        await queue.close()
+
+    async def test_immediate_retry_still_reprocesses_the_job(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        job = await queue.add("test", {"idx": 0}, {"attempts": 2})
+
+        attempts_seen = []
+
+        async def process(job: Job, token: str):
+            attempts_seen.append(job.attemptsMade)
+            if len(attempts_seen) == 1:
+                raise Exception("first attempt fails")
+            return "done"
+
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+        move_to_active_calls = self._count_move_to_active_calls(worker)
+
+        completed = Future()
+        failed_ids = []
+        worker.on("failed", lambda job, err: failed_ids.append(job.id))
+        worker.on("completed", lambda job, result: completed.set_result(job.id))
+
+        asyncio.ensure_future(worker.run())
+        self.assertEqual(await completed, job.id)
+        # The immediate retry (no backoff) goes back to wait through retryJob,
+        # which never fetches, so the job is picked up again by moveToActive.
+        self.assertGreaterEqual(move_to_active_calls[0], 2)
+        self.assertEqual(failed_ids, [job.id])
+        self.assertEqual(attempts_seen, [0, 1])
+        self.assertEqual(await queue.getJobState(job.id), "completed")
+
+        await worker.close()
+        await queue.close()
+
+    async def test_close_waits_for_job_fetched_while_closing_after_a_failure(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        first_job = await queue.add("test", {"idx": 0})
+        second_job = await queue.add("test", {"idx": 1})
+
+        started_ids = []
+        finished_ids = []
+
+        async def process(job: Job, token: str):
+            started_ids.append(job.id)
+            if job.id == first_job.id:
+                finished_ids.append(job.id)
+                raise Exception("boom")
+            await asyncio.sleep(0.2)
+            finished_ids.append(job.id)
+            return "done"
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        # Hold the first moveToFailed call (which already asked to fetch the
+        # next job) until close() has started.
+        move_to_failed_entered = asyncio.Event()
+        release_move_to_failed = asyncio.Event()
+        original_move_to_failed = worker.backend.moveToFailed
+
+        async def gated_move_to_failed(*args, **kwargs):
+            if not move_to_failed_entered.is_set():
+                move_to_failed_entered.set()
+                await release_move_to_failed.wait()
+            return await original_move_to_failed(*args, **kwargs)
+
+        worker.backend.moveToFailed = gated_move_to_failed
+
+        await move_to_failed_entered.wait()
+        close_task = asyncio.ensure_future(worker.close())
+        while not worker.closing:
+            await asyncio.sleep(0)
+        release_move_to_failed.set()
+        await close_task
+
+        # A job fetched while closing must be fully processed before close()
+        # returns, never left active with the connection already closed.
+        self.assertEqual(started_ids, finished_ids)
+        self.assertIn(second_job.id, finished_ids)
+        self.assertEqual(await queue.getJobState(first_job.id), "failed")
+        self.assertEqual(await second_job.getState(), "completed")
+
         await queue.close()
 
     async def test_manual_process_jobs(self):
@@ -275,6 +560,42 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(len(failedJob.stacktrace), 1)
                     self.assertEqual(failedJob.returnvalue, None)
                     self.assertNotEqual(failedJob.finishedOn, None)
+                finally:
+                    if worker is not None:
+                        await worker.close()
+                    await queue.close()
+
+    async def test_stacktrace_limit_keeps_latest_stacktraces(self):
+        for stackTraceLimit in [1, 2]:
+            with self.subTest(stackTraceLimit=stackTraceLimit):
+                test_queue_name = f"__stacktrace_limit__{uuid4().hex}"
+                queue = Queue(test_queue_name, {"prefix": prefix})
+                worker = None
+                try:
+                    job = await queue.add("test-job", {"foo": "bar"}, {"attempts": 3, "stackTraceLimit": stackTraceLimit})
+
+                    async def process(job: Job, token: str):
+                        raise Exception(f"failed attempt {job.attemptsMade + 1}")
+
+                    worker = Worker(test_queue_name, process, {"prefix": prefix})
+                    processing = Future()
+
+                    def failing(job: Job, err):
+                        if job.attemptsMade == 3:
+                            processing.set_result(None)
+
+                    worker.on("failed", failing)
+
+                    await processing
+
+                    failedJob = await Job.fromId(queue, job.id)
+                    self.assertEqual(failedJob.attemptsMade, 3)
+                    self.assertEqual(failedJob.failedReason, "failed attempt 3")
+                    self.assertEqual(len(failedJob.stacktrace), stackTraceLimit)
+                    # The newest stacktrace is kept last, the oldest ones are dropped
+                    self.assertIn("failed attempt 3", failedJob.stacktrace[-1])
+                    if stackTraceLimit == 2:
+                        self.assertIn("failed attempt 2", failedJob.stacktrace[0])
                 finally:
                     if worker is not None:
                         await worker.close()
@@ -1202,6 +1523,76 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         await worker.close()
         await queue.close()
+
+    async def assert_asyncio_run_returns_while_waiting(self, call: str):
+        """Run `call` on a worker with an active job in a child process and
+        return from `asyncio.run()` while it still waits, so that the call and
+        its helper task get canceled together. A child process is used because
+        a regression blocks the whole event loop, which no in-loop timeout can
+        interrupt."""
+        script = textwrap.dedent(f"""
+            import asyncio
+            from bullmq import Worker
+
+            async def process(job, token):
+                return None
+
+            async def main():
+                worker = Worker("repro", process, {{"autorun": False}})
+                # Stand-in for a job that is still running, so the call has to wait.
+                worker.processing.add(asyncio.ensure_future(asyncio.sleep(3600)))
+                asyncio.ensure_future({call})
+                await asyncio.sleep(0.1)
+
+            asyncio.run(main())
+        """)
+        package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        child = await asyncio.create_subprocess_exec(sys.executable, "-c", script, cwd=package_root)
+        try:
+            returncode = await asyncio.wait_for(child.wait(), timeout=10)
+        except asyncio.TimeoutError:
+            self.fail(f"asyncio.run() did not return while {call} was waiting")
+        finally:
+            if child.returncode is None:
+                child.kill()
+                await child.wait()
+        self.assertEqual(returncode, 0)
+
+    async def test_close_returns_when_teardown_is_canceled(self):
+        """Test that close() stops waiting once its teardown task is canceled,
+        as asyncio.run() does on exit, instead of spinning with the event loop
+        blocked."""
+        await self.assert_asyncio_run_returns_while_waiting("worker.close()")
+
+    async def test_pause_returns_when_wait_is_canceled(self):
+        """Test that pause() stops waiting once its wait for in-flight jobs is
+        canceled, as asyncio.run() does on exit, instead of spinning with the
+        event loop blocked."""
+        await self.assert_asyncio_run_returns_while_waiting("worker.pause()")
+
+    async def test_pause_emits_paused_when_canceled_as_last_job_finishes(self):
+        """Test that pause() still emits 'paused' when its task is canceled in the
+        same loop iteration in which the last in-flight job finishes."""
+        async def process(job: Job, token: str):
+            return None
+
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+        paused = []
+        worker.on("paused", lambda: paused.append(True))
+        job_task = asyncio.get_running_loop().create_future()
+        worker.processing.add(job_task)
+
+        pause_task = asyncio.ensure_future(worker.pause())
+        await asyncio.sleep(0.01)  # give pause() time to reach asyncio.wait(self.processing, ...)
+        job_task.add_done_callback(lambda _: pause_task.cancel())
+        job_task.set_result(None)
+
+        with self.assertRaises(asyncio.CancelledError):
+            await pause_task
+
+        self.assertEqual(paused, [True])
+
+        await worker.close()
 
     async def test_external_run_cancellation_propagates(self):
         """Test that cancelling the run() task from outside (not via pause/close)

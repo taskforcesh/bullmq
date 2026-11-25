@@ -1,12 +1,26 @@
+---
+description: >-
+  How to connect BullMQ to Redis, Valkey or Dragonfly: the connection option,
+  reusing connections, and using ioredis, node-redis, Bun's Redis client or
+  Valkey GLIDE.
+---
+
 # Connections
 
-In order to start working with a Queue, a connection to a Redis instance is necessary. By default, BullMQ creates connections with [ioredis](https://github.com/luin/ioredis), and the options you pass to BullMQ are passed to the ioredis constructor. If you do not provide any options, it will default to port 6379 and localhost.
+To connect BullMQ to Redis™, pass a `connection` option with the host and port of your server, or an existing client, to every `Queue`, `Worker`, `QueueEvents` and `FlowProducer` you create. The default Redis endpoint is `localhost` on port 6379. A `Worker` requires a `connection` option, so pass `connection: {}` to use these defaults.
 
-BullMQ can also use other Redis clients through its Redis client adapter interface. The package includes adapters for ioredis, node-redis, and Bun's built-in Redis client. You can also provide your own adapter by implementing the `IRedisClient` interface.
+In order to start working with a Queue, a connection to a datastore is necessary. By default BullMQ uses Redis™ (or a compatible server such as Valkey or Dragonfly), and this page describes how to configure those connections. If you are using PostgreSQL instead, see [PostgreSQL backend](postgresql.md#connection-options).
+
+By default, BullMQ creates Redis connections with [ioredis](https://github.com/luin/ioredis), and the options you pass to BullMQ are passed to the ioredis constructor. If you do not provide any options, it will default to port 6379 and localhost.
+
+BullMQ can also use other Redis clients through its Redis client adapter interface. The package includes adapters for ioredis, node-redis, Bun's built-in Redis client and Valkey GLIDE. You can also provide your own adapter by implementing the `IRedisClient` interface.
 
 Every class will consume at least one Redis connection, but it is also possible to reuse connections in some situations. For example, the _Queue_ and _Worker_ classes can accept an existing adapted Redis client. Classes that need blocking Redis commands, such as _Worker_ and _QueueEvents_, will create duplicated connections internally, so the client or adapter must support `duplicate()`.
 
 Some examples:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 import { Queue, Worker } from 'bullmq';
@@ -26,6 +40,175 @@ const myWorker = new Worker('myqueue', async job => {}, {
   },
 });
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Queue, Worker
+
+# Create a new connection in every instance
+my_queue = Queue("myqueue", {
+    "connection": {
+        "host": "myredis.taskforce.run",
+        "port": 32856,
+    },
+})
+
+async def process(job, token):
+    pass
+
+my_worker = Worker("myqueue", process, {
+    "connection": {
+        "host": "myredis.taskforce.run",
+        "port": 32856,
+    },
+})
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+# Start a named connection pool and reference it by name
+{:ok, _pid} =
+  BullMQ.RedisConnection.start_link(
+    name: :my_redis,
+    host: "myredis.taskforce.run",
+    port: 32856
+  )
+
+{:ok, _queue} =
+  BullMQ.Queue.start_link(name: :my_queue, queue: "myqueue", connection: :my_redis)
+
+{:ok, _worker} =
+  BullMQ.Worker.start_link(
+    queue: "myqueue",
+    connection: :my_redis,
+    processor: fn _job -> :ok end
+  )
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+// Create a new connection in every instance
+var myQueue = new Queue("myqueue", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("myredis.taskforce.run:32856"),
+});
+
+var myWorker = new Worker("myqueue", async (job, cancellationToken) => null, new WorkerOptions
+{
+    Connection = ConnectionOptions.FromString("myredis.taskforce.run:32856"),
+});
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::options::RedisConnectionOptions;
+use bullmq::{Job, Queue, QueueOptions, Worker, WorkerOptions};
+
+// Create a new connection in every instance
+let my_queue = Queue::with_options(
+    "myqueue",
+    QueueOptions::new().connection(
+        RedisConnectionOptions::new()
+            .host("myredis.taskforce.run")
+            .port(32856),
+    ),
+)
+.await?;
+
+let my_worker = Worker::with_options(
+    "myqueue",
+    |_job: Job, _token| async move { Ok(serde_json::Value::Null) },
+    WorkerOptions::new().connection(
+        RedisConnectionOptions::new()
+            .host("myredis.taskforce.run")
+            .port(32856),
+    ),
+)
+.await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	"github.com/redis/go-redis/v9"
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	// Create a new connection in every instance
+	backend := redisbackend.New(redisbackend.Options{Addr: "myredis.taskforce.run:32856"})
+
+	myQueue, err := bullmq.NewQueue("myqueue", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer myQueue.Close()
+
+	myWorker, err := bullmq.NewWorker("myqueue", func(ctx context.Context, job *bullmq.Job) (any, error) {
+		return nil, nil
+	}, &bullmq.WorkerOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer myWorker.Close()
+
+	// Or reuse your own go-redis client, which BullMQ never closes. Workers
+	// still open a dedicated connection for their blocking commands.
+	rdb := redis.NewClient(&redis.Options{Addr: "myredis.taskforce.run:32856"})
+	defer rdb.Close()
+
+	sharedQueue, err := bullmq.NewQueue("myqueue", &bullmq.QueueOptions{
+		Backend: redisbackend.New(redisbackend.Options{Client: rdb}),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer sharedQueue.Close()
+}
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+use BullMQ\Queue;
+
+// Create a new connection in every instance
+$myQueue = new Queue('myqueue', [
+    'connection' => [
+        'host' => 'myredis.taskforce.run',
+        'port' => 32856,
+    ],
+]);
+```
+
+{% endtab %}
+{% endtabs %}
 
 ### Reusing an ioredis connection
 

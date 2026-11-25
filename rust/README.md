@@ -25,7 +25,8 @@ Fully compatible with Node.js and Elixir BullMQ queues (same Lua scripts and Red
   per-queue default options.
 - **JobScheduler** — Cron/interval repeatable jobs (managed via the `Queue` API).
 - **Connections** — URL or typed options (host/port/username/password/db) with
-  TLS (`rediss://`) support.
+  TLS (`rediss://`) support, and Redis Cluster (use a hash-tagged prefix such
+  as `{bull}`).
 - **FFI-ready** — Clean trait-based API designed for straightforward bindings to
   Go, C#, Python, etc.
 - **Zero-copy Lua scripts** — Scripts are embedded at compile time via `include_str!`.
@@ -33,7 +34,7 @@ Fully compatible with Node.js and Elixir BullMQ queues (same Lua scripts and Red
 > See [FEATURE_PARITY.md](./FEATURE_PARITY.md) for a detailed comparison with the
 > Node.js implementation. Remaining gaps are intentionally scoped: legacy
 > maintenance methods (`remove_orphaned_jobs`, legacy repeatable API),
-> `Job.wait_until_finished`, Redis Cluster/Sentinel, and telemetry.
+> `Job.wait_until_finished`, Redis Sentinel, and telemetry.
 
 ## Quick Start
 
@@ -130,7 +131,7 @@ src/
 ├── types.rs            # Shared types (JobState, JobProgress, Metrics, etc.)
 ├── keys.rs             # Redis key generation
 ├── options.rs          # Configuration options (Queue/Worker/Job/Connection)
-├── redis_connection.rs # Redis connection management (URL or typed options, TLS)
+├── redis_connection.rs # Redis connection management (URL or typed options, TLS, Cluster)
 ├── scripts.rs          # Lua script registry (compile-time embedded)
 ├── job.rs              # Job struct and Redis serialization
 ├── queue.rs            # Queue operations, getters, metrics, schedulers

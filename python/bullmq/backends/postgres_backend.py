@@ -713,6 +713,12 @@ class PostgresBackend(Backend):
             "paused": waiting if is_paused else 0,
         }
 
+    async def getMetrics(self, type: str, start: int = 0, end: int = -1) -> list:
+        row = (await self._run("get_metrics", [self.queue_name, type, start, end])).first_map()
+        meta = [str(row[column]) for column in ("total", "prev_ts", "prev_count")]
+        data = [str(point) for point in row["data"]]
+        return [meta, data, row["num_points"]]
+
     async def getCountsPerPriority(self, priorities: list) -> list:
         result = await self._run("get_counts_per_priority", [self.queue_name, list(priorities)])
         return [_to_int(m.get("cnt")) for m in result.maps()]

@@ -1,0 +1,143 @@
+name: Go Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master, feat/v6]
+
+concurrency:
+  group: golang-test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.filter.outputs.golang }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            golang:
+              - 'golang/**'
+              - 'src/commands/**'
+              - 'src/postgres/**'
+              - 'package.json'
+              - 'scripts/generateGolangScriptsVersion.js'
+              - '.github/workflows/golang-test.yml'
+
+  test:
+    needs: changes
+    if: needs.changes.outputs.should_run == 'true'
+    name: Go Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ['1.26', '1.27']
+
+    services:
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bullmq_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+          cache: 'yarn'
+
+      - name: Generate rawScripts (resolve Lua includes) and copy the shared SQL
+        run: |
+          yarn install --frozen-lockfile --non-interactive
+          yarn generate:raw:scripts
+          yarn copy:lua:golang
+          yarn copy:sql:golang
+
+      - name: Setup Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache-dependency-path: golang/go.sum
+
+      - name: Check formatting
+        working-directory: golang
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt'ed:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Verify go.mod is tidy
+        working-directory: golang
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Vet
+        working-directory: golang
+        run: go vet ./...
+
+      - name: Keep datastore drivers out of the core package
+        working-directory: golang
+        run: |
+          if go list -deps . | grep -E 'github.com/redis/go-redis|github.com/jackc/pgx'; then
+            echo "package bullmq must not import a datastore driver; keep it in the backend packages"
+            exit 1
+          fi
+
+      - name: Build
+        working-directory: golang
+        run: go build ./...
+
+      - name: Run tests
+        working-directory: golang
+        env:
+          REDIS_ADDR: 127.0.0.1:6379
+          POSTGRES_URL: postgres://postgres:postgres@localhost:5432/bullmq_test?sslmode=disable
+        run: go test -v -count=1 -timeout 10m ./...
+
+      # The Redis suites again, with the opt-in auto-pipelining in the
+      # full-duplex mode the docs recommend. PostgreSQL is left out.
+      - name: Run Redis tests with auto-pipelining
+        if: matrix.go-version == '1.27'
+        working-directory: golang
+        env:
+          REDIS_ADDR: 127.0.0.1:6379
+          REDIS_AUTOPIPELINE: fullduplex
+        run: go test -count=1 -timeout 10m . ./redisbackend

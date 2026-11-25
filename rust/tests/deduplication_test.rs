@@ -15,6 +15,53 @@ use tokio::sync::mpsc;
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[tokio::test]
+async fn test_dedup_reschedule_preserves_payload_and_updates_delay() {
+    let name = test_queue_name();
+    let queue = Queue::with_options(
+        &name,
+        QueueOptions {
+            connection: test_connection(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let original = queue
+        .add("original", serde_json::json!({"color": "white"}))
+        .options(JobOptions {
+            delay: Some(60000),
+            deduplication: Some(DeduplicationOptions {
+                id: "reschedule".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    for delay in [120000, 30000] {
+        let duplicate = queue
+            .add("incoming", serde_json::json!({"color": "blue"}))
+            .options(JobOptions {
+                delay: Some(delay),
+                deduplication: Some(DeduplicationOptions {
+                    id: "reschedule".into(),
+                    reschedule: Some(true),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(duplicate.id(), original.id());
+        let stored = queue.get_job(original.id()).await.unwrap().unwrap();
+        assert_eq!(stored.name(), "original");
+        assert_eq!(stored.data(), &serde_json::json!({"color": "white"}));
+        assert_eq!(stored.delay(), delay);
+    }
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
 async fn test_dedup_prevents_duplicate_jobs() {
     let name = test_queue_name();
     let conn_opts = test_connection();

@@ -1,3 +1,209 @@
+## [6.7.10](https://github.com/taskforcesh/bullmq/compare/v6.7.9...v6.7.10) (2026-11-24)
+
+
+### Bug Fixes
+
+* **deps:** resolve minimatch vulnerability ([#5177](https://github.com/taskforcesh/bullmq/issues/5177)) ([7479e8d](https://github.com/taskforcesh/bullmq/commit/7479e8d73e1740dccd2d0da8053a44b0fb7ada9b))
+
+## [6.7.8](https://github.com/taskforcesh/bullmq/compare/v6.7.7...v6.7.8) (2026-11-19)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cron-parser to v5.10.6 [security] ([#5150](https://github.com/taskforcesh/bullmq/issues/5150)) ([db233ed](https://github.com/taskforcesh/bullmq/commit/db233ed33c592d660d985f6a0fbb767a95d88a13))
+* **postgres:** don't report a claimable job while the queue is maxed (python)(elixir)(dotnet) ([#5163](https://github.com/taskforcesh/bullmq/issues/5163)) ([42745d5](https://github.com/taskforcesh/bullmq/commit/42745d5e29fae50bf5f255bf2285cde903c2497a))
+
+## [6.7.7](https://github.com/taskforcesh/bullmq/compare/v6.7.6...v6.7.7) (2026-11-17)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cron-parser to v5.10.5 [security] ([#5137](https://github.com/taskforcesh/bullmq/issues/5137)) ([2c0cb51](https://github.com/taskforcesh/bullmq/commit/2c0cb519d5a4cd631574dc07dffce3807a3c38c4))
+
+## [6.7.6](https://github.com/taskforcesh/bullmq/compare/v6.7.5...v6.7.6) (2026-11-12)
+
+
+### Bug Fixes
+
+* **flow:** remove deduplication key that is associated with parent job that is removed (python) (elixir) (php) (rust) (dotnet) ([#5078](https://github.com/taskforcesh/bullmq/issues/5078)) ([2353552](https://github.com/taskforcesh/bullmq/commit/2353552f1e9f55db2bdfa5bdcf604e2cead7972a))
+
+## [6.7.5](https://github.com/taskforcesh/bullmq/compare/v6.7.4...v6.7.5) (2026-11-11)
+
+
+### Bug Fixes
+
+* **schedulers:** remove unused count option property that must be internal ([#5109](https://github.com/taskforcesh/bullmq/issues/5109)) ([09b4832](https://github.com/taskforcesh/bullmq/commit/09b48329afc70adac2cf437adaf1c448ad5538ef))
+* **telemetry:** record original job errors on the processing span ([#4915](https://github.com/taskforcesh/bullmq/issues/4915)) ([cf91c88](https://github.com/taskforcesh/bullmq/commit/cf91c887f6a0a7d383c74345f78127764161157a))
+
+## [6.7.4](https://github.com/taskforcesh/bullmq/compare/v6.7.3...v6.7.4) (2026-11-11)
+
+
+### Bug Fixes
+
+* **postgres:** count waiting jobs while the queue is paused ([#5095](https://github.com/taskforcesh/bullmq/issues/5095)) fixes [#5083](https://github.com/taskforcesh/bullmq/issues/5083) ([5228077](https://github.com/taskforcesh/bullmq/commit/52280774cf3413d10a8c970fd7dc93be6a509fea))
+
+## [6.7.3](https://github.com/taskforcesh/bullmq/compare/v6.7.2...v6.7.3) (2026-11-10)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cron-parser to v5.10.4 ([#5098](https://github.com/taskforcesh/bullmq/issues/5098)) ([6b7fd10](https://github.com/taskforcesh/bullmq/commit/6b7fd10ce096d7b7b402c6996ff832df1ce38a96))
+
+## [6.7.2](https://github.com/taskforcesh/bullmq/compare/v6.7.1...v6.7.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **deps:** pin dependencies [security] ([#5002](https://github.com/taskforcesh/bullmq/issues/5002)) ([fe30cde](https://github.com/taskforcesh/bullmq/commit/fe30cde1f1f586e6824c523760cf9aa608f4f822))
+
+## [6.7.1](https://github.com/taskforcesh/bullmq/compare/v6.7.0...v6.7.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* **deps:** update dependency semver to v7.8.6 ([#5077](https://github.com/taskforcesh/bullmq/issues/5077)) ([85194b6](https://github.com/taskforcesh/bullmq/commit/85194b6b8549b222e23cea6f4adc29c918565c6a))
+
+# [6.7.0](https://github.com/taskforcesh/bullmq/compare/v6.6.1...v6.7.0) (2026-11-04)
+
+
+### Features
+
+* **queue:** count delayed jobs before a timestamp ([#5026](https://github.com/taskforcesh/bullmq/issues/5026)) ([304edc3](https://github.com/taskforcesh/bullmq/commit/304edc32066f13f4bd943ce83299b09d7e202ae8))
+
+## [6.6.1](https://github.com/taskforcesh/bullmq/compare/v6.6.0...v6.6.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cron-parser to v5.10.3 [security] ([#5061](https://github.com/taskforcesh/bullmq/issues/5061)) ([5152f03](https://github.com/taskforcesh/bullmq/commit/5152f03f80a993b1e5eaf0704e286376bcf0abcb))
+* **sandbox:** let worker threads finish their current job on close(true) ([#4991](https://github.com/taskforcesh/bullmq/issues/4991)) ([467afe5](https://github.com/taskforcesh/bullmq/commit/467afe555e3b9ff8c3a504a7da1ffee001edbde5))
+
+# [6.6.0](https://github.com/taskforcesh/bullmq/compare/v6.5.4...v6.6.0) (2026-11-04)
+
+
+### Features
+
+* **deduplication:** support schedule option (python) (elixir) (php) (rust) (dotnet) ([#5048](https://github.com/taskforcesh/bullmq/issues/5048)) ([31b151d](https://github.com/taskforcesh/bullmq/commit/31b151d3236183e3707f178a1b4c79b83f607bdf))
+
+## [6.5.4](https://github.com/taskforcesh/bullmq/compare/v6.5.3...v6.5.4) (2026-11-02)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpackr to v2.1.3 [security] ([#5051](https://github.com/taskforcesh/bullmq/issues/5051)) ([fce8223](https://github.com/taskforcesh/bullmq/commit/fce82231be63f2d31d9e98425fd13884f365f3ec))
+
+## [6.5.3](https://github.com/taskforcesh/bullmq/compare/v6.5.2...v6.5.3) (2026-10-31)
+
+
+### Bug Fixes
+
+* **node-redis:** clear ended status when connect() reopens the client ([#4952](https://github.com/taskforcesh/bullmq/issues/4952)) ([0928d9f](https://github.com/taskforcesh/bullmq/commit/0928d9f53bf8c11b66c156d1a56822f5a9a8acd7))
+
+## [6.5.2](https://github.com/taskforcesh/bullmq/compare/v6.5.1...v6.5.2) (2026-10-30)
+
+
+### Bug Fixes
+
+* **relay:** format exclusive time bounds without precision loss ([#5043](https://github.com/taskforcesh/bullmq/issues/5043)) ([19ae429](https://github.com/taskforcesh/bullmq/commit/19ae4294dc0fd0dfb59bd61a9a62d525d6589b72))
+
+## [6.5.1](https://github.com/taskforcesh/bullmq/compare/v6.5.0...v6.5.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **flow:** defer parent release until all children are added (python) (elixir) (rust) (dotnet) ([#4988](https://github.com/taskforcesh/bullmq/issues/4988)) fixes [#4944](https://github.com/taskforcesh/bullmq/issues/4944) ([0e1a990](https://github.com/taskforcesh/bullmq/commit/0e1a990ebcb704c3a8e1b9dae564665ba6487219))
+
+# [6.5.0](https://github.com/taskforcesh/bullmq/compare/v6.4.2...v6.5.0) (2026-10-26)
+
+
+### Features
+
+* enforce node: protocol for built-in module imports ([#5016](https://github.com/taskforcesh/bullmq/issues/5016)) ([52255a9](https://github.com/taskforcesh/bullmq/commit/52255a96309e28e4b8c6247d3249981408596197))
+
+## [6.4.2](https://github.com/taskforcesh/bullmq/compare/v6.4.1...v6.4.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* **deps:** pin fast-uri to patched version ([#5009](https://github.com/taskforcesh/bullmq/issues/5009)) ([f42514c](https://github.com/taskforcesh/bullmq/commit/f42514c3d716dc81c2bbc65b883c9dc545fcb56d))
+
+## [6.4.1](https://github.com/taskforcesh/bullmq/compare/v6.4.0...v6.4.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** update security patches [security] ([#4986](https://github.com/taskforcesh/bullmq/issues/4986)) ([5289377](https://github.com/taskforcesh/bullmq/commit/528937798456bd60ef7d2d5d6df536862e004e87))
+
+# [6.4.0](https://github.com/taskforcesh/bullmq/compare/v6.3.19...v6.4.0) (2026-10-21)
+
+
+### Features
+
+* add support for reliable realtime messaging ([#4904](https://github.com/taskforcesh/bullmq/issues/4904)) ([253bc4b](https://github.com/taskforcesh/bullmq/commit/253bc4b1acd9c6030c01817b38ae65e067666ed4))
+
+## [6.3.19](https://github.com/taskforcesh/bullmq/compare/v6.3.18...v6.3.19) (2026-10-20)
+
+
+### Performance Improvements
+
+* **deduplication:** use LPOS for keepLastIfActive membership check (python)(elixir)(php)(rust) ([#4956](https://github.com/taskforcesh/bullmq/issues/4956)) ([8796b66](https://github.com/taskforcesh/bullmq/commit/8796b66653baa58b8ecf261d7d7595cc8b72e020)), closes [#4613](https://github.com/taskforcesh/bullmq/issues/4613)
+
+## [6.3.18](https://github.com/taskforcesh/bullmq/compare/v6.3.17...v6.3.18) (2026-10-20)
+
+
+### Bug Fixes
+
+* **job:** preserve last error when maxStartedAttempts is reached ([#4969](https://github.com/taskforcesh/bullmq/issues/4969)) ([5a04c20](https://github.com/taskforcesh/bullmq/commit/5a04c20b4c7fb6f13bccac1954bf4bdef2be8d80))
+
+## [6.3.17](https://github.com/taskforcesh/bullmq/compare/v6.3.16...v6.3.17) (2026-10-18)
+
+
+### Bug Fixes
+
+* **worker:** wake up the main loop when resuming after pause(true) ([#4949](https://github.com/taskforcesh/bullmq/issues/4949)) fixes [#4947](https://github.com/taskforcesh/bullmq/issues/4947) ([a5e710b](https://github.com/taskforcesh/bullmq/commit/a5e710bf4d1bf689fe40a372b3f0ddbbaaab33cc))
+
+## [6.3.16](https://github.com/taskforcesh/bullmq/compare/v6.3.15...v6.3.16) (2026-10-17)
+
+
+### Bug Fixes
+
+* **valkey-glide:** route INFO to a single node in cluster mode ([#4891](https://github.com/taskforcesh/bullmq/issues/4891)) ([d47e42b](https://github.com/taskforcesh/bullmq/commit/d47e42bd2a9da0c301a02dbd60057eb7a1eb9b75))
+
+## [6.3.15](https://github.com/taskforcesh/bullmq/compare/v6.3.14...v6.3.15) (2026-10-14)
+
+
+### Bug Fixes
+
+* **job:** respect priority when retrying a finished job (python) (elixir) (rust) (dotnet) ([#4926](https://github.com/taskforcesh/bullmq/issues/4926)) ([afc9711](https://github.com/taskforcesh/bullmq/commit/afc9711a89fe9e38547f09a79bce4566049266c0))
+
+## [6.3.14](https://github.com/taskforcesh/bullmq/compare/v6.3.13...v6.3.14) (2026-10-13)
+
+
+### Bug Fixes
+
+* **deps:** upgrade cron-parser to v5.10.2 [security] ([#4896](https://github.com/taskforcesh/bullmq/issues/4896)) ([f838e24](https://github.com/taskforcesh/bullmq/commit/f838e24cd88443337c8adb28b976963da87c6476))
+
+## [6.3.13](https://github.com/taskforcesh/bullmq/compare/v6.3.12...v6.3.13) (2026-10-12)
+
+
+### Bug Fixes
+
+* **queue:** move children retried by retryJobs back to their parent's dependencies ([#4879](https://github.com/taskforcesh/bullmq/issues/4879)) (python)(elixir)(php)(rust)(dotnet) ([3d82850](https://github.com/taskforcesh/bullmq/commit/3d828501874eede00b997902068d301803b64c0f)), closes [#4236](https://github.com/taskforcesh/bullmq/issues/4236)
+
+## [6.3.12](https://github.com/taskforcesh/bullmq/compare/v6.3.11...v6.3.12) (2026-10-09)
+
+
+### Bug Fixes
+
+* **postgres:** inline SQL at build time to restore single-file bundler support ([#4822](https://github.com/taskforcesh/bullmq/issues/4822)) ([c6bc9a4](https://github.com/taskforcesh/bullmq/commit/c6bc9a4c869b3ea0d02ba4475b11de614bf3ecd7)), closes [#4603](https://github.com/taskforcesh/bullmq/issues/4603)
+
+## [6.3.11](https://github.com/taskforcesh/bullmq/compare/v6.3.10...v6.3.11) (2026-10-01)
+
+
+### Bug Fixes
+
+* **worker:** detach stalled checker from telemetry context to prevent trace leak ([#4812](https://github.com/taskforcesh/bullmq/issues/4812)) fixes [#4731](https://github.com/taskforcesh/bullmq/issues/4731) ([01b8b14](https://github.com/taskforcesh/bullmq/commit/01b8b14a973984845dc0bbcefccf35b3ed30782d))
+
 ## [6.3.10](https://github.com/taskforcesh/bullmq/compare/v6.3.9...v6.3.10) (2026-09-29)
 
 

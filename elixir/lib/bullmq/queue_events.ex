@@ -16,12 +16,13 @@ defmodule BullMQ.QueueEvents do
       # Subscribe to events
       BullMQ.QueueEvents.subscribe(pid, self())
 
-      # Receive events
+      # Receive events. Event data uses the same field names as the other
+      # BullMQ SDKs, as string keys.
       receive do
-        {:bullmq_event, :completed, %{job_id: id, returnvalue: value}} ->
+        {:bullmq_event, :completed, %{"jobId" => id, "returnvalue" => value}} ->
           IO.puts("Job \#{id} completed with \#{value}")
 
-        {:bullmq_event, :failed, %{job_id: id, failed_reason: reason}} ->
+        {:bullmq_event, :failed, %{"jobId" => id, "failedReason" => reason}} ->
           IO.puts("Job \#{id} failed: \#{reason}")
       end
 
@@ -50,13 +51,13 @@ defmodule BullMQ.QueueEvents do
         use BullMQ.QueueEvents.Handler
 
         @impl true
-        def handle_event(:completed, %{job_id: id, returnvalue: value}, state) do
+        def handle_event(:completed, %{"jobId" => id, "returnvalue" => _value}, state) do
           Logger.info("Job \#{id} completed")
           {:ok, state}
         end
 
         @impl true
-        def handle_event(:failed, %{job_id: id, failed_reason: reason}, state) do
+        def handle_event(:failed, %{"jobId" => id, "failedReason" => reason}, state) do
           Logger.error("Job \#{id} failed: \#{reason}")
           {:ok, state}
         end

@@ -253,10 +253,13 @@ Explicit migration is:
   at once still migrate exactly once.
 
 Schema compatibility is scoped to BullMQ major versions. The migration ledger
-records the minimum client major required by the schema. The initial migration
-split is a same-major exception; future schema migrations are breaking changes
-and require a new BullMQ major version. A client older than the recorded major
-fails with `SchemaVersionMismatchError`.
+records the minimum client major required by the schema. A new migration only
+requires a new BullMQ major when applying it would break instances still
+running the previous library code. Migrations that keep existing code working
+(for example, ones that only add new tables and functions) stay within the
+same major: instances that haven't upgraded keep working normally and simply
+don't get the new features. A client older than the recorded major fails with
+`SchemaVersionMismatchError`.
 
 {% hint style="danger" %}
 Schema downgrades are **not supported**.

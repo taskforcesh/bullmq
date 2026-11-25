@@ -1004,7 +1004,7 @@ async fn should_add_meta_key_to_both_parents_and_children() {
 
 /// Helper to check if a queue has a meta key set.
 async fn check_meta_exists(queue: &Queue) -> bool {
-    let mut conn = queue.connection().conn();
+    let mut conn = queue.connection().managed_conn();
     let result: Option<String> = redis::cmd("HGET")
         .arg(queue.keys().meta())
         .arg("library")
@@ -4985,7 +4985,7 @@ async fn should_propagate_get_flow_dependency_errors() {
         "{}:dependencies",
         parent_queue.keys().job_key(original_tree.job.id())
     );
-    let mut conn = parent_queue.connection().conn();
+    let mut conn = parent_queue.connection().managed_conn();
     redis::cmd("DEL")
         .arg(&deps_key)
         .query_async::<()>(&mut conn)
@@ -5055,7 +5055,7 @@ async fn should_ignore_missing_child_jobs_when_loading_flow() {
         .job
         .id()
         .to_string();
-    let mut conn = child_queue.connection().conn();
+    let mut conn = child_queue.connection().managed_conn();
     redis::cmd("DEL")
         .arg(child_queue.keys().job_key(&child_id))
         .query_async::<()>(&mut conn)
@@ -5114,7 +5114,7 @@ async fn should_propagate_child_loading_errors_when_loading_flow() {
         .id()
         .to_string();
     let child_deps_key = format!("{}:dependencies", child_queue.keys().job_key(&child_id));
-    let mut conn = child_queue.connection().conn();
+    let mut conn = child_queue.connection().managed_conn();
     redis::cmd("DEL")
         .arg(&child_deps_key)
         .query_async::<()>(&mut conn)
@@ -7246,6 +7246,125 @@ async fn should_move_parent_to_wait_if_child_already_completed() {
     flow.close().await;
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
+async fn should_release_external_parent_for_leaf_add_and_add_bulk() {
+    let prefix = "bf-test";
+    let child_queue_name = test_queue_name();
+    let parent_queue_name = test_queue_name();
+    let child_queue = test_queue_with_prefix(&child_queue_name, prefix).await;
+    let parent_queue = test_queue_with_prefix(&parent_queue_name, prefix).await;
+
+    let child_worker = Worker::with_options(
+        &child_queue_name,
+        processor(|_job: Job, _token: CancellationToken| {
+            Box::pin(async { Ok(serde_json::Value::Null) })
+        }),
+        WorkerOptions {
+            connection: test_connection(),
+            prefix: prefix.to_string(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    for id in ["completed-add-child", "completed-bulk-child"] {
+        child_queue
+            .add("completed-child", serde_json::json!({}))
+            .options(JobOptions {
+                job_id: Some(id.to_string()),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    timeout(Duration::from_secs(10), async {
+        loop {
+            let add_state = child_queue
+                .get_job_state("completed-add-child")
+                .await
+                .unwrap();
+            let bulk_state = child_queue
+                .get_job_state("completed-bulk-child")
+                .await
+                .unwrap();
+            if add_state == bullmq::JobState::Completed && bulk_state == bullmq::JobState::Completed
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("children should complete");
+
+    let add_parent = parent_queue
+        .add("add-parent", serde_json::json!({}))
+        .await
+        .unwrap();
+    let bulk_parent = parent_queue
+        .add("bulk-parent", serde_json::json!({}))
+        .await
+        .unwrap();
+    for parent in [&add_parent, &bulk_parent] {
+        let mut conn = parent_queue.connection().managed_conn();
+        redis::cmd("LREM")
+            .arg(parent_queue.keys().wait())
+            .arg(0)
+            .arg(parent.id())
+            .query_async::<()>(&mut conn)
+            .await
+            .unwrap();
+        redis::cmd("ZADD")
+            .arg(parent_queue.keys().waiting_children())
+            .arg(0)
+            .arg(parent.id())
+            .query_async::<()>(&mut conn)
+            .await
+            .unwrap();
+    }
+
+    let flow = test_flow_producer(prefix).await;
+    let make_flow = |job_id: &str, parent_id: &str| FlowJob {
+        name: "completed-child".to_string(),
+        queue_name: child_queue_name.clone(),
+        data: serde_json::json!({}),
+        opts: Some(JobOptions {
+            job_id: Some(job_id.to_string()),
+            parent: Some(bullmq::ParentOptions {
+                id: parent_id.to_string(),
+                queue: parent_queue_name.clone(),
+                wait_children: None,
+            }),
+            ..Default::default()
+        }),
+        prefix: None,
+        children: None,
+    };
+
+    flow.add(make_flow("completed-add-child", add_parent.id()))
+        .await
+        .unwrap();
+    assert_eq!(
+        parent_queue.get_job_state(add_parent.id()).await.unwrap(),
+        bullmq::JobState::Waiting
+    );
+
+    flow.add_bulk(vec![make_flow("completed-bulk-child", bulk_parent.id())])
+        .await
+        .unwrap();
+    assert_eq!(
+        parent_queue.get_job_state(bulk_parent.id()).await.unwrap(),
+        bullmq::JobState::Waiting
+    );
+
+    flow.close().await;
+    child_worker.close(5000).await.unwrap();
+    cleanup_queue(&child_queue).await;
+    cleanup_queue(&parent_queue).await;
 }
 
 // Node.js: "when child is retrieved from getJob > does not restore the parent reference"

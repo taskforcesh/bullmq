@@ -1,8 +1,8 @@
-import { createHash } from 'crypto';
-import * as path from 'path';
-import * as fs from 'fs';
+import { createHash } from 'node:crypto';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { RedisClient } from '../interfaces';
-import { promisify } from 'util';
+import { promisify } from 'node:util';
 
 const readFile = promisify(fs.readFile);
 const readdir = promisify(fs.readdir);

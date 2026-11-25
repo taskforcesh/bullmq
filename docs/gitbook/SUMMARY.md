@@ -64,6 +64,21 @@
 - [Returning job data](guide/returning-job-data.md)
 - [Events](guide/events/README.md)
   - [Create Custom Events](guide/events/create-custom-events.md)
+- [Relay](guide/relay/README.md)
+  - [Getting started](guide/relay/getting-started.md)
+  - [Topics and patterns](guide/relay/topics-and-patterns.md)
+  - [Publishing and subscribing](guide/relay/messages.md)
+  - [Retained messages](guide/relay/retained-messages.md)
+  - [Nodes and failures](guide/relay/nodes-and-failures.md)
+  - [Backends](guide/relay/backends.md)
+  - [Reference](guide/relay/reference.md)
+  - [Relay compared to Kafka](guide/relay/relay-vs-kafka.md)
+  - [Example: Live job progress](guide/relay/examples/live-job-progress.md)
+  - [Example: Real-time notifications](guide/relay/examples/realtime-notifications.md)
+  - [Example: Cache invalidation](guide/relay/examples/cache-invalidation.md)
+  - [Example: Live configuration](guide/relay/examples/live-configuration.md)
+  - [Example: Controlling workers](guide/relay/examples/controlling-workers.md)
+  - [Example: Cancelling jobs on other workers](guide/relay/examples/cancelling-jobs-on-other-workers.md)
 - [Telemetry](guide/telemetry/README.md)
   - [Getting started](guide/telemetry/getting-started.md)
   - [Traces](guide/telemetry/traces.md)
@@ -187,6 +202,19 @@
 - [Changelogs](php/changelog.md)
   - [v1](php/changelogs/changelog-v1.md)
 
-## .Net
+## Go
 
+- [Introduction](golang/introduction.md)
+- [Queues and Jobs](golang/queues-and-jobs.md)
+- [Workers](golang/workers.md)
+- [Queue Events](golang/queue-events.md)
+- [Flows](golang/flows.md)
+- [Job Schedulers](golang/job-schedulers.md)
+- [PostgreSQL](golang/postgresql.md)
+- [API Reference](https://pkg.go.dev/github.com/taskforcesh/bullmq-go)
+- [Changelogs](golang/changelog.md)
+
+## .NET
+
+- [Introduction](dotnet/introduction.md)
 - [Changelogs](dotnet/changelog.md)

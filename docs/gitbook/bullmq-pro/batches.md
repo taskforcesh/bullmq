@@ -69,7 +69,7 @@ In this example:
 
 ### Group Affinity
 
-When using batches together with [groups](groups/README.md), by default a single batch can contain jobs from different groups. The `groupAffinity` option guarantees that every batch is homogeneous: it contains either **all non-group jobs** or **all jobs from the same group**. Groups are still served in round-robin order across batches.
+When using batches together with [groups](groups/), by default a single batch can contain jobs from different groups. The `groupAffinity` option guarantees that every batch is homogeneous: it contains either **all non-group jobs** or **all jobs from the same group**. Groups are still served in round-robin order across batches.
 
 ```typescript
 const worker = new WorkerPro(

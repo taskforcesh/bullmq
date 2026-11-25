@@ -8,10 +8,9 @@ defmodule BullMQ.JobScheduler do
 
   > #### Node.js Interoperability Note {: .warning}
   >
-  > **Seconds field:** Node.js supports an optional 6th field for seconds at the
-  > beginning (`second minute hour day month weekday`). Elixir's `crontab` library
-  > uses standard 5-field format by default. **6-field expressions with seconds
-  > from Node.js will fail to parse in Elixir.**
+  > **Seconds field:** Like Node.js, Elixir supports an optional 6th field for
+  > seconds at the beginning (`second minute hour day month weekday`), so
+  > 6-field expressions created in Node.js are parsed the same way in Elixir.
   >
   > **Sunday:** Elixir uses `7` for Sunday, Node.js uses `0` (or `7`).
   > Use `7` for Sunday to ensure compatibility.
@@ -19,12 +18,11 @@ defmodule BullMQ.JobScheduler do
   > | Feature | Elixir | Node.js | Compatible? |
   > |---------|--------|---------|-------------|
   > | 5-field (no seconds) | ✅ | ✅ | ✅ Yes |
-  > | 6-field (with seconds) | ❌ | ✅ | ❌ No |
+  > | 6-field (with seconds) | ✅ | ✅ | ✅ Yes |
   > | Sunday = 7 | ✅ | ✅ | ✅ Yes |
   > | Sunday = 0 | ❌ | ✅ | ❌ No |
   >
   > **For cross-platform compatibility:**
-  > - Use 5-field cron expressions (no seconds)
   > - Use `7` for Sunday, not `0`
   > - Or use interval-based schedulers (`:every`)
 
@@ -53,13 +51,17 @@ defmodule BullMQ.JobScheduler do
     * `:limit` - Maximum number of times to repeat
     * `:start_date` - When to start the schedule (milliseconds or DateTime)
     * `:end_date` - When to stop the schedule (milliseconds or DateTime)
-    * `:tz` - Timezone for cron expressions (default: UTC)
+    * `:tz` - Time zone for cron expressions (default: UTC). Requires a time zone
+      database to be configured, for example
+      `config :elixir, :time_zone_database, Tz.TimeZoneDatabase`; without one,
+      patterns are evaluated in UTC and a warning is logged.
     * `:immediately` - Run the first job immediately (only with pattern)
     * `:offset` - Offset in milliseconds for every-based jobs
 
   ## Cron Expressions
 
-  Cron expressions follow the standard 5-field format:
+  Cron expressions follow the standard 5-field format. As in the Node.js
+  implementation, a 6-field pattern adds a leading seconds field:
 
       ┌───────────── minute (0 - 59)
       │ ┌───────────── hour (0 - 23)
@@ -849,26 +851,55 @@ defmodule BullMQ.JobScheduler do
   defp normalize_date(%DateTime{} = dt), do: DateTime.to_unix(dt, :millisecond)
   defp normalize_date(_), do: nil
 
-  defp parse_cron_next(pattern, reference_time, _tz) do
-    # Convert reference time to DateTime
-    reference_dt = DateTime.from_unix!(reference_time, :millisecond)
-
-    # Parse cron expression
-    case Crontab.CronExpression.Parser.parse(pattern) do
-      {:ok, cron} ->
-        # Get next run date
-        case Crontab.Scheduler.get_next_run_date(cron, reference_dt) do
-          {:ok, next_dt} ->
-            {:ok, DateTime.to_unix(next_dt, :millisecond)}
-
-          error ->
-            error
-        end
-
-      error ->
-        error
+  defp parse_cron_next(pattern, reference_time, tz) do
+    with {:ok, cron} <- parse_cron(pattern),
+         {:ok, reference_dt} <- reference_datetime(reference_time, tz),
+         {:ok, next_dt} <- Crontab.Scheduler.get_next_run_date(cron, reference_dt) do
+      {:ok, DateTime.to_unix(next_dt, :millisecond)}
     end
   rescue
     e -> {:error, e}
+  end
+
+  # Like the Node.js implementation, a six-field pattern starts with seconds.
+  defp parse_cron(pattern) do
+    extended = length(String.split(pattern)) == 6
+    Crontab.CronExpression.Parser.parse(pattern, extended)
+  end
+
+  @utc_zones [nil, "", "UTC", "Etc/UTC"]
+
+  defp reference_datetime(reference_time, tz) do
+    utc = DateTime.from_unix!(reference_time, :millisecond)
+
+    if tz in @utc_zones do
+      {:ok, utc}
+    else
+      case DateTime.shift_zone(utc, tz) do
+        {:ok, zoned} ->
+          {:ok, zoned}
+
+        {:error, :utc_only_time_zone_database} ->
+          warn_missing_time_zone_database(tz)
+          {:ok, utc}
+
+        {:error, _} = error ->
+          error
+      end
+    end
+  end
+
+  defp warn_missing_time_zone_database(tz) do
+    key = {__MODULE__, :missing_time_zone_database_warned}
+
+    unless :persistent_term.get(key, false) do
+      :persistent_term.put(key, true)
+
+      Logger.warning(
+        "[BullMQ.JobScheduler] Cron patterns with tz #{inspect(tz)} are evaluated in UTC " <>
+          "because no time zone database is configured. Configure one, for example " <>
+          "`config :elixir, :time_zone_database, Tz.TimeZoneDatabase`."
+      )
+    end
   end
 end

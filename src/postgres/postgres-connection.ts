@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import {
   isPgPool,
   PgClient,
@@ -476,8 +476,9 @@ export class PostgresConnection extends EventEmitter {
             // Standalone dedicated connection: end it outright.
             await (client as PgClient).end();
           } else {
-            // Pooled client: return it to the pool.
-            (client as PgPoolClient).release();
+            // Destroy the pooled client so relay session state cannot leak to
+            // the next borrower.
+            (client as PgPoolClient).release(true);
           }
           this.listenClient = undefined;
         }

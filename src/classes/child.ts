@@ -1,9 +1,9 @@
-import { ChildProcess, fork } from 'child_process';
-import { AddressInfo, createServer } from 'net';
-import { Worker } from 'worker_threads';
+import { ChildProcess, fork } from 'node:child_process';
+import { AddressInfo, createServer } from 'node:net';
+import { Worker } from 'node:worker_threads';
 import { ChildCommand, ParentCommand } from '../enums';
 import { SandboxedOptions } from '../interfaces';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 /**
  * @see https://nodejs.org/api/process.html#process_exit_codes
@@ -150,7 +150,13 @@ export class Child extends EventEmitter {
     if (this.childProcess) {
       this.childProcess.kill(signal);
     } else if (this.worker) {
-      this.worker.terminate();
+      if (signal === 'SIGTERM') {
+        // A worker thread can't receive signals, so ask it to finish its
+        // current job and exit, like a child process does on SIGTERM.
+        this.worker.postMessage({ cmd: ChildCommand.Stop });
+      } else {
+        this.worker.terminate();
+      }
     }
   }
 

@@ -55,11 +55,17 @@ internal static class OptsCodec
 
         if (opts.Backoff is { } backoff)
         {
-            map["backoff"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            var backoffMap = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["type"] = backoff.Type,
                 ["delay"] = backoff.Delay,
             };
+            if (backoff.Jitter is { } jitter)
+            {
+                backoffMap["jitter"] = jitter;
+            }
+
+            map["backoff"] = backoffMap;
         }
 
         if (opts.Lifo is { } lifo && lifo)
@@ -82,6 +88,32 @@ internal static class OptsCodec
             map["keepLogs"] = keepLogs;
         }
 
+        if (opts.Deduplication is { } dedup)
+        {
+            var values = new Dictionary<string, object?> { ["id"] = dedup.Id };
+            if (dedup.Ttl is { } ttl)
+            {
+                values["ttl"] = ttl;
+            }
+            if (dedup.Extend is { } extend)
+            {
+                values["extend"] = extend;
+            }
+            if (dedup.Replace is { } replace)
+            {
+                values["replace"] = replace;
+            }
+            if (dedup.Reschedule is { } reschedule)
+            {
+                values["reschedule"] = reschedule;
+            }
+            if (dedup.KeepLastIfActive is { } keepLast)
+            {
+                values["keepLastIfActive"] = keepLast;
+            }
+            map["deduplication"] = values;
+        }
+
         return map;
     }
 
@@ -102,6 +134,11 @@ internal static class OptsCodec
         if (keep.Age is { } age)
         {
             map["age"] = age;
+        }
+
+        if (keep.Limit is { } limit)
+        {
+            map["limit"] = limit;
         }
 
         return map;

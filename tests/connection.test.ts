@@ -4,7 +4,7 @@ import {
   getBlockingRedisConnection,
 } from './utils/get-redis-client';
 import { default as IORedis, RedisOptions } from 'ioredis';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import {
   describe,
   beforeEach,

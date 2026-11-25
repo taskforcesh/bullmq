@@ -1,19 +1,85 @@
 import { defineConfig } from 'vitepress';
 import { markdownItGitbook } from './gitbook';
+import { markdownPath, writeLlmsFiles } from './llms';
+import { writeRedirects } from './redirects';
 import { loadNavigation } from './sidebar';
 
 const { nav, sidebar } = loadNavigation();
 const legacyApiOrigin = 'https://api.docs.bullmq.io';
+const hostname = 'https://docs.bullmq.io';
+
+// The changelogs are generated and start with a version heading, which
+// VitePress would use as the title of the page.
+const changelogProducts: Record<string, string> = {
+  '': 'BullMQ',
+  'bullmq-pro': 'BullMQ Pro',
+  'bullmq-pro/nestjs': 'BullMQ Pro for NestJS',
+  python: 'BullMQ for Python',
+  elixir: 'BullMQ for Elixir',
+  php: 'BullMQ for PHP',
+  rust: 'BullMQ for Rust',
+  dotnet: 'BullMQ for .NET',
+  golang: 'BullMQ for Go',
+};
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: 'BullMQ',
   description:
-    'The fastest, most reliable, Redis-based distributed queue for Node. ' +
+    'The fastest, most reliable distributed queue for Node.js, Bun, Python, ' +
+    'Elixir, .NET, Go, Rust and PHP, on top of Redis or PostgreSQL. ' +
     'Carefully written for rock solid stability and atomicity.',
   lang: 'en-US',
   cleanUrls: true,
   lastUpdated: true,
+  sitemap: { hostname },
+
+  // One canonical URL per page. Folder pages (GitBook README.md, rewritten to
+  // index.md) live at /guide/queues/, other pages at /guide/connections, and
+  // each also answers at the other form, so search engines need the canonical.
+  transformPageData(pageData) {
+    const path = pageData.relativePath
+      .replace(/(^|\/)index\.md$/, '$1')
+      .replace(/\.md$/, '');
+    const url = `${hostname}/${path}`;
+    pageData.frontmatter.head ??= [];
+    pageData.frontmatter.head.push(
+      ['link', { rel: 'canonical', href: url }],
+      ['meta', { property: 'og:url', content: url }],
+      // The Markdown copy of the page, written by writeLlmsFiles.
+      [
+        'link',
+        {
+          rel: 'alternate',
+          type: 'text/markdown',
+          href: `${hostname}${markdownPath(`/${path}`)}`,
+        },
+      ],
+    );
+
+    const changelog = /^(?:(.+)\/)?changelog(?:s\/changelog-(v\d+))?\.md$/.exec(
+      pageData.relativePath,
+    );
+    const product = changelog && changelogProducts[changelog[1] ?? ''];
+    if (product) {
+      const version = changelog[2] ? ` ${changelog[2]}` : '';
+      pageData.title = `${product}${version} changelog`;
+      pageData.description =
+        `Release notes of ${product}${version}: features, bug fixes and ` +
+        'performance improvements of every release.';
+    }
+  },
+
+  buildEnd: siteConfig => {
+    const redirects = writeRedirects(siteConfig.outDir, sidebar);
+    console.log(`Wrote ${redirects.length} redirects for legacy URLs`);
+    const { pages } = writeLlmsFiles(
+      siteConfig.outDir,
+      siteConfig.srcDir,
+      sidebar,
+    );
+    console.log(`Wrote llms.txt, llms-full.txt and ${pages} Markdown pages`);
+  },
 
   // Content lives in ./gitbook (migrated from the GitBook site).
   srcDir: 'gitbook',

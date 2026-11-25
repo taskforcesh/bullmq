@@ -2,7 +2,7 @@ Currently we have 3 available methods in queue class:
 
 # Drain
 
-Removes all jobs that are waiting or delayed, but not active, waiting-children, completed or failed.
+Removes all waiting and prioritized jobs, and the delayed ones when asked to (see below), but not active, waiting-children, completed or failed jobs.
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -44,6 +44,64 @@ alias BullMQ.Queue
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+await queue.DrainAsync();
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::Queue;
+
+let queue = Queue::new("paint").await?;
+
+queue.drain(false).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+
+	queue, err := bullmq.NewQueue("paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	if err := queue.Drain(ctx, false); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -56,18 +114,6 @@ $queue->drain();
 
 $queue->close();
 ?>
-```
-
-{% endtab %}
-
-{% tab title="Rust" %}
-
-```rust
-use bullmq::{Queue, QueueOptions};
-
-let queue = Queue::new("paint", QueueOptions::default()).await?;
-
-queue.drain(false).await?;
 ```
 
 {% endtab %}
@@ -118,6 +164,67 @@ alias BullMQ.Queue
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+// Also drain delayed jobs
+await queue.DrainAsync(delayed: true);
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::Queue;
+
+let queue = Queue::new("paint").await?;
+
+// Also drain delayed jobs
+queue.drain(true).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+
+	queue, err := bullmq.NewQueue("paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	// Also drain delayed jobs
+	if err := queue.Drain(ctx, true); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -131,19 +238,6 @@ $queue->drain(true);
 
 $queue->close();
 ?>
-```
-
-{% endtab %}
-
-{% tab title="Rust" %}
-
-```rust
-use bullmq::{Queue, QueueOptions};
-
-let queue = Queue::new("paint", QueueOptions::default()).await?;
-
-// Also drain delayed jobs
-queue.drain(true).await?;
 ```
 
 {% endtab %}
@@ -162,6 +256,9 @@ have pending children in other queues, or just moved to wait.
 
 Removes jobs in a specific state, but keeps jobs within a certain grace period.
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Queue } from 'bullmq';
 
@@ -173,6 +270,125 @@ const deletedJobIds = await queue.clean(
   'paused',
 );
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+import asyncio
+from bullmq import Queue
+
+async def main():
+    queue = Queue('paint')
+
+    deleted_job_ids = await queue.clean(
+        60000,  # 1 minute
+        1000,  # max number of jobs to clean
+        'paused',
+    )
+    await queue.close()
+
+asyncio.run(main())
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+var deletedJobIds = await queue.CleanAsync(
+    60000, // 1 minute
+    1000, // max number of jobs to clean
+    "paused");
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::Queue;
+
+let queue = Queue::new("paint").await?;
+
+let deleted_job_ids = queue
+    .clean(
+        60000, // 1 minute
+        1000,  // max number of jobs to clean
+        "paused",
+    )
+    .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+	"time"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+
+	queue, err := bullmq.NewQueue("paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	deletedJobIDs, err := queue.Clean(
+		ctx,
+		time.Minute, // grace period
+		1000,        // max number of jobs to clean
+		bullmq.StatePaused,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("deleted %d jobs", len(deletedJobIDs))
+}
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+use BullMQ\Queue;
+
+$queue = new Queue('paint');
+
+$deletedJobIds = $queue->clean(
+    60000, // 1 minute
+    1000, // max number of jobs to clean
+    'paused',
+);
+
+$queue->close();
+?>
+```
+
+{% endtab %}
+{% endtabs %}
 
 # Obliterate
 
@@ -218,6 +434,64 @@ alias BullMQ.Queue
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+await queue.ObliterateAsync();
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::Queue;
+
+let queue = Queue::new("paint").await?;
+
+queue.obliterate(false, 1000).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+
+	queue, err := bullmq.NewQueue("paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	if err := queue.Obliterate(ctx, nil); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -230,18 +504,6 @@ $queue->obliterate();
 
 $queue->close();
 ?>
-```
-
-{% endtab %}
-
-{% tab title="Rust" %}
-
-```rust
-use bullmq::{Queue, QueueOptions};
-
-let queue = Queue::new("paint", QueueOptions::default()).await?;
-
-queue.obliterate(false, 1000).await?;
 ```
 
 {% endtab %}
@@ -292,6 +554,67 @@ alias BullMQ.Queue
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+// Force obliteration even with active jobs
+await queue.ObliterateAsync(force: true);
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::Queue;
+
+let queue = Queue::new("paint").await?;
+
+// Force obliteration even with active jobs
+queue.obliterate(true, 1000).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+
+	queue, err := bullmq.NewQueue("paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	// Force obliteration even with active jobs
+	if err := queue.Obliterate(ctx, &bullmq.ObliterateOptions{Force: true}); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -308,24 +631,11 @@ $queue->close();
 ```
 
 {% endtab %}
-
-{% tab title="Rust" %}
-
-```rust
-use bullmq::{Queue, QueueOptions};
-
-let queue = Queue::new("paint", QueueOptions::default()).await?;
-
-// Force obliteration even with active jobs
-queue.obliterate(true, 1000).await?;
-```
-
-{% endtab %}
 {% endtabs %}
 
 {% hint style="warning" %}
-Parent jobs in queues different from the one being obliterated will either stay in **waiting-children** if they
-have pending children in other queues, or just moved to wait.
+On Redis, parent jobs in queues different from the one being obliterated will either stay in **waiting-children** if they
+have pending children in other queues, or just moved to wait. On PostgreSQL, obliterate does not release them yet, so they stay in **waiting-children** ([#5189](https://github.com/taskforcesh/bullmq/issues/5189)).
 {% endhint %}
 
 ## Read more:

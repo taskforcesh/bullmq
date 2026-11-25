@@ -351,15 +351,16 @@ defmodule BullMQ.Backends.Postgres do
   defp batch_entry(queue, job, encoded_opts, add_to_waiting_children) do
     opts = Map.get(job, :opts) || %{}
     parent = Map.get(job, :parent)
+    delay = Map.get(job, :delay) || opt(opts, :delay, 0)
 
     %{
       "queue" => queue,
       "id" => Map.get(job, :id) || "",
       "name" => Map.get(job, :name),
       "data" => Map.get(job, :data) || %{},
-      "opts" => encoded_opts,
+      "opts" => Map.put(encoded_opts, :delay, delay),
       "priority" => opt(opts, :priority, 0),
-      "delay" => Map.get(job, :delay) || opt(opts, :delay, 0),
+      "delay" => delay,
       "timestamp" => Map.get(job, :timestamp) || now_ms(),
       "attempts" => opt(opts, :attempts, 1),
       "parentQueue" => batch_parent_queue(parent),
@@ -596,7 +597,12 @@ defmodule BullMQ.Backends.Postgres do
     %{"n" => n} =
       first_map(run(b, "move_active_to_wait", [b.queue_name, job_id, token || "0", now_ms()]))
 
-    {:ok, to_int(n)}
+    # Negative codes mean the job was not moved: -1 missing job, -2 missing
+    # (or expired) lock, -6 lock held by another token.
+    case to_int(n) do
+      code when code < 0 -> {:error, code}
+      pttl -> {:ok, pttl}
+    end
   end
 
   @impl true

@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import {
   BackendFactory,
   FlowJob,
@@ -429,16 +429,24 @@ export class FlowProducer<
           }
         }
 
+        const jobOpts = {
+          ...jobsOpts,
+          ...opts,
+          parent: parent?.parentOpts,
+          telemetry,
+        };
+
+        if (jobOpts.parent && jobOpts.deduplication?.keepLastIfActive) {
+          throw new Error(
+            'keepLastIfActive deduplication cannot be used on flow nodes with a parent',
+          );
+        }
+
         const job = new this.Job(
           queue,
           node.name,
           node.data,
-          {
-            ...jobsOpts,
-            ...opts,
-            parent: parent?.parentOpts,
-            telemetry,
-          },
+          jobOpts,
           jobId,
         );
 
@@ -582,6 +590,8 @@ export class FlowProducer<
   }
 
   private validateFlowJobs(nodes: FlowJob[]): void {
+    // TODO: In the next breaking change, reject deduplication on every flow
+    // node. Parent IDs must be known before any add scripts run.
     for (const node of nodes) {
       const children = node.children;
       if (children && children.length > 0) {

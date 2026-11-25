@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import {
   DependenciesOpts,
   IQueueBackend,
@@ -568,6 +568,7 @@ export class PostgresQueueBackend
     parentKeyOpts: ParentKeyOpts = {},
   ): Promise<string> {
     const opts = (job.opts ?? {}) as JobsOptions;
+    const jobOpts = job.delay == null ? opts : { ...opts, delay: job.delay };
     const parentKey = parentKeyOpts.parentKey ?? job.parentKey ?? null;
     let rows: { id: string }[];
     try {
@@ -576,7 +577,7 @@ export class PostgresQueueBackend
         jobId || job.id || '',
         job.name,
         job.data ?? '{}',
-        JSON.stringify(opts ?? {}),
+        JSON.stringify(jobOpts ?? {}),
         job.priority ?? opts.priority ?? 0,
         job.delay ?? opts.delay ?? 0,
         job.timestamp ?? Date.now(),
@@ -654,7 +655,7 @@ export class PostgresQueueBackend
       id: jobId || data.id || '',
       name: data.name,
       data: data.data ?? '{}',
-      opts,
+      opts: data.delay == null ? opts : { ...opts, delay: data.delay },
       priority: data.priority ?? opts.priority ?? 0,
       delay: data.delay ?? opts.delay ?? 0,
       timestamp: data.timestamp ?? Date.now(),
@@ -1622,27 +1623,42 @@ export class PostgresQueueBackend
     return Number(rows[0].ttl);
   }
 
-  async getCounts(types: JobType[]): Promise<number[]> {
+  async getCounts(
+    types: JobType[],
+    delayedTimestamp?: number,
+  ): Promise<number[]> {
+    if (delayedTimestamp !== undefined && types.includes('delayed')) {
+      const otherTypes = types.filter(type => type !== 'delayed');
+      const [{ rows }, otherCounts] = await Promise.all([
+        this.run<{ count: string }>('get_delayed_count', [
+          this.queueName,
+          delayedTimestamp,
+        ]),
+        otherTypes.length ? this.getCounts(otherTypes) : Promise.resolve([]),
+      ]);
+      let index = 0;
+      return types.map(type =>
+        type === 'delayed' ? Number(rows[0].count) : otherCounts[index++],
+      );
+    }
     const { rows } = await this.run<Record<string, string>>('get_counts', [
       this.queueName,
     ]);
     const counts = rows[0];
     const waiting = Number(counts.waiting);
     const prioritized = Number(counts.prioritized);
-    const isPaused = counts.paused === '1';
 
     const lookup: Record<string, number> = {
       active: Number(counts.active),
       completed: Number(counts.completed),
       failed: Number(counts.failed),
       delayed: Number(counts.delayed),
-      // When paused, waiting jobs are reported as paused (the queue isn't
-      // physically moving them — see the O(1) pause flag).
-      wait: isPaused ? 0 : waiting,
-      waiting: isPaused ? 0 : waiting,
+      // Pausing only sets queue metadata, so the jobs stay in the `waiting`
+      // state and keep being counted as waiting, as on Redis.
+      wait: waiting,
+      waiting: waiting,
       prioritized,
       'waiting-children': Number(counts['waiting-children']),
-      paused: isPaused ? waiting : 0,
     };
     return types.map(type => lookup[type] ?? 0);
   }

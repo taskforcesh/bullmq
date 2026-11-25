@@ -1,8 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { randomUUID } from 'crypto';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import {
   createPostgresBackend,
+  PostgresQueueBackend,
   Queue,
   QueueEvents,
   setDefaultBackendFactory,
@@ -229,6 +230,72 @@ describe('PostgreSQL Worker (end-to-end)', () => {
     await worker.close();
     await queueEvents.close();
     await queue.close();
+  });
+
+  it('does not spin while the queue is at its global concurrency limit', async () => {
+    const qname = `wq-${randomUUID()}`;
+    const queue = new Queue(qname, { connection: {} });
+    await queue.setGlobalConcurrency(1);
+
+    let moveToActiveCalls = 0;
+    const moveToActive = PostgresQueueBackend.prototype.moveToActive;
+    const spy = vi
+      .spyOn(PostgresQueueBackend.prototype, 'moveToActive')
+      .mockImplementation(async function (
+        this: PostgresQueueBackend,
+        ...args: Parameters<typeof moveToActive>
+      ) {
+        if (this.qualifiedName === qname) {
+          moveToActiveCalls++;
+        }
+        return moveToActive.apply(this, args);
+      });
+
+    let firstDone = 0;
+    let secondStarted = 0;
+    let callsWhileMaxed = 0;
+    const worker = new Worker(
+      qname,
+      async job => {
+        if (job.name === 'first') {
+          await new Promise(r => setTimeout(r, 1000));
+          callsWhileMaxed = moveToActiveCalls;
+          firstDone = Date.now();
+        } else {
+          secondStarted = Date.now();
+        }
+      },
+      { connection: {}, concurrency: 2, drainDelay: 5, autorun: false },
+    );
+
+    try {
+      await queue.add('first', {});
+      await queue.add('second', {});
+      await worker.waitUntilReady();
+
+      const bothDone = new Promise<void>((resolve, reject) => {
+        let completed = 0;
+        worker.on('completed', () => {
+          if (++completed === 2) {
+            resolve();
+          }
+        });
+        worker.on('failed', (_job, err) => reject(err));
+        worker.on('error', reject);
+      });
+      worker.run();
+      await bothDone;
+
+      // Without the fix the second slot re-polls moveToActive continuously
+      // (hundreds of calls) while the first job holds the only slot.
+      expect(callsWhileMaxed).toBeLessThan(10);
+      // The second job is still picked up promptly once the first one finishes.
+      expect(secondStarted - firstDone).toBeLessThan(1000);
+    } finally {
+      spy.mockRestore();
+      await worker.close();
+      await queue.close();
+    }
   });
 
   it('delivers a completed event to QueueEvents listeners', async () => {

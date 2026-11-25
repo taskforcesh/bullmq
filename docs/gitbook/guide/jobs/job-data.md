@@ -31,16 +31,94 @@ job.data # { color: 'red' }
 
 {% endtab %}
 
+{% tab title="Elixir" %}
+
+```elixir
+{:ok, job} = BullMQ.Queue.add("paint", "wall", %{color: "red"}, connection: :my_redis)
+
+job.data # %{color: "red"}
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+await using var queue = new Queue("paint", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+var job = await queue.AddAsync("wall", new { color = "red" });
+
+var data = job.Data; // { color = red }
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
-use bullmq::{Queue, QueueOptions};
+use bullmq::Queue;
 
-let queue = Queue::new("paint", QueueOptions::default()).await?;
+let queue = Queue::new("paint").await?;
 
-let job = queue.add("wall", serde_json::json!({"color": "red"}), None).await?;
+let job = queue.add("wall", serde_json::json!({"color": "red"})).await?;
 
 let data = job.data(); // {"color": "red"}
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	job, err := queue.Add(ctx, "wall", map[string]string{"color": "red"}, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(string(job.Data)) // {"color":"red"}
+}
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+
+use BullMQ\Queue;
+
+$queue = new Queue('paint');
+
+$job = $queue->add('wall', ['color' => 'red']);
+
+$job->data; // ['color' => 'red']
 ```
 
 {% endtab %}
@@ -80,18 +158,47 @@ job.data # { color: 'blue' }
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+var job = await queue.AddAsync("wall", new { color = "red" });
+
+await job.UpdateDataAsync(new { color = "blue" });
+
+var data = job.Data; // { color = blue }
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
-use bullmq::{Queue, QueueOptions};
+use bullmq::Queue;
 
-let queue = Queue::new("paint", QueueOptions::default()).await?;
+let queue = Queue::new("paint").await?;
 
-let mut job = queue.add("wall", serde_json::json!({ "color": "red" }), None).await?;
+let mut job = queue.add("wall", serde_json::json!({ "color": "red" })).await?;
 
 job.update_data(serde_json::json!({ "color": "blue" })).await?;
 
 job.data(); // { "color": "blue" }
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+job, err := queue.Add(ctx, "wall", map[string]string{"color": "red"}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+
+if err := job.UpdateData(ctx, map[string]string{"color": "blue"}); err != nil {
+	log.Fatal(err)
+}
+
+fmt.Println(string(job.Data)) // {"color":"blue"}
 ```
 
 {% endtab %}

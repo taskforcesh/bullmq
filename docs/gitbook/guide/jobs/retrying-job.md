@@ -60,8 +60,10 @@ await queue.close()
 {% tab title="Elixir" %}
 
 ```elixir
-# Get a job reference (must have connection set)
-job = %Job{id: "job-id", queue_name: "my-queue", prefix: "bull", connection: conn}
+alias BullMQ.{Job, Queue}
+
+# Get a failed job by ID
+{:ok, job} = Queue.get_job("my-queue", "job-id", connection: :my_redis)
 
 # Retry a failed job (default state is :failed)
 {:ok, updated_job} = Job.retry(job)
@@ -72,13 +74,34 @@ job = %Job{id: "job-id", queue_name: "my-queue", prefix: "bull", connection: con
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+await using var queue = new Queue("my-queue", new QueueOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+});
+
+// Get a failed job by ID
+var job = await queue.GetJobAsync("job-id");
+
+// Retry a failed job (default state is "failed")
+await job!.RetryAsync();
+
+// Retry a completed job
+await job.RetryAsync("completed");
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
-use bullmq::{Queue, QueueOptions, Job};
-use bullmq::types::RetryOptions;
+use bullmq::Queue;
 
-let queue = Queue::new("my-queue", QueueOptions::default()).await?;
+let queue = Queue::new("my-queue").await?;
 
 // Get a failed job by ID
 let mut job = queue.get_job("job-id").await?.unwrap();
@@ -88,6 +111,52 @@ job.retry("failed", None).await?;
 
 // Retry a completed job
 job.retry("completed", None).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("my-queue", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	// Get a failed job by ID
+	job, err := queue.Job(ctx, "job-id")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if job == nil {
+		log.Fatal("job not found")
+	}
+
+	// Retry a failed job
+	if err := job.Retry(ctx, bullmq.StateFailed, nil); err != nil {
+		log.Fatal(err)
+	}
+
+	// Retry a completed job
+	if err := job.Retry(ctx, bullmq.StateCompleted, nil); err != nil {
+		log.Fatal(err)
+	}
+}
 ```
 
 {% endtab %}
@@ -139,6 +208,18 @@ job.retry("failed", Some(RetryOptions {
     reset_attempts_made: true,
     ..Default::default()
 })).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+// Retry and reset the attempts counter
+err := job.Retry(ctx, bullmq.StateFailed, &bullmq.RetryOptions{ResetAttemptsMade: true})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -195,6 +276,21 @@ job.retry("failed", Some(RetryOptions {
     reset_attempts_made: true,
     reset_attempts_started: true,
 })).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+// Retry and reset both counters
+err := job.Retry(ctx, bullmq.StateFailed, &bullmq.RetryOptions{
+	ResetAttemptsMade:    true,
+	ResetAttemptsStarted: true,
+})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -270,6 +366,21 @@ end
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+try
+{
+    await job.RetryAsync("failed");
+}
+catch (Exception error)
+{
+    Console.Error.WriteLine($"Failed to retry job: {error.Message}");
+}
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
@@ -280,10 +391,28 @@ match job.retry("failed", None).await {
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+err := job.Retry(ctx, bullmq.StateFailed, nil)
+switch {
+case err == nil:
+	log.Println("Job retried successfully")
+case errors.Is(err, bullmq.ErrJobNotFound):
+	log.Println("Job does not exist")
+case errors.Is(err, bullmq.ErrJobNotInState):
+	log.Println("Job was not in the expected state")
+default:
+	log.Printf("Failed to retry job: %v", err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Read More
 
-* 💡 [Retry API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#retry)
-* 💡 [Retrying Failing Jobs](../retrying-failing-jobs.md) - Automatic retry configuration with backoff strategies
-* 💡 [Stop Retrying Jobs](../../patterns/stop-retrying-jobs.md) - How to prevent further retries
+- 💡 [Retry API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#retry)
+- 💡 [Retrying Failing Jobs](../retrying-failing-jobs.md) - Automatic retry configuration with backoff strategies
+- 💡 [Stop Retrying Jobs](../../patterns/stop-retrying-jobs.md) - How to prevent further retries

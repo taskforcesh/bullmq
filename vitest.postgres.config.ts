@@ -7,7 +7,13 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   test: {
-    include: ['tests/postgres/**/*.test.ts'],
+    include: [
+      'tests/postgres/**/*.test.ts',
+      // Backend-agnostic relay tests, run against PostgreSQL.
+      'tests/relay.test.ts',
+      'tests/relay_stress.test.ts',
+    ],
+    env: { BULLMQ_TEST_BACKEND: 'postgres' },
     exclude: ['node_modules/**'],
     testTimeout: 10000,
     hookTimeout: 10000,

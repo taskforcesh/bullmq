@@ -28,7 +28,13 @@ public sealed class PostgresBackend : IQueueBackend
     private readonly bool _ownsConnection;
     private readonly int _lockDuration;
     private readonly string? _workerName;
+    private readonly KeepJobs? _removeOnComplete;
+    private readonly KeepJobs? _removeOnFail;
     private Task? _closing;
+
+    // Armed by WaitForJobAsync and cancelled when this backend finishes a job
+    // without claiming the next one (see SignalSlotFreed).
+    private CancellationTokenSource? _slotFreed;
 
     public string Name { get; }
 
@@ -39,21 +45,39 @@ public sealed class PostgresBackend : IQueueBackend
         PostgresConnection connection,
         bool ownsConnection,
         int lockDuration = 0,
-        string? workerName = null)
+        string? workerName = null,
+        KeepJobs? removeOnComplete = null,
+        KeepJobs? removeOnFail = null)
     {
         Name = name;
         _connection = connection;
         _ownsConnection = ownsConnection;
         _lockDuration = lockDuration;
         _workerName = workerName;
+        _removeOnComplete = removeOnComplete;
+        _removeOnFail = removeOnFail;
     }
 
     /// <summary>Creates a PostgreSQL backend from the given options.</summary>
     public static PostgresBackend Create(
-        string name, PostgresOptions options, int lockDuration = 0, string? workerName = null)
+        string name, PostgresOptions options, int lockDuration = 0, string? workerName = null) =>
+        Create(name, options, lockDuration, workerName, removeOnComplete: null, removeOnFail: null);
+
+    /// <summary>
+    /// Creates a worker's PostgreSQL backend, with the worker's default
+    /// retention for jobs that do not define their own.
+    /// </summary>
+    internal static PostgresBackend Create(
+        string name,
+        PostgresOptions options,
+        int lockDuration,
+        string? workerName,
+        KeepJobs? removeOnComplete,
+        KeepJobs? removeOnFail)
     {
         var connection = new PostgresConnection(options);
-        return new PostgresBackend(name, connection, ownsConnection: true, lockDuration, workerName);
+        return new PostgresBackend(
+            name, connection, ownsConnection: true, lockDuration, workerName, removeOnComplete, removeOnFail);
     }
 
     // ============================================================
@@ -143,7 +167,10 @@ public sealed class PostgresBackend : IQueueBackend
         }
 
         var entries = jobs.Select(j => BatchEntry(j, Name, addToWaitingChildren: false)).ToList();
-        var result = await RunAsync("add_jobs_bulk", new object?[] { Name, JsonUtil.Serialize(entries) })
+        var result = jobs.Any(j => j.DeduplicationId is not null)
+            ? await RunAsync("add_flow", new object?[] { JsonUtil.Serialize(entries) }, op: "addJob")
+                .ConfigureAwait(false)
+            : await RunAsync("add_jobs_bulk", new object?[] { Name, JsonUtil.Serialize(entries) })
             .ConfigureAwait(false);
 
         var ids = result.Rows.Select(r => Str(r[0])!).ToArray();
@@ -226,7 +253,7 @@ public sealed class PostgresBackend : IQueueBackend
     private async Task<MoveToFinishedResult> MoveToFinishedAsync(
         Job job, string target, string value, string? stackTraceJson, object? shouldRemove, string token, bool fetchNext)
     {
-        var (removeAll, keepAge, keepCount) = NormalizeKeep(shouldRemove);
+        var (removeAll, keepAge, keepCount) = NormalizeKeep(shouldRemove ?? (target == "completed" ? _removeOnComplete : _removeOnFail));
         var finishedOn = NowMs();
         var completed = target == "completed";
 
@@ -241,6 +268,11 @@ public sealed class PostgresBackend : IQueueBackend
             var result = await RunAsync(command, parameters, op: "moveToFinished", jobId: job.Id, state: "active")
                 .ConfigureAwait(false);
             var next = await NextJobResultAsync(result, null, now).ConfigureAwait(false);
+            if (next.Job is null)
+            {
+                SignalSlotFreed();
+            }
+
             return new MoveToFinishedResult { Next = next, FinishedOn = finishedOn };
         }
 
@@ -251,6 +283,7 @@ public sealed class PostgresBackend : IQueueBackend
 
         await RunAsync(noFetchCommand, noFetchParams, op: "moveToFinished", jobId: job.Id, state: "active")
             .ConfigureAwait(false);
+        SignalSlotFreed();
         return new MoveToFinishedResult { Next = NextJobData.Empty, FinishedOn = finishedOn };
     }
 
@@ -260,12 +293,14 @@ public sealed class PostgresBackend : IQueueBackend
         long delay,
         string token = "0",
         bool fetchNext = false,
-        bool skipAttempt = false)
+        bool skipAttempt = false,
+        string? failedReason = null,
+        string? stackTraceJson = null)
     {
         var processAt = timestamp + delay;
         await RunAsync(
             "move_to_delayed",
-            new object?[] { Name, jobId, string.IsNullOrEmpty(token) ? "0" : token, processAt, delay, skipAttempt, null, null },
+            new object?[] { Name, jobId, string.IsNullOrEmpty(token) ? "0" : token, processAt, delay, skipAttempt, failedReason, stackTraceJson },
             op: "moveToDelayed", jobId: jobId, state: "active").ConfigureAwait(false);
 
         if (fetchNext && token != "0" && !string.IsNullOrEmpty(token))
@@ -284,11 +319,12 @@ public sealed class PostgresBackend : IQueueBackend
         return row is not null && ToInt(row.GetValueOrDefault("code")) == 1;
     }
 
-    public async Task RetryJobAsync(string jobId, bool lifo, string token = "0")
+    public async Task RetryJobAsync(
+        string jobId, bool lifo, string token = "0", string? failedReason = null, string? stackTraceJson = null)
     {
         await RunAsync(
             "retry_job",
-            new object?[] { Name, jobId, token ?? string.Empty, lifo, null, null },
+            new object?[] { Name, jobId, token ?? string.Empty, lifo, failedReason, stackTraceJson },
             op: "retryJob", jobId: jobId, state: "active").ConfigureAwait(false);
     }
 
@@ -450,6 +486,27 @@ public sealed class PostgresBackend : IQueueBackend
         var target = state is "wait" or "paused" ? "waiting" : state;
         var result = await RunAsync("is_job_in_state", new object?[] { Name, jobId, target }).ConfigureAwait(false);
         return ToBool(result.FirstMap()?.GetValueOrDefault("present"));
+    }
+
+    public async Task<string?> GetDeduplicationJobIdAsync(string id)
+    {
+        var result = await RunAsync("get_deduplication_job_id",
+            new object?[] { Name, id, NowMs() }).ConfigureAwait(false);
+        return result.FirstMap() is { } row ? Str(row["job_id"]) : null;
+    }
+
+    public async Task<long> DeleteDeduplicationKeyAsync(string id)
+    {
+        var result = await RunAsync("delete_deduplication_key",
+            new object?[] { Name, id }).ConfigureAwait(false);
+        return result.Rows.Count;
+    }
+
+    public async Task<long> RemoveDeduplicationKeyAsync(string id, string jobId)
+    {
+        var result = await RunAsync("remove_deduplication_key",
+            new object?[] { Name, id, jobId, NowMs() }).ConfigureAwait(false);
+        return result.Rows.Count;
     }
 
     public async Task<JobJson?> GetJobDataAsync(string jobId)
@@ -752,12 +809,16 @@ public sealed class PostgresBackend : IQueueBackend
     {
         var listen = await _connection.EnsureJobChannelAsync().ConfigureAwait(false);
 
+        // Armed before the first probe: a slot this backend frees from now on
+        // cuts the wait short, and one freed earlier is seen by the probe.
+        var slotFreed = ArmSlotFreed();
+
         if (await HasWaitingJobAsync().ConfigureAwait(false))
         {
             return new MarkerResult(Name, 0);
         }
 
-        var baseMs = Math.Max((long)Math.Round(blockTimeoutSeconds * 1000), 1);
+        var blockMs = Math.Max((long)Math.Round(blockTimeoutSeconds * 1000), 1);
         var dueIn = await NextDelayMsAsync().ConfigureAwait(false);
         if (dueIn is { } d)
         {
@@ -765,11 +826,12 @@ public sealed class PostgresBackend : IQueueBackend
             {
                 return new MarkerResult(Name, 0);
             }
-
-            baseMs = Math.Min(d, baseMs);
         }
 
-        var deadline = DateTime.UtcNow.AddMilliseconds(baseMs);
+        var blockDeadline = DateTime.UtcNow.AddMilliseconds(blockMs);
+        var deadline = dueIn is { } delay
+            ? Min(blockDeadline, DateTime.UtcNow.AddMilliseconds(Math.Min(delay, blockMs)))
+            : blockDeadline;
         while (true)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -796,6 +858,9 @@ public sealed class PostgresBackend : IQueueBackend
             // until something actually changes. A NOTIFY for another queue on
             // the shared channel wakes us too; the has_waiting_job probe then
             // simply finds nothing and we wait out the rest of the deadline.
+            // This backend finishing a job also wakes us (SignalSlotFreed), so a
+            // worker parked on a queue at its global concurrency limit claims the
+            // next job as soon as one of its own jobs frees a slot.
             //
             // Re-acquire the LISTEN connection every iteration: a failed wait
             // tears it down (ResetJobChannelAsync), and EnsureJobChannelAsync
@@ -803,18 +868,58 @@ public sealed class PostgresBackend : IQueueBackend
             // spinning on a disposed handle. Any NOTIFY missed during a reconnect
             // is still caught by the has_waiting_job probe below (or on timeout).
             listen = await _connection.EnsureJobChannelAsync().ConfigureAwait(false);
-            await _connection.WaitForNotificationAsync(listen, remaining, cancellationToken).ConfigureAwait(false);
+            using (var wake = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, slotFreed.Token))
+            {
+                await _connection.WaitForNotificationAsync(listen, remaining, wake.Token).ConfigureAwait(false);
+            }
+
             if (cancellationToken.IsCancellationRequested)
             {
                 return null;
+            }
+
+            if (slotFreed.IsCancellationRequested)
+            {
+                slotFreed = ArmSlotFreed();
             }
 
             if (await HasWaitingJobAsync().ConfigureAwait(false))
             {
                 return new MarkerResult(Name, 0);
             }
+
+            // A notification may have scheduled a delayed job while we were
+            // blocked, so refresh its deadline before waiting again.
+            dueIn = await NextDelayMsAsync().ConfigureAwait(false);
+            if (dueIn is { } nextDelay && nextDelay <= 0)
+            {
+                return new MarkerResult(Name, 0);
+            }
+
+            deadline = dueIn is { } next
+                ? Min(blockDeadline, DateTime.UtcNow.AddMilliseconds(Math.Min(next, blockMs)))
+                : blockDeadline;
         }
     }
+
+    private static DateTime Min(DateTime left, DateTime right) => left <= right ? left : right;
+
+    // Never disposed: SignalSlotFreed may cancel a source that has just been
+    // replaced, and a source without timers holds no unmanaged resources.
+    private CancellationTokenSource ArmSlotFreed()
+    {
+        var slotFreed = new CancellationTokenSource();
+        Volatile.Write(ref _slotFreed, slotFreed);
+        return slotFreed;
+    }
+
+    /// <summary>
+    /// Wakes this backend's in-flight <see cref="WaitForJobAsync"/> after it
+    /// finished a job without claiming the next one. That frees a global
+    /// concurrency slot, which (as in Redis's moveToFinished) is not announced
+    /// to waiting workers, and the worker does not fetch the next job inline.
+    /// </summary>
+    private void SignalSlotFreed() => _ = Volatile.Read(ref _slotFreed)?.CancelAsync();
 
     private async Task<bool> HasWaitingJobAsync()
     {
@@ -1041,6 +1146,7 @@ public sealed class PostgresBackend : IQueueBackend
             ["parent"] = parent,
             ["rjk"] = Str(Get("scheduler_id")),
             ["defa"] = Str(Get("deferred_failure")),
+            ["deid"] = Str(Get("dedup_id")),
         };
 
         return mapped.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);

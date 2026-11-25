@@ -1,0 +1,18 @@
+# Generated: shared Lua command scripts copied from ../rawScripts by
+# `yarn copy:lua:golang`. Single source of truth lives in the repo root.
+redisbackend/commands/*.lua
+
+# Generated: shared PostgreSQL migrations and commands copied from
+# ../src/postgres by `yarn copy:sql:golang`.
+postgresbackend/sql/migrations/*.sql
+postgresbackend/sql/commands/*.sql
+
+# Generated: the version of the root package.json, whose scripts the module
+# embeds, written by `yarn copy:lua:golang` and `yarn copy:sql:golang`.
+scripts_version.go
+
+# Go build output
+/bin/
+*.test
+*.out
+coverage.txt
