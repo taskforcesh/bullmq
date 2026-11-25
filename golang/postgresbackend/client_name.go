@@ -45,6 +45,11 @@ func legacyAppName(name string) string {
 // unescapeAppName reverses escapeAppName for non-ASCII bytes, the UTF-8 of
 // a name. Other escapes, of control characters that would break the
 // `CLIENT LIST` format or cut short by the truncation, are kept as they are.
+//
+// PostgreSQL keeps a literal `\xc3` in a name as it is, so it cannot be told
+// apart from the escape of byte 0xc3 and is decoded too. Names with such
+// sequences are vanishingly rare, while non-ASCII worker names are common;
+// marking escapes ourselves would change the names other runtimes see.
 func unescapeAppName(s string) string {
 	if !strings.Contains(s, `\x`) {
 		return s

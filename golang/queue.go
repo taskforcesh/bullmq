@@ -622,7 +622,9 @@ type WorkerInfo struct {
 // (a `?` before version 16, which loses the worker name's non-ASCII
 // characters) and truncates the result to 63 bytes, so there the workers of
 // a queue with a long name may be missing, and long worker names are
-// truncated.
+// truncated. Those escapes are decoded, so a worker name that itself
+// contains `\x` followed by two hex digits of 80-ff (such as `w\xc3\xb6`)
+// is listed decoded (`wö`): PostgreSQL stores both names the same way.
 func (q *Queue) Workers(ctx context.Context) ([]WorkerInfo, error) {
 	lists, err := q.backend.GetClientList(ctx)
 	if err != nil {

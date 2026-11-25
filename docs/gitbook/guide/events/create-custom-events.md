@@ -75,8 +75,11 @@ if err != nil {
 }
 defer queueEventsProducer.Close()
 
+// Run resolves the default "$" cursor asynchronously, so an event published
+// right after starting it could be missed. Read from the start of the stream.
 queueEvents, err := bullmq.NewQueueEvents(queueName, &bullmq.QueueEventsOptions{
-	Backend: backend,
+	Backend:     backend,
+	LastEventID: "0",
 })
 if err != nil {
 	log.Fatal(err)

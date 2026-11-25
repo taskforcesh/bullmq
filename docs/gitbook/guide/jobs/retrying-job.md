@@ -143,6 +143,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if job == nil {
+		log.Fatal("job not found")
+	}
 
 	// Retry a failed job
 	if err := job.Retry(ctx, bullmq.StateFailed, nil); err != nil {

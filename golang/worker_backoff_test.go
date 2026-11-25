@@ -108,18 +108,25 @@ func TestBackoffDelayIsClamped(t *testing.T) {
 	w := &Worker{opts: WorkerOptions{
 		BackoffStrategy: func(int64, BackoffType, error, *Job) int64 { return math.MaxInt64 },
 	}}
-	for _, job := range []*Job{
-		{ID: "custom", Opts: &JobOptions{Backoff: &Backoff{Type: "custom"}}},
-		{ID: "exponential", AttemptsMade: 5000, Opts: &JobOptions{Backoff: &Backoff{Type: BackoffExponential, Delay: 1000}}},
-		{ID: "jittered", AttemptsMade: 5000, Opts: &JobOptions{Backoff: &Backoff{Type: BackoffExponential, Delay: 1000, Jitter: 0.5}}},
-		{ID: "full-jitter", AttemptsMade: 5000, Opts: &JobOptions{Backoff: &Backoff{Type: BackoffExponential, Delay: 1000, Jitter: 1}}},
+	const century = 100 * 365 * 24 * time.Hour
+	for _, tc := range []struct {
+		job *Job
+		// minimum delay expected. Full jitter draws uniformly from
+		// [0, saturated delay], so it can be anything that is not negative.
+		min time.Duration
+	}{
+		{&Job{ID: "custom", Opts: &JobOptions{Backoff: &Backoff{Type: "custom"}}}, century},
+		{&Job{ID: "exponential", AttemptsMade: 5000, Opts: &JobOptions{Backoff: &Backoff{Type: BackoffExponential, Delay: 1000}}}, century},
+		{&Job{ID: "jittered", AttemptsMade: 5000, Opts: &JobOptions{Backoff: &Backoff{Type: BackoffExponential, Delay: 1000, Jitter: 0.5}}}, century},
+		{&Job{ID: "full-jitter", AttemptsMade: 5000, Opts: &JobOptions{Backoff: &Backoff{Type: BackoffExponential, Delay: 1000, Jitter: 1}}}, 0},
 	} {
+		job := tc.job
 		d, err := w.backoffDelay(job, nil)
 		if err != nil {
 			t.Fatalf("%s: backoffDelay: %v", job.ID, err)
 		}
-		if d < 100*365*24*time.Hour {
-			t.Errorf("%s: delay = %v, want a saturated, far-future delay", job.ID, d)
+		if d < tc.min {
+			t.Errorf("%s: delay = %v, want at least %v", job.ID, d, tc.min)
 		}
 		if due := nowMillis() + d.Milliseconds(); due < nowMillis() {
 			t.Errorf("%s: due time %d overflows", job.ID, due)
