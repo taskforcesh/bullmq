@@ -235,6 +235,41 @@ function mapSchedulerRow(row: SchedulerRow): {
 }
 
 /**
+ * PostgreSQL keeps only printable ASCII in `application_name`: other bytes
+ * become `\xhh` on 16+ and `?` on 13-15. Maps a name of this queue back to the
+ * name that was set, so workers of non-ASCII queues are still discovered
+ * (#5194). On 13-15 only the queue part can be restored.
+ */
+function clientNameAsSet(
+  appName: string,
+  queueName: string,
+  serverVersionNum: number,
+): string {
+  const hexEscapes = serverVersionNum >= 160000;
+  const prefix = Array.from(Buffer.from(queueName), byte =>
+    byte >= 32 && byte <= 126
+      ? String.fromCharCode(byte)
+      : hexEscapes
+        ? `\\x${byte.toString(16).padStart(2, '0')}`
+        : '?',
+  ).join('');
+  if (!appName.startsWith(prefix)) {
+    return appName;
+  }
+  const rest = appName.slice(prefix.length);
+  // Decode runs of non-ASCII escapes (bytes >= 0x80) as UTF-8; escapes of
+  // control characters, or cut short by the 63-byte truncation, stay as-is.
+  return (
+    queueName +
+    (hexEscapes
+      ? rest.replace(/(?:\\x[89a-f][0-9a-f])+/g, run =>
+          Buffer.from(run.replace(/\\x/g, ''), 'hex').toString('utf8'),
+        )
+      : rest)
+  );
+}
+
+/**
  * PostgreSQL implementation of {@link IQueueBackend}.
  *
  * Fulfils the same database-agnostic contract as {@link RedisQueueBackend}, but
@@ -1895,10 +1930,22 @@ export class PostgresQueueBackend
     // `name=<application_name>` line, which the shared client-list parser then
     // matches against the queue's client name. Returned as a single-element
     // array since PostgreSQL has no cluster-node fan-out.
-    const { rows } = await this.run<{ application_name: string }>(
-      'get_client_list',
-    );
-    return [rows.map(r => `name=${r.application_name}`).join('\n')];
+    const { rows } = await this.run<{
+      application_name: string;
+      server_version_num: number | string;
+    }>('get_client_list');
+    return [
+      rows
+        .map(
+          r =>
+            `name=${clientNameAsSet(
+              r.application_name,
+              this.queueName,
+              Number(r.server_version_num),
+            )}`,
+        )
+        .join('\n'),
+    ];
   }
 
   async paginate(
