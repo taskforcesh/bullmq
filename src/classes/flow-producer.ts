@@ -324,9 +324,10 @@ export class FlowProducer<
    * Whenever the children of a given parent are completed, the parent
    * will be processed, being able to access the children's result data.
    *
-   * All Jobs can be in different queues, either children or parents,
-   * however this call would be atomic, either it fails and no jobs will
-   * be added to the queues, or it succeeds and all jobs will be added.
+   * All Jobs can be in different queues, either children or parents.
+   * If any job in the bulk call is rejected by the datastore, an error is thrown.
+   * Note that the operations are not rolled back, so valid flows in the same batch
+   * remain added.
    *
    * @param flows - an array of objects with a tree-like structure where children jobs
    * will be processed before their parents.
@@ -360,15 +361,28 @@ export class FlowProducer<
         const jobsTrees = await this.addNodes(entries, flows);
 
         const results = await this.backend.addFlow(entries);
-        for (let index = 0; index < jobsTrees.length; ++index) {
-          const result = results?.[index];
-          if (!result) {
-            continue;
-          }
+        if (results) {
+          for (let index = 0; index < results.length; ++index) {
+            const result = results[index];
+            if (!result) {
+              continue;
+            }
 
-          const [err, jobId] = result;
-          if (!err && typeof jobId === 'string') {
-            jobsTrees[index].job.id = jobId;
+            const [err, jobId] = result;
+            if (err) {
+              throw err;
+            }
+
+            if (typeof jobId === 'number' && jobId < 0) {
+              throw this.toFlowError(
+                jobId,
+                entries[index]?.parentKeyOpts?.parentKey,
+              );
+            }
+
+            if (index < jobsTrees.length && typeof jobId === 'string') {
+              jobsTrees[index].job.id = jobId;
+            }
           }
         }
 
@@ -442,13 +456,7 @@ export class FlowProducer<
           );
         }
 
-        const job = new this.Job(
-          queue,
-          node.name,
-          node.data,
-          jobOpts,
-          jobId,
-        );
+        const job = new this.Job(queue, node.name, node.data, jobOpts, jobId);
 
         const parentKey = getParentKey(parent?.parentOpts);
 
