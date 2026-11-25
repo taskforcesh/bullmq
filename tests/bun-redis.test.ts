@@ -336,6 +336,7 @@ describe('bun redis adapter', () => {
       let listener: ReturnType<typeof Bun.listen<ProxyData>> | undefined;
       const upstreamSockets = new Set<Bun.Socket<undefined>>();
       const openSockets = new Set<{ end(): void }>();
+      let rejectCount = 0;
       const endSocket = (socket?: { end(): void }) => {
         try {
           socket?.end();
@@ -346,6 +347,9 @@ describe('bun redis adapter', () => {
 
       return {
         url: `redis://127.0.0.1:${port}`,
+        rejectNext(count = 1) {
+          rejectCount += count;
+        },
         start() {
           if (listener) {
             return;
@@ -357,6 +361,11 @@ describe('bun redis adapter', () => {
               open(client) {
                 openSockets.add(client);
                 client.data = { pending: [] };
+                if (rejectCount > 0) {
+                  rejectCount--;
+                  endSocket(client);
+                  return;
+                }
                 Bun.connect({
                   hostname: redisHost,
                   port: redisPort,
@@ -539,6 +548,65 @@ describe('bun redis adapter', () => {
         const list = String(await rawClient.send('CLIENT', ['LIST']));
         expect(list.includes(`id=${oldId} `)).toBe(false);
       } finally {
+        await adapter.quit();
+        proxy.stop();
+      }
+    });
+
+    it('a duplicate whose first connection is refused becomes ready', async () => {
+      const proxy = createProxy();
+      proxy.start();
+      const parent = createBunRedisClient(
+        new RedisClient(proxy.url, { autoReconnect: false }),
+      );
+      parent.on('error', () => {});
+      await parent.connect();
+      proxy.rejectNext(1);
+      const dup = parent.duplicate();
+      dup.on('error', () => {});
+      try {
+        const deadline = Date.now() + 10000;
+        while (dup.status !== 'ready' && Date.now() < deadline) {
+          await Bun.sleep(50);
+        }
+        expect(dup.status).toBe('ready');
+      } finally {
+        await dup.quit();
+        await parent.quit();
+        proxy.stop();
+      }
+    });
+
+    it('a refused replacement still lets a Queue add after reconnect', async () => {
+      const proxy = createProxy();
+      proxy.start();
+      const adapter = createBunRedisClient(
+        new RedisClient(proxy.url, { autoReconnect: false }),
+      );
+      adapter.on('error', () => {});
+      const queueName = `test-bun-reopen-refused-${randomUUID()}`;
+      let queue: Queue | undefined;
+      try {
+        await adapter.connect();
+        adapter.disconnect();
+        proxy.rejectNext(1);
+        // The test calls adapter.connect() without awaiting it, the way
+        // RedisConnection.reconnect() returns that promise to its caller.
+        adapter.connect().catch(() => {});
+        const deadline = Date.now() + 5000;
+        while (adapter.status === 'end' && Date.now() < deadline) {
+          await Bun.sleep(10);
+        }
+        expect(adapter.status).toBe('reconnecting');
+        queue = new Queue(queueName, { connection: adapter, prefix });
+        queue.on('error', () => {});
+        const job = await queue.add('retried', { foo: 'bar' });
+        const fetched = await Job.fromId(queue, job.id!);
+        expect(fetched).toBeDefined();
+        expect(fetched?.data).toEqual({ foo: 'bar' });
+      } finally {
+        await queue?.close();
+        await cleanQueue(queueName);
         await adapter.quit();
         proxy.stop();
       }

@@ -56,6 +56,21 @@ function isBunConnectionClosedError(err: any): boolean {
   );
 }
 
+// A close with nothing left to connect. Not a Bun socket error: the default
+// ConnectionClosedError message matches isBunConnectionClosedError, so callers
+// that rewrap Bun errors must recognize this marker first.
+const TERMINAL = Symbol('bunAdapterTerminal');
+
+function terminalClosed(): ConnectionClosedError {
+  const error = new ConnectionClosedError();
+  (error as any)[TERMINAL] = true;
+  return error;
+}
+
+function isTerminalClosed(err: unknown): boolean {
+  return (err as any)?.[TERMINAL] === true;
+}
+
 function normalizeStringCollection(reply: any): string[] {
   if (reply == null) {
     return [];
@@ -334,19 +349,9 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
         this.reconnecting = false;
         return;
       }
-      const generation = this.generation;
       // Same path as an explicit connect(): a fresh raw via duplicate() or the
       // lazy factory, one attempt at a time, cancelled by quit()/disconnect().
-      this.connect().catch(() => {
-        if (generation !== this.generation) {
-          return;
-        }
-        // A failed attempt's onclose normally schedules the next one already.
-        if (!this.closing && !this.reconnectTimer) {
-          this.reconnecting = false;
-          this._scheduleReconnect();
-        }
-      });
+      this.connect().catch(() => {});
     }, delay);
   }
 
@@ -364,13 +369,30 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     // One attempt at a time: concurrent callers share it, and it is claimed
     // before any await so `status` reports 'connecting' for its whole length.
     if (!this.connecting) {
-      const attempt: Promise<void> = this._connectAttempt(
-        this.generation,
-      ).finally(() => {
-        if (this.connecting === attempt) {
-          this.connecting = undefined;
-        }
-      });
+      const generation = this.generation;
+      const attempt: Promise<void> = this._connectAttempt(generation)
+        .catch((err: unknown) => {
+          // An adapter with nothing left to connect (closed before its lazy
+          // raw existed) is final, and so is a duplicate whose parent is in
+          // that state. Otherwise a failed attempt is retried unless shutdown
+          // superseded it. When Bun reports the close, onclose has already
+          // scheduled it and _scheduleReconnect is a no-op.
+          if (
+            !isTerminalClosed(err) &&
+            generation === this.generation &&
+            !this.closing &&
+            !this.reconnectTimer
+          ) {
+            this.reconnecting = false;
+            this._scheduleReconnect();
+          }
+          throw err;
+        })
+        .finally(() => {
+          if (this.connecting === attempt) {
+            this.connecting = undefined;
+          }
+        });
       this.connecting = attempt;
     }
     await this.connecting;
@@ -411,14 +433,25 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       throw new ConnectionClosedError();
     }
     if (!this.raw && (this.rawFactory || this.materializing)) {
-      await this._materializeRaw();
+      try {
+        await this._materializeRaw();
+      } catch (err) {
+        // terminalClosed() uses the default message, which the Bun heuristic
+        // also matches, so a marked error has to be passed through unchanged.
+        if (isTerminalClosed(err)) {
+          throw err;
+        }
+        throw isBunConnectionClosedError(err)
+          ? new ConnectionClosedError((err as Error).message, err)
+          : err;
+      }
       if (stale()) {
         throw new ConnectionClosedError();
       }
     }
     if (!this.raw) {
       // quit() dropped the lazy factory before it ran.
-      throw new ConnectionClosedError();
+      throw terminalClosed();
     }
     // A raw that closed (after a drop, a failed first connect, or quit()) cannot
     // be reopened: Bun needs a fresh client via duplicate() (#4582).
@@ -436,7 +469,14 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     }
     if (replaceRaw) {
       const old = this.raw;
-      const fresh = await this._duplicateRaw(old);
+      let fresh: TClient;
+      try {
+        fresh = await this._duplicateRaw(old);
+      } catch (err) {
+        throw isBunConnectionClosedError(err)
+          ? new ConnectionClosedError((err as Error).message, err)
+          : err;
+      }
       if (stale()) {
         this._retireRaw(fresh);
         throw new ConnectionClosedError();

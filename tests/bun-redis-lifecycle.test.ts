@@ -22,6 +22,7 @@ class ControlledRaw {
   sent: string[] = [];
 
   private connectsWithoutCallback = false;
+  private rejectNextDuplicate = false;
   private connectResolve!: () => void;
   private connectReject!: (err: Error) => void;
   private readonly connectPromise: Promise<void>;
@@ -59,8 +60,17 @@ class ControlledRaw {
     );
   }
 
+  /** The next `duplicate()` rejects once, as a dropped connection during setup. */
+  rejectDuplicateOnce(): void {
+    this.rejectNextDuplicate = true;
+  }
+
   duplicate(): Promise<ControlledRaw> {
     this.duplicateCalls++;
+    if (this.rejectNextDuplicate) {
+      this.rejectNextDuplicate = false;
+      return Promise.reject(new Error('Connection closed'));
+    }
     const next = this.duplicatesConnected
       ? undefined
       : new ControlledRaw(this.created);
@@ -339,6 +349,127 @@ describe('bun adapter connection lifecycle', () => {
       expect(vi.getTimerCount()).toBe(0);
     } finally {
       await adapter.quit();
+      vi.useRealTimers();
+    }
+  });
+
+  it('a lazy duplicate whose first materialization fails retries', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const created: ControlledRaw[] = [];
+    const { raw, adapter: primary } = await connectedAdapter(created);
+    raw.rejectDuplicateOnce();
+    const child = primary.duplicate();
+    child.on('error', () => {});
+    const ready = new Promise<void>(resolve => {
+      child.once('ready', () => resolve());
+    });
+    try {
+      await flush();
+      expect(child.status).toBe('reconnecting');
+      expect(raw.duplicateCalls).toBe(1);
+
+      vi.advanceTimersByTime(1000);
+      await flush();
+      expect(raw.duplicateCalls).toBe(2);
+      raw.resolveDuplicate();
+      await flush();
+      created[1].resolveConnect();
+      await ready;
+      expect(child.status).toBe('ready');
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      await child.quit();
+      await primary.quit();
+      vi.useRealTimers();
+    }
+  });
+
+  it('quit() during a lazy duplicate reconnect backoff stands down', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const created: ControlledRaw[] = [];
+    const { raw, adapter: primary } = await connectedAdapter(created);
+    raw.rejectDuplicateOnce();
+    const child = primary.duplicate();
+    child.on('error', () => {});
+    try {
+      await flush();
+      expect(child.status).toBe('reconnecting');
+      const calls = raw.duplicateCalls;
+      await child.quit();
+      vi.advanceTimersByTime(20000);
+      await flush();
+      expect(child.status).toBe('end');
+      expect(raw.duplicateCalls).toBe(calls);
+    } finally {
+      await child.quit();
+      await primary.quit();
+      vi.useRealTimers();
+    }
+  });
+
+  it('an explicit reconnect whose replacement duplicate fails retries', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const created: ControlledRaw[] = [];
+    const { raw, adapter } = await connectedAdapter(created);
+    let reopening: Promise<void> = Promise.resolve();
+    try {
+      adapter.disconnect();
+      raw.rejectDuplicateOnce();
+      reopening = adapter.connect();
+      void reopening.catch(() => {});
+      await flush();
+      expect(adapter.status).toBe('reconnecting');
+      expect(raw.duplicateCalls).toBe(1);
+
+      vi.advanceTimersByTime(1000);
+      await flush();
+      expect(raw.duplicateCalls).toBe(2);
+      raw.resolveDuplicate();
+      await flush();
+      created[1].resolveConnect();
+      await flush();
+      expect(adapter.status).toBe('ready');
+    } finally {
+      await adapter.quit();
+      await flush();
+      raw.resolveDuplicate();
+      created[1]?.resolveConnect();
+      await reopening.catch(() => {});
+      vi.useRealTimers();
+    }
+  });
+
+  it('a duplicate of a disconnected unmaterialized duplicate does not retry', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const created: ControlledRaw[] = [];
+    const { raw, adapter: primary } = await connectedAdapter(created);
+    const parent = primary.duplicate();
+    parent.on('error', () => {});
+    parent.disconnect();
+    let factoryCalls = 0;
+    const ensureRaw = parent._ensureRaw.bind(parent);
+    parent._ensureRaw = () => {
+      factoryCalls++;
+      return ensureRaw();
+    };
+    const child = parent.duplicate();
+    child.on('error', () => {});
+    try {
+      await expect(child.connect()).rejects.toBeInstanceOf(
+        ConnectionClosedError,
+      );
+      const calls = raw.duplicateCalls;
+      const factories = factoryCalls;
+      vi.advanceTimersByTime(60_000);
+      await flush();
+      expect(vi.getTimerCount()).toBe(0);
+      expect(raw.duplicateCalls).toBe(calls);
+      expect(factoryCalls).toBe(factories);
+      expect(child.status).not.toBe('reconnecting');
+    } finally {
+      await child.quit();
+      await parent.quit();
+      await primary.quit();
       vi.useRealTimers();
     }
   });
