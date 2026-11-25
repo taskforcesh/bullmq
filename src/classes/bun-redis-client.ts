@@ -835,10 +835,10 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     return (this.raw.send<T>(command, args) as Promise<T>).catch((err: any) => {
       if (isBunConnectionClosedError(err)) {
         // Only an intentional teardown (quit/disconnect) resolves in-flight
-        // commands to null. `onclose` sets `closed` before Bun rejects pending
-        // commands, so checking `closed` turned every unexpected drop into a
-        // null reply (for example a `queue.add` reporting a job that was
-        // never stored).
+        // commands to null; an unexpected drop rejects. The check reads the
+        // current `closing` flag, so a command interrupted by a drop still
+        // resolves to null if a synchronous 'close' listener calls quit()
+        // before Bun rejects it.
         if (this.closing) {
           return null as unknown as T;
         }
