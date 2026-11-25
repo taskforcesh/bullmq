@@ -53,6 +53,39 @@ original_tree.children.as_mut().unwrap()[0]
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+flow, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flow.Close()
+
+originalTree, err := flow.Add(ctx, bullmq.FlowJob{
+	Name:      "root-job",
+	QueueName: "topQueueName",
+	Data:      map[string]any{},
+	Children: []bullmq.FlowJob{
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 0, "foo": "bar"},
+			QueueName: "childrenQueueName",
+			Opts:      &bullmq.JobOptions{},
+		},
+	},
+}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+
+if _, err := originalTree.Children[0].Job.RemoveChildDependency(ctx); err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="warning" %}

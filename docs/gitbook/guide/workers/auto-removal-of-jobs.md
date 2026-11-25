@@ -86,6 +86,24 @@ let worker = Worker::with_options(
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+myWorker, err := bullmq.NewWorker("myQueueName", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// do some work
+	return nil, nil
+}, &bullmq.WorkerOptions{
+	Backend:      backend,
+	RemoveOnFail: bullmq.KeepCount(0),
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer myWorker.Close()
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="warning" %}
@@ -175,6 +193,25 @@ let worker = Worker::with_options(
     },
 )
 .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+myWorker, err := bullmq.NewWorker("myQueueName", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// do some work
+	return nil, nil
+}, &bullmq.WorkerOptions{
+	Backend:          backend,
+	RemoveOnComplete: bullmq.KeepCount(1000),
+	RemoveOnFail:     bullmq.KeepCount(5000),
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer myWorker.Close()
 ```
 
 {% endtab %}
@@ -292,6 +329,32 @@ let worker = Worker::with_options(
     },
 )
 .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+myWorker, err := bullmq.NewWorker("myQueueName", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// do some work
+	return nil, nil
+}, &bullmq.WorkerOptions{
+	Backend: backend,
+	RemoveOnComplete: &bullmq.RemoveOnFinish{
+		Age:   bullmq.Int64(3600), // keep up to 1 hour
+		Count: bullmq.Int64(1000), // keep up to 1000 jobs
+		Limit: bullmq.Int64(100),  // remove up to 100 jobs per cleanup iteration
+	},
+	RemoveOnFail: &bullmq.RemoveOnFinish{
+		Age:   bullmq.Int64(24 * 3600), // keep up to 24 hours
+		Limit: bullmq.Int64(50),        // remove up to 50 jobs per cleanup iteration
+	},
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer myWorker.Close()
 ```
 
 {% endtab %}

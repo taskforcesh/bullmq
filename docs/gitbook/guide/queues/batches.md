@@ -106,6 +106,27 @@ let jobs = queue
 
 {% endtab %}
 
+{% tab title="Go" %}
+
+```go
+queue, err := bullmq.NewQueue("invoices", &bullmq.QueueOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer queue.Close()
+
+jobs, err := queue.AddBulk(ctx, []bullmq.JobSpec{
+	{Name: "send", Data: map[string]string{"invoiceId": "A-100"}},
+	{Name: "send", Data: map[string]string{"invoiceId": "A-101"}},
+	{Name: "send", Data: map[string]string{"invoiceId": "A-102"}},
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -283,6 +304,42 @@ flow_producer
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+flowProducer, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flowProducer.Close()
+
+_, err = flowProducer.AddBulk(ctx, []bullmq.FlowJob{
+	{
+		Name:      "import-file",
+		QueueName: "imports",
+		Data:      map[string]string{"fileId": "first.csv"},
+		Children: []bullmq.FlowJob{
+			{Name: "parse", QueueName: "import-steps", Data: map[string]string{"fileId": "first.csv"}},
+			{Name: "index", QueueName: "import-steps", Data: map[string]string{"fileId": "first.csv"}},
+		},
+	},
+	{
+		Name:      "import-file",
+		QueueName: "imports",
+		Data:      map[string]string{"fileId": "second.csv"},
+		Children: []bullmq.FlowJob{
+			{Name: "parse", QueueName: "import-steps", Data: map[string]string{"fileId": "second.csv"}},
+			{Name: "index", QueueName: "import-steps", Data: map[string]string{"fileId": "second.csv"}},
+		},
+	},
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 Details: [Adding flows in bulk](../flows/adding-bulks.md).
@@ -349,6 +406,19 @@ queue
         }),
     )
     .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+_, err := queue.Add(ctx, "send-batch", map[string]any{
+	"invoiceIds": []string{"A-100", "A-101", "A-102"},
+}, nil)
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -497,6 +567,39 @@ let worker = Worker::with_options(
     WorkerOptions::new().connection(connection),
 )
 .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+worker, err := bullmq.NewWorker("invoices", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	var data struct {
+		InvoiceIDs []string `json:"invoiceIds"`
+	}
+	if err := job.DecodeData(&data); err != nil {
+		return nil, err
+	}
+
+	for index, invoiceID := range data.InvoiceIDs {
+		if err := sendInvoice(ctx, invoiceID); err != nil {
+			return nil, err
+		}
+		err := job.UpdateProgress(ctx, map[string]int{
+			"completed": index + 1,
+			"total":     len(data.InvoiceIDs),
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return map[string]int{"sent": len(data.InvoiceIDs)}, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
