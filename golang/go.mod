@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/adhocore/gronx v1.20.8
-	github.com/jackc/pgx/v5 v5.8.0
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 )
