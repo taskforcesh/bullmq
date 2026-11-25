@@ -7,6 +7,7 @@ import {
   JobSchedulerJson,
   QueueOptions,
   RepeatOptions,
+  SignalResult,
 } from '../interfaces';
 import { ConnectionOptions } from '../interfaces/redis-options';
 import {
@@ -670,6 +671,47 @@ export class Queue<
         });
 
         return this.backend.deleteDeduplicationKey(id);
+      },
+    );
+  }
+
+  /**
+   * Sends a signal to a job. The signal is stored on the job under `name`,
+   * replacing an earlier signal with the same name, and the job reads it with
+   * {@link Job.waitForSignal}.
+   *
+   * If the job is delayed waiting for this signal, it is moved back to wait
+   * in the same atomic operation, so it continues right away. In any other
+   * state the signal is only stored: a job in backoff, waiting for another
+   * signal or still running reads it when it calls `waitForSignal`.
+   *
+   * Throws if the job does not exist or has already finished.
+   *
+   * @param jobId - The id of the job.
+   * @param name - The name of the signal.
+   * @param data - The payload, serialized as JSON.
+   * @returns `'woken'` if the job was waiting for this signal, `'stored'`
+   * otherwise.
+   */
+  async signal(jobId: string, name: string, data?: any): Promise<SignalResult> {
+    if (!name) {
+      throw new Error('A signal name is required');
+    }
+    return this.trace<SignalResult>(
+      SpanKind.PRODUCER,
+      'signal',
+      `${this.name}`,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.JobId]: jobId,
+        });
+
+        const woken = await this.backend.signal(
+          jobId,
+          name,
+          JSON.stringify(data ?? null),
+        );
+        return woken ? 'woken' : 'stored';
       },
     );
   }

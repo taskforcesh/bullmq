@@ -30,6 +30,7 @@ import {
   RetryOptions,
   ScriptQueueContext,
   StreamReadRaw,
+  WaitForSignalResult,
 } from '../interfaces';
 import {
   CompressableJobOptions,
@@ -2141,6 +2142,84 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
         command: 'promote',
         state: 'delayed',
       });
+    }
+  }
+
+  async signal(jobId: string, name: string, data: string): Promise<boolean> {
+    const client = await this.queue.client;
+    const jobKey = this.queue.toKey(jobId);
+
+    const keys = [
+      jobKey,
+      `${jobKey}:signals`,
+      this.queue.keys.delayed,
+      this.queue.keys.wait,
+      this.queue.keys.paused,
+      this.queue.keys.meta,
+      this.queue.keys.prioritized,
+      this.queue.keys.active,
+      this.queue.keys.pc,
+      this.queue.keys.events,
+      this.queue.keys.marker,
+    ];
+
+    const code = await this.execCommand(
+      client,
+      'signalJob',
+      keys.concat([jobId, name, data]),
+    );
+    if (code < 0) {
+      throw this.finishedErrors({ code, jobId, command: 'signal' });
+    }
+    return code === 1;
+  }
+
+  async moveToWaitingForSignal(
+    jobId: string,
+    token: string,
+    name: string,
+    timeout: number,
+    timestamp: number,
+  ): Promise<WaitForSignalResult> {
+    const client = await this.queue.client;
+    const queueKeys = this.queue.keys;
+    const jobKey = this.queue.toKey(jobId);
+
+    const keys: (string | number)[] = [
+      queueKeys.marker,
+      queueKeys.active,
+      queueKeys.prioritized,
+      queueKeys.delayed,
+      jobKey,
+      queueKeys.events,
+      queueKeys.meta,
+      queueKeys.stalled,
+      queueKeys.wait,
+      queueKeys.limiter,
+      queueKeys.pc,
+      `${jobKey}:signals`,
+    ];
+
+    const [code, data] = await this.execCommand(
+      client,
+      'moveToWaitingForSignal',
+      keys.concat([timestamp, jobId, token, name, timeout]),
+    );
+
+    switch (code) {
+      case 1:
+        return { status: 'signal', data };
+      case 0:
+        return { status: 'delayed' };
+      case 2:
+        return { status: 'timeout' };
+      default:
+        throw this.finishedErrors({
+          code,
+          jobId,
+          command: 'waitForSignal',
+          state: 'active',
+        });
     }
   }
 

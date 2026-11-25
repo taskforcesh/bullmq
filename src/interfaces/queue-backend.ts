@@ -12,6 +12,7 @@ import { QueueBaseOptions } from './queue-options';
 import { ConnectionOptions } from './redis-options';
 import { RepeatableOptions } from './repeatable-options';
 import { RetryOptions } from './retry-options';
+import { WaitForSignalResult } from './signal';
 import { StreamReadRaw } from './redis-streams';
 import {
   FinishedStatus,
@@ -361,6 +362,31 @@ export interface IQueueBackend {
    * Promotes a single delayed job so it can be processed as soon as possible.
    */
   promote(jobId: string): Promise<void>;
+
+  /**
+   * Stores a signal on a job under `name`, replacing an earlier signal with
+   * the same name. If the job is delayed waiting for that signal, it is moved
+   * back to wait in the same atomic operation.
+   * @param data - The signal payload, serialized as JSON.
+   * @returns `true` if the job was woken up, `false` if the signal was only
+   * stored.
+   */
+  signal(jobId: string, name: string, data: string): Promise<boolean>;
+
+  /**
+   * Returns the job's stored signal `name`, or moves the active job to the
+   * delayed state until the signal arrives or the wait times out. Both happen
+   * atomically with {@link signal}, so a signal is never missed.
+   * @param timeout - Milliseconds to wait, counted from the first wait for
+   * this signal; later waits keep the original deadline.
+   */
+  moveToWaitingForSignal(
+    jobId: string,
+    token: string,
+    name: string,
+    timeout: number,
+    timestamp: number,
+  ): Promise<WaitForSignalResult>;
 
   /**
    * Recovers stalled jobs (active jobs whose lock expired) back to wait.

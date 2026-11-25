@@ -13,6 +13,7 @@ import {
   ParentKeyOpts,
   RedisClient,
   RetryOptions,
+  WaitForSignalOpts,
   WorkerOptions,
   Span,
 } from '../interfaces';
@@ -35,6 +36,8 @@ import {
 import { Backoffs } from './backoffs';
 import { RedisQueueBackend } from './redis-queue-backend';
 import { UnrecoverableError } from './errors/unrecoverable-error';
+import { DelayedError } from './errors/delayed-error';
+import { SignalTimeoutError } from './errors/signal-timeout-error';
 import type { QueueEvents } from './queue-events';
 import { SpanKind, TelemetryAttributes, MetricNames } from '../enums';
 
@@ -1196,6 +1199,65 @@ export class Job<
     this.delay = finalDelay;
 
     this.recordJobMetrics('delayed');
+  }
+
+  /**
+   * Waits for a signal sent to this job with {@link Queue.signal}.
+   *
+   * If the signal is already stored on the job, its payload is returned.
+   * Otherwise the job is moved to the delayed state, without using up an
+   * attempt, and a {@link DelayedError} is thrown so that the processor exits
+   * and the worker is free while the job waits. When the signal arrives, the
+   * job is moved back to wait and the processor runs again; this time
+   * `waitForSignal` returns the payload. Checking for the signal and moving
+   * the job happen atomically, so a signal is never missed.
+   *
+   * Signals are not consumed: if the job runs again (a retry, a stalled job),
+   * `waitForSignal` returns the same payload.
+   *
+   * The timeout is counted from the first wait for this signal, and the
+   * deadline is kept if the job runs again for another reason. When it
+   * passes, a {@link SignalTimeoutError} is thrown.
+   *
+   * Every wait is a new start of the job, so with the worker option
+   * `maxStartedAttempts` set, allow for it.
+   *
+   * @param name - The name of the signal.
+   * @param token - The token of the worker processing the job.
+   * @param opts - `timeout`: how long to wait, in milliseconds.
+   * @returns The payload of the signal.
+   */
+  async waitForSignal<S = any>(
+    name: string,
+    token: string,
+    opts: WaitForSignalOpts,
+  ): Promise<S> {
+    if (!name) {
+      throw new Error('A signal name is required');
+    }
+    const timeout = opts?.timeout;
+    if (!Number.isFinite(timeout) || timeout < 0) {
+      throw new Error('waitForSignal requires a timeout of 0 or more ms');
+    }
+
+    const now = Date.now();
+    const result = await this.backend.moveToWaitingForSignal(
+      this.id,
+      token,
+      name,
+      Math.floor(timeout),
+      now,
+    );
+
+    switch (result.status) {
+      case 'signal':
+        return JSON.parse(result.data);
+      case 'timeout':
+        throw new SignalTimeoutError(name);
+      default:
+        this.recordJobMetrics('delayed');
+        throw new DelayedError();
+    }
   }
 
   /**

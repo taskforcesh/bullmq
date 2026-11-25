@@ -38,10 +38,11 @@ defmodule BullMQ.Backends.Postgres.Migrator do
     {9, "0009_obliterate_bounded_dedup_locks.sql", 6},
     {10, "0010_obliterate_finalization_lock.sql", 6},
     {11, "0011_obliterate_producer_lock.sql", 6},
-    {12, "0012_move_active_to_wait_lock_check.sql", 6}
+    {12, "0012_move_active_to_wait_lock_check.sql", 6},
+    {13, "0013_job_signals.sql", 6}
   ]
 
-  @latest_schema_version 12
+  @latest_schema_version 13
 
   @doc "The default schema (namespace) the backend lives in."
   def default_schema, do: @default_schema

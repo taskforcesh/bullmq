@@ -38,6 +38,7 @@
   - [Job Data](guide/jobs/job-data.md)
   - [Deduplication](guide/jobs/deduplication.md)
   - [Delayed](guide/jobs/delayed.md)
+  - [Signals](guide/jobs/signals.md)
   - [Repeatable](guide/jobs/repeatable.md)
   - [Prioritized](guide/jobs/prioritized.md)
   - [Removing jobs](guide/jobs/removing-job.md)

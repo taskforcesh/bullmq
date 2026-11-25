@@ -115,6 +115,14 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0012_move_active_to_wait_lock_check.sql'),
   },
+  {
+    version: 13,
+    name: '0013_job_signals',
+    // Additive: new job_signal / job_signal_wait tables and the signal_job /
+    // wait_for_signal functions. Existing functions are unchanged.
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0013_job_signals.sql'),
+  },
 ];
 
 /**
