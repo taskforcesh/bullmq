@@ -115,6 +115,12 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0012_move_active_to_wait_lock_check.sql'),
   },
+  {
+    version: 13,
+    name: '0013_get_range_ascending',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0013_get_range_ascending.sql'),
+  },
 ];
 
 /**

@@ -67,6 +67,22 @@ let worker = Worker::new("myQueue", |job: Job, token: CancellationToken| async m
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+worker, err := bullmq.NewWorker("myQueue", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// ctx provides cancellation support
+	// Your job processing logic here
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Cancelling Jobs
@@ -163,6 +179,36 @@ println!("Active jobs: {ids:?}");
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+// Cancel a specific job by ID
+cancelled := worker.CancelJob("job-id-123", "")
+log.Println("Job cancelled:", cancelled) // true if job was active, false otherwise
+
+// Cancel with a reason (useful for debugging)
+worker.CancelJob("job-id-456", "User requested cancellation")
+
+// Cancel all active jobs
+worker.CancelAllJobs("")
+
+// Cancel all with a reason
+worker.CancelAllJobs("System shutdown")
+
+// Get list of active jobs from queue
+activeJobs, err := queue.Jobs(ctx, 0, -1, true, bullmq.StateActive)
+if err != nil {
+	log.Fatal(err)
+}
+ids := make([]string, len(activeJobs))
+for i, j := range activeJobs {
+	ids[i] = j.ID
+}
+log.Println("Active jobs:", ids)
+```
+
+{% endtab %}
 {% endtabs %}
 
 ### Cancellation Reasons
@@ -254,6 +300,31 @@ worker.cancelJob(job.id, "Resource limit exceeded")
 
 # Later, cancel with a descriptive reason
 BullMQ.Worker.cancel_job(worker, job.id, "Resource limit exceeded")
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+worker, err := bullmq.NewWorker("myQueue", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	result, err := doWork(ctx, job) // Your processing logic
+	if errors.Is(context.Cause(ctx), bullmq.ErrJobCancelled) {
+		// Access the cancellation reason
+		reason := context.Cause(ctx).Error()
+		log.Printf("Job %s cancelled: %s", job.ID, reason)
+
+		return nil, fmt.Errorf("Cancelled: %s", reason)
+	}
+	return result, err
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+// Later, cancel with a descriptive reason
+worker.CancelJob(job.ID, "Resource limit exceeded")
 ```
 
 {% endtab %}
@@ -384,6 +455,36 @@ let worker = Worker::new("myQueue", |job: Job, token: CancellationToken| async m
     }
 })
 .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+worker, err := bullmq.NewWorker("myQueue", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// Your processing logic
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		// Listen for cancellation
+		case <-ctx.Done():
+			log.Printf("Job %s cancellation requested", job.ID)
+
+			// Return an error
+			return nil, errors.New("Job was cancelled")
+		case <-ticker.C:
+			// Do work
+			processNextItem()
+		}
+	}
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
 ```
 
 {% endtab %}
@@ -635,6 +736,43 @@ let worker = Worker::new("batchQueue", |mut job: Job, token: CancellationToken| 
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+worker, err := bullmq.NewWorker("batchQueue", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	var data struct {
+		Items []any `json:"items"`
+	}
+	if err := job.DecodeData(&data); err != nil {
+		return nil, err
+	}
+	results := []any{}
+
+	for i, item := range data.Items {
+		// Check if job has been cancelled
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("Cancelled after processing %d items", i)
+		}
+
+		result := processItem(item)
+		results = append(results, result)
+
+		// Update progress
+		if err := job.UpdateProgress(ctx, float64(i+1)/float64(len(data.Items))*100); err != nil {
+			return nil, err
+		}
+	}
+
+	return map[string]any{"results": results, "total": len(results)}, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Job State After Cancellation
@@ -734,6 +872,33 @@ queue.add("task", data).attempts(3).await?;
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+worker, err := bullmq.NewWorker("retryQueue", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// Your work...
+
+	if ctx.Err() != nil {
+		// Regular error - job will retry if attempts remain
+		return nil, errors.New("Cancelled, will retry")
+	}
+
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+// Set attempts when adding jobs
+_, err = queue.Add(ctx, "task", data, &bullmq.JobOptions{Attempts: bullmq.Int64(3)})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 ### With UnrecoverableError (No Retry)
@@ -801,6 +966,27 @@ let worker = Worker::new("noRetryQueue", |job: Job, token: CancellationToken| as
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+worker, err := bullmq.NewWorker("noRetryQueue", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// Your work...
+
+	if ctx.Err() != nil {
+		// UnrecoverableError - no retries
+		return nil, bullmq.NewUnrecoverableError("Cancelled permanently")
+	}
+
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Handling Lock Renewal Failures
@@ -859,6 +1045,37 @@ worker.on("lockRenewalFailed", on_lock_renewal_failed)
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+worker, err := bullmq.NewWorker("myQueue", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// Your work...
+
+	if errors.Is(context.Cause(ctx), bullmq.ErrLockLost) {
+		log.Println("Job cancelled - cleaning up resources")
+		cleanupResources()
+		return nil, errors.New("Job cancelled")
+	}
+
+	return nil, nil
+}, &bullmq.WorkerOptions{
+	Backend: backend,
+	// No CancelJob call needed: a lost lock already cancels the job's
+	// context, with bullmq.ErrLockLost as its cause.
+	OnEvent: func(ev bullmq.Event) {
+		if ev.Type == bullmq.EventLockRenewalFailed {
+			log.Println("Lock renewal failed for jobs:", ev.JobIDs)
+		}
+	},
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="warning" %}
@@ -870,6 +1087,8 @@ worker.on("lockRenewalFailed", on_lock_renewal_failed)
 4. Another worker (or the same worker) will pick it up and retry
 
 This is the correct and intended behavior - trust BullMQ's stalled job mechanism to handle lost locks.
+
+In Go, there is no need to call `CancelJob`: the worker cancels the job's context itself when it loses the lock, with `bullmq.ErrLockLost` as `context.Cause(ctx)`.
 {% endhint %}
 
 ### Why This Pattern Works
@@ -1021,6 +1240,54 @@ let worker = Worker::new("multiPhaseQueue", |mut job: Job, token: CancellationTo
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+worker, err := bullmq.NewWorker("multiPhaseQueue", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	var input struct {
+		URL string `json:"url"`
+	}
+	if err := job.DecodeData(&input); err != nil {
+		return nil, err
+	}
+
+	// Phase 1: Download
+	if ctx.Err() != nil {
+		return nil, errors.New("Cancelled before download")
+	}
+	data := downloadData(input.URL)
+	if err := job.UpdateProgress(ctx, 33); err != nil {
+		return nil, err
+	}
+
+	// Phase 2: Process
+	if ctx.Err() != nil {
+		return nil, errors.New("Cancelled before processing")
+	}
+	processed := processData(data)
+	if err := job.UpdateProgress(ctx, 66); err != nil {
+		return nil, err
+	}
+
+	// Phase 3: Upload
+	if ctx.Err() != nil {
+		return nil, errors.New("Cancelled before upload")
+	}
+	result := uploadResults(processed)
+	if err := job.UpdateProgress(ctx, 100); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Backward Compatibility
@@ -1084,6 +1351,31 @@ worker = Worker("myQueue", process_with_signal)
       :ok
     end
   )
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+// A processor that ignores ctx - still works
+worker, err := bullmq.NewWorker("myQueue", func(_ context.Context, job *bullmq.Job) (any, error) {
+	return processJob(job)
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+
+// A processor that watches ctx - with cancellation support
+worker, err = bullmq.NewWorker("myQueue", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// Can now handle cancellation
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
 ```
 
 {% endtab %}

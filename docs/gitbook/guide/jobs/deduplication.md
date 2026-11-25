@@ -62,6 +62,20 @@ queue
 
 {% endtab %}
 
+{% tab title="Go" %}
+
+```go
+// Add a job that will be deduplicated as this record is not finished (completed or failed).
+_, err := queue.Add(ctx, "house", map[string]string{"color": "white"}, &bullmq.JobOptions{
+	Deduplication: &bullmq.DeduplicationOptions{ID: "customValue"},
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -174,6 +188,27 @@ for (color, delay) in [("white", 5000), ("blue", 8000)] {
             ..Default::default()
         })
         .await?;
+}
+```
+
+{% endtab %}
+{% tab title="Go" %}
+
+```go
+_, err := queue.Add(ctx, "house", map[string]string{"color": "white"}, &bullmq.JobOptions{
+	Delay:         bullmq.Int64(5000),
+	Deduplication: &bullmq.DeduplicationOptions{ID: "house", Reschedule: true},
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+_, err = queue.Add(ctx, "house", map[string]string{"color": "blue"}, &bullmq.JobOptions{
+	Delay:         bullmq.Int64(8000),
+	Deduplication: &bullmq.DeduplicationOptions{ID: "house", Reschedule: true},
+})
+if err != nil {
+	log.Fatal(err)
 }
 ```
 
@@ -291,6 +326,41 @@ queue
         ..Default::default()
     })
     .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("Paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	// Add a job that will be deduplicated for 5 seconds.
+	_, err = queue.Add(ctx, "house", map[string]string{"color": "white"}, &bullmq.JobOptions{
+		Deduplication: &bullmq.DeduplicationOptions{ID: "customValue", TTL: 5000},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 ```
 
 {% endtab %}
@@ -466,6 +536,72 @@ while let Some(event) = worker.next_event().await {
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("Paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	worker, err := bullmq.NewWorker("Paint", func(ctx context.Context, job *bullmq.Job) (any, error) {
+		return nil, nil
+	}, &bullmq.WorkerOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer worker.Close()
+	go func() { _ = worker.Run(ctx) }()
+
+	// Add 10 jobs with deduplication option in debounce mode.
+	for i := 1; i < 11; i++ {
+		_, err := queue.Add(ctx, "house1", map[string]string{"color": fmt.Sprintf("white %d", i)}, &bullmq.JobOptions{
+			Deduplication: &bullmq.DeduplicationOptions{
+				ID:      "customValue",
+				TTL:     5000,
+				Extend:  true,
+				Replace: true,
+			},
+			Delay: bullmq.Int64(5000),
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	for ev := range worker.Events() {
+		if ev.Type == bullmq.EventCompleted {
+			// only one instance is completed and
+			// 9 additions were ignored
+			var data map[string]string
+			if err := ev.Job.DecodeData(&data); err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(data["color"]) // `white 10`
+			break
+		}
+	}
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 In this example, after adding the house painting job with the deduplicated parameters (id, ttl and replace) and 5 seconds as delay, any subsequent job with the same deduplication options added within 5 seconds will replace previous job information. This is useful for scenarios where rapid, repetitive requests are made, such as multiple users or processes attempting to trigger the same job but with different payloads, this way you will get the last updated data when processing a job.
@@ -566,6 +702,42 @@ while let Some(entry) = queue_events.next_event().await {
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queueEvents, err := bullmq.NewQueueEvents("myQueue", &bullmq.QueueEventsOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queueEvents.Close()
+
+	go func() { _ = queueEvents.Run(ctx) }()
+
+	for ev := range queueEvents.Events() {
+		if ev.Event == "deduplicated" {
+			log.Printf("Job %s was deduplicated due to existing job %s with deduplication ID %s",
+				ev.Data["deduplicatedJobId"], ev.JobID, ev.Data["deduplicationId"])
+		}
+	}
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 In this example:
@@ -611,6 +783,17 @@ let job_id = queue.get_deduplication_job_id("customValue").await?;
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+jobID, err := queue.DeduplicationJobID(ctx, "customValue")
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Remove Deduplication Key
@@ -634,6 +817,16 @@ await myQueue.removeDeduplicationKey('customValue');
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+if _, err := queue.RemoveDeduplicationKey(ctx, "customValue"); err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 Or if you want to stop deduplication only if a specific job is the one that caused the deduplication
@@ -653,6 +846,17 @@ const isDeduplicatedKeyRemoved = await job.removeDeduplicationKey();
 let is_deduplicated_key_removed = queue
     .remove_deduplication_key("customValue", job.id())
     .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+isDeduplicatedKeyRemoved, err := job.RemoveDeduplicationKey(ctx)
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -804,6 +1008,72 @@ async fn on_git_push(deploy_queue: &Queue, sha: &str, repo: &str) -> bullmq::Res
         })
         .await?;
     Ok(())
+}
+
+// Push 1 at 0ms: Job added and starts processing
+// Push 2 at 100ms (job active): Data stored, deduplicated event emitted
+// Push 3 at 5000ms (job still active): Data overwritten with latest
+// Push 4 at 5100ms (job still active): Data overwritten again
+// Job completes at 10000ms: New job created with Push 4's data
+// Result: Exactly 2 deployments, the last one always reflects the latest push
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	deployQueue, err := bullmq.NewQueue("Deploy", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer deployQueue.Close()
+
+	worker, err := bullmq.NewWorker("Deploy", func(ctx context.Context, job *bullmq.Job) (any, error) {
+		var data struct {
+			Commit string `json:"commit"`
+		}
+		if err := job.DecodeData(&data); err != nil {
+			return nil, err
+		}
+		log.Printf("Deploying commit %s", data.Commit)
+		// ... perform deployment
+		return nil, nil
+	}, &bullmq.WorkerOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer worker.Close()
+
+	// Webhook handlers call onGitPush(ctx, deployQueue, sha, repo).
+	if err := worker.Run(ctx); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// Webhook handler: multiple pushes may arrive while a deploy is running
+func onGitPush(ctx context.Context, deployQueue *bullmq.Queue, sha, repo string) error {
+	_, err := deployQueue.Add(ctx, "deploy", map[string]string{"commit": sha}, &bullmq.JobOptions{
+		Deduplication: &bullmq.DeduplicationOptions{
+			ID:               "deploy-" + repo,
+			KeepLastIfActive: true,
+		},
+	})
+	return err
 }
 
 // Push 1 at 0ms: Job added and starts processing

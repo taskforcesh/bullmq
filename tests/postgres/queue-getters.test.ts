@@ -58,4 +58,29 @@ describe('PostgreSQL queue getters', () => {
       await queue.close();
     }
   });
+
+  // Same pages as on Redis: ascending pages start at the oldest job and
+  // descending pages at the newest, each in the requested order.
+  it('pages waiting jobs in both directions', async () => {
+    const queue = new Queue(`pages-${randomUUID()}`, { connection: {} });
+
+    try {
+      const ids: string[] = [];
+      for (let i = 0; i < 5; i++) {
+        ids.push((await queue.add('page', {})).id!);
+      }
+      const newest = [...ids].reverse();
+      const page = async (start: number, end: number, asc: boolean) =>
+        (await queue.getJobs(['wait'], start, end, asc)).map(job => job.id);
+
+      expect(await page(0, 1, true)).toEqual(ids.slice(0, 2));
+      expect(await page(1, 3, true)).toEqual(ids.slice(1, 4));
+      expect(await page(0, -1, true)).toEqual(ids);
+      expect(await page(0, 1, false)).toEqual(newest.slice(0, 2));
+      expect(await page(1, 3, false)).toEqual(newest.slice(1, 4));
+      expect(await page(0, -1, false)).toEqual(newest);
+    } finally {
+      await queue.close();
+    }
+  });
 });
