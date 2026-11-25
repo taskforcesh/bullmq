@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -14,14 +13,20 @@ import (
 // with the same connection string, schema and pool size, so all queues,
 // workers and queue events listeners draw from one bounded pool.
 //
-// Pools live for the rest of the process once created, like the type and
-// statement caches they hold. When the last backend using one closes, its
-// idle connections are closed so it holds no server sessions.
+// When the last backend using a pool closes, the pool leaves the cache and is
+// closed as soon as no operation is running on it, so a process that opens
+// and closes backends for many schemas or servers does not accumulate pools.
+// A backend opened later with the same settings creates a new pool.
 type sharedPool struct {
+	key  string
 	pool *pgxpool.Pool
-	// users counts the open backends. It only changes under poolsMu; it is
-	// atomic so the check after every operation is lock free.
-	users atomic.Int64
+
+	mu sync.Mutex
+	// users counts the open backends, active the operations running on the
+	// pool. The pool is closed once users and active are both zero.
+	users  int
+	active int
+	closed bool
 }
 
 var (
@@ -42,9 +47,7 @@ func acquireSharedPool(connString, schema string, poolSize int) (*sharedPool, er
 	case !strings.Contains(connString, "pool_max_conns"):
 		cfg.MaxConns = DefaultPoolSize
 	}
-	// Connections are opened on demand. A minimum would make the pool's
-	// health check reopen sessions after the last backend closed and the pool
-	// was cleared, leaving sessions nobody uses.
+	// Connections are opened on demand, so an idle pool holds no sessions.
 	cfg.MinConns = 0
 	cfg.MinIdleConns = 0
 	// Every pooled session resolves the unqualified names of the shared SQL
@@ -57,7 +60,9 @@ func acquireSharedPool(connString, schema string, poolSize int) (*sharedPool, er
 	poolsMu.Lock()
 	defer poolsMu.Unlock()
 	if sp := pools[key]; sp != nil {
-		sp.users.Add(1)
+		sp.mu.Lock()
+		sp.users++
+		sp.mu.Unlock()
 		return sp, nil
 	}
 	// NewWithConfig does not connect: connections are opened on demand.
@@ -65,34 +70,64 @@ func acquireSharedPool(connString, schema string, poolSize int) (*sharedPool, er
 	if err != nil {
 		return nil, configError("invalid PostgreSQL pool configuration: %v", err)
 	}
-	sp := &sharedPool{pool: pool}
-	sp.users.Store(1)
+	sp := &sharedPool{key: key, pool: pool, users: 1}
 	pools[key] = sp
 	return sp, nil
 }
 
-// release unregisters a user. When none is left the pool's idle connections
-// are closed; connections still running a query are closed when they are
-// returned, so this never interrupts an in-flight operation.
+// release unregisters a user. The last one removes the pool from the cache,
+// and closes it unless an operation is still running; that operation closes
+// it when it ends, so an in-flight operation is never interrupted.
 func (sp *sharedPool) release() {
 	poolsMu.Lock()
-	defer poolsMu.Unlock()
-	if sp.users.Add(-1) == 0 {
-		sp.pool.Reset()
+	sp.mu.Lock()
+	sp.users--
+	if sp.users == 0 && pools[sp.key] == sp {
+		delete(pools, sp.key)
+	}
+	closeNow := sp.closeIfUnusedLocked()
+	sp.mu.Unlock()
+	poolsMu.Unlock()
+	if closeNow {
+		sp.close()
 	}
 }
 
-// clearIfUnused runs after every operation. An operation that was waiting for
-// a pool slot when the last user closed opens a fresh connection after that
-// close's reset and would leave it idle in the pool, owned by nobody; close
-// it too. The pool is left alone when it was acquired again meanwhile.
-func (sp *sharedPool) clearIfUnused() {
-	if sp.users.Load() != 0 {
-		return
+// begin registers an operation. It reports false when the pool is already
+// closed, which only happens when the backend was closed meanwhile.
+func (sp *sharedPool) begin() bool {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if sp.closed {
+		return false
 	}
-	poolsMu.Lock()
-	defer poolsMu.Unlock()
-	if sp.users.Load() == 0 {
-		sp.pool.Reset()
+	sp.active++
+	return true
+}
+
+// end unregisters an operation, closing the pool when it was the last thing
+// using it.
+func (sp *sharedPool) end() {
+	sp.mu.Lock()
+	sp.active--
+	closeNow := sp.closeIfUnusedLocked()
+	sp.mu.Unlock()
+	if closeNow {
+		sp.close()
 	}
 }
+
+// closeIfUnusedLocked marks the pool closed when nothing uses it and reports
+// whether the caller must close it. sp.mu must be held.
+func (sp *sharedPool) closeIfUnusedLocked() bool {
+	if sp.closed || sp.users > 0 || sp.active > 0 {
+		return false
+	}
+	sp.closed = true
+	return true
+}
+
+// close closes the pool in the background: Close waits for connections a
+// caller acquired through Backend.Pool to be released, which must not block
+// Backend.Close.
+func (sp *sharedPool) close() { go sp.pool.Close() }

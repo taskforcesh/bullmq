@@ -308,6 +308,15 @@ func TestLastCloseClearsThePool(t *testing.T) {
 	_ = b.Close()
 	_ = b.Close()
 	eventually(t, "the pool to close its connections", func() bool { return pool.Stat().TotalConns() == 0 })
+
+	// The closed pool left the cache: a new backend gets a working pool.
+	c := newBackend(t, opts, "close-c", bullmq.BackendOptions{})
+	if c.Pool() == pool {
+		t.Fatal("a backend opened after the last close reuses the closed pool")
+	}
+	if _, err := c.GetCounts(ctx, nil); err != nil {
+		t.Fatalf("GetCounts on a backend opened after the last close: %v", err)
+	}
 }
 
 // An operation waiting for a pool slot when the last backend closes opens a

@@ -190,15 +190,16 @@ func NewBackend(name string, opts Options, bo bullmq.BackendOptions) (*Backend, 
 	return b, nil
 }
 
-// Pool returns the query pool.
+// Pool returns the query pool. A shared pool is closed after the last
+// backend using it is closed.
 func (b *Backend) Pool() *pgxpool.Pool { return b.pool }
 
 // Schema returns the schema the queue lives in.
 func (b *Backend) Schema() string { return b.schema }
 
 // Close closes the dedicated connections and releases the backend's use of
-// the query pool. A shared pool closes its idle connections once its last
-// backend is closed; a caller-supplied pool is left untouched.
+// the query pool. A shared pool is closed once its last backend is closed and
+// its running operations end; a caller-supplied pool is left untouched.
 func (b *Backend) Close() error {
 	b.closeOnce.Do(func() {
 		b.meta.Stop()
@@ -274,7 +275,10 @@ func (b *Backend) runSQL(ctx context.Context, label, sql string, fn func(ctx con
 		return errClosed
 	}
 	if b.shared != nil {
-		defer b.shared.clearIfUnused()
+		if !b.shared.begin() {
+			return errClosed
+		}
+		defer b.shared.end()
 	}
 	if err := b.ensureReady(ctx); err != nil {
 		return err
