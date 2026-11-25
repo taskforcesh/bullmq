@@ -42,6 +42,16 @@ const logger = debuglog('bull');
 
 export const PRIORITY_LIMIT = 2 ** 21 - 1;
 
+function validatePriority(priority: number): void {
+  if (Math.trunc(priority) !== priority) {
+    throw new Error(`Priority should not be float`);
+  }
+
+  if (priority < 0 || priority > PRIORITY_LIMIT) {
+    throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
+  }
+}
+
 interface JobQueue extends Omit<
   MinimalQueue,
   'opts' | 'on' | 'removeListener'
@@ -998,11 +1008,17 @@ export class Job<
    *
    * @param opts - options containing priority and lifo values.
    * @returns void
+   * @throws Error
+   * This exception is thrown if priority is a float or is not between 0 and 2097151.
    */
   async changePriority(opts: {
     priority?: number;
     lifo?: boolean;
   }): Promise<void> {
+    if (opts.priority) {
+      validatePriority(opts.priority);
+    }
+
     await this.backend.changePriority(this.id, opts.priority, opts.lifo);
     this.priority = opts.priority || 0;
   }
@@ -1375,13 +1391,7 @@ export class Job<
     }
 
     if (this.opts.priority) {
-      if (Math.trunc(this.opts.priority) !== this.opts.priority) {
-        throw new Error(`Priority should not be float`);
-      }
-
-      if (this.opts.priority > PRIORITY_LIMIT) {
-        throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
-      }
+      validatePriority(this.opts.priority);
     }
 
     if (this.opts.deduplication) {
