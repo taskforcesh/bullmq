@@ -282,7 +282,14 @@ export class PostgresConnection extends EventEmitter {
    */
   async waitUntilReady(): Promise<void> {
     if (!this.readyPromise) {
-      this.readyPromise = this.bootstrap();
+      const bootstrapping = this.bootstrap();
+      this.readyPromise = bootstrapping;
+      // A failed bootstrap must not stay cached, or the connection can never recover.
+      bootstrapping.catch((): void => {
+        if (this.readyPromise === bootstrapping) {
+          this.readyPromise = undefined;
+        }
+      });
     }
     return this.readyPromise;
   }

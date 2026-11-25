@@ -390,3 +390,72 @@ describe('PostgresQueueBackend LISTEN client recovery', () => {
     expect(backend.maximumBlockTimeout).toBe(10);
   });
 });
+
+/**
+ * A `waitUntilReady()` that rejects (e.g. Postgres is not accepting
+ * connections yet) must not be memoized, so a later call can succeed.
+ */
+function makeConnection(bootstrap: () => Promise<void>): PostgresConnection {
+  const connection = Object.create(
+    PostgresConnection.prototype,
+  ) as PostgresConnection;
+  EventEmitter.call(connection);
+  (connection as any).bootstrap = bootstrap;
+  return connection;
+}
+
+describe('PostgresConnection.waitUntilReady recovery', () => {
+  it('does not memoize a failed bootstrap, so the next call retries', async () => {
+    const bootstrap = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('connect ECONNREFUSED'))
+      .mockResolvedValue(undefined);
+    const connection = makeConnection(bootstrap);
+
+    await expect(connection.waitUntilReady()).rejects.toThrow(
+      'connect ECONNREFUSED',
+    );
+    await expect(connection.waitUntilReady()).resolves.toBeUndefined();
+    expect(bootstrap).toHaveBeenCalledTimes(2);
+  });
+
+  it('shares one in-flight bootstrap between concurrent callers', async () => {
+    const bootstrap = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
+    const connection = makeConnection(bootstrap);
+
+    const results = await Promise.allSettled([
+      connection.waitUntilReady(),
+      connection.waitUntilReady(),
+    ]);
+
+    expect(results.map(r => r.status)).toEqual(['rejected', 'rejected']);
+    expect(bootstrap).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PostgresQueueBackend.waitUntilReady recovery', () => {
+  it('does not memoize a failed readiness, so the next call retries', async () => {
+    const waitUntilReady = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('connect ECONNREFUSED'))
+      .mockResolvedValue(undefined);
+    const connection = Object.assign(new EventEmitter(), {
+      schema: 'bullmq',
+      waitUntilReady,
+    }) as unknown as PostgresConnection;
+    const backend = new PostgresQueueBackend(
+      connection,
+      'q',
+      { connection: {} } as any,
+      false,
+    );
+
+    await expect(backend.waitUntilReady()).rejects.toThrow(
+      'connect ECONNREFUSED',
+    );
+    await expect(backend.waitUntilReady()).resolves.toBeUndefined();
+    expect(waitUntilReady).toHaveBeenCalledTimes(2);
+  });
+});
