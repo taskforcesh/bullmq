@@ -1,3 +1,10 @@
+# [3.7.0](https://github.com/taskforcesh/bullmq/compare/vpy3.6.4...vpy3.7.0) (2026-11-26)
+
+
+### Features
+
+* **python:** add FlowProducer.getFlow, getIgnoredChildrenFailures and RateLimitError [python] ([#5209](https://github.com/taskforcesh/bullmq/issues/5209)) ([12327b2](https://github.com/taskforcesh/bullmq/commit/12327b22d1f8746e521a354c79d2ec9208495772))
+
 ## [3.6.4](https://github.com/taskforcesh/bullmq/compare/vpy3.6.3...vpy3.6.4) (2026-11-24)
 
 
