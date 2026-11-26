@@ -18,7 +18,7 @@ myQueue.on('waiting', (job: Job) => {
 {% tab title="TypeScript" %}
 
 ```typescript
-import { Worker } from 'bullmq';
+import { Job, Worker } from 'bullmq';
 
 const myWorker = new Worker('Paint');
 
@@ -30,10 +30,12 @@ myWorker.on('completed', (job: Job) => {
   // job has completed
 });
 
-myWorker.on('failed', (job: Job) => {
+myWorker.on('failed', (job: Job | undefined) => {
   // job has failed
 });
 ```
+
+The `job` argument of the `failed` event can be `undefined`. Check that it exists before accessing its properties.
 
 {% endtab %}
 
