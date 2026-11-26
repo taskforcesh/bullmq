@@ -167,6 +167,17 @@ export interface WorkerOptions<ConnectionOptionsType = ConnectionOptions>
   useWorkerThreads?: boolean;
 
   /**
+   * Milliseconds a sandboxed processor may remain idle before it is closed.
+   * Applies to both child processes and worker threads. A new processor is
+   * started when another job arrives, so enabling this trades startup latency
+   * for lower memory use between bursts. Active jobs are never interrupted.
+   * Must be an integer between 0 and 2147483647. Set to 0 to disable.
+   *
+   * @defaultValue 0
+   */
+  sandboxedProcessorIdleTimeout?: number;
+
+  /**
    * Telemetry Addon
    */
   telemetry?: Telemetry;
