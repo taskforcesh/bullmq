@@ -114,6 +114,52 @@ job.retry("completed", None).await?;
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("my-queue", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	// Get a failed job by ID
+	job, err := queue.Job(ctx, "job-id")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if job == nil {
+		log.Fatal("job not found")
+	}
+
+	// Retry a failed job
+	if err := job.Retry(ctx, bullmq.StateFailed, nil); err != nil {
+		log.Fatal(err)
+	}
+
+	// Retry a completed job
+	if err := job.Retry(ctx, bullmq.StateCompleted, nil); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Retry Options
@@ -162,6 +208,18 @@ job.retry("failed", Some(RetryOptions {
     reset_attempts_made: true,
     ..Default::default()
 })).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+// Retry and reset the attempts counter
+err := job.Retry(ctx, bullmq.StateFailed, &bullmq.RetryOptions{ResetAttemptsMade: true})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -218,6 +276,21 @@ job.retry("failed", Some(RetryOptions {
     reset_attempts_made: true,
     reset_attempts_started: true,
 })).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+// Retry and reset both counters
+err := job.Retry(ctx, bullmq.StateFailed, &bullmq.RetryOptions{
+	ResetAttemptsMade:    true,
+	ResetAttemptsStarted: true,
+})
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -314,6 +387,24 @@ catch (Exception error)
 match job.retry("failed", None).await {
     Ok(()) => println!("Job retried successfully"),
     Err(err) => eprintln!("Failed to retry job: {err}"),
+}
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+err := job.Retry(ctx, bullmq.StateFailed, nil)
+switch {
+case err == nil:
+	log.Println("Job retried successfully")
+case errors.Is(err, bullmq.ErrJobNotFound):
+	log.Println("Job does not exist")
+case errors.Is(err, bullmq.ErrJobNotInState):
+	log.Println("Job was not in the expected state")
+default:
+	log.Printf("Failed to retry job: %v", err)
 }
 ```
 

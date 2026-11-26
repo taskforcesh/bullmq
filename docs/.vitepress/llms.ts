@@ -16,7 +16,7 @@ const REPOSITORY_FILES =
 
 const SUMMARY =
   '> BullMQ is an open source background job and message queue. It is available natively for ' +
-  'TypeScript/JavaScript (Node.js and Bun), Python, Elixir, Rust, .NET and PHP, and runs on Redis (or compatible ' +
+  'TypeScript/JavaScript (Node.js and Bun), Python, Elixir, Rust, .NET, Go and PHP, and runs on Redis (or compatible ' +
   'datastores such as Valkey and Dragonfly) and on PostgreSQL. All SDKs share the same data model, so producers and ' +
   'workers written in different languages can work on the same queues.\n\n' +
   `This is the index of the BullMQ documentation. Every page is also available as Markdown by appending \`.md\` to ` +
