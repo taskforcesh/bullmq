@@ -976,15 +976,15 @@ defmodule BullMQ.Backends.Postgres do
   # ============================================================
 
   @impl true
-  def set_queue_meta(%__MODULE__{pool: pool} = b, values) do
-    Enum.each(values, fn {field, value} ->
-      Postgrex.query!(
-        pool,
-        "INSERT INTO meta (queue, field, value) VALUES ($1, $2, $3) " <>
-          "ON CONFLICT (queue, field) DO UPDATE SET value = EXCLUDED.value",
-        [b.queue_name, to_string(field), to_string(value)]
-      )
-    end)
+  def set_queue_meta(%__MODULE__{} = b, values) do
+    # One statement for every field, so that concurrent calls (e.g. `max` and
+    # `duration` of a global rate limit) can't leave a mix of both
+    {fields, vals} =
+      values
+      |> Enum.map(fn {field, value} -> {to_string(field), to_string(value)} end)
+      |> Enum.unzip()
+
+    run(b, "set_queue_meta", [b.queue_name, fields, vals])
 
     {:ok, map_size_or_length(values)}
   end
@@ -1073,9 +1073,10 @@ defmodule BullMQ.Backends.Postgres do
 
   @impl true
   def get_dependencies_page(%__MODULE__{} = b, job_id, count) do
-    rows = maps(run(b, "get_dependencies", [b.queue_name, job_id]))
-
-    by_status = fn status -> rows |> Enum.filter(&(&1["status"] == status)) |> Enum.take(count) end
+    # Limited in SQL: a parent with many children only reads `count` of each
+    by_status = fn status ->
+      maps(run(b, "get_dependencies_page", [b.queue_name, job_id, status, 0, count]))
+    end
 
     {:ok,
      %{

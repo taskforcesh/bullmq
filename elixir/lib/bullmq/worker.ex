@@ -2647,8 +2647,21 @@ defmodule BullMQ.Worker do
     pttl =
       try do
         case Backend.move_job_from_active_to_wait(ctx.backend, job.id, job.token) do
-          {:ok, pttl} when is_integer(pttl) and pttl > 0 -> pttl
-          _ -> 0
+          {:ok, pttl} when is_integer(pttl) and pttl > 0 ->
+            pttl
+
+          {:ok, _} ->
+            0
+
+          {:error, reason} ->
+            # The job stays active without a lock: the stalled jobs check
+            # moves it back. Don't keep the worker idle meanwhile.
+            Logger.error(
+              "[BullMQ.Worker] Could not move rate limited job #{job.id} back to wait: " <>
+                inspect(reason)
+            )
+
+            0
         end
       rescue
         e ->
@@ -2668,12 +2681,28 @@ defmodule BullMQ.Worker do
   # While rate limited, arm (once) a timer that resumes fetching when the
   # window ends instead of spawning workers or starting a blocking wait.
   defp schedule_rate_limit_fetch(state, remaining_ms) do
-    if state.rate_limit_timer do
-      {:noreply, state}
-    else
-      timer = Process.send_after(self(), :rate_limit_expired, remaining_ms)
-      {:noreply, %{state | rate_limit_timer: timer}}
+    case state.rate_limit_timer && Process.read_timer(state.rate_limit_timer) do
+      nil ->
+        arm_rate_limit_timer(state, remaining_ms)
+
+      # Fired: `:rate_limit_expired` is on its way and checks the window again
+      false ->
+        {:noreply, state}
+
+      left when left <= remaining_ms ->
+        {:noreply, state}
+
+      _later ->
+        # The window got shorter (e.g. the provisional deadline of
+        # `move_limited_back_to_wait/3` was replaced by the actual TTL)
+        Process.cancel_timer(state.rate_limit_timer)
+        arm_rate_limit_timer(state, remaining_ms)
     end
+  end
+
+  defp arm_rate_limit_timer(state, remaining_ms) do
+    timer = Process.send_after(self(), :rate_limit_expired, remaining_ms)
+    {:noreply, %{state | rate_limit_timer: timer}}
   end
 
   defp has_active_work?(state) do

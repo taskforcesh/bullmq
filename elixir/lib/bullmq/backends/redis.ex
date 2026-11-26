@@ -130,12 +130,13 @@ defmodule BullMQ.Backends.Redis do
 
   @impl true
   def parse_node_key(%__MODULE__{}, key) do
-    # "<prefix>:<queueName>:<id>" -> prefix, queueName, id
+    # "<prefix>:<queueName>:<id>" -> prefix, queueName, id. Queue names can't
+    # contain ":" (nor can job ids), so the prefix is everything before the
+    # last two parts: it may contain ":" (e.g. "tenant:bull").
     case String.split(key, ":") do
       parts when length(parts) >= 3 ->
-        {id, rest} = List.pop_at(parts, -1)
-        [prefix | queue_parts] = rest
-        %{prefix: prefix, queue_name: Enum.join(queue_parts, ":"), id: id}
+        [id, queue_name | prefix_parts] = Enum.reverse(parts)
+        %{prefix: prefix_parts |> Enum.reverse() |> Enum.join(":"), queue_name: queue_name, id: id}
 
       _ ->
         %{prefix: "", queue_name: "", id: key}

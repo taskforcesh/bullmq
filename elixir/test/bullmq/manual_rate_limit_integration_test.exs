@@ -124,6 +124,42 @@ defmodule BullMQ.ManualRateLimitIntegrationTest do
     end
 
     @tag timeout: 15_000
+    test "moves a prioritized job back to prioritized, and processes it again", ctx do
+      test_pid = self()
+
+      {:ok, job} = Queue.add(ctx.queue_name, "call-api", %{}, ctx.opts ++ [priority: 5])
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: ctx.queue_name,
+          connection: ctx.conn,
+          prefix: @test_prefix,
+          limiter: %{max: 1, duration: 100},
+          processor: fn job ->
+            send(test_pid, {:processing, job.attempts_started})
+
+            if job.attempts_started == 1 do
+              :ok = Queue.rate_limit(job.queue_name, 500, ctx.opts)
+              :rate_limited
+            else
+              {:ok, "done"}
+            end
+          end,
+          on_completed: fn job, result -> send(test_pid, {:completed, job.id, result}) end
+        )
+
+      assert_receive {:processing, 1}, 5_000
+      Process.sleep(200)
+      assert {:ok, "prioritized"} = Queue.get_job_state(ctx.queue_name, job.id, ctx.opts)
+
+      assert_receive {:processing, 2}, 5_000
+      job_id = job.id
+      assert_receive {:completed, ^job_id, "done"}, 5_000
+
+      Worker.close(worker)
+    end
+
+    @tag timeout: 15_000
     test "{:rate_limit_queue, ms} sets the limiter and pauses fetching even without a limiter",
          ctx do
       test_pid = self()
@@ -269,6 +305,31 @@ defmodule BullMQ.ManualRateLimitIntegrationTest do
 
       Queue.remove_job(ctx.queue_name, waiting.id, ctx.opts)
       assert {:ok, "unknown"} = Job.get_state(waiting)
+    end
+
+    test "works on the jobs returned by add and add_bulk, without reloading them", ctx do
+      {:ok, added} = Queue.add(ctx.queue_name, "w", %{}, ctx.opts)
+      assert {:ok, "waiting"} = Job.get_state(added)
+
+      {:ok, [bulk_standard, bulk_delayed]} =
+        Queue.add_bulk(ctx.queue_name, [{"a", %{}, []}, {"b", %{}, [delay: 60_000]}], ctx.opts)
+
+      assert {:ok, "waiting"} = Job.get_state(bulk_standard)
+      assert {:ok, "delayed"} = Job.get_state(bulk_delayed)
+
+      {:ok, queue} =
+        Queue.start_link(
+          name: :"q_state_#{ctx.queue_name}",
+          queue: ctx.queue_name,
+          connection: ctx.conn,
+          prefix: @test_prefix
+        )
+
+      {:ok, from_process} = Queue.add(queue, "p", %{}, priority: 3)
+      assert {:ok, "prioritized"} = Job.get_state(from_process)
+      {:ok, [from_process_bulk]} = Queue.add_bulk(queue, [{"q", %{}, []}])
+      assert {:ok, "waiting"} = Job.get_state(from_process_bulk)
+      GenServer.stop(queue)
     end
   end
 

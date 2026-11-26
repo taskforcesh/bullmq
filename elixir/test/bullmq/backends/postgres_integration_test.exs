@@ -670,4 +670,23 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     assert a.job.opts["failParentOnFailure"] == true
     assert {:ok, "waiting-children"} = Job.get_state(tree.job)
   end
+
+  test "FlowProducer.get_flow reads at most max_children of each kind", %{conn: conn, queue: queue} do
+    {:ok, added} =
+      FlowProducer.add(
+        %{
+          name: "root",
+          queue_name: queue,
+          children: for(i <- 1..5, do: %{name: "child-#{i}", queue_name: queue})
+        },
+        connection: conn
+      )
+
+    {:ok, tree} =
+      FlowProducer.get_flow(%{id: added.job.id, queue_name: queue, max_children: 2},
+        connection: conn
+      )
+
+    assert length(tree.children) == 2
+  end
 end

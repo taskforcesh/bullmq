@@ -1269,7 +1269,7 @@ defmodule BullMQ.Scripts do
       Keys.paused(ctx),
       Keys.meta(ctx),
       Keys.limiter(ctx),
-      Keys.pc(ctx),
+      Keys.prioritized(ctx),
       Keys.marker(ctx),
       Keys.events(ctx)
     ]

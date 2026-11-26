@@ -356,13 +356,13 @@ defmodule BullMQ.Queue do
               Enum.zip(jobs_list, results)
               |> Enum.map(fn
                 {job, {:ok, job_id}} when is_binary(job_id) or is_integer(job_id) ->
-                  {:ok, %{job | id: to_string(job_id)}}
+                  {:ok, %{job | id: to_string(job_id), connection: conn}}
 
                 {_job, {:error, _} = err} ->
                   err
 
                 {job, {:ok, other}} ->
-                  {:ok, %{job | id: to_string(other)}}
+                  {:ok, %{job | id: to_string(other), connection: conn}}
               end)
 
             {:ok, mapped_results}
@@ -2088,7 +2088,9 @@ defmodule BullMQ.Queue do
 
     case Backend.add_job(backend, job) do
       {:ok, job_id} ->
-        {:ok, %{job | id: to_string(job_id)}}
+        # With its connection, so that the returned job can be used directly
+        # (e.g. `Job.get_state/1`)
+        {:ok, %{job | id: to_string(job_id), connection: conn}}
 
       {:error, _} = error ->
         error

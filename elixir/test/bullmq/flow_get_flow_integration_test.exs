@@ -88,6 +88,39 @@ defmodule BullMQ.FlowGetFlowIntegrationTest do
       assert {:ok, "waiting"} = Job.get_state(child_a.job)
     end
 
+    test "keeps a prefix containing \":\" in the children's identity", ctx do
+      prefix = "#{@test_prefix}:tenant"
+      opts = [connection: ctx.conn, prefix: prefix]
+
+      on_exit(fn ->
+        {:ok, cleanup} = Redix.start_link(@redis_url)
+
+        case Redix.command(cleanup, ["KEYS", "#{prefix}:*"]) do
+          {:ok, [_ | _] = keys} -> Redix.command(cleanup, ["DEL" | keys])
+          _ -> :ok
+        end
+
+        Redix.stop(cleanup)
+      end)
+
+      {:ok, added} =
+        FlowProducer.add(
+          %{
+            name: "root",
+            queue_name: ctx.queue_name,
+            children: [%{name: "child", queue_name: ctx.child_queue}]
+          },
+          opts
+        )
+
+      {:ok, tree} = FlowProducer.get_flow(%{id: added.job.id, queue_name: ctx.queue_name}, opts)
+
+      assert [%{job: child}] = tree.children
+      assert child.queue_name == ctx.child_queue
+      assert child.prefix == prefix
+      assert {:ok, "waiting"} = Job.get_state(child)
+    end
+
     test "respects depth", ctx do
       {:ok, added} =
         FlowProducer.add(
