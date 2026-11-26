@@ -1,3 +1,10 @@
+# [2.5.0](https://github.com/taskforcesh/bullmq/compare/vex2.4.3...vex2.5.0) (2026-11-26)
+
+
+### Features
+
+* **elixir:** add get_flow, manual rate limit and global limit setters [elixir] ([#5210](https://github.com/taskforcesh/bullmq/issues/5210)) ([06d7eee](https://github.com/taskforcesh/bullmq/commit/06d7eee476b920afff07c9cb43090c9c023b0d48))
+
 ## [2.4.3](https://github.com/taskforcesh/bullmq/compare/vex2.4.2...vex2.4.3) (2026-11-24)
 
 
