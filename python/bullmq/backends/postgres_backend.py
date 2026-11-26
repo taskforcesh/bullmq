@@ -526,6 +526,19 @@ class PostgresBackend(Backend):
         row = (await self._run("move_to_waiting_children", [self.queue_name, job_id, token])).first_map() or {}
         return row.get("code") == 1
 
+    async def moveJobFromActiveToWait(self, job_id: str, token: str = "0") -> int:
+        row = (await self._run(
+            "move_active_to_wait", [self.queue_name, job_id, token or "0", _now_ms()],
+            op="moveJobFromActiveToWait", job_id=job_id, state="active",
+        )).first_map() or {}
+        n = _to_int(row.get("n"))
+        if n < 0:
+            raise _bm_error(n, "moveJobFromActiveToWait", job_id, state="active")
+        return n
+
+    async def setRateLimit(self, expire_time_ms: int) -> None:
+        await self._run("set_rate_limit", [self.queue_name, expire_time_ms, _now_ms()])
+
     async def retryJob(self, job_id: str, lifo: bool, token: str = "0", opts: dict = {}) -> Any:
         fields = (opts or {}).get("fieldsToUpdate") or {}
         await self._run(
@@ -744,6 +757,52 @@ class PostgresBackend(Backend):
             value = m.get("value") if m.get("value") is not None else m.get("v")
             out[key] = _json(value)
         return out
+
+    async def getIgnoredChildrenFailures(self, job_id: str) -> dict:
+        result = await self._run("get_ignored_children_failures", [self.queue_name, job_id])
+        return {m["child_key"]: m["reason"] for m in result.maps()}
+
+    async def getDependencies(self, job_id: str, opts: Optional[dict] = None) -> dict:
+        opts = opts or {}
+        categories = (
+            ("processed", "processed", "nextProcessedCursor"),
+            ("unprocessed", "pending", "nextUnprocessedCursor"),
+            ("ignored", "ignored", "nextIgnoredCursor"),
+            ("failed", "failed", "nextFailedCursor"),
+        )
+
+        def collect(name: str, rows: list[dict]):
+            if name in ("processed", "ignored"):
+                return {r["child_key"]: r["value"] for r in rows}
+            return [r["child_key"] for r in rows]
+
+        # An empty dict still requests that category (as in Node, where `{}`
+        # is truthy), so only `None`/missing means "not requested".
+        if all(opts.get(name) is None for name, _, _ in categories):
+            rows = (await self._run("get_dependencies", [self.queue_name, job_id])).maps()
+            return {
+                name: collect(name, [r for r in rows if r["status"] == status])
+                for name, status, _ in categories
+            }
+
+        # Paginated per requested category (the cursor is a plain offset).
+        out: dict = {}
+        for name, status, cursor_name in categories:
+            if opts.get(name) is None:
+                continue
+            page = {"cursor": 0, "count": 20, **opts[name]}
+            cursor, count = page["cursor"], page["count"]
+            rows = (await self._run(
+                "get_dependencies_page", [self.queue_name, job_id, status, cursor, count]
+            )).maps()
+            out[name] = collect(name, rows)
+            out[cursor_name] = 0 if len(rows) < count else cursor + count
+        return out
+
+    def parseNodeKey(self, key: str) -> dict:
+        # "<queueName>:<id>"; there is no keyspace prefix in PostgreSQL.
+        idx = key.rfind(":")
+        return {"prefix": "", "queueName": key[:idx], "id": key[idx + 1:]}
 
     async def isPaused(self) -> bool:
         row = (await self._run("get_queue_meta_field", [self.queue_name, "paused"])).first_map()

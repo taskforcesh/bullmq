@@ -27,6 +27,7 @@ from bullmq.scripts import Scripts
 from bullmq.utils import (
     is_redis_cluster,
     get_node_client,
+    parse_json_string_values,
 )
 
 if TYPE_CHECKING:
@@ -265,6 +266,15 @@ class RedisBackend(Backend):
     async def moveToWaitingChildren(self, job_id: str, token: str, opts: dict) -> bool:
         return await self.scripts.moveToWaitingChildren(job_id, token, opts)
 
+    async def moveJobFromActiveToWait(self, job_id: str, token: str = "0") -> int:
+        return await self.scripts.moveJobFromActiveToWait(job_id, token)
+
+    async def setRateLimit(self, expire_time_ms: int) -> None:
+        # 2^53 - 1, equivalent to Number.MAX_SAFE_INTEGER on the Node side.
+        await self.connection.conn.set(
+            self.keys["limiter"], 9007199254740991, px=expire_time_ms
+        )
+
     async def retryJob(
         self, job_id: str, lifo: bool, token: str = "0", opts: dict = {}
     ) -> Any:
@@ -406,6 +416,90 @@ class RedisBackend(Backend):
 
     async def getProcessedChildrenValues(self, job_id: str) -> dict:
         return await self.connection.conn.hgetall(self.toKey(f"{job_id}:processed"))
+
+    async def getIgnoredChildrenFailures(self, job_id: str) -> dict:
+        return await self.connection.conn.hgetall(self.toKey(f"{job_id}:failed"))
+
+    async def getDependencies(self, job_id: str, opts: Optional[dict] = None) -> dict:
+        opts = opts or {}
+        processed_key = self.toKey(f"{job_id}:processed")
+        dependencies_key = self.toKey(f"{job_id}:dependencies")
+        ignored_key = self.toKey(f"{job_id}:failed")
+        unsuccessful_key = self.toKey(f"{job_id}:unsuccessful")
+
+        pipe = self.connection.conn.pipeline(transaction=False)
+
+        # An empty dict still requests that category (as in Node, where `{}`
+        # is truthy), so only `None`/missing means "not requested".
+        if all(opts.get(k) is None for k in ("processed", "unprocessed", "ignored", "failed")):
+            pipe.hgetall(processed_key)
+            pipe.smembers(dependencies_key)
+            pipe.hgetall(ignored_key)
+            pipe.zrange(unsuccessful_key, 0, -1)
+            processed, unprocessed, ignored, failed = await pipe.execute()
+            return {
+                "processed": parse_json_string_values(processed),
+                "unprocessed": list(unprocessed),
+                "ignored": ignored,
+                "failed": failed,
+            }
+
+        def page_opts(name: str) -> tuple[int, int]:
+            page = {"cursor": 0, "count": 20, **(opts.get(name) or {})}
+            return page["cursor"], page["count"]
+
+        order = []
+        failed_next_cursor = 0
+        if opts.get("processed") is not None:
+            order.append("processed")
+            cursor, count = page_opts("processed")
+            pipe.hscan(processed_key, cursor, count=count)
+        if opts.get("unprocessed") is not None:
+            order.append("unprocessed")
+            cursor, count = page_opts("unprocessed")
+            pipe.sscan(dependencies_key, cursor, count=count)
+        if opts.get("ignored") is not None:
+            order.append("ignored")
+            cursor, count = page_opts("ignored")
+            pipe.hscan(ignored_key, cursor, count=count)
+        if opts.get("failed") is not None:
+            order.append("failed")
+            cursor, count = page_opts("failed")
+            failed_next_cursor = cursor + count
+            pipe.zrange(unsuccessful_key, cursor, cursor + count - 1)
+
+        results = await pipe.execute()
+
+        out: dict = {}
+        for name, result in zip(order, results):
+            if name == "processed":
+                out["nextProcessedCursor"] = int(result[0])
+                out["processed"] = parse_json_string_values(result[1])
+            elif name == "unprocessed":
+                out["nextUnprocessedCursor"] = int(result[0])
+                out["unprocessed"] = list(result[1])
+            elif name == "ignored":
+                out["nextIgnoredCursor"] = int(result[0])
+                out["ignored"] = result[1]
+            elif name == "failed":
+                out["failed"] = result
+                out["nextFailedCursor"] = (
+                    failed_next_cursor if len(result) == page_opts("failed")[1] else 0
+                )
+        return out
+
+    def parseNodeKey(self, key: str) -> dict:
+        # "<prefix>:<queueName>:<id>"; the prefix may itself contain colons.
+        last_colon = key.rfind(":")
+        prev_colon = key.rfind(":", 0, last_colon) if last_colon > 0 else -1
+        if last_colon == -1 or prev_colon == -1:
+            parts = (key.split(":") + ["", "", ""])[:3]
+            return {"prefix": parts[0], "queueName": parts[1], "id": parts[2]}
+        return {
+            "prefix": key[:prev_colon],
+            "queueName": key[prev_colon + 1:last_colon],
+            "id": key[last_colon + 1:],
+        }
 
     async def isPaused(self) -> bool:
         paused_key_exists = await self.connection.conn.hexists(
