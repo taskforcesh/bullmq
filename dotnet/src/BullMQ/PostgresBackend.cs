@@ -177,26 +177,43 @@ public sealed class PostgresBackend : IQueueBackend
         var entries = jobs.Select(j => BatchEntry(j, Name, addToWaitingChildren: false)).ToList();
         // add_jobs_bulk only inserts independent jobs: dedup and children
         // (registered on their parent) go through add_flow
-        var result = jobs.Any(j => j.DeduplicationId is not null || j.ParentKey is not null)
+        var viaFlow = jobs.Any(j => j.DeduplicationId is not null || j.ParentKey is not null);
+        var result = viaFlow
             ? await RunAsync("add_flow", new object?[] { JsonUtil.Serialize(entries) }, op: "addJob")
                 .ConfigureAwait(false)
             : await RunAsync("add_jobs_bulk", new object?[] { Name, JsonUtil.Serialize(entries) })
             .ConfigureAwait(false);
 
         var ids = result.Rows.Select(r => Str(r[0])!).ToArray();
+        if (viaFlow)
+        {
+            ThrowFlowErrors(ids, jobs);
+        }
+
         for (var i = 0; i < ids.Length && i < jobs.Count; i++)
         {
-            // add_flow returns error codes as negative ids (-5: missing
-            // parent, -7: failed parent): throw them as the Redis backend does
-            if (long.TryParse(ids[i], out var code) && code < 0)
-            {
-                throw FinishedErrors.Create((int)code, jobId: jobs[i].Id, parentKey: jobs[i].ParentKey, command: "addJob");
-            }
-
             jobs[i].Id = ids[i];
         }
 
         return ids;
+    }
+
+    /// <summary>
+    /// add_flow returns its error codes in place of ids: "-5" (missing parent)
+    /// and "-7" (failed parent). Throws them as the Redis backend does. Other
+    /// values are ids, custom ones included ("-42"). A job whose custom id is
+    /// "-5" or "-7" itself is read as added: the SQL reply can't tell them apart.
+    /// </summary>
+    private static void ThrowFlowErrors(IReadOnlyList<string> ids, IReadOnlyList<Job> jobs)
+    {
+        for (var i = 0; i < ids.Count && i < jobs.Count; i++)
+        {
+            if (ids[i] is "-5" or "-7" && ids[i] != jobs[i].Id)
+            {
+                throw FinishedErrors.Create(
+                    int.Parse(ids[i]), jobId: jobs[i].Id, parentKey: jobs[i].ParentKey, command: "addJob");
+            }
+        }
     }
 
     public async Task<IReadOnlyList<string>> AddFlowAsync(IReadOnlyList<FlowJobEntry> entries)
@@ -211,6 +228,7 @@ public sealed class PostgresBackend : IQueueBackend
             .ConfigureAwait(false);
 
         var ids = result.Rows.Select(r => Str(r[0])!).ToArray();
+        ThrowFlowErrors(ids, entries.Select(e => e.Job).ToList());
         for (var i = 0; i < ids.Length && i < entries.Count; i++)
         {
             entries[i].Job.Id = ids[i];

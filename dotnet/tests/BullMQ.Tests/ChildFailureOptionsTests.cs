@@ -478,6 +478,27 @@ public abstract class ChildFailureOptionsTestsBase
             {
                 ("orphan", (object?)null, (JobsOptions?)new JobsOptions { Parent = missing }),
             }));
+
+            // Also for a flow root whose parent is outside the flow
+            await Assert.ThrowsAnyAsync<Exception>(() => flow.AddAsync(new FlowJob
+            {
+                Name = "orphan-root",
+                QueueName = q,
+                Opts = new JobsOptions { Parent = missing },
+            }));
+
+            // Negative custom ids are ids, with or without a parent
+            var added = await queue.AddBulkAsync(new[]
+            {
+                ("negative", (object?)null, (JobsOptions?)new JobsOptions { JobId = "-42" }),
+            });
+            Assert.Equal("-42", Assert.Single(added).Id);
+            added = await queue.AddBulkAsync(new[]
+            {
+                ("negative-child", (object?)null, (JobsOptions?)new JobsOptions { JobId = "-43", Parent = parent }),
+            });
+            Assert.Equal("-43", Assert.Single(added).Id);
+            Assert.NotNull(await queue.GetJobAsync("-43"));
         }
         finally
         {
