@@ -1,0 +1,754 @@
+{
+  "generatedBy": "cron-parser@5.10.5",
+  "generatedAt": "2026-11-20T08:57:15.865Z",
+  "bullmqPinnedVersion": "5.10.5 (package.json/yarn.lock); node_modules on disk had 5.10.1 at research time",
+  "vectors": [
+    {
+      "id": "five-field-basic",
+      "description": "Plain 5-field pattern: every day at 09:00 UTC",
+      "pattern": "0 9 * * *",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [
+        {
+          "iso": "2026-01-01T09:00:00.000Z",
+          "epochMs": 1767258000000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "six-field-seconds-leading",
+      "description": "6-field pattern: seconds field is LEADING (second minute hour dom month dow), fires at 09:00:30",
+      "pattern": "30 0 9 * * *",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [
+        {
+          "iso": "2026-01-01T09:00:30.000Z",
+          "epochMs": 1767258030000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "six-field-every-5-seconds",
+      "description": "6-field pattern with */5 seconds granularity",
+      "pattern": "*/5 * * * * *",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 3,
+      "expectedNext": [
+        {
+          "iso": "2026-01-01T00:00:05.000Z",
+          "epochMs": 1767225605000
+        },
+        {
+          "iso": "2026-01-01T00:00:10.000Z",
+          "epochMs": 1767225610000
+        },
+        {
+          "iso": "2026-01-01T00:00:15.000Z",
+          "epochMs": 1767225615000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "sunday-as-0",
+      "description": "Day-of-week 0 = Sunday. 2026-01-01 is a Thursday -> next Sunday is 2026-01-04",
+      "pattern": "0 0 * * 0",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [
+        {
+          "iso": "2026-01-04T00:00:00.000Z",
+          "epochMs": 1767484800000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "sunday-as-7",
+      "description": "Day-of-week 7 = Sunday too (should equal sunday-as-0 result)",
+      "pattern": "0 0 * * 7",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [
+        {
+          "iso": "2026-01-04T00:00:00.000Z",
+          "epochMs": 1767484800000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "sunday-range-6-7",
+      "description": "Range 6-7 = Saturday,Sunday (weekend) using the 7-form",
+      "pattern": "0 0 * * 6-7",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 4,
+      "expectedNext": [
+        {
+          "iso": "2026-01-03T00:00:00.000Z",
+          "epochMs": 1767398400000
+        },
+        {
+          "iso": "2026-01-04T00:00:00.000Z",
+          "epochMs": 1767484800000
+        },
+        {
+          "iso": "2026-01-10T00:00:00.000Z",
+          "epochMs": 1768003200000
+        },
+        {
+          "iso": "2026-01-11T00:00:00.000Z",
+          "epochMs": 1768089600000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "last-day-of-month-L",
+      "description": "Day-of-month \"L\" = last day of month (Jan 2026 has 31 days)",
+      "pattern": "0 0 L * *",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [
+        {
+          "iso": "2026-01-31T00:00:00.000Z",
+          "epochMs": 1769817600000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "last-friday-of-month-5L",
+      "description": "Day-of-week \"5L\" = last Friday of the month",
+      "pattern": "0 0 * * 5L",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [
+        {
+          "iso": "2026-01-30T00:00:00.000Z",
+          "epochMs": 1769731200000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "last-day-feb-leap-year",
+      "description": "L in February of a leap year (2028) resolves to Feb 29",
+      "pattern": "0 0 L 2 *",
+      "tz": "UTC",
+      "currentDate": "2027-06-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [
+        {
+          "iso": "2028-02-29T00:00:00.000Z",
+          "epochMs": 1835395200000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "third-friday-hash",
+      "description": "Day-of-week \"5#3\" = 3rd Friday of the month",
+      "pattern": "0 0 * * 5#3",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 2,
+      "expectedNext": [
+        {
+          "iso": "2026-01-16T00:00:00.000Z",
+          "epochMs": 1768521600000
+        },
+        {
+          "iso": "2026-02-20T00:00:00.000Z",
+          "epochMs": 1771545600000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "first-monday-hash",
+      "description": "Day-of-week \"1#1\" = 1st Monday of the month",
+      "pattern": "0 9 * * 1#1",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 3,
+      "expectedNext": [
+        {
+          "iso": "2026-01-05T09:00:00.000Z",
+          "epochMs": 1767603600000
+        },
+        {
+          "iso": "2026-02-02T09:00:00.000Z",
+          "epochMs": 1770022800000
+        },
+        {
+          "iso": "2026-03-02T09:00:00.000Z",
+          "epochMs": 1772442000000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "nearest-weekday-W-unsupported",
+      "description": "cron-parser does NOT support \"W\" (nearest weekday); must raise a parse error. Go libraries that silently accept W (hashicorp/cronexpr, adhocore/gronx) diverge here.",
+      "pattern": "0 0 15W * *",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [],
+      "expectedError": "Invalid characters, got value: 15W"
+    },
+    {
+      "id": "month-and-dow-names",
+      "description": "Names for month (JAN) and day-of-week (MON-FRI) combined with wildcard DOM",
+      "pattern": "0 9 * JAN MON-FRI",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 5,
+      "expectedNext": [
+        {
+          "iso": "2026-01-01T09:00:00.000Z",
+          "epochMs": 1767258000000
+        },
+        {
+          "iso": "2026-01-02T09:00:00.000Z",
+          "epochMs": 1767344400000
+        },
+        {
+          "iso": "2026-01-05T09:00:00.000Z",
+          "epochMs": 1767603600000
+        },
+        {
+          "iso": "2026-01-06T09:00:00.000Z",
+          "epochMs": 1767690000000
+        },
+        {
+          "iso": "2026-01-07T09:00:00.000Z",
+          "epochMs": 1767776400000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "dom-dow-or-semantics-both-restricted",
+      "description": "Both DOM=1 and DOW=MON restricted -> OR semantics: fires on day 1 OR any Monday (NOT only when day 1 is a Monday). This is the classic Vixie-cron ambiguity.",
+      "pattern": "0 0 1 * 1",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 6,
+      "expectedNext": [
+        {
+          "iso": "2026-01-05T00:00:00.000Z",
+          "epochMs": 1767571200000
+        },
+        {
+          "iso": "2026-01-12T00:00:00.000Z",
+          "epochMs": 1768176000000
+        },
+        {
+          "iso": "2026-01-19T00:00:00.000Z",
+          "epochMs": 1768780800000
+        },
+        {
+          "iso": "2026-01-26T00:00:00.000Z",
+          "epochMs": 1769385600000
+        },
+        {
+          "iso": "2026-02-01T00:00:00.000Z",
+          "epochMs": 1769904000000
+        },
+        {
+          "iso": "2026-02-02T00:00:00.000Z",
+          "epochMs": 1769990400000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "dom-restricted-dow-wildcard",
+      "description": "DOM restricted (day 15), DOW wildcard -> only DOM must match (Rule 2)",
+      "pattern": "0 0 15 * *",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 2,
+      "expectedNext": [
+        {
+          "iso": "2026-01-15T00:00:00.000Z",
+          "epochMs": 1768435200000
+        },
+        {
+          "iso": "2026-02-15T00:00:00.000Z",
+          "epochMs": 1771113600000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "dom-wildcard-dow-restricted",
+      "description": "DOM wildcard, DOW restricted (Friday) -> only DOW must match (Rule 3)",
+      "pattern": "0 0 * * 5",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 2,
+      "expectedNext": [
+        {
+          "iso": "2026-01-02T00:00:00.000Z",
+          "epochMs": 1767312000000
+        },
+        {
+          "iso": "2026-01-09T00:00:00.000Z",
+          "epochMs": 1767916800000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "ny-dst-spring-forward-gap-time",
+      "description": "America/New_York 2026-03-08 spring forward: wall-clock 02:00-03:00 does not exist. Pattern requests 02:30 daily; see how cron-parser resolves the skipped instant.",
+      "pattern": "30 2 * * *",
+      "tz": "America/New_York",
+      "currentDate": "2026-03-07T12:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [
+        {
+          "iso": "2026-03-08T07:30:00.000Z",
+          "epochMs": 1772955000000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "ny-dst-spring-forward-every-15-min",
+      "description": "America/New_York spring-forward day with */15 minute granularity across 01:xx-03:xx local",
+      "pattern": "*/15 1-3 * * *",
+      "tz": "America/New_York",
+      "currentDate": "2026-03-08T05:45:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 10,
+      "expectedNext": [
+        {
+          "iso": "2026-03-08T06:00:00.000Z",
+          "epochMs": 1772949600000
+        },
+        {
+          "iso": "2026-03-08T06:15:00.000Z",
+          "epochMs": 1772950500000
+        },
+        {
+          "iso": "2026-03-08T06:30:00.000Z",
+          "epochMs": 1772951400000
+        },
+        {
+          "iso": "2026-03-08T06:45:00.000Z",
+          "epochMs": 1772952300000
+        },
+        {
+          "iso": "2026-03-08T07:00:00.000Z",
+          "epochMs": 1772953200000
+        },
+        {
+          "iso": "2026-03-08T07:15:00.000Z",
+          "epochMs": 1772954100000
+        },
+        {
+          "iso": "2026-03-08T07:30:00.000Z",
+          "epochMs": 1772955000000
+        },
+        {
+          "iso": "2026-03-08T07:45:00.000Z",
+          "epochMs": 1772955900000
+        },
+        {
+          "iso": "2026-03-09T05:00:00.000Z",
+          "epochMs": 1773032400000
+        },
+        {
+          "iso": "2026-03-09T05:15:00.000Z",
+          "epochMs": 1773033300000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "ny-dst-spring-forward-hourly-seconds",
+      "description": "America/New_York spring-forward day, 6-field pattern firing every hour on the hour (:00:00)",
+      "pattern": "0 0 * * * *",
+      "tz": "America/New_York",
+      "currentDate": "2026-03-08T06:30:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 4,
+      "expectedNext": [
+        {
+          "iso": "2026-03-08T07:00:00.000Z",
+          "epochMs": 1772953200000
+        },
+        {
+          "iso": "2026-03-08T08:00:00.000Z",
+          "epochMs": 1772956800000
+        },
+        {
+          "iso": "2026-03-08T09:00:00.000Z",
+          "epochMs": 1772960400000
+        },
+        {
+          "iso": "2026-03-08T10:00:00.000Z",
+          "epochMs": 1772964000000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "ny-dst-fall-back-repeated-hour",
+      "description": "America/New_York 2026-11-01 fall back: local 01:00-02:00 occurs twice. Pattern requests 01:30 daily; verify which occurrence cron-parser returns and that iterating .next() again does not return the same instant twice.",
+      "pattern": "30 1 * * *",
+      "tz": "America/New_York",
+      "currentDate": "2026-10-31T12:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 2,
+      "expectedNext": [
+        {
+          "iso": "2026-11-01T05:30:00.000Z",
+          "epochMs": 1793511000000
+        },
+        {
+          "iso": "2026-11-02T06:30:00.000Z",
+          "epochMs": 1793601000000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "ny-dst-fall-back-every-15-min",
+      "description": "America/New_York fall-back day with */15 minute granularity across the repeated 01:xx hour",
+      "pattern": "*/15 0-2 * * *",
+      "tz": "America/New_York",
+      "currentDate": "2026-11-01T04:45:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 12,
+      "expectedNext": [
+        {
+          "iso": "2026-11-01T05:00:00.000Z",
+          "epochMs": 1793509200000
+        },
+        {
+          "iso": "2026-11-01T05:15:00.000Z",
+          "epochMs": 1793510100000
+        },
+        {
+          "iso": "2026-11-01T05:30:00.000Z",
+          "epochMs": 1793511000000
+        },
+        {
+          "iso": "2026-11-01T05:45:00.000Z",
+          "epochMs": 1793511900000
+        },
+        {
+          "iso": "2026-11-01T07:00:00.000Z",
+          "epochMs": 1793516400000
+        },
+        {
+          "iso": "2026-11-01T07:15:00.000Z",
+          "epochMs": 1793517300000
+        },
+        {
+          "iso": "2026-11-01T07:30:00.000Z",
+          "epochMs": 1793518200000
+        },
+        {
+          "iso": "2026-11-01T07:45:00.000Z",
+          "epochMs": 1793519100000
+        },
+        {
+          "iso": "2026-11-02T05:00:00.000Z",
+          "epochMs": 1793595600000
+        },
+        {
+          "iso": "2026-11-02T05:15:00.000Z",
+          "epochMs": 1793596500000
+        },
+        {
+          "iso": "2026-11-02T05:30:00.000Z",
+          "epochMs": 1793597400000
+        },
+        {
+          "iso": "2026-11-02T05:45:00.000Z",
+          "epochMs": 1793598300000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "madrid-dst-spring-forward-gap-time",
+      "description": "Europe/Madrid 2026-03-29 spring forward: wall-clock 02:00-03:00 does not exist.",
+      "pattern": "15 2 * * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2026-03-28T12:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [
+        {
+          "iso": "2026-03-29T01:15:00.000Z",
+          "epochMs": 1774746900000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "madrid-dst-spring-forward-every-10-min",
+      "description": "Europe/Madrid spring-forward day with */10 minute granularity across 01:xx-03:xx local",
+      "pattern": "*/10 1-3 * * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2026-03-28T23:50:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 14,
+      "expectedNext": [
+        {
+          "iso": "2026-03-29T00:00:00.000Z",
+          "epochMs": 1774742400000
+        },
+        {
+          "iso": "2026-03-29T00:10:00.000Z",
+          "epochMs": 1774743000000
+        },
+        {
+          "iso": "2026-03-29T00:20:00.000Z",
+          "epochMs": 1774743600000
+        },
+        {
+          "iso": "2026-03-29T00:30:00.000Z",
+          "epochMs": 1774744200000
+        },
+        {
+          "iso": "2026-03-29T00:40:00.000Z",
+          "epochMs": 1774744800000
+        },
+        {
+          "iso": "2026-03-29T00:50:00.000Z",
+          "epochMs": 1774745400000
+        },
+        {
+          "iso": "2026-03-29T01:00:00.000Z",
+          "epochMs": 1774746000000
+        },
+        {
+          "iso": "2026-03-29T01:10:00.000Z",
+          "epochMs": 1774746600000
+        },
+        {
+          "iso": "2026-03-29T01:20:00.000Z",
+          "epochMs": 1774747200000
+        },
+        {
+          "iso": "2026-03-29T01:30:00.000Z",
+          "epochMs": 1774747800000
+        },
+        {
+          "iso": "2026-03-29T01:40:00.000Z",
+          "epochMs": 1774748400000
+        },
+        {
+          "iso": "2026-03-29T01:50:00.000Z",
+          "epochMs": 1774749000000
+        },
+        {
+          "iso": "2026-03-29T23:00:00.000Z",
+          "epochMs": 1774825200000
+        },
+        {
+          "iso": "2026-03-29T23:10:00.000Z",
+          "epochMs": 1774825800000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "madrid-dst-fall-back-repeated-hour",
+      "description": "Europe/Madrid 2026-10-25 fall back: local 02:00-03:00 occurs twice.",
+      "pattern": "30 2 * * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2026-10-24T12:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 2,
+      "expectedNext": [
+        {
+          "iso": "2026-10-25T00:30:00.000Z",
+          "epochMs": 1792888200000
+        },
+        {
+          "iso": "2026-10-26T01:30:00.000Z",
+          "epochMs": 1792978200000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "madrid-dst-fall-back-every-20-min",
+      "description": "Europe/Madrid fall-back day with */20 minute granularity across the repeated 02:xx hour",
+      "pattern": "*/20 1-3 * * *",
+      "tz": "Europe/Madrid",
+      "currentDate": "2026-10-24T23:50:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 10,
+      "expectedNext": [
+        {
+          "iso": "2026-10-25T00:00:00.000Z",
+          "epochMs": 1792886400000
+        },
+        {
+          "iso": "2026-10-25T00:20:00.000Z",
+          "epochMs": 1792887600000
+        },
+        {
+          "iso": "2026-10-25T00:40:00.000Z",
+          "epochMs": 1792888800000
+        },
+        {
+          "iso": "2026-10-25T02:00:00.000Z",
+          "epochMs": 1792893600000
+        },
+        {
+          "iso": "2026-10-25T02:20:00.000Z",
+          "epochMs": 1792894800000
+        },
+        {
+          "iso": "2026-10-25T02:40:00.000Z",
+          "epochMs": 1792896000000
+        },
+        {
+          "iso": "2026-10-26T00:00:00.000Z",
+          "epochMs": 1792972800000
+        },
+        {
+          "iso": "2026-10-26T00:20:00.000Z",
+          "epochMs": 1792974000000
+        },
+        {
+          "iso": "2026-10-26T00:40:00.000Z",
+          "epochMs": 1792975200000
+        },
+        {
+          "iso": "2026-10-26T01:00:00.000Z",
+          "epochMs": 1792976400000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "startdate-clamps-currentdate-forward",
+      "description": "opts.startDate is in the future relative to the millis base; job-scheduler.ts takes the max(startDate, dateFromMillis) as currentDate before calling CronExpressionParser.parse",
+      "pattern": "0 * * * *",
+      "tz": "UTC",
+      "currentDate": "2026-06-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [
+        {
+          "iso": "2026-06-01T01:00:00.000Z",
+          "epochMs": 1780275600000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "enddate-out-of-bounds-throws",
+      "description": "opts.endDate before the next match causes cron-parser to throw \"Out of the time span range\" (defaultRepeatStrategy swallows it and returns undefined)",
+      "pattern": "0 0 1 1 *",
+      "tz": "UTC",
+      "currentDate": "2026-01-02T00:00:00.000Z",
+      "startDate": null,
+      "endDate": "2026-06-01T00:00:00.000Z",
+      "requestedCount": 1,
+      "expectedNext": [],
+      "expectedError": "Out of the time span range"
+    },
+    {
+      "id": "predefined-weekly",
+      "description": "@weekly expands to \"0 0 0 * * 0\" (Sunday midnight)",
+      "pattern": "@weekly",
+      "tz": "UTC",
+      "currentDate": "2026-01-01T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [
+        {
+          "iso": "2026-01-04T00:00:00.000Z",
+          "epochMs": 1767484800000
+        }
+      ],
+      "expectedError": null
+    },
+    {
+      "id": "tokyo-no-dst-control",
+      "description": "Asia/Tokyo has no DST; used as a control case (simple +09:00 offset, no edge cases)",
+      "pattern": "0 9 * * *",
+      "tz": "Asia/Tokyo",
+      "currentDate": "2026-03-08T00:00:00.000Z",
+      "startDate": null,
+      "endDate": null,
+      "requestedCount": 1,
+      "expectedNext": [
+        {
+          "iso": "2026-03-09T00:00:00.000Z",
+          "epochMs": 1773014400000
+        }
+      ],
+      "expectedError": null
+    }
+  ]
+}

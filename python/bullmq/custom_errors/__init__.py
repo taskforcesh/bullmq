@@ -1,3 +1,4 @@
 from bullmq.custom_errors.delayed_error import DelayedError
 from bullmq.custom_errors.unrecoverable_error import UnrecoverableError
 from bullmq.custom_errors.waiting_children_error import WaitingChildrenError
+from bullmq.custom_errors.rate_limit_error import RateLimitError, RATE_LIMIT_ERROR

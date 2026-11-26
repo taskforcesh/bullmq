@@ -24,6 +24,11 @@ class TestImports(unittest.TestCase):
         from bullmq import DelayedError
         self.assertIs(DelayedError, bullmq.custom_errors.DelayedError)
 
+    def test_rate_limit_error_importable_from_package_root(self):
+        """Ensure RateLimitError can be imported directly from bullmq."""
+        from bullmq import RateLimitError
+        self.assertIs(RateLimitError, bullmq.custom_errors.RateLimitError)
+
 
 if __name__ == '__main__':
     unittest.main()

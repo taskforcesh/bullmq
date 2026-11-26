@@ -94,6 +94,24 @@ let worker = Worker::with_options(
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+worker, err := bullmq.NewWorker(queueName, func(ctx context.Context, job *bullmq.Job) (any, error) {
+	// Do something with job
+	return "some value", nil
+}, &bullmq.WorkerOptions{
+	Backend:     backend,
+	Concurrency: 50,
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer worker.Close()
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="info" %}
@@ -115,6 +133,16 @@ worker.concurrency = 5;
 
 ```rust
 worker.set_concurrency(5);
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+if err := worker.SetConcurrency(5); err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}

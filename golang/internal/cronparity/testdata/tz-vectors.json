@@ -1,0 +1,3088 @@
+{
+  "meta": {
+    "generatedBy": "node v22.14.0, ICU 76.1 (tz 2024b), luxon 3.7.2, cron-parser 5.10.6",
+    "pattern": "0 30 2 * * *",
+    "currentDates": [1767225600000, 1782864000000, 1772884800000, 1793448000000]
+  },
+  "vectors": [
+    { "tz": " UTC", "ok": false },
+    { "tz": "+-03:00", "ok": false },
+    {
+      "tz": "+00",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "+0000",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "+03",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    {
+      "tz": "+0300",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    { "tz": "+03:", "ok": false },
+    { "tz": "+03:0", "ok": false },
+    {
+      "tz": "+03:00",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    { "tz": "+03:00:00", "ok": false },
+    { "tz": "+03:60", "ok": false },
+    {
+      "tz": "+14:00",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    {
+      "tz": "+23:59",
+      "ok": true,
+      "next": [1767234660000, 1782873060000, 1772937060000, 1793500260000]
+    },
+    { "tz": "+24:00", "ok": false },
+    { "tz": "+3", "ok": false },
+    { "tz": "+3:00", "ok": false },
+    {
+      "tz": "-00",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "-00:00",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "-0530",
+      "ok": true,
+      "next": [1767254400000, 1782892800000, 1772956800000, 1793520000000]
+    },
+    {
+      "tz": "-05:30",
+      "ok": true,
+      "next": [1767254400000, 1782892800000, 1772956800000, 1793520000000]
+    },
+    {
+      "tz": "-23:59",
+      "ok": true,
+      "next": [1767234540000, 1782872940000, 1772936940000, 1793500140000]
+    },
+    { "tz": "../../etc/passwd", "ok": false },
+    { "tz": "03:00", "ok": false },
+    {
+      "tz": "ACT",
+      "ok": true,
+      "next": [1767286800000, 1782925200000, 1772902800000, 1793466000000]
+    },
+    {
+      "tz": "AET",
+      "ok": true,
+      "next": [1767281400000, 1782923400000, 1772897400000, 1793460600000]
+    },
+    { "tz": "AFRICA/ABIDJAN", "ok": true },
+    { "tz": "AFRICA/BUJUMBURA", "ok": true },
+    { "tz": "AFRICA/HARARE", "ok": true },
+    { "tz": "AFRICA/LUSAKA", "ok": true },
+    { "tz": "AFRICA/PORTO-NOVO", "ok": true },
+    {
+      "tz": "AGT",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    {
+      "tz": "AMERICA/ARGENTINA/CATAMARCA",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "AMERICA/ARUBA", "ok": true },
+    { "tz": "AMERICA/BOISE", "ok": true },
+    { "tz": "AMERICA/CORAL_HARBOUR", "ok": true },
+    { "tz": "AMERICA/DOMINICA", "ok": true },
+    { "tz": "AMERICA/GRENADA", "ok": true },
+    { "tz": "AMERICA/INDIANA/TELL_CITY", "ok": true },
+    { "tz": "AMERICA/KNOX_IN", "ok": true },
+    { "tz": "AMERICA/MATAMOROS", "ok": true },
+    { "tz": "AMERICA/MONTSERRAT", "ok": true },
+    { "tz": "AMERICA/PANGNIRTUNG", "ok": true },
+    { "tz": "AMERICA/REGINA", "ok": true },
+    { "tz": "AMERICA/ST_BARTHELEMY", "ok": true },
+    { "tz": "AMERICA/TORTOLA", "ok": true },
+    { "tz": "ANTARCTICA/MCMURDO", "ok": true },
+    { "tz": "ART", "ok": true },
+    { "tz": "ASIA/AQTAU", "ok": true },
+    { "tz": "ASIA/BRUNEI", "ok": true },
+    { "tz": "ASIA/DUSHANBE", "ok": true },
+    { "tz": "ASIA/JERUSALEM", "ok": true },
+    { "tz": "ASIA/KUWAIT", "ok": true },
+    { "tz": "ASIA/PHNOM_PENH", "ok": true },
+    {
+      "tz": "ASIA/SHANGHAI",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    { "tz": "ASIA/UJUNG_PANDANG", "ok": true },
+    {
+      "tz": "AST",
+      "ok": true,
+      "next": [1767267000000, 1782901800000, 1772969400000, 1793532600000]
+    },
+    { "tz": "ATLANTIC/BERMUDA", "ok": true },
+    { "tz": "AUSTRALIA/ADELAIDE", "ok": true },
+    {
+      "tz": "AUSTRALIA/NSW",
+      "ok": true,
+      "next": [1767281400000, 1782923400000, 1772897400000, 1793460600000]
+    },
+    {
+      "tz": "Act",
+      "ok": true,
+      "next": [1767286800000, 1782925200000, 1772902800000, 1793466000000]
+    },
+    {
+      "tz": "Aet",
+      "ok": true,
+      "next": [1767281400000, 1782923400000, 1772897400000, 1793460600000]
+    },
+    { "tz": "Africa/Abidjan", "ok": true },
+    { "tz": "Africa/Accra", "ok": true },
+    { "tz": "Africa/Addis_Ababa", "ok": true },
+    { "tz": "Africa/Algiers", "ok": true },
+    { "tz": "Africa/Asmara", "ok": true },
+    { "tz": "Africa/Asmera", "ok": true },
+    { "tz": "Africa/Bamako", "ok": true },
+    { "tz": "Africa/Bangui", "ok": true },
+    { "tz": "Africa/Banjul", "ok": true },
+    { "tz": "Africa/Bissau", "ok": true },
+    { "tz": "Africa/Blantyre", "ok": true },
+    { "tz": "Africa/Brazzaville", "ok": true },
+    { "tz": "Africa/Bujumbura", "ok": true },
+    { "tz": "Africa/Cairo", "ok": true },
+    { "tz": "Africa/Casablanca", "ok": true },
+    { "tz": "Africa/Ceuta", "ok": true },
+    { "tz": "Africa/Conakry", "ok": true },
+    { "tz": "Africa/Dakar", "ok": true },
+    { "tz": "Africa/Dar_es_Salaam", "ok": true },
+    { "tz": "Africa/Djibouti", "ok": true },
+    { "tz": "Africa/Douala", "ok": true },
+    { "tz": "Africa/El_Aaiun", "ok": true },
+    { "tz": "Africa/Freetown", "ok": true },
+    { "tz": "Africa/Gaborone", "ok": true },
+    { "tz": "Africa/Harare", "ok": true },
+    {
+      "tz": "Africa/Johannesburg",
+      "ok": true,
+      "next": [1767227400000, 1782865800000, 1772929800000, 1793493000000]
+    },
+    { "tz": "Africa/Juba", "ok": true },
+    { "tz": "Africa/Kampala", "ok": true },
+    { "tz": "Africa/Khartoum", "ok": true },
+    { "tz": "Africa/Kigali", "ok": true },
+    { "tz": "Africa/Kinshasa", "ok": true },
+    { "tz": "Africa/Lagos", "ok": true },
+    { "tz": "Africa/Libreville", "ok": true },
+    { "tz": "Africa/Lome", "ok": true },
+    { "tz": "Africa/Luanda", "ok": true },
+    { "tz": "Africa/Lubumbashi", "ok": true },
+    { "tz": "Africa/Lusaka", "ok": true },
+    { "tz": "Africa/Malabo", "ok": true },
+    {
+      "tz": "Africa/Maputo",
+      "ok": true,
+      "next": [1767227400000, 1782865800000, 1772929800000, 1793493000000]
+    },
+    { "tz": "Africa/Maseru", "ok": true },
+    { "tz": "Africa/Mbabane", "ok": true },
+    { "tz": "Africa/Mogadishu", "ok": true },
+    { "tz": "Africa/Monrovia", "ok": true },
+    {
+      "tz": "Africa/Nairobi",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    { "tz": "Africa/Ndjamena", "ok": true },
+    { "tz": "Africa/Niamey", "ok": true },
+    { "tz": "Africa/Nouakchott", "ok": true },
+    { "tz": "Africa/Ouagadougou", "ok": true },
+    { "tz": "Africa/Porto-Novo", "ok": true },
+    { "tz": "Africa/Sao_Tome", "ok": true },
+    { "tz": "Africa/Timbuktu", "ok": true },
+    { "tz": "Africa/Tripoli", "ok": true },
+    { "tz": "Africa/Tunis", "ok": true },
+    { "tz": "Africa/Windhoek", "ok": true },
+    {
+      "tz": "Agt",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "America//New_York", "ok": false },
+    { "tz": "America/Adak", "ok": true },
+    {
+      "tz": "America/Anchorage",
+      "ok": true,
+      "next": [1767267000000, 1782901800000, 1772969400000, 1793532600000]
+    },
+    { "tz": "America/Anguilla", "ok": true },
+    { "tz": "America/Antigua", "ok": true },
+    { "tz": "America/Araguaina", "ok": true },
+    {
+      "tz": "America/Argentina/Buenos_Aires",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    {
+      "tz": "America/Argentina/Catamarca",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    {
+      "tz": "America/Argentina/ComodRivadavia",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "America/Argentina/Cordoba", "ok": true },
+    { "tz": "America/Argentina/Jujuy", "ok": true },
+    { "tz": "America/Argentina/La_Rioja", "ok": true },
+    { "tz": "America/Argentina/Mendoza", "ok": true },
+    { "tz": "America/Argentina/Rio_Gallegos", "ok": true },
+    { "tz": "America/Argentina/Salta", "ok": true },
+    { "tz": "America/Argentina/San_Juan", "ok": true },
+    { "tz": "America/Argentina/San_Luis", "ok": true },
+    { "tz": "America/Argentina/Tucuman", "ok": true },
+    { "tz": "America/Argentina/Ushuaia", "ok": true },
+    { "tz": "America/Aruba", "ok": true },
+    { "tz": "America/Asuncion", "ok": true },
+    { "tz": "America/Atikokan", "ok": true },
+    { "tz": "America/Atka", "ok": true },
+    { "tz": "America/Bahia", "ok": true },
+    { "tz": "America/Bahia_Banderas", "ok": true },
+    { "tz": "America/Barbados", "ok": true },
+    { "tz": "America/Belem", "ok": true },
+    { "tz": "America/Belize", "ok": true },
+    { "tz": "America/Blanc-Sablon", "ok": true },
+    { "tz": "America/Boa_Vista", "ok": true },
+    { "tz": "America/Bogota", "ok": true },
+    { "tz": "America/Boise", "ok": true },
+    {
+      "tz": "America/Buenos_Aires",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "America/Cambridge_Bay", "ok": true },
+    { "tz": "America/Campo_Grande", "ok": true },
+    { "tz": "America/Cancun", "ok": true },
+    { "tz": "America/Caracas", "ok": true },
+    {
+      "tz": "America/Catamarca",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "America/Cayenne", "ok": true },
+    { "tz": "America/Cayman", "ok": true },
+    {
+      "tz": "America/Chicago",
+      "ok": true,
+      "next": [1767256200000, 1782891000000, 1772958600000, 1793521800000]
+    },
+    { "tz": "America/Chihuahua", "ok": true },
+    { "tz": "America/Ciudad_Juarez", "ok": true },
+    { "tz": "America/Coral_Harbour", "ok": true },
+    { "tz": "America/Cordoba", "ok": true },
+    { "tz": "America/Costa_Rica", "ok": true },
+    { "tz": "America/Coyhaique", "ok": false },
+    { "tz": "America/Creston", "ok": true },
+    { "tz": "America/Cuiaba", "ok": true },
+    { "tz": "America/Curacao", "ok": true },
+    { "tz": "America/Danmarkshavn", "ok": true },
+    { "tz": "America/Dawson", "ok": true },
+    { "tz": "America/Dawson_Creek", "ok": true },
+    {
+      "tz": "America/Denver",
+      "ok": true,
+      "next": [1767259800000, 1782894600000, 1772962200000, 1793525400000]
+    },
+    { "tz": "America/Detroit", "ok": true },
+    { "tz": "America/Dominica", "ok": true },
+    { "tz": "America/Edmonton", "ok": true },
+    { "tz": "America/Eirunepe", "ok": true },
+    { "tz": "America/El_Salvador", "ok": true },
+    { "tz": "America/Ensenada", "ok": true },
+    { "tz": "America/Fort_Nelson", "ok": true },
+    {
+      "tz": "America/Fort_Wayne",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    { "tz": "America/Fortaleza", "ok": true },
+    { "tz": "America/Glace_Bay", "ok": true },
+    { "tz": "America/Godthab", "ok": true },
+    { "tz": "America/Goose_Bay", "ok": true },
+    { "tz": "America/Grand_Turk", "ok": true },
+    { "tz": "America/Grenada", "ok": true },
+    { "tz": "America/Guadeloupe", "ok": true },
+    { "tz": "America/Guatemala", "ok": true },
+    { "tz": "America/Guayaquil", "ok": true },
+    { "tz": "America/Guyana", "ok": true },
+    {
+      "tz": "America/Halifax",
+      "ok": true,
+      "next": [1767249000000, 1782883800000, 1772951400000, 1793514600000]
+    },
+    { "tz": "America/Havana", "ok": true },
+    { "tz": "America/Hermosillo", "ok": true },
+    {
+      "tz": "America/Indiana/Indianapolis",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    { "tz": "America/Indiana/Knox", "ok": true },
+    { "tz": "America/Indiana/Marengo", "ok": true },
+    { "tz": "America/Indiana/Petersburg", "ok": true },
+    { "tz": "America/Indiana/Tell_City", "ok": true },
+    { "tz": "America/Indiana/Vevay", "ok": true },
+    { "tz": "America/Indiana/Vincennes", "ok": true },
+    { "tz": "America/Indiana/Winamac", "ok": true },
+    {
+      "tz": "America/Indianapolis",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    { "tz": "America/Inuvik", "ok": true },
+    { "tz": "America/Iqaluit", "ok": true },
+    { "tz": "America/Jamaica", "ok": true },
+    { "tz": "America/Jujuy", "ok": true },
+    { "tz": "America/Juneau", "ok": true },
+    { "tz": "America/Kentucky/Louisville", "ok": true },
+    { "tz": "America/Kentucky/Monticello", "ok": true },
+    { "tz": "America/Knox_IN", "ok": true },
+    { "tz": "America/Kralendijk", "ok": true },
+    { "tz": "America/La_Paz", "ok": true },
+    { "tz": "America/Lima", "ok": true },
+    {
+      "tz": "America/Los_Angeles",
+      "ok": true,
+      "next": [1767263400000, 1782898200000, 1772965800000, 1793529000000]
+    },
+    { "tz": "America/Louisville", "ok": true },
+    { "tz": "America/Lower_Princes", "ok": true },
+    { "tz": "America/Maceio", "ok": true },
+    { "tz": "America/Managua", "ok": true },
+    { "tz": "America/Manaus", "ok": true },
+    { "tz": "America/Marigot", "ok": true },
+    { "tz": "America/Martinique", "ok": true },
+    { "tz": "America/Matamoros", "ok": true },
+    { "tz": "America/Mazatlan", "ok": true },
+    { "tz": "America/Mendoza", "ok": true },
+    { "tz": "America/Menominee", "ok": true },
+    { "tz": "America/Merida", "ok": true },
+    { "tz": "America/Metlakatla", "ok": true },
+    { "tz": "America/Mexico_City", "ok": true },
+    { "tz": "America/Miquelon", "ok": true },
+    { "tz": "America/Moncton", "ok": true },
+    { "tz": "America/Monterrey", "ok": true },
+    { "tz": "America/Montevideo", "ok": true },
+    { "tz": "America/Montreal", "ok": true },
+    { "tz": "America/Montserrat", "ok": true },
+    { "tz": "America/Nassau", "ok": true },
+    { "tz": "America/New York", "ok": false },
+    {
+      "tz": "America/New_York",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    { "tz": "America/New_York ", "ok": false },
+    { "tz": "America/Nipigon", "ok": true },
+    { "tz": "America/Nome", "ok": true },
+    { "tz": "America/Noronha", "ok": true },
+    { "tz": "America/North_Dakota/Beulah", "ok": true },
+    { "tz": "America/North_Dakota/Center", "ok": true },
+    { "tz": "America/North_Dakota/New_Salem", "ok": true },
+    { "tz": "America/Nuuk", "ok": true },
+    { "tz": "America/Ojinaga", "ok": true },
+    {
+      "tz": "America/Panama",
+      "ok": true,
+      "next": [1767252600000, 1782891000000, 1772955000000, 1793518200000]
+    },
+    { "tz": "America/Pangnirtung", "ok": true },
+    { "tz": "America/Paramaribo", "ok": true },
+    {
+      "tz": "America/Phoenix",
+      "ok": true,
+      "next": [1767259800000, 1782898200000, 1772962200000, 1793525400000]
+    },
+    { "tz": "America/Port-au-Prince", "ok": true },
+    { "tz": "America/Port_of_Spain", "ok": true },
+    { "tz": "America/Porto_Acre", "ok": true },
+    { "tz": "America/Porto_Velho", "ok": true },
+    {
+      "tz": "America/Puerto_Rico",
+      "ok": true,
+      "next": [1767249000000, 1782887400000, 1772951400000, 1793514600000]
+    },
+    { "tz": "America/Punta_Arenas", "ok": true },
+    { "tz": "America/Rainy_River", "ok": true },
+    { "tz": "America/Rankin_Inlet", "ok": true },
+    { "tz": "America/Recife", "ok": true },
+    { "tz": "America/Regina", "ok": true },
+    { "tz": "America/Resolute", "ok": true },
+    { "tz": "America/Rio_Branco", "ok": true },
+    { "tz": "America/Rosario", "ok": true },
+    { "tz": "America/Santa_Isabel", "ok": true },
+    { "tz": "America/Santarem", "ok": true },
+    { "tz": "America/Santiago", "ok": true },
+    { "tz": "America/Santo_Domingo", "ok": true },
+    {
+      "tz": "America/Sao_Paulo",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "America/Scoresbysund", "ok": true },
+    {
+      "tz": "America/Shiprock",
+      "ok": true,
+      "next": [1767259800000, 1782894600000, 1772962200000, 1793525400000]
+    },
+    { "tz": "America/Sitka", "ok": true },
+    { "tz": "America/St_Barthelemy", "ok": true },
+    {
+      "tz": "America/St_Johns",
+      "ok": true,
+      "next": [1767247200000, 1782882000000, 1772949600000, 1793512800000]
+    },
+    { "tz": "America/St_Kitts", "ok": true },
+    { "tz": "America/St_Lucia", "ok": true },
+    { "tz": "America/St_Thomas", "ok": true },
+    { "tz": "America/St_Vincent", "ok": true },
+    { "tz": "America/Swift_Current", "ok": true },
+    { "tz": "America/Tegucigalpa", "ok": true },
+    { "tz": "America/Thule", "ok": true },
+    { "tz": "America/Thunder_Bay", "ok": true },
+    { "tz": "America/Tijuana", "ok": true },
+    { "tz": "America/Toronto", "ok": true },
+    { "tz": "America/Tortola", "ok": true },
+    { "tz": "America/Vancouver", "ok": true },
+    { "tz": "America/Virgin", "ok": true },
+    { "tz": "America/Whitehorse", "ok": true },
+    { "tz": "America/Winnipeg", "ok": true },
+    { "tz": "America/Yakutat", "ok": true },
+    { "tz": "America/Yellowknife", "ok": true },
+    { "tz": "Antarctica/Casey", "ok": true },
+    { "tz": "Antarctica/Davis", "ok": true },
+    { "tz": "Antarctica/DumontDUrville", "ok": true },
+    { "tz": "Antarctica/Macquarie", "ok": true },
+    { "tz": "Antarctica/Mawson", "ok": true },
+    { "tz": "Antarctica/McMurdo", "ok": true },
+    { "tz": "Antarctica/Palmer", "ok": true },
+    { "tz": "Antarctica/Rothera", "ok": true },
+    {
+      "tz": "Antarctica/South_Pole",
+      "ok": true,
+      "next": [1767274200000, 1782916200000, 1772890200000, 1793453400000]
+    },
+    { "tz": "Antarctica/Syowa", "ok": true },
+    { "tz": "Antarctica/Troll", "ok": true },
+    { "tz": "Antarctica/Vostok", "ok": true },
+    { "tz": "Arctic/Longyearbyen", "ok": true },
+    { "tz": "Art", "ok": true },
+    { "tz": "Asia/Aden", "ok": true },
+    { "tz": "Asia/Almaty", "ok": true },
+    { "tz": "Asia/Amman", "ok": true },
+    { "tz": "Asia/Anadyr", "ok": true },
+    { "tz": "Asia/Aqtau", "ok": true },
+    { "tz": "Asia/Aqtobe", "ok": true },
+    { "tz": "Asia/Ashgabat", "ok": true },
+    { "tz": "Asia/Ashkhabad", "ok": true },
+    { "tz": "Asia/Atyrau", "ok": true },
+    { "tz": "Asia/Baghdad", "ok": true },
+    { "tz": "Asia/Bahrain", "ok": true },
+    { "tz": "Asia/Baku", "ok": true },
+    { "tz": "Asia/Bangkok", "ok": true },
+    { "tz": "Asia/Barnaul", "ok": true },
+    { "tz": "Asia/Beirut", "ok": true },
+    { "tz": "Asia/Bishkek", "ok": true },
+    { "tz": "Asia/Brunei", "ok": true },
+    {
+      "tz": "Asia/Calcutta",
+      "ok": true,
+      "next": [1767301200000, 1782939600000, 1772917200000, 1793480400000]
+    },
+    { "tz": "Asia/Chita", "ok": true },
+    { "tz": "Asia/Choibalsan", "ok": true },
+    {
+      "tz": "Asia/Chongqing",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    {
+      "tz": "Asia/Chungking",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    { "tz": "Asia/Colombo", "ok": true },
+    {
+      "tz": "Asia/Dacca",
+      "ok": true,
+      "next": [1767299400000, 1782937800000, 1772915400000, 1793478600000]
+    },
+    { "tz": "Asia/Damascus", "ok": true },
+    {
+      "tz": "Asia/Dhaka",
+      "ok": true,
+      "next": [1767299400000, 1782937800000, 1772915400000, 1793478600000]
+    },
+    { "tz": "Asia/Dili", "ok": true },
+    { "tz": "Asia/Dubai", "ok": true },
+    { "tz": "Asia/Dushanbe", "ok": true },
+    { "tz": "Asia/Famagusta", "ok": true },
+    { "tz": "Asia/Gaza", "ok": true },
+    {
+      "tz": "Asia/Harbin",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    { "tz": "Asia/Hebron", "ok": true },
+    {
+      "tz": "Asia/Ho_Chi_Minh",
+      "ok": true,
+      "next": [1767295800000, 1782934200000, 1772911800000, 1793475000000]
+    },
+    { "tz": "Asia/Hong_Kong", "ok": true },
+    { "tz": "Asia/Hovd", "ok": true },
+    { "tz": "Asia/Irkutsk", "ok": true },
+    { "tz": "Asia/Istanbul", "ok": true },
+    { "tz": "Asia/Jakarta", "ok": true },
+    { "tz": "Asia/Jayapura", "ok": true },
+    { "tz": "Asia/Jerusalem", "ok": true },
+    { "tz": "Asia/Kabul", "ok": true },
+    { "tz": "Asia/Kamchatka", "ok": true },
+    {
+      "tz": "Asia/Karachi",
+      "ok": true,
+      "next": [1767303000000, 1782941400000, 1772919000000, 1793482200000]
+    },
+    { "tz": "Asia/Kashgar", "ok": true },
+    { "tz": "Asia/Kathmandu", "ok": true },
+    { "tz": "Asia/Katmandu", "ok": true },
+    { "tz": "Asia/Khandyga", "ok": true },
+    {
+      "tz": "Asia/Kolkata",
+      "ok": true,
+      "next": [1767301200000, 1782939600000, 1772917200000, 1793480400000]
+    },
+    { "tz": "Asia/Krasnoyarsk", "ok": true },
+    { "tz": "Asia/Kuala_Lumpur", "ok": true },
+    { "tz": "Asia/Kuching", "ok": true },
+    { "tz": "Asia/Kuwait", "ok": true },
+    { "tz": "Asia/Macao", "ok": true },
+    { "tz": "Asia/Macau", "ok": true },
+    { "tz": "Asia/Magadan", "ok": true },
+    { "tz": "Asia/Makassar", "ok": true },
+    { "tz": "Asia/Manila", "ok": true },
+    { "tz": "Asia/Muscat", "ok": true },
+    { "tz": "Asia/Nicosia", "ok": true },
+    { "tz": "Asia/Novokuznetsk", "ok": true },
+    { "tz": "Asia/Novosibirsk", "ok": true },
+    { "tz": "Asia/Omsk", "ok": true },
+    { "tz": "Asia/Oral", "ok": true },
+    { "tz": "Asia/Phnom_Penh", "ok": true },
+    { "tz": "Asia/Pontianak", "ok": true },
+    { "tz": "Asia/Pyongyang", "ok": true },
+    { "tz": "Asia/Qatar", "ok": true },
+    { "tz": "Asia/Qostanay", "ok": true },
+    { "tz": "Asia/Qyzylorda", "ok": true },
+    { "tz": "Asia/Rangoon", "ok": true },
+    { "tz": "Asia/Riyadh", "ok": true },
+    {
+      "tz": "Asia/Saigon",
+      "ok": true,
+      "next": [1767295800000, 1782934200000, 1772911800000, 1793475000000]
+    },
+    { "tz": "Asia/Sakhalin", "ok": true },
+    { "tz": "Asia/Samarkand", "ok": true },
+    {
+      "tz": "Asia/Seoul",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    {
+      "tz": "Asia/Shanghai",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    { "tz": "Asia/Singapore", "ok": true },
+    { "tz": "Asia/Srednekolymsk", "ok": true },
+    {
+      "tz": "Asia/Taipei",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    { "tz": "Asia/Tashkent", "ok": true },
+    { "tz": "Asia/Tbilisi", "ok": true },
+    {
+      "tz": "Asia/Tehran",
+      "ok": true,
+      "next": [1767308400000, 1782946800000, 1772924400000, 1793487600000]
+    },
+    { "tz": "Asia/Tel_Aviv", "ok": true },
+    { "tz": "Asia/Thimbu", "ok": true },
+    { "tz": "Asia/Thimphu", "ok": true },
+    {
+      "tz": "Asia/Tokyo",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    { "tz": "Asia/Tomsk", "ok": true },
+    { "tz": "Asia/Ujung_Pandang", "ok": true },
+    { "tz": "Asia/Ulaanbaatar", "ok": true },
+    { "tz": "Asia/Ulan_Bator", "ok": true },
+    { "tz": "Asia/Urumqi", "ok": true },
+    { "tz": "Asia/Ust-Nera", "ok": true },
+    { "tz": "Asia/Vientiane", "ok": true },
+    { "tz": "Asia/Vladivostok", "ok": true },
+    { "tz": "Asia/Yakutsk", "ok": true },
+    { "tz": "Asia/Yangon", "ok": true },
+    { "tz": "Asia/Yekaterinburg", "ok": true },
+    {
+      "tz": "Asia/Yerevan",
+      "ok": true,
+      "next": [1767306600000, 1782945000000, 1772922600000, 1793485800000]
+    },
+    {
+      "tz": "Ast",
+      "ok": true,
+      "next": [1767267000000, 1782901800000, 1772969400000, 1793532600000]
+    },
+    { "tz": "Atlantic/Azores", "ok": true },
+    { "tz": "Atlantic/Bermuda", "ok": true },
+    { "tz": "Atlantic/Canary", "ok": true },
+    { "tz": "Atlantic/Cape_Verde", "ok": true },
+    { "tz": "Atlantic/Faeroe", "ok": true },
+    { "tz": "Atlantic/Faroe", "ok": true },
+    { "tz": "Atlantic/Jan_Mayen", "ok": true },
+    { "tz": "Atlantic/Madeira", "ok": true },
+    { "tz": "Atlantic/Reykjavik", "ok": true },
+    { "tz": "Atlantic/South_Georgia", "ok": true },
+    { "tz": "Atlantic/St_Helena", "ok": true },
+    { "tz": "Atlantic/Stanley", "ok": true },
+    {
+      "tz": "Australia/ACT",
+      "ok": true,
+      "next": [1767281400000, 1782923400000, 1772897400000, 1793460600000]
+    },
+    { "tz": "Australia/Adelaide", "ok": true },
+    { "tz": "Australia/Brisbane", "ok": true },
+    { "tz": "Australia/Broken_Hill", "ok": true },
+    {
+      "tz": "Australia/Canberra",
+      "ok": true,
+      "next": [1767281400000, 1782923400000, 1772897400000, 1793460600000]
+    },
+    { "tz": "Australia/Currie", "ok": true },
+    {
+      "tz": "Australia/Darwin",
+      "ok": true,
+      "next": [1767286800000, 1782925200000, 1772902800000, 1793466000000]
+    },
+    { "tz": "Australia/Eucla", "ok": true },
+    { "tz": "Australia/Hobart", "ok": true },
+    {
+      "tz": "Australia/LHI",
+      "ok": true,
+      "next": [1767281400000, 1782921600000, 1772897400000, 1793460600000]
+    },
+    { "tz": "Australia/Lindeman", "ok": true },
+    {
+      "tz": "Australia/Lord_Howe",
+      "ok": true,
+      "next": [1767281400000, 1782921600000, 1772897400000, 1793460600000]
+    },
+    { "tz": "Australia/Melbourne", "ok": true },
+    {
+      "tz": "Australia/NSW",
+      "ok": true,
+      "next": [1767281400000, 1782923400000, 1772897400000, 1793460600000]
+    },
+    {
+      "tz": "Australia/North",
+      "ok": true,
+      "next": [1767286800000, 1782925200000, 1772902800000, 1793466000000]
+    },
+    { "tz": "Australia/Perth", "ok": true },
+    { "tz": "Australia/Queensland", "ok": true },
+    { "tz": "Australia/South", "ok": true },
+    {
+      "tz": "Australia/Sydney",
+      "ok": true,
+      "next": [1767281400000, 1782923400000, 1772897400000, 1793460600000]
+    },
+    { "tz": "Australia/Tasmania", "ok": true },
+    { "tz": "Australia/Victoria", "ok": true },
+    { "tz": "Australia/West", "ok": true },
+    { "tz": "Australia/Yancowinna", "ok": true },
+    {
+      "tz": "BET",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    {
+      "tz": "BRAZIL/EAST",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    {
+      "tz": "BST",
+      "ok": true,
+      "next": [1767299400000, 1782937800000, 1772915400000, 1793478600000]
+    },
+    {
+      "tz": "Bet",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "Brazil/Acre", "ok": true },
+    { "tz": "Brazil/DeNoronha", "ok": true },
+    {
+      "tz": "Brazil/East",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "Brazil/West", "ok": true },
+    {
+      "tz": "Bst",
+      "ok": true,
+      "next": [1767299400000, 1782937800000, 1772915400000, 1793478600000]
+    },
+    {
+      "tz": "CAT",
+      "ok": true,
+      "next": [1767227400000, 1782865800000, 1772929800000, 1793493000000]
+    },
+    {
+      "tz": "CET",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "CHILE/CONTINENTAL", "ok": true },
+    {
+      "tz": "CNT",
+      "ok": true,
+      "next": [1767247200000, 1782882000000, 1772949600000, 1793512800000]
+    },
+    {
+      "tz": "CST",
+      "ok": true,
+      "next": [1767256200000, 1782891000000, 1772958600000, 1793521800000]
+    },
+    {
+      "tz": "CST6CDT",
+      "ok": true,
+      "next": [1767256200000, 1782891000000, 1772958600000, 1793521800000]
+    },
+    {
+      "tz": "CTT",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    { "tz": "CUBA", "ok": true },
+    {
+      "tz": "Canada/Atlantic",
+      "ok": true,
+      "next": [1767249000000, 1782883800000, 1772951400000, 1793514600000]
+    },
+    { "tz": "Canada/Central", "ok": true },
+    { "tz": "Canada/Eastern", "ok": true },
+    { "tz": "Canada/Mountain", "ok": true },
+    {
+      "tz": "Canada/Newfoundland",
+      "ok": true,
+      "next": [1767247200000, 1782882000000, 1772949600000, 1793512800000]
+    },
+    { "tz": "Canada/Pacific", "ok": true },
+    { "tz": "Canada/Saskatchewan", "ok": true },
+    { "tz": "Canada/Yukon", "ok": true },
+    {
+      "tz": "Cat",
+      "ok": true,
+      "next": [1767227400000, 1782865800000, 1772929800000, 1793493000000]
+    },
+    {
+      "tz": "Cet",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "Chile/Continental", "ok": true },
+    { "tz": "Chile/EasterIsland", "ok": true },
+    {
+      "tz": "Cnt",
+      "ok": true,
+      "next": [1767247200000, 1782882000000, 1772949600000, 1793512800000]
+    },
+    {
+      "tz": "Cst",
+      "ok": true,
+      "next": [1767256200000, 1782891000000, 1772958600000, 1793521800000]
+    },
+    {
+      "tz": "Ctt",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    { "tz": "Cuba", "ok": true },
+    {
+      "tz": "EAT",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    {
+      "tz": "ECT",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    {
+      "tz": "EET",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    {
+      "tz": "EIRE",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "EST",
+      "ok": true,
+      "next": [1767252600000, 1782891000000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "EST5EDT",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "ETC/GMT+11",
+      "ok": true,
+      "next": [1767274200000, 1782912600000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "ETC/GMT+12",
+      "ok": true,
+      "next": [1767277800000, 1782916200000, 1772893800000, 1793457000000]
+    },
+    {
+      "tz": "ETC/GMT-10",
+      "ok": true,
+      "next": [1767285000000, 1782923400000, 1772901000000, 1793464200000]
+    },
+    {
+      "tz": "ETC/GMT-9",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    { "tz": "EUROPE/BELGRADE", "ok": true },
+    { "tz": "EUROPE/HELSINKI", "ok": true },
+    {
+      "tz": "EUROPE/MADRID",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "EUROPE/ROME", "ok": true },
+    { "tz": "EUROPE/ULYANOVSK", "ok": true },
+    {
+      "tz": "Eat",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    {
+      "tz": "Ect",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    {
+      "tz": "Eet",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    { "tz": "Egypt", "ok": true },
+    {
+      "tz": "Eire",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Est",
+      "ok": true,
+      "next": [1767252600000, 1782891000000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "Etc/GMT",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Etc/GMT+0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Etc/GMT+1",
+      "ok": true,
+      "next": [1767238200000, 1782876600000, 1772940600000, 1793503800000]
+    },
+    {
+      "tz": "Etc/GMT+10",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    {
+      "tz": "Etc/GMT+11",
+      "ok": true,
+      "next": [1767274200000, 1782912600000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "Etc/GMT+12",
+      "ok": true,
+      "next": [1767277800000, 1782916200000, 1772893800000, 1793457000000]
+    },
+    { "tz": "Etc/GMT+15", "ok": false },
+    {
+      "tz": "Etc/GMT+2",
+      "ok": true,
+      "next": [1767241800000, 1782880200000, 1772944200000, 1793507400000]
+    },
+    {
+      "tz": "Etc/GMT+3",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    {
+      "tz": "Etc/GMT+4",
+      "ok": true,
+      "next": [1767249000000, 1782887400000, 1772951400000, 1793514600000]
+    },
+    {
+      "tz": "Etc/GMT+5",
+      "ok": true,
+      "next": [1767252600000, 1782891000000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "Etc/GMT+6",
+      "ok": true,
+      "next": [1767256200000, 1782894600000, 1772958600000, 1793521800000]
+    },
+    {
+      "tz": "Etc/GMT+7",
+      "ok": true,
+      "next": [1767259800000, 1782898200000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "Etc/GMT+8",
+      "ok": true,
+      "next": [1767263400000, 1782901800000, 1772965800000, 1793529000000]
+    },
+    {
+      "tz": "Etc/GMT+9",
+      "ok": true,
+      "next": [1767267000000, 1782905400000, 1772969400000, 1793532600000]
+    },
+    {
+      "tz": "Etc/GMT-0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Etc/GMT-1",
+      "ok": true,
+      "next": [1767231000000, 1782869400000, 1772933400000, 1793496600000]
+    },
+    {
+      "tz": "Etc/GMT-10",
+      "ok": true,
+      "next": [1767285000000, 1782923400000, 1772901000000, 1793464200000]
+    },
+    {
+      "tz": "Etc/GMT-11",
+      "ok": true,
+      "next": [1767281400000, 1782919800000, 1772897400000, 1793460600000]
+    },
+    {
+      "tz": "Etc/GMT-12",
+      "ok": true,
+      "next": [1767277800000, 1782916200000, 1772893800000, 1793457000000]
+    },
+    {
+      "tz": "Etc/GMT-13",
+      "ok": true,
+      "next": [1767274200000, 1782912600000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "Etc/GMT-14",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    { "tz": "Etc/GMT-15", "ok": false },
+    {
+      "tz": "Etc/GMT-2",
+      "ok": true,
+      "next": [1767227400000, 1782865800000, 1772929800000, 1793493000000]
+    },
+    {
+      "tz": "Etc/GMT-3",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    {
+      "tz": "Etc/GMT-4",
+      "ok": true,
+      "next": [1767306600000, 1782945000000, 1772922600000, 1793485800000]
+    },
+    {
+      "tz": "Etc/GMT-5",
+      "ok": true,
+      "next": [1767303000000, 1782941400000, 1772919000000, 1793482200000]
+    },
+    {
+      "tz": "Etc/GMT-6",
+      "ok": true,
+      "next": [1767299400000, 1782937800000, 1772915400000, 1793478600000]
+    },
+    {
+      "tz": "Etc/GMT-7",
+      "ok": true,
+      "next": [1767295800000, 1782934200000, 1772911800000, 1793475000000]
+    },
+    {
+      "tz": "Etc/GMT-8",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    {
+      "tz": "Etc/GMT-9",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    {
+      "tz": "Etc/GMT0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Etc/Greenwich",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Etc/UCT",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Etc/UTC",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Etc/Universal",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    { "tz": "Etc/Unknown", "ok": false },
+    {
+      "tz": "Etc/Zulu",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    { "tz": "Europe/Amsterdam", "ok": true },
+    { "tz": "Europe/Andorra", "ok": true },
+    { "tz": "Europe/Astrakhan", "ok": true },
+    {
+      "tz": "Europe/Athens",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    {
+      "tz": "Europe/Belfast",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    { "tz": "Europe/Belgrade", "ok": true },
+    {
+      "tz": "Europe/Berlin",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "Europe/Bratislava", "ok": true },
+    {
+      "tz": "Europe/Brussels",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "Europe/Bucharest", "ok": true },
+    { "tz": "Europe/Budapest", "ok": true },
+    { "tz": "Europe/Busingen", "ok": true },
+    { "tz": "Europe/Chisinau", "ok": true },
+    { "tz": "Europe/Copenhagen", "ok": true },
+    {
+      "tz": "Europe/Dublin",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    { "tz": "Europe/Gibraltar", "ok": true },
+    { "tz": "Europe/Guernsey", "ok": true },
+    { "tz": "Europe/Helsinki", "ok": true },
+    { "tz": "Europe/Isle_of_Man", "ok": true },
+    { "tz": "Europe/Istanbul", "ok": true },
+    { "tz": "Europe/Jersey", "ok": true },
+    { "tz": "Europe/Kaliningrad", "ok": true },
+    {
+      "tz": "Europe/Kiev",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    { "tz": "Europe/Kirov", "ok": true },
+    {
+      "tz": "Europe/Kyiv",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    {
+      "tz": "Europe/Lisbon",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    { "tz": "Europe/Ljubljana", "ok": true },
+    {
+      "tz": "Europe/London",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    { "tz": "Europe/Luxembourg", "ok": true },
+    {
+      "tz": "Europe/Madrid",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "Europe/Malta", "ok": true },
+    { "tz": "Europe/Mariehamn", "ok": true },
+    { "tz": "Europe/Minsk", "ok": true },
+    { "tz": "Europe/Monaco", "ok": true },
+    {
+      "tz": "Europe/Moscow",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    { "tz": "Europe/Nicosia", "ok": true },
+    { "tz": "Europe/Oslo", "ok": true },
+    {
+      "tz": "Europe/Paris",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "Europe/Podgorica", "ok": true },
+    { "tz": "Europe/Prague", "ok": true },
+    { "tz": "Europe/Riga", "ok": true },
+    { "tz": "Europe/Rome", "ok": true },
+    { "tz": "Europe/Samara", "ok": true },
+    { "tz": "Europe/San_Marino", "ok": true },
+    { "tz": "Europe/Sarajevo", "ok": true },
+    { "tz": "Europe/Saratov", "ok": true },
+    { "tz": "Europe/Simferopol", "ok": true },
+    { "tz": "Europe/Skopje", "ok": true },
+    { "tz": "Europe/Sofia", "ok": true },
+    { "tz": "Europe/Stockholm", "ok": true },
+    { "tz": "Europe/Tallinn", "ok": true },
+    { "tz": "Europe/Tirane", "ok": true },
+    { "tz": "Europe/Tiraspol", "ok": true },
+    { "tz": "Europe/Ulyanovsk", "ok": true },
+    {
+      "tz": "Europe/Uzhgorod",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    { "tz": "Europe/Vaduz", "ok": true },
+    { "tz": "Europe/Vatican", "ok": true },
+    { "tz": "Europe/Vienna", "ok": true },
+    { "tz": "Europe/Vilnius", "ok": true },
+    { "tz": "Europe/Volgograd", "ok": true },
+    { "tz": "Europe/Warsaw", "ok": true },
+    { "tz": "Europe/Zagreb", "ok": true },
+    {
+      "tz": "Europe/Zaporozhye",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    { "tz": "Europe/Zurich", "ok": true },
+    {
+      "tz": "Europe/london",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    { "tz": "Factory", "ok": false },
+    {
+      "tz": "GB",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "GB-Eire",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "GMT",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "GMT+0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    { "tz": "GMT+3", "ok": false },
+    {
+      "tz": "GMT-0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    { "tz": "GMT-03:00", "ok": false },
+    {
+      "tz": "GMT0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Gb",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Gmt",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Greenwich",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "HST",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    { "tz": "Hongkong", "ok": true },
+    {
+      "tz": "Hst",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    {
+      "tz": "IET",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    { "tz": "INDIAN/CHRISTMAS", "ok": true },
+    {
+      "tz": "IRAN",
+      "ok": true,
+      "next": [1767308400000, 1782946800000, 1772924400000, 1793487600000]
+    },
+    {
+      "tz": "IST",
+      "ok": true,
+      "next": [1767301200000, 1782939600000, 1772917200000, 1793480400000]
+    },
+    { "tz": "Iceland", "ok": true },
+    {
+      "tz": "Iet",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    { "tz": "Indian/Antananarivo", "ok": true },
+    { "tz": "Indian/Chagos", "ok": true },
+    { "tz": "Indian/Christmas", "ok": true },
+    { "tz": "Indian/Cocos", "ok": true },
+    { "tz": "Indian/Comoro", "ok": true },
+    { "tz": "Indian/Kerguelen", "ok": true },
+    { "tz": "Indian/Mahe", "ok": true },
+    { "tz": "Indian/Maldives", "ok": true },
+    { "tz": "Indian/Mauritius", "ok": true },
+    { "tz": "Indian/Mayotte", "ok": true },
+    { "tz": "Indian/Reunion", "ok": true },
+    {
+      "tz": "Iran",
+      "ok": true,
+      "next": [1767308400000, 1782946800000, 1772924400000, 1793487600000]
+    },
+    { "tz": "Israel", "ok": true },
+    {
+      "tz": "Ist",
+      "ok": true,
+      "next": [1767301200000, 1782939600000, 1772917200000, 1793480400000]
+    },
+    {
+      "tz": "JAPAN",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    {
+      "tz": "JST",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    { "tz": "Jamaica", "ok": true },
+    {
+      "tz": "Japan",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    {
+      "tz": "Jst",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    { "tz": "Kwajalein", "ok": true },
+    { "tz": "LOCAL", "ok": true },
+    { "tz": "Libya", "ok": true },
+    {
+      "tz": "MET",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    {
+      "tz": "MIT",
+      "ok": true,
+      "next": [1767274200000, 1782912600000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "MST",
+      "ok": true,
+      "next": [1767259800000, 1782898200000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "MST7MDT",
+      "ok": true,
+      "next": [1767259800000, 1782894600000, 1772962200000, 1793525400000]
+    },
+    { "tz": "Mars/Olympus", "ok": false },
+    {
+      "tz": "Met",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "Mexico/BajaNorte", "ok": true },
+    { "tz": "Mexico/BajaSur", "ok": true },
+    { "tz": "Mexico/General", "ok": true },
+    {
+      "tz": "Mit",
+      "ok": true,
+      "next": [1767274200000, 1782912600000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "Mst",
+      "ok": true,
+      "next": [1767259800000, 1782898200000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "NET",
+      "ok": true,
+      "next": [1767306600000, 1782945000000, 1772922600000, 1793485800000]
+    },
+    {
+      "tz": "NST",
+      "ok": true,
+      "next": [1767274200000, 1782916200000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "NZ",
+      "ok": true,
+      "next": [1767274200000, 1782916200000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "NZ-CHAT",
+      "ok": true,
+      "next": [1767271500000, 1782913500000, 1772887500000, 1793450700000]
+    },
+    {
+      "tz": "Navajo",
+      "ok": true,
+      "next": [1767259800000, 1782894600000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "Net",
+      "ok": true,
+      "next": [1767306600000, 1782945000000, 1772922600000, 1793485800000]
+    },
+    {
+      "tz": "Nst",
+      "ok": true,
+      "next": [1767274200000, 1782916200000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "Nz",
+      "ok": true,
+      "next": [1767274200000, 1782916200000, 1772890200000, 1793453400000]
+    },
+    { "tz": "PACIFIC/FUNAFUTI", "ok": true },
+    { "tz": "PACIFIC/MARQUESAS", "ok": true },
+    { "tz": "PACIFIC/RAROTONGA", "ok": true },
+    {
+      "tz": "PLT",
+      "ok": true,
+      "next": [1767303000000, 1782941400000, 1772919000000, 1793482200000]
+    },
+    {
+      "tz": "PNT",
+      "ok": true,
+      "next": [1767259800000, 1782898200000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "PRC",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    {
+      "tz": "PRT",
+      "ok": true,
+      "next": [1767249000000, 1782887400000, 1772951400000, 1793514600000]
+    },
+    {
+      "tz": "PST",
+      "ok": true,
+      "next": [1767263400000, 1782898200000, 1772965800000, 1793529000000]
+    },
+    {
+      "tz": "PST8PDT",
+      "ok": true,
+      "next": [1767263400000, 1782898200000, 1772965800000, 1793529000000]
+    },
+    {
+      "tz": "Pacific/Apia",
+      "ok": true,
+      "next": [1767274200000, 1782912600000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "Pacific/Auckland",
+      "ok": true,
+      "next": [1767274200000, 1782916200000, 1772890200000, 1793453400000]
+    },
+    { "tz": "Pacific/Bougainville", "ok": true },
+    {
+      "tz": "Pacific/Chatham",
+      "ok": true,
+      "next": [1767271500000, 1782913500000, 1772887500000, 1793450700000]
+    },
+    { "tz": "Pacific/Chuuk", "ok": true },
+    { "tz": "Pacific/Easter", "ok": true },
+    { "tz": "Pacific/Efate", "ok": true },
+    { "tz": "Pacific/Enderbury", "ok": true },
+    { "tz": "Pacific/Fakaofo", "ok": true },
+    { "tz": "Pacific/Fiji", "ok": true },
+    { "tz": "Pacific/Funafuti", "ok": true },
+    { "tz": "Pacific/Galapagos", "ok": true },
+    { "tz": "Pacific/Gambier", "ok": true },
+    {
+      "tz": "Pacific/Guadalcanal",
+      "ok": true,
+      "next": [1767281400000, 1782919800000, 1772897400000, 1793460600000]
+    },
+    { "tz": "Pacific/Guam", "ok": true },
+    {
+      "tz": "Pacific/Honolulu",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    {
+      "tz": "Pacific/Johnston",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    { "tz": "Pacific/Kanton", "ok": true },
+    { "tz": "Pacific/Kiritimati", "ok": true },
+    { "tz": "Pacific/Kosrae", "ok": true },
+    { "tz": "Pacific/Kwajalein", "ok": true },
+    { "tz": "Pacific/Majuro", "ok": true },
+    { "tz": "Pacific/Marquesas", "ok": true },
+    { "tz": "Pacific/Midway", "ok": true },
+    { "tz": "Pacific/Nauru", "ok": true },
+    { "tz": "Pacific/Niue", "ok": true },
+    { "tz": "Pacific/Norfolk", "ok": true },
+    { "tz": "Pacific/Noumea", "ok": true },
+    { "tz": "Pacific/Pago_Pago", "ok": true },
+    { "tz": "Pacific/Palau", "ok": true },
+    { "tz": "Pacific/Pitcairn", "ok": true },
+    { "tz": "Pacific/Pohnpei", "ok": true },
+    { "tz": "Pacific/Ponape", "ok": true },
+    { "tz": "Pacific/Port_Moresby", "ok": true },
+    { "tz": "Pacific/Rarotonga", "ok": true },
+    { "tz": "Pacific/Saipan", "ok": true },
+    { "tz": "Pacific/Samoa", "ok": true },
+    { "tz": "Pacific/Tahiti", "ok": true },
+    { "tz": "Pacific/Tarawa", "ok": true },
+    { "tz": "Pacific/Tongatapu", "ok": true },
+    { "tz": "Pacific/Truk", "ok": true },
+    { "tz": "Pacific/Wake", "ok": true },
+    { "tz": "Pacific/Wallis", "ok": true },
+    { "tz": "Pacific/Yap", "ok": true },
+    {
+      "tz": "Plt",
+      "ok": true,
+      "next": [1767303000000, 1782941400000, 1772919000000, 1793482200000]
+    },
+    {
+      "tz": "Pnt",
+      "ok": true,
+      "next": [1767259800000, 1782898200000, 1772962200000, 1793525400000]
+    },
+    { "tz": "Poland", "ok": true },
+    {
+      "tz": "Portugal",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Prc",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    {
+      "tz": "Prt",
+      "ok": true,
+      "next": [1767249000000, 1782887400000, 1772951400000, 1793514600000]
+    },
+    {
+      "tz": "Pst",
+      "ok": true,
+      "next": [1767263400000, 1782898200000, 1772965800000, 1793529000000]
+    },
+    {
+      "tz": "ROC",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    {
+      "tz": "ROK",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    {
+      "tz": "Roc",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    {
+      "tz": "Rok",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    {
+      "tz": "SST",
+      "ok": true,
+      "next": [1767281400000, 1782919800000, 1772897400000, 1793460600000]
+    },
+    { "tz": "Singapore", "ok": true },
+    {
+      "tz": "Sst",
+      "ok": true,
+      "next": [1767281400000, 1782919800000, 1772897400000, 1793460600000]
+    },
+    { "tz": "SystemV/AST4", "ok": true },
+    { "tz": "Turkey", "ok": true },
+    {
+      "tz": "UCT",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "US/Alaska",
+      "ok": true,
+      "next": [1767267000000, 1782901800000, 1772969400000, 1793532600000]
+    },
+    { "tz": "US/Aleutian", "ok": true },
+    {
+      "tz": "US/Arizona",
+      "ok": true,
+      "next": [1767259800000, 1782898200000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "US/Central",
+      "ok": true,
+      "next": [1767256200000, 1782891000000, 1772958600000, 1793521800000]
+    },
+    {
+      "tz": "US/EASTERN",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "US/East-Indiana",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "US/Eastern",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "US/Hawaii",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    { "tz": "US/INDIANA-STARKE", "ok": true },
+    { "tz": "US/Indiana-Starke", "ok": true },
+    { "tz": "US/Michigan", "ok": true },
+    {
+      "tz": "US/Mountain",
+      "ok": true,
+      "next": [1767259800000, 1782894600000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "US/Pacific",
+      "ok": true,
+      "next": [1767263400000, 1782898200000, 1772965800000, 1793529000000]
+    },
+    { "tz": "US/Samoa", "ok": true },
+    { "tz": "UT", "ok": false },
+    {
+      "tz": "UTC",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    { "tz": "UTC ", "ok": false },
+    { "tz": "UTC+0300", "ok": false },
+    {
+      "tz": "UTC+03:00",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    {
+      "tz": "UTC+0:30",
+      "ok": true,
+      "next": [1767232800000, 1782871200000, 1772935200000, 1793498400000]
+    },
+    {
+      "tz": "UTC+14",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    {
+      "tz": "UTC+25",
+      "ok": true,
+      "next": [1767231000000, 1782869400000, 1772933400000, 1793496600000]
+    },
+    {
+      "tz": "UTC+3",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    { "tz": "UTC+3:5", "ok": false },
+    {
+      "tz": "UTC-0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "UTC-12",
+      "ok": true,
+      "next": [1767277800000, 1782916200000, 1772893800000, 1793457000000]
+    },
+    { "tz": "UTC0", "ok": false },
+    {
+      "tz": "Uct",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Universal",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Utc",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "VST",
+      "ok": true,
+      "next": [1767295800000, 1782934200000, 1772911800000, 1793475000000]
+    },
+    {
+      "tz": "Vst",
+      "ok": true,
+      "next": [1767295800000, 1782934200000, 1772911800000, 1793475000000]
+    },
+    {
+      "tz": "W-SU",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    {
+      "tz": "WET",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Wet",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    { "tz": "Z", "ok": false },
+    {
+      "tz": "ZULU",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "Zulu",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "act",
+      "ok": true,
+      "next": [1767286800000, 1782925200000, 1772902800000, 1793466000000]
+    },
+    {
+      "tz": "aet",
+      "ok": true,
+      "next": [1767281400000, 1782923400000, 1772897400000, 1793460600000]
+    },
+    { "tz": "africa/abidjan", "ok": true },
+    { "tz": "africa/accra", "ok": true },
+    { "tz": "africa/addis_ababa", "ok": true },
+    { "tz": "africa/algiers", "ok": true },
+    { "tz": "africa/asmara", "ok": true },
+    { "tz": "africa/asmera", "ok": true },
+    { "tz": "africa/bamako", "ok": true },
+    { "tz": "africa/bangui", "ok": true },
+    { "tz": "africa/banjul", "ok": true },
+    { "tz": "africa/bissau", "ok": true },
+    { "tz": "africa/blantyre", "ok": true },
+    { "tz": "africa/brazzaville", "ok": true },
+    { "tz": "africa/bujumbura", "ok": true },
+    { "tz": "africa/cairo", "ok": true },
+    { "tz": "africa/casablanca", "ok": true },
+    { "tz": "africa/ceuta", "ok": true },
+    { "tz": "africa/conakry", "ok": true },
+    { "tz": "africa/dakar", "ok": true },
+    { "tz": "africa/dar_es_salaam", "ok": true },
+    { "tz": "africa/djibouti", "ok": true },
+    { "tz": "africa/douala", "ok": true },
+    { "tz": "africa/el_aaiun", "ok": true },
+    { "tz": "africa/freetown", "ok": true },
+    { "tz": "africa/gaborone", "ok": true },
+    { "tz": "africa/harare", "ok": true },
+    {
+      "tz": "africa/johannesburg",
+      "ok": true,
+      "next": [1767227400000, 1782865800000, 1772929800000, 1793493000000]
+    },
+    { "tz": "africa/juba", "ok": true },
+    { "tz": "africa/kampala", "ok": true },
+    { "tz": "africa/khartoum", "ok": true },
+    { "tz": "africa/kigali", "ok": true },
+    { "tz": "africa/kinshasa", "ok": true },
+    { "tz": "africa/lagos", "ok": true },
+    { "tz": "africa/libreville", "ok": true },
+    { "tz": "africa/lome", "ok": true },
+    { "tz": "africa/luanda", "ok": true },
+    { "tz": "africa/lubumbashi", "ok": true },
+    { "tz": "africa/lusaka", "ok": true },
+    { "tz": "africa/malabo", "ok": true },
+    {
+      "tz": "africa/maputo",
+      "ok": true,
+      "next": [1767227400000, 1782865800000, 1772929800000, 1793493000000]
+    },
+    { "tz": "africa/maseru", "ok": true },
+    { "tz": "africa/mbabane", "ok": true },
+    { "tz": "africa/mogadishu", "ok": true },
+    { "tz": "africa/monrovia", "ok": true },
+    {
+      "tz": "africa/nairobi",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    { "tz": "africa/ndjamena", "ok": true },
+    { "tz": "africa/niamey", "ok": true },
+    { "tz": "africa/nouakchott", "ok": true },
+    { "tz": "africa/ouagadougou", "ok": true },
+    { "tz": "africa/porto-novo", "ok": true },
+    { "tz": "africa/sao_tome", "ok": true },
+    { "tz": "africa/timbuktu", "ok": true },
+    { "tz": "africa/tripoli", "ok": true },
+    { "tz": "africa/tunis", "ok": true },
+    { "tz": "africa/windhoek", "ok": true },
+    {
+      "tz": "agt",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "america/adak", "ok": true },
+    {
+      "tz": "america/anchorage",
+      "ok": true,
+      "next": [1767267000000, 1782901800000, 1772969400000, 1793532600000]
+    },
+    { "tz": "america/anguilla", "ok": true },
+    { "tz": "america/antigua", "ok": true },
+    { "tz": "america/araguaina", "ok": true },
+    {
+      "tz": "america/argentina/buenos_aires",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    {
+      "tz": "america/argentina/catamarca",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    {
+      "tz": "america/argentina/comodrivadavia",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "america/argentina/cordoba", "ok": true },
+    { "tz": "america/argentina/jujuy", "ok": true },
+    { "tz": "america/argentina/la_rioja", "ok": true },
+    { "tz": "america/argentina/mendoza", "ok": true },
+    { "tz": "america/argentina/rio_gallegos", "ok": true },
+    { "tz": "america/argentina/salta", "ok": true },
+    { "tz": "america/argentina/san_juan", "ok": true },
+    { "tz": "america/argentina/san_luis", "ok": true },
+    { "tz": "america/argentina/tucuman", "ok": true },
+    { "tz": "america/argentina/ushuaia", "ok": true },
+    { "tz": "america/aruba", "ok": true },
+    { "tz": "america/asuncion", "ok": true },
+    { "tz": "america/atikokan", "ok": true },
+    { "tz": "america/atka", "ok": true },
+    { "tz": "america/bahia", "ok": true },
+    { "tz": "america/bahia_banderas", "ok": true },
+    { "tz": "america/barbados", "ok": true },
+    { "tz": "america/belem", "ok": true },
+    { "tz": "america/belize", "ok": true },
+    { "tz": "america/blanc-sablon", "ok": true },
+    { "tz": "america/boa_vista", "ok": true },
+    { "tz": "america/bogota", "ok": true },
+    { "tz": "america/boise", "ok": true },
+    {
+      "tz": "america/buenos_aires",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "america/cambridge_bay", "ok": true },
+    { "tz": "america/campo_grande", "ok": true },
+    { "tz": "america/cancun", "ok": true },
+    { "tz": "america/caracas", "ok": true },
+    {
+      "tz": "america/catamarca",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "america/cayenne", "ok": true },
+    { "tz": "america/cayman", "ok": true },
+    {
+      "tz": "america/chicago",
+      "ok": true,
+      "next": [1767256200000, 1782891000000, 1772958600000, 1793521800000]
+    },
+    { "tz": "america/chihuahua", "ok": true },
+    { "tz": "america/ciudad_juarez", "ok": true },
+    { "tz": "america/coral_harbour", "ok": true },
+    { "tz": "america/cordoba", "ok": true },
+    { "tz": "america/costa_rica", "ok": true },
+    { "tz": "america/coyhaique", "ok": false },
+    { "tz": "america/creston", "ok": true },
+    { "tz": "america/cuiaba", "ok": true },
+    { "tz": "america/curacao", "ok": true },
+    { "tz": "america/danmarkshavn", "ok": true },
+    { "tz": "america/dawson", "ok": true },
+    { "tz": "america/dawson_creek", "ok": true },
+    {
+      "tz": "america/denver",
+      "ok": true,
+      "next": [1767259800000, 1782894600000, 1772962200000, 1793525400000]
+    },
+    { "tz": "america/detroit", "ok": true },
+    { "tz": "america/dominica", "ok": true },
+    { "tz": "america/edmonton", "ok": true },
+    { "tz": "america/eirunepe", "ok": true },
+    { "tz": "america/el_salvador", "ok": true },
+    { "tz": "america/ensenada", "ok": true },
+    { "tz": "america/fort_nelson", "ok": true },
+    {
+      "tz": "america/fort_wayne",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    { "tz": "america/fortaleza", "ok": true },
+    { "tz": "america/glace_bay", "ok": true },
+    { "tz": "america/godthab", "ok": true },
+    { "tz": "america/goose_bay", "ok": true },
+    { "tz": "america/grand_turk", "ok": true },
+    { "tz": "america/grenada", "ok": true },
+    { "tz": "america/guadeloupe", "ok": true },
+    { "tz": "america/guatemala", "ok": true },
+    { "tz": "america/guayaquil", "ok": true },
+    { "tz": "america/guyana", "ok": true },
+    {
+      "tz": "america/halifax",
+      "ok": true,
+      "next": [1767249000000, 1782883800000, 1772951400000, 1793514600000]
+    },
+    { "tz": "america/havana", "ok": true },
+    { "tz": "america/hermosillo", "ok": true },
+    {
+      "tz": "america/indiana/indianapolis",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    { "tz": "america/indiana/knox", "ok": true },
+    { "tz": "america/indiana/marengo", "ok": true },
+    { "tz": "america/indiana/petersburg", "ok": true },
+    { "tz": "america/indiana/tell_city", "ok": true },
+    { "tz": "america/indiana/vevay", "ok": true },
+    { "tz": "america/indiana/vincennes", "ok": true },
+    { "tz": "america/indiana/winamac", "ok": true },
+    {
+      "tz": "america/indianapolis",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    { "tz": "america/inuvik", "ok": true },
+    { "tz": "america/iqaluit", "ok": true },
+    { "tz": "america/jamaica", "ok": true },
+    { "tz": "america/jujuy", "ok": true },
+    { "tz": "america/juneau", "ok": true },
+    { "tz": "america/kentucky/louisville", "ok": true },
+    { "tz": "america/kentucky/monticello", "ok": true },
+    { "tz": "america/knox_in", "ok": true },
+    { "tz": "america/kralendijk", "ok": true },
+    { "tz": "america/la_paz", "ok": true },
+    { "tz": "america/lima", "ok": true },
+    {
+      "tz": "america/los_angeles",
+      "ok": true,
+      "next": [1767263400000, 1782898200000, 1772965800000, 1793529000000]
+    },
+    { "tz": "america/louisville", "ok": true },
+    { "tz": "america/lower_princes", "ok": true },
+    { "tz": "america/maceio", "ok": true },
+    { "tz": "america/managua", "ok": true },
+    { "tz": "america/manaus", "ok": true },
+    { "tz": "america/marigot", "ok": true },
+    { "tz": "america/martinique", "ok": true },
+    { "tz": "america/matamoros", "ok": true },
+    { "tz": "america/mazatlan", "ok": true },
+    { "tz": "america/mendoza", "ok": true },
+    { "tz": "america/menominee", "ok": true },
+    { "tz": "america/merida", "ok": true },
+    { "tz": "america/metlakatla", "ok": true },
+    { "tz": "america/mexico_city", "ok": true },
+    { "tz": "america/miquelon", "ok": true },
+    { "tz": "america/moncton", "ok": true },
+    { "tz": "america/monterrey", "ok": true },
+    { "tz": "america/montevideo", "ok": true },
+    { "tz": "america/montreal", "ok": true },
+    { "tz": "america/montserrat", "ok": true },
+    { "tz": "america/nassau", "ok": true },
+    {
+      "tz": "america/new_york",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    { "tz": "america/nipigon", "ok": true },
+    { "tz": "america/nome", "ok": true },
+    { "tz": "america/noronha", "ok": true },
+    { "tz": "america/north_dakota/beulah", "ok": true },
+    { "tz": "america/north_dakota/center", "ok": true },
+    { "tz": "america/north_dakota/new_salem", "ok": true },
+    { "tz": "america/nuuk", "ok": true },
+    { "tz": "america/ojinaga", "ok": true },
+    {
+      "tz": "america/panama",
+      "ok": true,
+      "next": [1767252600000, 1782891000000, 1772955000000, 1793518200000]
+    },
+    { "tz": "america/pangnirtung", "ok": true },
+    { "tz": "america/paramaribo", "ok": true },
+    {
+      "tz": "america/phoenix",
+      "ok": true,
+      "next": [1767259800000, 1782898200000, 1772962200000, 1793525400000]
+    },
+    { "tz": "america/port-au-prince", "ok": true },
+    { "tz": "america/port_of_spain", "ok": true },
+    { "tz": "america/porto_acre", "ok": true },
+    { "tz": "america/porto_velho", "ok": true },
+    {
+      "tz": "america/puerto_rico",
+      "ok": true,
+      "next": [1767249000000, 1782887400000, 1772951400000, 1793514600000]
+    },
+    { "tz": "america/punta_arenas", "ok": true },
+    { "tz": "america/rainy_river", "ok": true },
+    { "tz": "america/rankin_inlet", "ok": true },
+    { "tz": "america/recife", "ok": true },
+    { "tz": "america/regina", "ok": true },
+    { "tz": "america/resolute", "ok": true },
+    { "tz": "america/rio_branco", "ok": true },
+    { "tz": "america/rosario", "ok": true },
+    { "tz": "america/santa_isabel", "ok": true },
+    { "tz": "america/santarem", "ok": true },
+    { "tz": "america/santiago", "ok": true },
+    { "tz": "america/santo_domingo", "ok": true },
+    {
+      "tz": "america/sao_paulo",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "america/scoresbysund", "ok": true },
+    {
+      "tz": "america/shiprock",
+      "ok": true,
+      "next": [1767259800000, 1782894600000, 1772962200000, 1793525400000]
+    },
+    { "tz": "america/sitka", "ok": true },
+    { "tz": "america/st_barthelemy", "ok": true },
+    {
+      "tz": "america/st_johns",
+      "ok": true,
+      "next": [1767247200000, 1782882000000, 1772949600000, 1793512800000]
+    },
+    { "tz": "america/st_kitts", "ok": true },
+    { "tz": "america/st_lucia", "ok": true },
+    { "tz": "america/st_thomas", "ok": true },
+    { "tz": "america/st_vincent", "ok": true },
+    { "tz": "america/swift_current", "ok": true },
+    { "tz": "america/tegucigalpa", "ok": true },
+    { "tz": "america/thule", "ok": true },
+    { "tz": "america/thunder_bay", "ok": true },
+    { "tz": "america/tijuana", "ok": true },
+    { "tz": "america/toronto", "ok": true },
+    { "tz": "america/tortola", "ok": true },
+    { "tz": "america/vancouver", "ok": true },
+    { "tz": "america/virgin", "ok": true },
+    { "tz": "america/whitehorse", "ok": true },
+    { "tz": "america/winnipeg", "ok": true },
+    { "tz": "america/yakutat", "ok": true },
+    { "tz": "america/yellowknife", "ok": true },
+    { "tz": "antarctica/casey", "ok": true },
+    { "tz": "antarctica/davis", "ok": true },
+    { "tz": "antarctica/dumontdurville", "ok": true },
+    { "tz": "antarctica/macquarie", "ok": true },
+    { "tz": "antarctica/mawson", "ok": true },
+    { "tz": "antarctica/mcmurdo", "ok": true },
+    { "tz": "antarctica/palmer", "ok": true },
+    { "tz": "antarctica/rothera", "ok": true },
+    {
+      "tz": "antarctica/south_pole",
+      "ok": true,
+      "next": [1767274200000, 1782916200000, 1772890200000, 1793453400000]
+    },
+    { "tz": "antarctica/syowa", "ok": true },
+    { "tz": "antarctica/troll", "ok": true },
+    { "tz": "antarctica/vostok", "ok": true },
+    { "tz": "arctic/longyearbyen", "ok": true },
+    { "tz": "art", "ok": true },
+    { "tz": "asia/aden", "ok": true },
+    { "tz": "asia/almaty", "ok": true },
+    { "tz": "asia/amman", "ok": true },
+    { "tz": "asia/anadyr", "ok": true },
+    { "tz": "asia/aqtau", "ok": true },
+    { "tz": "asia/aqtobe", "ok": true },
+    { "tz": "asia/ashgabat", "ok": true },
+    { "tz": "asia/ashkhabad", "ok": true },
+    { "tz": "asia/atyrau", "ok": true },
+    { "tz": "asia/baghdad", "ok": true },
+    { "tz": "asia/bahrain", "ok": true },
+    { "tz": "asia/baku", "ok": true },
+    { "tz": "asia/bangkok", "ok": true },
+    { "tz": "asia/barnaul", "ok": true },
+    { "tz": "asia/beirut", "ok": true },
+    { "tz": "asia/bishkek", "ok": true },
+    { "tz": "asia/brunei", "ok": true },
+    {
+      "tz": "asia/calcutta",
+      "ok": true,
+      "next": [1767301200000, 1782939600000, 1772917200000, 1793480400000]
+    },
+    { "tz": "asia/chita", "ok": true },
+    { "tz": "asia/choibalsan", "ok": true },
+    {
+      "tz": "asia/chongqing",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    {
+      "tz": "asia/chungking",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    { "tz": "asia/colombo", "ok": true },
+    {
+      "tz": "asia/dacca",
+      "ok": true,
+      "next": [1767299400000, 1782937800000, 1772915400000, 1793478600000]
+    },
+    { "tz": "asia/damascus", "ok": true },
+    {
+      "tz": "asia/dhaka",
+      "ok": true,
+      "next": [1767299400000, 1782937800000, 1772915400000, 1793478600000]
+    },
+    { "tz": "asia/dili", "ok": true },
+    { "tz": "asia/dubai", "ok": true },
+    { "tz": "asia/dushanbe", "ok": true },
+    { "tz": "asia/famagusta", "ok": true },
+    { "tz": "asia/gaza", "ok": true },
+    {
+      "tz": "asia/harbin",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    { "tz": "asia/hebron", "ok": true },
+    {
+      "tz": "asia/ho_chi_minh",
+      "ok": true,
+      "next": [1767295800000, 1782934200000, 1772911800000, 1793475000000]
+    },
+    { "tz": "asia/hong_kong", "ok": true },
+    { "tz": "asia/hovd", "ok": true },
+    { "tz": "asia/irkutsk", "ok": true },
+    { "tz": "asia/istanbul", "ok": true },
+    { "tz": "asia/jakarta", "ok": true },
+    { "tz": "asia/jayapura", "ok": true },
+    { "tz": "asia/jerusalem", "ok": true },
+    { "tz": "asia/kabul", "ok": true },
+    { "tz": "asia/kamchatka", "ok": true },
+    {
+      "tz": "asia/karachi",
+      "ok": true,
+      "next": [1767303000000, 1782941400000, 1772919000000, 1793482200000]
+    },
+    { "tz": "asia/kashgar", "ok": true },
+    { "tz": "asia/kathmandu", "ok": true },
+    { "tz": "asia/katmandu", "ok": true },
+    { "tz": "asia/khandyga", "ok": true },
+    {
+      "tz": "asia/kolkata",
+      "ok": true,
+      "next": [1767301200000, 1782939600000, 1772917200000, 1793480400000]
+    },
+    { "tz": "asia/krasnoyarsk", "ok": true },
+    { "tz": "asia/kuala_lumpur", "ok": true },
+    { "tz": "asia/kuching", "ok": true },
+    { "tz": "asia/kuwait", "ok": true },
+    { "tz": "asia/macao", "ok": true },
+    { "tz": "asia/macau", "ok": true },
+    { "tz": "asia/magadan", "ok": true },
+    { "tz": "asia/makassar", "ok": true },
+    { "tz": "asia/manila", "ok": true },
+    { "tz": "asia/muscat", "ok": true },
+    { "tz": "asia/nicosia", "ok": true },
+    { "tz": "asia/novokuznetsk", "ok": true },
+    { "tz": "asia/novosibirsk", "ok": true },
+    { "tz": "asia/omsk", "ok": true },
+    { "tz": "asia/oral", "ok": true },
+    { "tz": "asia/phnom_penh", "ok": true },
+    { "tz": "asia/pontianak", "ok": true },
+    { "tz": "asia/pyongyang", "ok": true },
+    { "tz": "asia/qatar", "ok": true },
+    { "tz": "asia/qostanay", "ok": true },
+    { "tz": "asia/qyzylorda", "ok": true },
+    { "tz": "asia/rangoon", "ok": true },
+    { "tz": "asia/riyadh", "ok": true },
+    {
+      "tz": "asia/saigon",
+      "ok": true,
+      "next": [1767295800000, 1782934200000, 1772911800000, 1793475000000]
+    },
+    { "tz": "asia/sakhalin", "ok": true },
+    { "tz": "asia/samarkand", "ok": true },
+    {
+      "tz": "asia/seoul",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    {
+      "tz": "asia/shanghai",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    { "tz": "asia/singapore", "ok": true },
+    { "tz": "asia/srednekolymsk", "ok": true },
+    {
+      "tz": "asia/taipei",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    { "tz": "asia/tashkent", "ok": true },
+    { "tz": "asia/tbilisi", "ok": true },
+    {
+      "tz": "asia/tehran",
+      "ok": true,
+      "next": [1767308400000, 1782946800000, 1772924400000, 1793487600000]
+    },
+    { "tz": "asia/tel_aviv", "ok": true },
+    { "tz": "asia/thimbu", "ok": true },
+    { "tz": "asia/thimphu", "ok": true },
+    {
+      "tz": "asia/tokyo",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    { "tz": "asia/tomsk", "ok": true },
+    { "tz": "asia/ujung_pandang", "ok": true },
+    { "tz": "asia/ulaanbaatar", "ok": true },
+    { "tz": "asia/ulan_bator", "ok": true },
+    { "tz": "asia/urumqi", "ok": true },
+    { "tz": "asia/ust-nera", "ok": true },
+    { "tz": "asia/vientiane", "ok": true },
+    { "tz": "asia/vladivostok", "ok": true },
+    { "tz": "asia/yakutsk", "ok": true },
+    { "tz": "asia/yangon", "ok": true },
+    { "tz": "asia/yekaterinburg", "ok": true },
+    {
+      "tz": "asia/yerevan",
+      "ok": true,
+      "next": [1767306600000, 1782945000000, 1772922600000, 1793485800000]
+    },
+    {
+      "tz": "ast",
+      "ok": true,
+      "next": [1767267000000, 1782901800000, 1772969400000, 1793532600000]
+    },
+    { "tz": "atlantic/azores", "ok": true },
+    { "tz": "atlantic/bermuda", "ok": true },
+    { "tz": "atlantic/canary", "ok": true },
+    { "tz": "atlantic/cape_verde", "ok": true },
+    { "tz": "atlantic/faeroe", "ok": true },
+    { "tz": "atlantic/faroe", "ok": true },
+    { "tz": "atlantic/jan_mayen", "ok": true },
+    { "tz": "atlantic/madeira", "ok": true },
+    { "tz": "atlantic/reykjavik", "ok": true },
+    { "tz": "atlantic/south_georgia", "ok": true },
+    { "tz": "atlantic/st_helena", "ok": true },
+    { "tz": "atlantic/stanley", "ok": true },
+    {
+      "tz": "australia/act",
+      "ok": true,
+      "next": [1767281400000, 1782923400000, 1772897400000, 1793460600000]
+    },
+    { "tz": "australia/adelaide", "ok": true },
+    { "tz": "australia/brisbane", "ok": true },
+    { "tz": "australia/broken_hill", "ok": true },
+    {
+      "tz": "australia/canberra",
+      "ok": true,
+      "next": [1767281400000, 1782923400000, 1772897400000, 1793460600000]
+    },
+    { "tz": "australia/currie", "ok": true },
+    {
+      "tz": "australia/darwin",
+      "ok": true,
+      "next": [1767286800000, 1782925200000, 1772902800000, 1793466000000]
+    },
+    { "tz": "australia/eucla", "ok": true },
+    { "tz": "australia/hobart", "ok": true },
+    {
+      "tz": "australia/lhi",
+      "ok": true,
+      "next": [1767281400000, 1782921600000, 1772897400000, 1793460600000]
+    },
+    { "tz": "australia/lindeman", "ok": true },
+    {
+      "tz": "australia/lord_howe",
+      "ok": true,
+      "next": [1767281400000, 1782921600000, 1772897400000, 1793460600000]
+    },
+    { "tz": "australia/melbourne", "ok": true },
+    {
+      "tz": "australia/north",
+      "ok": true,
+      "next": [1767286800000, 1782925200000, 1772902800000, 1793466000000]
+    },
+    {
+      "tz": "australia/nsw",
+      "ok": true,
+      "next": [1767281400000, 1782923400000, 1772897400000, 1793460600000]
+    },
+    { "tz": "australia/perth", "ok": true },
+    { "tz": "australia/queensland", "ok": true },
+    { "tz": "australia/south", "ok": true },
+    {
+      "tz": "australia/sydney",
+      "ok": true,
+      "next": [1767281400000, 1782923400000, 1772897400000, 1793460600000]
+    },
+    { "tz": "australia/tasmania", "ok": true },
+    { "tz": "australia/victoria", "ok": true },
+    { "tz": "australia/west", "ok": true },
+    { "tz": "australia/yancowinna", "ok": true },
+    {
+      "tz": "bet",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "brazil/acre", "ok": true },
+    { "tz": "brazil/denoronha", "ok": true },
+    {
+      "tz": "brazil/east",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    { "tz": "brazil/west", "ok": true },
+    {
+      "tz": "bst",
+      "ok": true,
+      "next": [1767299400000, 1782937800000, 1772915400000, 1793478600000]
+    },
+    {
+      "tz": "canada/atlantic",
+      "ok": true,
+      "next": [1767249000000, 1782883800000, 1772951400000, 1793514600000]
+    },
+    { "tz": "canada/central", "ok": true },
+    { "tz": "canada/eastern", "ok": true },
+    { "tz": "canada/mountain", "ok": true },
+    {
+      "tz": "canada/newfoundland",
+      "ok": true,
+      "next": [1767247200000, 1782882000000, 1772949600000, 1793512800000]
+    },
+    { "tz": "canada/pacific", "ok": true },
+    { "tz": "canada/saskatchewan", "ok": true },
+    { "tz": "canada/yukon", "ok": true },
+    {
+      "tz": "cat",
+      "ok": true,
+      "next": [1767227400000, 1782865800000, 1772929800000, 1793493000000]
+    },
+    {
+      "tz": "cet",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "chile/continental", "ok": true },
+    { "tz": "chile/easterisland", "ok": true },
+    {
+      "tz": "cnt",
+      "ok": true,
+      "next": [1767247200000, 1782882000000, 1772949600000, 1793512800000]
+    },
+    {
+      "tz": "cst",
+      "ok": true,
+      "next": [1767256200000, 1782891000000, 1772958600000, 1793521800000]
+    },
+    {
+      "tz": "cst6cdt",
+      "ok": true,
+      "next": [1767256200000, 1782891000000, 1772958600000, 1793521800000]
+    },
+    {
+      "tz": "ctt",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    { "tz": "cuba", "ok": true },
+    { "tz": "default", "ok": true },
+    {
+      "tz": "eat",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    {
+      "tz": "ect",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    {
+      "tz": "eet",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    { "tz": "egypt", "ok": true },
+    {
+      "tz": "eire",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "est",
+      "ok": true,
+      "next": [1767252600000, 1782891000000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "est5edt",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "etc/gmt",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "etc/gmt+0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "etc/gmt+1",
+      "ok": true,
+      "next": [1767238200000, 1782876600000, 1772940600000, 1793503800000]
+    },
+    {
+      "tz": "etc/gmt+10",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    {
+      "tz": "etc/gmt+11",
+      "ok": true,
+      "next": [1767274200000, 1782912600000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "etc/gmt+12",
+      "ok": true,
+      "next": [1767277800000, 1782916200000, 1772893800000, 1793457000000]
+    },
+    {
+      "tz": "etc/gmt+2",
+      "ok": true,
+      "next": [1767241800000, 1782880200000, 1772944200000, 1793507400000]
+    },
+    {
+      "tz": "etc/gmt+3",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    {
+      "tz": "etc/gmt+4",
+      "ok": true,
+      "next": [1767249000000, 1782887400000, 1772951400000, 1793514600000]
+    },
+    {
+      "tz": "etc/gmt+5",
+      "ok": true,
+      "next": [1767252600000, 1782891000000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "etc/gmt+6",
+      "ok": true,
+      "next": [1767256200000, 1782894600000, 1772958600000, 1793521800000]
+    },
+    {
+      "tz": "etc/gmt+7",
+      "ok": true,
+      "next": [1767259800000, 1782898200000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "etc/gmt+8",
+      "ok": true,
+      "next": [1767263400000, 1782901800000, 1772965800000, 1793529000000]
+    },
+    {
+      "tz": "etc/gmt+9",
+      "ok": true,
+      "next": [1767267000000, 1782905400000, 1772969400000, 1793532600000]
+    },
+    {
+      "tz": "etc/gmt-0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "etc/gmt-1",
+      "ok": true,
+      "next": [1767231000000, 1782869400000, 1772933400000, 1793496600000]
+    },
+    {
+      "tz": "etc/gmt-10",
+      "ok": true,
+      "next": [1767285000000, 1782923400000, 1772901000000, 1793464200000]
+    },
+    {
+      "tz": "etc/gmt-11",
+      "ok": true,
+      "next": [1767281400000, 1782919800000, 1772897400000, 1793460600000]
+    },
+    {
+      "tz": "etc/gmt-12",
+      "ok": true,
+      "next": [1767277800000, 1782916200000, 1772893800000, 1793457000000]
+    },
+    {
+      "tz": "etc/gmt-13",
+      "ok": true,
+      "next": [1767274200000, 1782912600000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "etc/gmt-14",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    {
+      "tz": "etc/gmt-2",
+      "ok": true,
+      "next": [1767227400000, 1782865800000, 1772929800000, 1793493000000]
+    },
+    {
+      "tz": "etc/gmt-3",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    {
+      "tz": "etc/gmt-4",
+      "ok": true,
+      "next": [1767306600000, 1782945000000, 1772922600000, 1793485800000]
+    },
+    {
+      "tz": "etc/gmt-5",
+      "ok": true,
+      "next": [1767303000000, 1782941400000, 1772919000000, 1793482200000]
+    },
+    {
+      "tz": "etc/gmt-6",
+      "ok": true,
+      "next": [1767299400000, 1782937800000, 1772915400000, 1793478600000]
+    },
+    {
+      "tz": "etc/gmt-7",
+      "ok": true,
+      "next": [1767295800000, 1782934200000, 1772911800000, 1793475000000]
+    },
+    {
+      "tz": "etc/gmt-8",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    {
+      "tz": "etc/gmt-9",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    {
+      "tz": "etc/gmt0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "etc/greenwich",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "etc/uct",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "etc/universal",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "etc/utc",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "etc/zulu",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    { "tz": "europe/amsterdam", "ok": true },
+    { "tz": "europe/andorra", "ok": true },
+    { "tz": "europe/astrakhan", "ok": true },
+    {
+      "tz": "europe/athens",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    {
+      "tz": "europe/belfast",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    { "tz": "europe/belgrade", "ok": true },
+    {
+      "tz": "europe/berlin",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "europe/bratislava", "ok": true },
+    {
+      "tz": "europe/brussels",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "europe/bucharest", "ok": true },
+    { "tz": "europe/budapest", "ok": true },
+    { "tz": "europe/busingen", "ok": true },
+    { "tz": "europe/chisinau", "ok": true },
+    { "tz": "europe/copenhagen", "ok": true },
+    {
+      "tz": "europe/dublin",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    { "tz": "europe/gibraltar", "ok": true },
+    { "tz": "europe/guernsey", "ok": true },
+    { "tz": "europe/helsinki", "ok": true },
+    { "tz": "europe/isle_of_man", "ok": true },
+    { "tz": "europe/istanbul", "ok": true },
+    { "tz": "europe/jersey", "ok": true },
+    { "tz": "europe/kaliningrad", "ok": true },
+    {
+      "tz": "europe/kiev",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    { "tz": "europe/kirov", "ok": true },
+    {
+      "tz": "europe/kyiv",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    {
+      "tz": "europe/lisbon",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    { "tz": "europe/ljubljana", "ok": true },
+    {
+      "tz": "europe/london",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    { "tz": "europe/luxembourg", "ok": true },
+    {
+      "tz": "europe/madrid",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "europe/malta", "ok": true },
+    { "tz": "europe/mariehamn", "ok": true },
+    { "tz": "europe/minsk", "ok": true },
+    { "tz": "europe/monaco", "ok": true },
+    {
+      "tz": "europe/moscow",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    { "tz": "europe/nicosia", "ok": true },
+    { "tz": "europe/oslo", "ok": true },
+    {
+      "tz": "europe/paris",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "europe/podgorica", "ok": true },
+    { "tz": "europe/prague", "ok": true },
+    { "tz": "europe/riga", "ok": true },
+    { "tz": "europe/rome", "ok": true },
+    { "tz": "europe/samara", "ok": true },
+    { "tz": "europe/san_marino", "ok": true },
+    { "tz": "europe/sarajevo", "ok": true },
+    { "tz": "europe/saratov", "ok": true },
+    { "tz": "europe/simferopol", "ok": true },
+    { "tz": "europe/skopje", "ok": true },
+    { "tz": "europe/sofia", "ok": true },
+    { "tz": "europe/stockholm", "ok": true },
+    { "tz": "europe/tallinn", "ok": true },
+    { "tz": "europe/tirane", "ok": true },
+    { "tz": "europe/tiraspol", "ok": true },
+    { "tz": "europe/ulyanovsk", "ok": true },
+    {
+      "tz": "europe/uzhgorod",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    { "tz": "europe/vaduz", "ok": true },
+    { "tz": "europe/vatican", "ok": true },
+    { "tz": "europe/vienna", "ok": true },
+    { "tz": "europe/vilnius", "ok": true },
+    { "tz": "europe/volgograd", "ok": true },
+    { "tz": "europe/warsaw", "ok": true },
+    { "tz": "europe/zagreb", "ok": true },
+    {
+      "tz": "europe/zaporozhye",
+      "ok": true,
+      "next": [1767227400000, 1782948600000, 1772929800000, 1793493000000]
+    },
+    { "tz": "europe/zurich", "ok": true },
+    { "tz": "factory", "ok": false },
+    {
+      "tz": "gb",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "gb-eire",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "gmt",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "gmt+0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "gmt-0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "gmt0",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "greenwich",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    { "tz": "hongkong", "ok": true },
+    {
+      "tz": "hst",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    { "tz": "iceland", "ok": true },
+    {
+      "tz": "iet",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    { "tz": "indian/antananarivo", "ok": true },
+    { "tz": "indian/chagos", "ok": true },
+    { "tz": "indian/christmas", "ok": true },
+    { "tz": "indian/cocos", "ok": true },
+    { "tz": "indian/comoro", "ok": true },
+    { "tz": "indian/kerguelen", "ok": true },
+    { "tz": "indian/mahe", "ok": true },
+    { "tz": "indian/maldives", "ok": true },
+    { "tz": "indian/mauritius", "ok": true },
+    { "tz": "indian/mayotte", "ok": true },
+    { "tz": "indian/reunion", "ok": true },
+    {
+      "tz": "iran",
+      "ok": true,
+      "next": [1767308400000, 1782946800000, 1772924400000, 1793487600000]
+    },
+    { "tz": "israel", "ok": true },
+    {
+      "tz": "ist",
+      "ok": true,
+      "next": [1767301200000, 1782939600000, 1772917200000, 1793480400000]
+    },
+    { "tz": "jamaica", "ok": true },
+    {
+      "tz": "japan",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    {
+      "tz": "jst",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    { "tz": "kwajalein", "ok": true },
+    { "tz": "libya", "ok": true },
+    { "tz": "local", "ok": true },
+    { "tz": "localtime", "ok": false },
+    {
+      "tz": "met",
+      "ok": true,
+      "next": [1767231000000, 1782865800000, 1772933400000, 1793496600000]
+    },
+    { "tz": "mexico/bajanorte", "ok": true },
+    { "tz": "mexico/bajasur", "ok": true },
+    { "tz": "mexico/general", "ok": true },
+    {
+      "tz": "mit",
+      "ok": true,
+      "next": [1767274200000, 1782912600000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "mst",
+      "ok": true,
+      "next": [1767259800000, 1782898200000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "mst7mdt",
+      "ok": true,
+      "next": [1767259800000, 1782894600000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "navajo",
+      "ok": true,
+      "next": [1767259800000, 1782894600000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "net",
+      "ok": true,
+      "next": [1767306600000, 1782945000000, 1772922600000, 1793485800000]
+    },
+    {
+      "tz": "nst",
+      "ok": true,
+      "next": [1767274200000, 1782916200000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "nz",
+      "ok": true,
+      "next": [1767274200000, 1782916200000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "nz-chat",
+      "ok": true,
+      "next": [1767271500000, 1782913500000, 1772887500000, 1793450700000]
+    },
+    {
+      "tz": "pacific/apia",
+      "ok": true,
+      "next": [1767274200000, 1782912600000, 1772890200000, 1793453400000]
+    },
+    {
+      "tz": "pacific/auckland",
+      "ok": true,
+      "next": [1767274200000, 1782916200000, 1772890200000, 1793453400000]
+    },
+    { "tz": "pacific/bougainville", "ok": true },
+    {
+      "tz": "pacific/chatham",
+      "ok": true,
+      "next": [1767271500000, 1782913500000, 1772887500000, 1793450700000]
+    },
+    { "tz": "pacific/chuuk", "ok": true },
+    { "tz": "pacific/easter", "ok": true },
+    { "tz": "pacific/efate", "ok": true },
+    { "tz": "pacific/enderbury", "ok": true },
+    { "tz": "pacific/fakaofo", "ok": true },
+    { "tz": "pacific/fiji", "ok": true },
+    { "tz": "pacific/funafuti", "ok": true },
+    { "tz": "pacific/galapagos", "ok": true },
+    { "tz": "pacific/gambier", "ok": true },
+    {
+      "tz": "pacific/guadalcanal",
+      "ok": true,
+      "next": [1767281400000, 1782919800000, 1772897400000, 1793460600000]
+    },
+    { "tz": "pacific/guam", "ok": true },
+    {
+      "tz": "pacific/honolulu",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    {
+      "tz": "pacific/johnston",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    { "tz": "pacific/kanton", "ok": true },
+    { "tz": "pacific/kiritimati", "ok": true },
+    { "tz": "pacific/kosrae", "ok": true },
+    { "tz": "pacific/kwajalein", "ok": true },
+    { "tz": "pacific/majuro", "ok": true },
+    { "tz": "pacific/marquesas", "ok": true },
+    { "tz": "pacific/midway", "ok": true },
+    { "tz": "pacific/nauru", "ok": true },
+    { "tz": "pacific/niue", "ok": true },
+    { "tz": "pacific/norfolk", "ok": true },
+    { "tz": "pacific/noumea", "ok": true },
+    { "tz": "pacific/pago_pago", "ok": true },
+    { "tz": "pacific/palau", "ok": true },
+    { "tz": "pacific/pitcairn", "ok": true },
+    { "tz": "pacific/pohnpei", "ok": true },
+    { "tz": "pacific/ponape", "ok": true },
+    { "tz": "pacific/port_moresby", "ok": true },
+    { "tz": "pacific/rarotonga", "ok": true },
+    { "tz": "pacific/saipan", "ok": true },
+    { "tz": "pacific/samoa", "ok": true },
+    { "tz": "pacific/tahiti", "ok": true },
+    { "tz": "pacific/tarawa", "ok": true },
+    { "tz": "pacific/tongatapu", "ok": true },
+    { "tz": "pacific/truk", "ok": true },
+    { "tz": "pacific/wake", "ok": true },
+    { "tz": "pacific/wallis", "ok": true },
+    { "tz": "pacific/yap", "ok": true },
+    {
+      "tz": "plt",
+      "ok": true,
+      "next": [1767303000000, 1782941400000, 1772919000000, 1793482200000]
+    },
+    {
+      "tz": "pnt",
+      "ok": true,
+      "next": [1767259800000, 1782898200000, 1772962200000, 1793525400000]
+    },
+    { "tz": "poland", "ok": true },
+    {
+      "tz": "portugal",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    { "tz": "posix/America/New_York", "ok": false },
+    { "tz": "posixrules", "ok": false },
+    {
+      "tz": "prc",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    {
+      "tz": "prt",
+      "ok": true,
+      "next": [1767249000000, 1782887400000, 1772951400000, 1793514600000]
+    },
+    {
+      "tz": "pst",
+      "ok": true,
+      "next": [1767263400000, 1782898200000, 1772965800000, 1793529000000]
+    },
+    {
+      "tz": "pst8pdt",
+      "ok": true,
+      "next": [1767263400000, 1782898200000, 1772965800000, 1793529000000]
+    },
+    {
+      "tz": "roc",
+      "ok": true,
+      "next": [1767292200000, 1782930600000, 1772908200000, 1793471400000]
+    },
+    {
+      "tz": "rok",
+      "ok": true,
+      "next": [1767288600000, 1782927000000, 1772904600000, 1793467800000]
+    },
+    { "tz": "singapore", "ok": true },
+    {
+      "tz": "sst",
+      "ok": true,
+      "next": [1767281400000, 1782919800000, 1772897400000, 1793460600000]
+    },
+    { "tz": "system", "ok": true },
+    { "tz": "turkey", "ok": true },
+    {
+      "tz": "uct",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "universal",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "us/alaska",
+      "ok": true,
+      "next": [1767267000000, 1782901800000, 1772969400000, 1793532600000]
+    },
+    { "tz": "us/aleutian", "ok": true },
+    {
+      "tz": "us/arizona",
+      "ok": true,
+      "next": [1767259800000, 1782898200000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "us/central",
+      "ok": true,
+      "next": [1767256200000, 1782891000000, 1772958600000, 1793521800000]
+    },
+    {
+      "tz": "us/east-indiana",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "us/eastern",
+      "ok": true,
+      "next": [1767252600000, 1782887400000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "us/hawaii",
+      "ok": true,
+      "next": [1767270600000, 1782909000000, 1772886600000, 1793449800000]
+    },
+    { "tz": "us/indiana-starke", "ok": true },
+    { "tz": "us/michigan", "ok": true },
+    {
+      "tz": "us/mountain",
+      "ok": true,
+      "next": [1767259800000, 1782894600000, 1772962200000, 1793525400000]
+    },
+    {
+      "tz": "us/pacific",
+      "ok": true,
+      "next": [1767263400000, 1782898200000, 1772965800000, 1793529000000]
+    },
+    { "tz": "us/samoa", "ok": true },
+    {
+      "tz": "utc",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "utc+00",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "utc-0:30",
+      "ok": true,
+      "next": [1767236400000, 1782874800000, 1772938800000, 1793502000000]
+    },
+    {
+      "tz": "utc-5",
+      "ok": true,
+      "next": [1767252600000, 1782891000000, 1772955000000, 1793518200000]
+    },
+    {
+      "tz": "vst",
+      "ok": true,
+      "next": [1767295800000, 1782934200000, 1772911800000, 1793475000000]
+    },
+    {
+      "tz": "w-su",
+      "ok": true,
+      "next": [1767310200000, 1782948600000, 1772926200000, 1793489400000]
+    },
+    {
+      "tz": "wet",
+      "ok": true,
+      "next": [1767234600000, 1782869400000, 1772937000000, 1793500200000]
+    },
+    { "tz": "z", "ok": false },
+    {
+      "tz": "zulu",
+      "ok": true,
+      "next": [1767234600000, 1782873000000, 1772937000000, 1793500200000]
+    },
+    {
+      "tz": "−03:00",
+      "ok": true,
+      "next": [1767245400000, 1782883800000, 1772947800000, 1793511000000]
+    },
+    {
+      "tz": "−0530",
+      "ok": true,
+      "next": [1767254400000, 1782892800000, 1772956800000, 1793520000000]
+    }
+  ]
+}

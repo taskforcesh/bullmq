@@ -46,6 +46,19 @@ let (concurrency, max, duration, max_len_events, paused) = (
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+meta, err := queue.Meta(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+concurrency, max, duration := meta.Concurrency, meta.Max, meta.Duration
+maxLenEvents, paused, version := meta.MaxLenEvents, meta.Paused, meta.Version
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Read more:

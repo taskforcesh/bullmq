@@ -46,6 +46,17 @@ queue.set_global_rate_limit(1, 1000).await?;
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+// 1 job per second
+if err := queue.SetGlobalRateLimit(ctx, 1, time.Second); err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 In order to get these values:
@@ -96,6 +107,20 @@ if let Some((max, duration)) = queue.get_global_rate_limit().await? {
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+limit, err := queue.GlobalRateLimit(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+if limit != nil {
+	log.Printf("%d jobs every %v", limit.Max, limit.Duration)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 And in order to get current ttl:
@@ -137,6 +162,17 @@ long ttl = await queue.GetRateLimitTtlAsync();
 
 ```rust
 let ttl = queue.get_rate_limit_ttl(None).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+ttl, err := queue.RateLimitTTL(ctx, 0)
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -189,6 +225,16 @@ await queue.RemoveGlobalRateLimitAsync();
 
 ```rust
 queue.remove_global_rate_limit().await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+if err := queue.RemoveGlobalRateLimit(ctx); err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}

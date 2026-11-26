@@ -1,6 +1,7 @@
 
 from typing import TypedDict
 from bullmq.types.connection_options import ConnectionOptions
+from bullmq.types.rate_limiter_options import RateLimiterOptions
 
 
 class WorkerOptions(TypedDict, total=False):
@@ -22,6 +23,22 @@ class WorkerOptions(TypedDict, total=False):
 
     @default 1
     @see https://docs.bullmq.io/guide/workers/concurrency
+    """
+
+    limiter: RateLimiterOptions
+    """
+    Enable rate limiter: process at most `max` jobs every `duration`
+    milliseconds across all the workers of the queue.
+
+    @see https://docs.bullmq.io/guide/rate-limiting
+    """
+
+    maximumRateLimitDelay: int
+    """
+    Maximum time in milliseconds a worker stays idle while being rate
+    limited before checking the queue again.
+
+    @default 30000
     """
 
     maxStalledCount: int
