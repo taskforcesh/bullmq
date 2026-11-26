@@ -202,6 +202,12 @@ const ignoredChildrenFailures =
   await originalTree.job.getIgnoredChildrenFailures();
 ```
 
+**Python**
+
+```python
+ignored_children_failures = await originalTree["job"].getIgnoredChildrenFailures()
+```
+
 **Elixir**
 
 ```elixir

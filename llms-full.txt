@@ -12526,6 +12526,54 @@ const tree = await flow.getFlow({
 const { children, job } = tree;
 ```
 
+**Python**
+
+```python
+from bullmq import FlowProducer
+
+flow = FlowProducer({"connection": connection})
+
+original_tree = await flow.add({
+    "name": "root-job",
+    "queueName": "topQueueName",
+    "data": {},
+    "children": [
+        {
+            "name": name,
+            "data": {"idx": 0, "foo": "bar"},
+            "queueName": "childrenQueueName",
+            "children": [
+                {
+                    "name": name,
+                    "data": {"idx": 4, "foo": "baz"},
+                    "queueName": "grandchildrenQueueName",
+                },
+            ],
+        },
+        {
+            "name": name,
+            "data": {"idx": 2, "foo": "foo"},
+            "queueName": "childrenQueueName",
+        },
+        {
+            "name": name,
+            "data": {"idx": 3, "foo": "bis"},
+            "queueName": "childrenQueueName",
+        },
+    ],
+})
+
+top_job = original_tree["job"]
+
+tree = await flow.getFlow({
+    "id": top_job.id,
+    "queueName": "topQueueName",
+})
+
+job = tree["job"]
+children = tree.get("children", [])
+```
+
 **Rust**
 
 ```rust
@@ -12631,6 +12679,20 @@ const limitedTree = await flow.getFlow({
 const { children, job } = limitedTree;
 ```
 
+**Python**
+
+```python
+limited_tree = await flow.getFlow({
+    "id": top_job.id,
+    "queueName": "topQueueName",
+    "depth": 2,  # the root and its direct children
+    "maxChildren": 2,  # about 2 children of each status per node
+})
+
+job = limited_tree["job"]
+children = limited_tree.get("children", [])
+```
+
 **Rust**
 
 ```rust
@@ -12663,7 +12725,7 @@ children, job := limitedTree.Children, limitedTree.Job
 
 > **Note:** `depth` counts the levels of the tree, the root included: `depth: 1` returns only the root job. In Rust, `depth` counts the levels below the root, so `.depth(1)` returns the same tree as `depth: 2` above.
 > 
-> `maxChildren` limits each group of children (processed, unprocessed, failed and ignored) separately. On Redis it is only a hint, passed as the `COUNT` of `SSCAN`/`HSCAN`: small groups are returned whole, so a node may get more children than `maxChildren`. Rust caps the total number of children per node at `max_children`.
+> `maxChildren` limits each group of children (processed, unprocessed, failed and ignored) separately. On Redis, for groups scanned with `SSCAN`/`HSCAN`, it is only a `COUNT` hint: small groups are returned whole, so a node may get more children than `maxChildren`. Rust caps the total number of children per node at `max_children`.
 
 ## Read more:
 
@@ -13567,6 +13629,12 @@ const ignoredChildrenFailures =
   await originalTree.job.getIgnoredChildrenFailures();
 ```
 
+**Python**
+
+```python
+ignored_children_failures = await originalTree["job"].getIgnoredChildrenFailures()
+```
+
 **Elixir**
 
 ```elixir
@@ -13907,6 +13975,8 @@ Source: https://docs.bullmq.io/guide/rate-limiting
 
 BullMQ provides queue rate limiting. It is possible to configure workers so that they obey a given rate limiting option:
 
+**TypeScript**
+
 ```typescript
 import { Worker, QueueScheduler } from 'bullmq';
 
@@ -13918,6 +13988,23 @@ const worker = new Worker('painter', async job => paintCar(job), {
 });
 
 const scheduler = new QueueScheduler('painter');
+```
+
+**Python**
+
+```python
+from bullmq import Worker
+
+async def process(job, token):
+    return await paint_car(job)
+
+worker = Worker("painter", process, {
+    "connection": connection,
+    "limiter": {
+        "max": 10,
+        "duration": 1000,
+    },
+})
 ```
 
 > **Warning:** Jobs that get rate limited will actually stay in the waiting state.
@@ -13961,6 +14048,8 @@ Sometimes is useful to rate-limit a queue manually instead of based on some stat
 
 For this purpose, you can use the worker method **`rateLimit`** like this:
 
+**TypeScript**
+
 ```typescript
 import { Worker } from 'bullmq';
 
@@ -13986,6 +14075,31 @@ const worker = new Worker(
 );
 ```
 
+**Python**
+
+```python
+from bullmq import Worker
+
+async def process(job, token):
+    is_rate_limited, duration = await do_external_call()
+    if is_rate_limited:
+        await worker.rateLimit(duration)
+        # Do not forget to raise this special exception,
+        # since we must differentiate this case from a failure
+        # in order to move the job to wait again.
+        raise Worker.RateLimitError()
+
+worker = Worker("myQueue", process, {
+    "connection": connection,
+    "limiter": {
+        "max": 1,
+        "duration": 500,
+    },
+})
+```
+
+> **Note:** `RateLimitError` can also be imported directly: `from bullmq import RateLimitError`. The rate-limited job is moved back to wait without being marked as failed and without consuming an attempt.
+
 > **Warning:** Don't forget to pass limiter options into your worker's options as _limiter.max_ is used to determine if we need to execute the rate limit validation.
 
 ### Get Queue Rate Limit Ttl
@@ -13993,6 +14107,8 @@ const worker = new Worker(
 Sometimes is useful to know if our queue is rate limited.
 
 For this purpose, you can use the **`getRateLimitTtl`** method like this:
+
+**TypeScript**
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -14007,11 +14123,26 @@ if (ttl > 0) {
 }
 ```
 
+**Python**
+
+```python
+from bullmq import Queue
+
+queue = Queue("myQueue", {"connection": connection})
+
+ttl = await queue.getRateLimitTtl()
+
+if ttl > 0:
+    print("Queue is rate limited")
+```
+
 ### Remove Rate Limit Key
 
 Sometimes is useful to stop a rate limit delay.
 
 For this purpose, you can use the **`removeRateLimitKey`** method like this:
+
+**TypeScript**
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -14019,6 +14150,16 @@ import { Queue } from 'bullmq';
 const queue = new Queue('myQueue', { connection });
 
 await queue.removeRateLimitKey();
+```
+
+**Python (Redis only)**
+
+```python
+from bullmq import Queue
+
+queue = Queue("myQueue", {"connection": connection})
+
+await queue.removeRateLimitKey()
 ```
 
 By removing rate limit key, workers will be able to pick jobs again and your rate limit counter is reset to zero.
