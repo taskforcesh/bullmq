@@ -17,9 +17,12 @@
 local rcall = redis.call
 
 -- Includes
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/isJobSchedulerJob"
 --- @include "includes/isLocked"
 --- @include "includes/removeJobWithChildren"
+
+allowWritesOnOOM(KEYS[1])
 
 local jobId = ARGV[1]
 local shouldRemoveChildren = ARGV[2]

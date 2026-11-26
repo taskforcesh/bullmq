@@ -23,9 +23,12 @@
 local rcall = redis.call
 
 -- Includes
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/batches"
 --- @include "includes/moveJobToWait"
 --- @include "includes/trimEvents"
+
+allowWritesOnOOM(KEYS[1])
 
 local stalledKey = KEYS[1]
 local waitKey = KEYS[2]

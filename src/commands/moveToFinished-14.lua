@@ -60,6 +60,7 @@
 local rcall = redis.call
 
 --- Includes
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/collectMetrics"
 --- @include "includes/fetchNextJob"
 --- @include "includes/moveChildFromDependenciesIfNeeded"
@@ -73,6 +74,8 @@ local rcall = redis.call
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/updateJobFields"
+
+allowWritesOnOOM(KEYS[1])
 
 local jobIdKey = KEYS[12]
 if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists

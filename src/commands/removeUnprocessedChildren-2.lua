@@ -13,8 +13,13 @@
       'removed' for every children removed
 ]]
 
+local rcall = redis.call
+
 -- Includes
+--- @include "includes/allowWritesOnOOM"
 --- @include "includes/removeJobWithChildren"
+
+allowWritesOnOOM(KEYS[1])
 
 local prefix = ARGV[1]
 local jobId = ARGV[2]
