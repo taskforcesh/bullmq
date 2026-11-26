@@ -189,6 +189,16 @@ describe('Job', () => {
       });
     });
 
+    describe('when priority option is provided with a negative value', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { priority: -1 };
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
+          'Priority should be between 0 and 2097151',
+        );
+      });
+    });
+
     describe('when deduplication id option is provided as empty string', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
@@ -1261,6 +1271,43 @@ describe('Job', () => {
 
         const updatedJob = await queue.getJob(job.id!);
         expect(updatedJob!.priority).toEqual(10);
+      });
+    });
+
+    describe('when priority is out of range', () => {
+      it('throws an error and keeps the current priority', async () => {
+        const job = await Job.create(
+          queue,
+          'test',
+          { foo: 'bar' },
+          { priority: 3 },
+        );
+
+        await expect(job.changePriority({ priority: -1 })).rejects.toThrow(
+          'Priority should be between 0 and 2097151',
+        );
+        await expect(job.changePriority({ priority: 2097152 })).rejects.toThrow(
+          'Priority should be between 0 and 2097151',
+        );
+
+        expect(job.priority).toEqual(3);
+        const storedJob = await queue.getJob(job.id!);
+        expect(storedJob!.priority).toEqual(3);
+      });
+    });
+
+    describe('when priority is provided as float', () => {
+      it('throws an error', async () => {
+        const job = await Job.create(
+          queue,
+          'test',
+          { foo: 'bar' },
+          { priority: 3 },
+        );
+
+        await expect(job.changePriority({ priority: 1.5 })).rejects.toThrow(
+          'Priority should not be float',
+        );
       });
     });
 
