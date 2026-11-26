@@ -36,6 +36,15 @@ await queue.SetGlobalRateLimitAsync(1, 1000);
 
 {% endtab %}
 
+{% tab title="Elixir" %}
+
+```elixir
+# 1 job per second
+:ok = BullMQ.Queue.set_global_rate_limit("my-queue", 1, 1000, connection: :my_redis)
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
@@ -217,6 +226,14 @@ await queue.removeGlobalRateLimit()
 
 ```csharp
 await queue.RemoveGlobalRateLimitAsync();
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+:ok = BullMQ.Queue.remove_global_rate_limit("my-queue", connection: :my_redis)
 ```
 
 {% endtab %}

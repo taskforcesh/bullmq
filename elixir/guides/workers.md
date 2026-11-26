@@ -165,15 +165,18 @@ end
 
 Processors can return different values to control job outcome:
 
-| Return Value        | Description                                                                        |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| `{:ok, result}`     | Job completed successfully. Result is stored and `on_completed` callback fires.    |
-| `:ok`               | Job completed successfully (no result stored).                                     |
-| `{:error, reason}`  | Job failed. Triggers retry if attempts remain, otherwise moves to failed.          |
-| `{:delay, ms}`      | Move job to delayed state for `ms` milliseconds. Does not increment attempt count. |
-| `{:rate_limit, ms}` | Move job to delayed state due to rate limiting. Similar to `:delay`.               |
-| `:waiting`          | Move job back to waiting queue immediately.                                        |
-| `:waiting_children` | Move job to waiting-children state (waits for child jobs to complete).             |
+| Return Value              | Description                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `{:ok, result}`           | Job completed successfully. Result is stored and `on_completed` callback fires.    |
+| `:ok`                     | Job completed successfully (no result stored).                                     |
+| `{:error, reason}`        | Job failed. Triggers retry if attempts remain, otherwise moves to failed.          |
+| `{:delay, ms}`            | Move job to delayed state for `ms` milliseconds. Does not increment attempt count. |
+| `{:rate_limit, ms}`       | Move job to delayed state due to rate limiting. Similar to `:delay`.               |
+| `:rate_limited`           | Move job back to wait and pause this worker until the queue rate limit expires.    |
+| `{:rate_limit_queue, ms}` | Rate limit the whole queue for `ms`, then behave like `:rate_limited`.             |
+| `:delayed`                | The processor already moved the job (e.g. `BullMQ.Job.move_to_delayed/3`).         |
+| `:waiting`                | Move job back to waiting queue immediately.                                        |
+| `:waiting_children`       | Move job to waiting-children state (waits for child jobs to complete).             |
 
 ```elixir
 def process(job) do
@@ -272,10 +275,79 @@ end
 
 **Key behaviors:**
 
-- Identical to `{:delay, ms}` in execution
+- Identical to `{:delay, ms}` in execution: only **this job** is delayed
 - Semantically indicates rate limiting (useful for logging/monitoring)
 - Does NOT increment the attempt count
 - Does NOT trigger `on_completed` callback
+- Does NOT rate limit the queue: other jobs keep being processed. Use
+  `:rate_limited` / `{:rate_limit_queue, ms}` for that (see below).
+
+#### `:rate_limited` and `{:rate_limit_queue, ms}` - Rate Limit the Queue
+
+These returns mirror the Node.js pattern `await queue.rateLimit(ms); throw
+Worker.RateLimitError();`. The job goes back to the **wait** list (not
+delayed), without consuming an attempt and without emitting `failed`, and the
+worker stops fetching jobs until the queue rate limit expires:
+
+```elixir
+def process(job) do
+  case MyApp.ExternalAPI.call(job.data) do
+    {:ok, response} ->
+      {:ok, response}
+
+    {:error, 429, headers} ->
+      retry_ms = parse_retry_after(headers) || 60_000
+      # Sets the queue limiter for retry_ms and moves the job back to wait
+      {:rate_limit_queue, retry_ms}
+  end
+end
+```
+
+`{:rate_limit_queue, ms}` is shorthand for calling
+`BullMQ.Queue.rate_limit(job.queue_name, ms, connection: ...)` and then
+returning `:rate_limited`. Use `:rate_limited` on its own when the limiter was
+already set (for example by another process).
+
+**Key behaviors:**
+
+- The whole queue is rate limited: every worker with a `:limiter` (or a queue
+  with a global rate limit, see `BullMQ.Queue.set_global_rate_limit/4`) stops
+  fetching jobs until the window expires. The worker that returned it waits
+  for the window even if it has no `:limiter`.
+- The job keeps its position rules (back to wait/prioritized) and is processed
+  again once the limit expires
+- Does NOT increment the attempt count (`attempts_started` is incremented, as
+  in Node.js)
+- Does NOT trigger `on_completed` or `on_failed`
+
+| Return                    | Job goes to | Queue rate limited | Node.js equivalent                        |
+| ------------------------- | ----------- | ------------------ | ----------------------------------------- |
+| `{:rate_limit, ms}`       | delayed     | No                 | `job.moveToDelayed(...)` + `DelayedError` |
+| `:rate_limited`           | wait        | Already set        | `throw Worker.RateLimitError()`           |
+| `{:rate_limit_queue, ms}` | wait        | Yes, for `ms`      | `queue.rateLimit(ms)` + `RateLimitError`  |
+
+#### `:delayed` - The Job Was Already Moved
+
+Use it after moving the job yourself with `BullMQ.Job.move_to_delayed/3` (the
+equivalent of throwing a `DelayedError` in Node.js). The worker does not touch
+the job:
+
+```elixir
+def process(job) do
+  case check_resource_status(job.data["resource_id"]) do
+    :ready ->
+      {:ok, process_resource(job.data)}
+
+    {:retry_at, timestamp_ms} ->
+      :ok = BullMQ.Job.move_to_delayed(job, timestamp_ms)
+      :delayed
+  end
+end
+```
+
+`BullMQ.Job.move_to_delayed/3` takes an **absolute** timestamp in milliseconds
+and does not consume an attempt. `{:delay, ms}` remains the simplest option
+when a relative delay is enough.
 
 #### `:waiting` - Return to Waiting Queue
 
@@ -347,16 +419,19 @@ end
 
 ### Comparison Summary
 
-| Return Value        | Queue State      | Delay     | Increment Attempts | on_completed                |
-| ------------------- | ---------------- | --------- | ------------------ | --------------------------- |
-| `{:ok, result}`     | completed        | -         | -                  | ✅ Yes                      |
-| `:ok`               | completed        | -         | -                  | ✅ Yes                      |
-| `{:error, reason}`  | delayed/failed   | backoff   | ✅ Yes             | ❌ No (until final failure) |
-| `{:error, reason}`  | delayed/failed   | backoff   | ✅ Yes             | ❌ No (until final failure) |
-| `{:delay, ms}`      | delayed          | specified | ❌ No              | ❌ No                       |
-| `{:rate_limit, ms}` | delayed          | specified | ❌ No              | ❌ No                       |
-| `:waiting`          | waiting          | none      | ❌ No              | ❌ No                       |
-| `:waiting_children` | waiting-children | none      | ❌ No              | ❌ No                       |
+| Return Value              | Queue State        | Delay              | Increment Attempts | on_completed                |
+| ------------------------- | ------------------ | ------------------ | ------------------ | --------------------------- |
+| `{:ok, result}`           | completed          | -                  | -                  | ✅ Yes                      |
+| `:ok`                     | completed          | -                  | -                  | ✅ Yes                      |
+| `{:error, reason}`        | delayed/failed     | backoff            | ✅ Yes             | ❌ No (until final failure) |
+| `{:error, reason}`        | delayed/failed     | backoff            | ✅ Yes             | ❌ No (until final failure) |
+| `{:delay, ms}`            | delayed            | specified          | ❌ No              | ❌ No                       |
+| `{:rate_limit, ms}`       | delayed            | specified          | ❌ No              | ❌ No                       |
+| `:rate_limited`           | waiting            | limiter            | ❌ No              | ❌ No                       |
+| `{:rate_limit_queue, ms}` | waiting            | `ms`               | ❌ No              | ❌ No                       |
+| `:delayed`                | (set by processor) | (set by processor) | ❌ No              | ❌ No                       |
+| `:waiting`                | waiting            | none               | ❌ No              | ❌ No                       |
+| `:waiting_children`       | waiting-children   | none               | ❌ No              | ❌ No                       |
 
 ### Failures: `{:error, reason}` vs Exceptions
 

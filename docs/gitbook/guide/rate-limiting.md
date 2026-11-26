@@ -34,6 +34,20 @@ var worker = new Worker("painter", async (job, ct) => await PaintCar(job), new W
 
 {% endtab %}
 
+{% tab title="Elixir" %}
+
+```elixir
+{:ok, worker} =
+  BullMQ.Worker.start_link(
+    queue: "painter",
+    connection: :my_redis,
+    processor: &paint_car/1,
+    limiter: %{max: 10, duration: 1000}
+  )
+```
+
+{% endtab %}
+
 {% tab title="Python" %}
 
 ```python
@@ -164,6 +178,33 @@ worker = new Worker(
 
 {% endtab %}
 
+{% tab title="Elixir" %}
+
+```elixir
+{:ok, worker} =
+  BullMQ.Worker.start_link(
+    queue: "myQueue",
+    connection: :my_redis,
+    limiter: %{max: 1, duration: 500},
+    processor: fn job ->
+      case do_external_call(job.data) do
+        {:rate_limited, duration} ->
+          # Sets the queue rate limit for `duration` ms and moves the job
+          # back to wait (no attempt consumed, no failed event).
+          # Equivalent to:
+          #   :ok = BullMQ.Queue.rate_limit("myQueue", duration, connection: :my_redis)
+          #   :rate_limited
+          {:rate_limit_queue, duration}
+
+        {:ok, result} ->
+          {:ok, result}
+      end
+    end
+  )
+```
+
+{% endtab %}
+
 {% tab title="Python" %}
 
 ```python
@@ -196,6 +237,10 @@ worker = Worker("myQueue", process, {
 
 {% hint style="warning" %}
 Don't forget to pass limiter options into your worker's options as _limiter.max_ is used to determine if we need to execute the rate limit validation.
+{% endhint %}
+
+{% hint style="info" %}
+In Elixir, the older `{:rate_limit, ms}` processor return only moves the current job to the delayed set (like `{:delay, ms}`) and does not rate limit the queue. Use `{:rate_limit_queue, ms}` or `BullMQ.Queue.rate_limit/3` + `:rate_limited` for the behaviour described here.
 {% endhint %}
 
 ### Get Queue Rate Limit Ttl
@@ -235,6 +280,21 @@ if (ttl > 0)
 {
     Console.WriteLine("Queue is rate limited");
 }
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+max_jobs = 100
+
+{:ok, ttl} =
+  BullMQ.Queue.get_rate_limit_ttl("myQueue", connection: :my_redis, max_jobs: max_jobs)
+
+if ttl > 0 do
+  IO.puts("Queue is rate limited")
+end
 ```
 
 {% endtab %}
@@ -282,6 +342,14 @@ using BullMQ;
 var queue = new Queue("myQueue", new QueueOptions { Connection = connection });
 
 await queue.RemoveRateLimitKeyAsync();
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+{:ok, _removed} = BullMQ.Queue.remove_rate_limit_key("myQueue", connection: :my_redis)
 ```
 
 {% endtab %}

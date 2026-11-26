@@ -1269,7 +1269,7 @@ defmodule BullMQ.Scripts do
       Keys.paused(ctx),
       Keys.meta(ctx),
       Keys.limiter(ctx),
-      Keys.pc(ctx),
+      Keys.prioritized(ctx),
       Keys.marker(ctx),
       Keys.events(ctx)
     ]
@@ -2183,6 +2183,12 @@ defmodule BullMQ.Scripts do
         nil
       )
       |> maybe_add_opt(
+        "cpof",
+        Map.get(job_opts, :continue_parent_on_failure) ||
+          Map.get(job_opts, "continueParentOnFailure"),
+        nil
+      )
+      |> maybe_add_opt(
         "idof",
         Map.get(job_opts, :ignore_dependency_on_failure) ||
           Map.get(job_opts, "ignoreDependencyOnFailure"),
@@ -2197,9 +2203,31 @@ defmodule BullMQ.Scripts do
       |> maybe_add_opt("kl", Map.get(job_opts, :keep_logs) || Map.get(job_opts, "keepLogs"), nil)
       |> maybe_add_opt("rep", get_repeat_opts(job_opts), nil)
       |> maybe_add_opt("de", get_deduplication_opts(job_opts), nil)
-      |> Map.merge(additional_opts)
+      |> Map.merge(compress_add_opts(additional_opts))
 
     Msgpax.pack!(opts, iodata: false)
+  end
+
+  # Same short names as the Node.js `optsEncodeMap`.
+  @opts_short_names %{
+    "failParentOnFailure" => "fpof",
+    "continueParentOnFailure" => "cpof",
+    "ignoreDependencyOnFailure" => "idof",
+    "removeDependencyOnFailure" => "rdof",
+    "keepLogs" => "kl"
+  }
+
+  # Turns the add options (Node.js option names, see
+  # `BullMQ.Job.encode_add_opts/1`) into the shape Node.js stores in Redis:
+  # compressible options use their short key, deduplication is already packed
+  # as `de` from the job options, and internal control flags are not stored.
+  defp compress_add_opts(additional_opts) do
+    additional_opts
+    |> Map.drop([:defer_parent_release, "deduplication"])
+    |> Map.new(fn {key, value} ->
+      key = to_string(key)
+      {Map.get(@opts_short_names, key, key), value}
+    end)
   end
 
   defp maybe_add_opt(map, _key, nil, _default), do: map

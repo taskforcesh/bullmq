@@ -122,19 +122,26 @@ defmodule BullMQ.Types do
           boolean() | non_neg_integer() | %{age: duration_ms()} | %{count: non_neg_integer()}
 
   @typedoc """
-  Worker failure behavior for parent jobs.
+  When `true`, a failed child job fails its parent.
   """
   @type fail_parent_on_failure :: boolean()
 
   @typedoc """
-  Ignore dependency behavior.
+  When `true`, a failed child job lets its parent continue (the parent is
+  processed even though the child failed).
   """
-  @type ignore_dependency :: boolean()
+  @type continue_parent_on_failure :: boolean()
 
   @typedoc """
-  Remove dependency behavior.
+  When `true`, a failed child job is recorded as an ignored failure
+  (`BullMQ.Job.get_ignored_children_failures/1`) and the parent continues.
   """
-  @type remove_dependency :: boolean()
+  @type ignore_dependency_on_failure :: boolean()
+
+  @typedoc """
+  When `true`, a failed child job is removed from its parent's dependencies.
+  """
+  @type remove_dependency_on_failure :: boolean()
 
   @typedoc """
   Job options for adding a job to the queue.
@@ -154,8 +161,9 @@ defmodule BullMQ.Types do
           optional(:repeat) => repeat_opts(),
           optional(:deduplication) => deduplication_opts(),
           optional(:fail_parent_on_failure) => fail_parent_on_failure(),
-          optional(:ignore_dependency) => ignore_dependency(),
-          optional(:remove_dependency) => remove_dependency(),
+          optional(:continue_parent_on_failure) => continue_parent_on_failure(),
+          optional(:ignore_dependency_on_failure) => ignore_dependency_on_failure(),
+          optional(:remove_dependency_on_failure) => remove_dependency_on_failure(),
           optional(:telemetry_metadata) => String.t(),
           optional(:omit_context) => boolean()
         }
