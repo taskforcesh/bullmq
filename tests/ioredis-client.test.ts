@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 
 import * as sinon from 'sinon';
 import { createIORedisClient } from '../src/classes/ioredis-client';
+import { version } from '../src/version';
 
 describe('createIORedisClient duplicate routing', () => {
   it('should route duplicate({ connectionName }) through redisOptions for Cluster', () => {
@@ -135,8 +136,116 @@ describe('createIORedisClient duplicate routing', () => {
     const args = fakeRedisDuplicate.getCall(0).args;
 
     // For non-cluster, options go directly as first arg
-    expect(args[0]).toEqual({ connectionName: 'bull:abc:w:myWorker' });
+    expect(args[0]).toMatchObject({ connectionName: 'bull:abc:w:myWorker' });
     expect(args[1]).toBeUndefined();
+  });
+});
+
+describe('createIORedisClient duplicate clientInfoTag', () => {
+  const defaultTag = `bullmq_v${version}`;
+
+  function createFakeClient(isCluster: boolean, options: Record<string, any>) {
+    const stubs = () => ({
+      pipeline: sinon.stub().returns({ exec: sinon.stub() }),
+      multi: sinon.stub(),
+      defineCommand: sinon.stub(),
+      hset: sinon.stub(),
+      set: sinon.stub(),
+      zrange: sinon.stub(),
+      zrevrange: sinon.stub(),
+      xadd: sinon.stub(),
+      xread: sinon.stub(),
+      xtrim: sinon.stub(),
+      bzpopmin: sinon.stub(),
+      scan: sinon.stub(),
+      client: sinon.stub(),
+      status: 'ready',
+      on: sinon.stub(),
+      once: sinon.stub(),
+      off: sinon.stub(),
+      connect: sinon.stub(),
+      disconnect: sinon.stub(),
+      scanStream: sinon.stub(),
+    });
+    const duplicate = sinon.stub().returns({
+      isCluster,
+      options: {},
+      duplicate: sinon.stub(),
+      ...stubs(),
+    });
+    const fake = { isCluster, options, duplicate, ...stubs() } as any;
+    return { fake, duplicate };
+  }
+
+  it('defaults clientInfoTag on a Redis duplicate when the source has none', () => {
+    const { fake, duplicate } = createFakeClient(false, {});
+
+    createIORedisClient(fake).duplicate({ connectionName: 'bull:abc' });
+
+    expect(duplicate.getCall(0).args[0]).toEqual({
+      connectionName: 'bull:abc',
+      clientInfoTag: defaultTag,
+    });
+  });
+
+  it('defaults clientInfoTag when duplicate() is called without options', () => {
+    const { fake, duplicate } = createFakeClient(false, {});
+
+    createIORedisClient(fake).duplicate();
+
+    expect(duplicate.getCall(0).args[0]).toEqual({ clientInfoTag: defaultTag });
+  });
+
+  it('does not override a clientInfoTag already set on the source Redis client', () => {
+    const { fake, duplicate } = createFakeClient(false, {
+      clientInfoTag: 'my-app',
+    });
+
+    createIORedisClient(fake).duplicate({ connectionName: 'bull:abc' });
+
+    // ioredis inherits the source options on duplicate, so no tag is injected
+    expect(duplicate.getCall(0).args[0]).toEqual({
+      connectionName: 'bull:abc',
+    });
+  });
+
+  it('lets a caller-provided clientInfoTag win', () => {
+    const { fake, duplicate } = createFakeClient(false, {});
+
+    createIORedisClient(fake).duplicate({ clientInfoTag: 'caller-tag' });
+
+    expect(duplicate.getCall(0).args[0]).toEqual({
+      clientInfoTag: 'caller-tag',
+    });
+  });
+
+  it('defaults clientInfoTag under redisOptions for a Cluster duplicate', () => {
+    const { fake, duplicate } = createFakeClient(true, {
+      redisOptions: { password: 'secret' },
+    });
+
+    createIORedisClient(fake).duplicate({ connectionName: 'bull:abc' });
+
+    const args = duplicate.getCall(0).args;
+    expect(args[0]).toBeUndefined();
+    expect(args[1].redisOptions).toEqual({
+      password: 'secret',
+      connectionName: 'bull:abc',
+      clientInfoTag: defaultTag,
+    });
+  });
+
+  it('does not override a clientInfoTag already set on the source Cluster client', () => {
+    const { fake, duplicate } = createFakeClient(true, {
+      redisOptions: { clientInfoTag: 'my-app' },
+    });
+
+    createIORedisClient(fake).duplicate({ connectionName: 'bull:abc' });
+
+    expect(duplicate.getCall(0).args[1].redisOptions).toEqual({
+      clientInfoTag: 'my-app',
+      connectionName: 'bull:abc',
+    });
   });
 });
 

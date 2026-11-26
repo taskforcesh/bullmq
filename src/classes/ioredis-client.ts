@@ -1,5 +1,6 @@
 import type { Cluster, Redis, ChainableCommander } from 'ioredis';
 import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
+import { version as packageVersion } from '../version';
 
 /**
  * Per-raw-client cache so repeated calls to `createIORedisClient` with the
@@ -97,18 +98,29 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
   // at the top level. Normalise so callers can always pass `{ connectionName }`.
   if (typeof (client as any).duplicate === 'function') {
     overrides.duplicate = (opts?: Record<string, any>): IRedisClient => {
+      const existingOpts = isCluster
+        ? (client as any).options?.redisOptions || {}
+        : (client as any).options || {};
+      // Duplicates are owned by BullMQ, so tag them for Redis driver
+      // identification (CLIENT SETINFO LIB-NAME) unless the source client or
+      // the caller already provides a clientInfoTag.
+      // See: https://redis.io/docs/latest/commands/client-setinfo/
+      const hasClientInfoTag =
+        opts?.clientInfoTag !== undefined ||
+        existingOpts.clientInfoTag !== undefined;
+      const duplicateOpts = hasClientInfoTag
+        ? opts
+        : { ...opts, clientInfoTag: `bullmq_v${packageVersion}` };
       if (isCluster) {
-        const existingRedisOpts = (client as any).options?.redisOptions || {};
-        const mergedRedisOpts = opts
-          ? { ...existingRedisOpts, ...opts }
-          : existingRedisOpts;
         return createIORedisClient(
           (client as any).duplicate(undefined, {
-            redisOptions: mergedRedisOpts,
+            redisOptions: { ...existingOpts, ...duplicateOpts },
           }),
         );
       }
-      return createIORedisClient((client as any).duplicate(opts as any));
+      return createIORedisClient(
+        (client as any).duplicate(duplicateOpts as any),
+      );
     };
   }
 
