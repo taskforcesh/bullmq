@@ -140,4 +140,34 @@ class JobOptionsTest extends TestCase
         $this->assertTrue($array['idof']);
         $this->assertArrayNotHasKey('rdof', $array);
     }
+    public function testStoredOptionsRoundTrip(): void
+    {
+        $options = JobOptions::fromArray([
+            'failParentOnFailure' => true,
+            'continueParentOnFailure' => true,
+            'ignoreDependencyOnFailure' => true,
+            'removeDependencyOnFailure' => true,
+            'keepLogs' => 5,
+            'deduplication' => ['id' => 'd'],
+        ]);
+
+        // As stored in Redis (short names), then read back
+        $stored = json_decode(json_encode($options->toArray()), true);
+        $readBack = JobOptions::fromArray($stored);
+
+        $this->assertTrue($readBack->failParentOnFailure);
+        $this->assertTrue($readBack->continueParentOnFailure);
+        $this->assertTrue($readBack->ignoreDependencyOnFailure);
+        $this->assertTrue($readBack->removeDependencyOnFailure);
+        $this->assertSame(5, $readBack->keepLogs);
+        $this->assertSame(['id' => 'd'], $readBack->deduplication);
+        $this->assertEquals($options->toArray(), $readBack->toArray());
+    }
+
+    public function testLongNamesWinOverStoredOnes(): void
+    {
+        $options = JobOptions::fromArray(['keepLogs' => 3, 'kl' => 9]);
+
+        $this->assertSame(3, $options->keepLogs);
+    }
 }

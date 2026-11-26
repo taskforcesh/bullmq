@@ -471,6 +471,26 @@ class QueueTest extends TestCase
         $this->assertNotNull($rawOpts);
         $storedOpts = json_decode($rawOpts, true);
         $this->assertTrue($storedOpts[$shortKey]);
+
+        // Read back from Redis, the option is kept
+        $retrieved = $this->queue->getJob($child->id);
+        $this->assertNotNull($retrieved);
+        $this->assertTrue($retrieved->opts->{$option});
+        $this->assertTrue($retrieved->opts->toArray()[$shortKey]);
+    }
+
+    public function testStoredShortOptionsAreReadBack(): void
+    {
+        $deduplication = ['id' => 'dedup-' . uniqid(), 'ttl' => 60000];
+        $job = $this->queue->add('job', ['n' => 1], [
+            'keepLogs' => 10,
+            'deduplication' => $deduplication,
+        ]);
+
+        $retrieved = $this->queue->getJob($job->id);
+        $this->assertNotNull($retrieved);
+        $this->assertSame(10, $retrieved->opts->keepLogs);
+        $this->assertEquals($deduplication, $retrieved->opts->deduplication);
     }
 
     public function testRemoveDependencyOnFailureStoresRdofNotIdof(): void

@@ -114,13 +114,33 @@ class JobOptions
     public ?array $deduplication = null;
 
     /**
-     * Create JobOptions from an associative array.
+     * Short names under which options are stored in Redis (see toArray), as in
+     * the Node.js client's optsDecodeMap.
+     */
+    private const STORED_NAMES = [
+        'de' => 'deduplication',
+        'fpof' => 'failParentOnFailure',
+        'cpof' => 'continueParentOnFailure',
+        'idof' => 'ignoreDependencyOnFailure',
+        'kl' => 'keepLogs',
+        'rdof' => 'removeDependencyOnFailure',
+    ];
+
+    /**
+     * Create JobOptions from an associative array: options as given, or as
+     * stored (short names), e.g. read back from Redis.
      *
      * @param array<string, mixed> $options
      */
     public static function fromArray(array $options): self
     {
         $instance = new self();
+
+        foreach (self::STORED_NAMES as $stored => $name) {
+            if (array_key_exists($stored, $options) && !array_key_exists($name, $options)) {
+                $options[$name] = $options[$stored];
+            }
+        }
 
         if (isset($options['jobId'])) {
             $instance->jobId = (string) $options['jobId'];
