@@ -70,6 +70,11 @@ export function finishedErrors({
         `Cannot create job scheduler iteration - current and next time slots already have jobs. ${command}`,
       );
       break;
+    case ErrorCode.SchedulerEndDateReached:
+      error = new Error(
+        `Cannot create job scheduler iteration - the next iteration would be scheduled after the endDate. ${command}`,
+      );
+      break;
     default:
       error = new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
   }

@@ -89,7 +89,13 @@ if every then
     end
 
     local startDate = schedulerOpts['startDate']
-    nextMillis, newOffset = getJobSchedulerEveryNextMillis(millis, every, now, offset, startDate)
+    nextMillis, newOffset = getJobSchedulerEveryNextMillis(millis, every, now, offset, startDate,
+        schedulerOpts['endDate'])
+
+    if not nextMillis then
+        -- The next iteration would be due after the scheduler's endDate.
+        return -12 -- SchedulerEndDateReached
+    end
 end
 
 local function removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey, jobId, metaKey,
