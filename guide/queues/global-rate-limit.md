@@ -20,6 +20,13 @@ from bullmq import Queue
 await queue.setGlobalRateLimit(1, 1000)
 ```
 
+**Elixir**
+
+```elixir
+# 1 job per second
+:ok = BullMQ.Queue.set_global_rate_limit("my-queue", 1, 1000, connection: :my_redis)
+```
+
 **Rust**
 
 ```rust
@@ -145,6 +152,12 @@ await queue.removeGlobalRateLimit();
 
 ```python
 await queue.removeGlobalRateLimit()
+```
+
+**Elixir**
+
+```elixir
+:ok = BullMQ.Queue.remove_global_rate_limit("my-queue", connection: :my_redis)
 ```
 
 **Rust**

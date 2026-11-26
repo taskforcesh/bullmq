@@ -2493,6 +2493,12 @@ from bullmq import Queue
 await queue.setGlobalConcurrency(4)
 ```
 
+**Elixir**
+
+```elixir
+:ok = BullMQ.Queue.set_global_concurrency("my-queue", 4, connection: :my_redis)
+```
+
 **Rust**
 
 ```rust
@@ -2563,6 +2569,12 @@ await queue.removeGlobalConcurrency();
 await queue.removeGlobalConcurrency()
 ```
 
+**Elixir**
+
+```elixir
+:ok = BullMQ.Queue.remove_global_concurrency("my-queue", connection: :my_redis)
+```
+
 **Rust**
 
 ```rust
@@ -2607,6 +2619,13 @@ from bullmq import Queue
 
 # 1 job per second
 await queue.setGlobalRateLimit(1, 1000)
+```
+
+**Elixir**
+
+```elixir
+# 1 job per second
+:ok = BullMQ.Queue.set_global_rate_limit("my-queue", 1, 1000, connection: :my_redis)
 ```
 
 **Rust**
@@ -2734,6 +2753,12 @@ await queue.removeGlobalRateLimit();
 
 ```python
 await queue.removeGlobalRateLimit()
+```
+
+**Elixir**
+
+```elixir
+:ok = BullMQ.Queue.remove_global_rate_limit("my-queue", connection: :my_redis)
 ```
 
 **Rust**
@@ -12043,8 +12068,8 @@ state = await job.getState()
 **Elixir**
 
 ```elixir
-{:ok, state} = BullMQ.Queue.get_job_state(job.queue_name, job.id, connection: :my_redis)
-# state will be :waiting_children
+{:ok, state} = BullMQ.Job.get_state(job)
+# state will be "waiting-children"
 ```
 
 **.NET**
@@ -12526,6 +12551,46 @@ const tree = await flow.getFlow({
 const { children, job } = tree;
 ```
 
+**Elixir**
+
+```elixir
+{:ok, original_tree} =
+  BullMQ.FlowProducer.add(
+    %{
+      name: "root-job",
+      queue_name: "topQueueName",
+      data: %{},
+      children: [
+        %{
+          name: name,
+          data: %{idx: 0, foo: "bar"},
+          queue_name: "childrenQueueName",
+          children: [
+            %{
+              name: name,
+              data: %{idx: 4, foo: "baz"},
+              queue_name: "grandchildrenQueueName"
+            }
+          ]
+        },
+        %{name: name, data: %{idx: 2, foo: "foo"}, queue_name: "childrenQueueName"},
+        %{name: name, data: %{idx: 3, foo: "bis"}, queue_name: "childrenQueueName"}
+      ]
+    },
+    connection: :my_redis
+  )
+
+top_job = original_tree.job
+
+{:ok, tree} =
+  BullMQ.FlowProducer.get_flow(
+    %{id: top_job.id, queue_name: "topQueueName"},
+    connection: :my_redis
+  )
+
+%{job: job, children: children} = tree
+```
+
 **Python**
 
 ```python
@@ -12677,6 +12742,23 @@ const limitedTree = await flow.getFlow({
 });
 
 const { children, job } = limitedTree;
+```
+
+**Elixir**
+
+```elixir
+{:ok, limited_tree} =
+  BullMQ.FlowProducer.get_flow(
+    %{
+      id: top_job.id,
+      queue_name: "topQueueName",
+      depth: 2, # the root and its direct children
+      max_children: 2 # about 2 children of each status per node
+    },
+    connection: :my_redis
+  )
+
+%{job: job, children: children} = limited_tree
 ```
 
 **Python**
@@ -13990,6 +14072,18 @@ const worker = new Worker('painter', async job => paintCar(job), {
 const scheduler = new QueueScheduler('painter');
 ```
 
+**Elixir**
+
+```elixir
+{:ok, worker} =
+  BullMQ.Worker.start_link(
+    queue: "painter",
+    connection: :my_redis,
+    processor: &paint_car/1,
+    limiter: %{max: 10, duration: 1000}
+  )
+```
+
 **Python**
 
 ```python
@@ -14075,6 +14169,31 @@ const worker = new Worker(
 );
 ```
 
+**Elixir**
+
+```elixir
+{:ok, worker} =
+  BullMQ.Worker.start_link(
+    queue: "myQueue",
+    connection: :my_redis,
+    limiter: %{max: 1, duration: 500},
+    processor: fn job ->
+      case do_external_call(job.data) do
+        {:rate_limited, duration} ->
+          # Sets the queue rate limit for `duration` ms and moves the job
+          # back to wait (no attempt consumed, no failed event).
+          # Equivalent to:
+          #   :ok = BullMQ.Queue.rate_limit("myQueue", duration, connection: :my_redis)
+          #   :rate_limited
+          {:rate_limit_queue, duration}
+
+        {:ok, result} ->
+          {:ok, result}
+      end
+    end
+  )
+```
+
 **Python**
 
 ```python
@@ -14102,6 +14221,8 @@ worker = Worker("myQueue", process, {
 
 > **Warning:** Don't forget to pass limiter options into your worker's options as _limiter.max_ is used to determine if we need to execute the rate limit validation.
 
+> **Note:** In Elixir, the older `{:rate_limit, ms}` processor return only moves the current job to the delayed set (like `{:delay, ms}`) and does not rate limit the queue. Use `{:rate_limit_queue, ms}` or `BullMQ.Queue.rate_limit/3` + `:rate_limited` for the behaviour described here.
+
 ### Get Queue Rate Limit Ttl
 
 Sometimes is useful to know if our queue is rate limited.
@@ -14121,6 +14242,19 @@ const ttl = await queue.getRateLimitTtl(maxJobs);
 if (ttl > 0) {
   console.log('Queue is rate limited');
 }
+```
+
+**Elixir**
+
+```elixir
+max_jobs = 100
+
+{:ok, ttl} =
+  BullMQ.Queue.get_rate_limit_ttl("myQueue", connection: :my_redis, max_jobs: max_jobs)
+
+if ttl > 0 do
+  IO.puts("Queue is rate limited")
+end
 ```
 
 **Python**
@@ -14150,6 +14284,12 @@ import { Queue } from 'bullmq';
 const queue = new Queue('myQueue', { connection });
 
 await queue.removeRateLimitKey();
+```
+
+**Elixir**
+
+```elixir
+{:ok, _removed} = BullMQ.Queue.remove_rate_limit_key("myQueue", connection: :my_redis)
 ```
 
 **Python (Redis only)**
@@ -19133,7 +19273,7 @@ By saving the next step value every time we complete the previous step (here, sa
 
 There are situations when it is useful to delay a job when it is being processed.
 
-This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the TypeScript and Python `moveToDelayed` methods to work, we need to pass said token so that it can unlock without error. In .NET, `job.MoveToDelayedAsync` uses the job's token automatically when no token is provided, and in Rust `job.move_to_delayed` always uses it. Finally, we need to exit from the processor by throwing a special error (`DelayedError` in TypeScript and Python, `DelayedException` in .NET, or returning `Error::Delayed` in Rust) that will signal to the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
+This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the TypeScript and Python `moveToDelayed` methods to work, we need to pass said token so that it can unlock without error. In .NET, `job.MoveToDelayedAsync` uses the job's token automatically when no token is provided, and in Rust `job.move_to_delayed` always uses it, as does Elixir's `BullMQ.Job.move_to_delayed/3` by default. Finally, we need to exit from the processor by throwing a special error (`DelayedError` in TypeScript and Python, `DelayedException` in .NET, returning `Error::Delayed` in Rust, or returning `:delayed` in Elixir) that will signal to the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
 
 **TypeScript**
 
@@ -19258,6 +19398,32 @@ var worker = new Worker(
   {
     Connection = connection,
   });
+```
+
+**Elixir**
+
+```elixir
+{:ok, worker} =
+  BullMQ.Worker.start_link(
+    queue: "queueName",
+    connection: :my_redis,
+    processor: fn job ->
+      case job.data["step"] do
+        "initial" ->
+          do_initial_step_stuff()
+          :ok = BullMQ.Worker.update_data(job, %{"step" => "second"})
+          # Absolute timestamp; the job's own lock token is used by default
+          :ok = BullMQ.Job.move_to_delayed(job, System.system_time(:millisecond) + 200)
+          # Tell the worker the job was already moved
+          :delayed
+
+        "second" ->
+          do_second_step_stuff()
+          :ok = BullMQ.Worker.update_data(job, %{"step" => "finish"})
+          {:ok, "finish"}
+      end
+    end
+  )
 ```
 
 **Rust**

@@ -49,6 +49,46 @@ const tree = await flow.getFlow({
 const { children, job } = tree;
 ```
 
+**Elixir**
+
+```elixir
+{:ok, original_tree} =
+  BullMQ.FlowProducer.add(
+    %{
+      name: "root-job",
+      queue_name: "topQueueName",
+      data: %{},
+      children: [
+        %{
+          name: name,
+          data: %{idx: 0, foo: "bar"},
+          queue_name: "childrenQueueName",
+          children: [
+            %{
+              name: name,
+              data: %{idx: 4, foo: "baz"},
+              queue_name: "grandchildrenQueueName"
+            }
+          ]
+        },
+        %{name: name, data: %{idx: 2, foo: "foo"}, queue_name: "childrenQueueName"},
+        %{name: name, data: %{idx: 3, foo: "bis"}, queue_name: "childrenQueueName"}
+      ]
+    },
+    connection: :my_redis
+  )
+
+top_job = original_tree.job
+
+{:ok, tree} =
+  BullMQ.FlowProducer.get_flow(
+    %{id: top_job.id, queue_name: "topQueueName"},
+    connection: :my_redis
+  )
+
+%{job: job, children: children} = tree
+```
+
 **Python**
 
 ```python
@@ -200,6 +240,23 @@ const limitedTree = await flow.getFlow({
 });
 
 const { children, job } = limitedTree;
+```
+
+**Elixir**
+
+```elixir
+{:ok, limited_tree} =
+  BullMQ.FlowProducer.get_flow(
+    %{
+      id: top_job.id,
+      queue_name: "topQueueName",
+      depth: 2, # the root and its direct children
+      max_children: 2 # about 2 children of each status per node
+    },
+    connection: :my_redis
+  )
+
+%{job: job, children: children} = limited_tree
 ```
 
 **Python**

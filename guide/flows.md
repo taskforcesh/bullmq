@@ -734,8 +734,8 @@ state = await job.getState()
 **Elixir**
 
 ```elixir
-{:ok, state} = BullMQ.Queue.get_job_state(job.queue_name, job.id, connection: :my_redis)
-# state will be :waiting_children
+{:ok, state} = BullMQ.Job.get_state(job)
+# state will be "waiting-children"
 ```
 
 **.NET**

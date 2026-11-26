@@ -18,6 +18,12 @@ from bullmq import Queue
 await queue.setGlobalConcurrency(4)
 ```
 
+**Elixir**
+
+```elixir
+:ok = BullMQ.Queue.set_global_concurrency("my-queue", 4, connection: :my_redis)
+```
+
 **Rust**
 
 ```rust
@@ -86,6 +92,12 @@ await queue.removeGlobalConcurrency();
 
 ```python
 await queue.removeGlobalConcurrency()
+```
+
+**Elixir**
+
+```elixir
+:ok = BullMQ.Queue.remove_global_concurrency("my-queue", connection: :my_redis)
 ```
 
 **Rust**
