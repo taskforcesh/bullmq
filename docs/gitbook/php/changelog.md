@@ -1,3 +1,10 @@
+## [2.1.2](https://github.com/taskforcesh/bullmq/compare/vphp2.1.1...vphp2.1.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* **php:** parent failure flags and deduplicated job id [php] ([#5212](https://github.com/taskforcesh/bullmq/issues/5212)) ([fd7bf34](https://github.com/taskforcesh/bullmq/commit/fd7bf342e852d5aa285f9491c622513f5b33d7bd))
+
 ## [2.1.1](https://github.com/taskforcesh/bullmq/compare/vphp2.1.0...vphp2.1.1) (2026-11-12)
 
 
