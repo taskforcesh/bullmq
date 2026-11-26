@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/taskforcesh/bullmq/compare/vnet1.3.8...vnet1.4.0) (2026-11-26)
+
+
+### Features
+
+* **flow:** support child failure options, rate limiting and getFlow [dotnet] ([#5211](https://github.com/taskforcesh/bullmq/issues/5211)) ([526668f](https://github.com/taskforcesh/bullmq/commit/526668f2c5e6de9d5d664df577f09a6bdccac1b4))
+
 ## [1.3.7](https://github.com/taskforcesh/bullmq/compare/vnet1.3.6...vnet1.3.7) (2026-11-19)
 
 ### Bug Fixes
