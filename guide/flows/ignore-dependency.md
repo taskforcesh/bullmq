@@ -117,6 +117,37 @@ originalTree = await flow.add({
   )
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+var flow = new FlowProducer(new QueueBaseOptions { Connection = connection });
+
+var originalTree = await flow.AddAsync(new FlowJob
+{
+    Name = "root-job",
+    QueueName = "topQueueName",
+    Data = new { },
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = name,
+            Data = new { idx = 0, foo = "bar" },
+            QueueName = "childrenQueueName",
+            Opts = new JobsOptions { IgnoreDependencyOnFailure = true },
+            Children = new[]
+            {
+                new FlowJob { Name = name, Data = new { idx = 1, foo = "bah" }, QueueName = "grandChildrenQueueName" },
+                new FlowJob { Name = name, Data = new { idx = 2, foo = "baz" }, QueueName = "grandChildrenQueueName" },
+            },
+        },
+        new FlowJob { Name = name, Data = new { idx = 3, foo = "foo" }, QueueName = "childrenQueueName" },
+    },
+});
+```
+
 **Rust**
 
 ```rust
@@ -213,6 +244,14 @@ ignored_children_failures = await originalTree["job"].getIgnoredChildrenFailures
 ```elixir
 {:ok, ignored_children_failures} =
   BullMQ.Job.get_ignored_children_failures(original_tree.job)
+```
+
+**.NET**
+
+```csharp
+// Child key -> failed reason
+Dictionary<string, string> ignoredChildrenFailures =
+    await originalTree.Job.GetIgnoredChildrenFailuresAsync();
 ```
 
 **Rust**

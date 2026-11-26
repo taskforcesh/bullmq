@@ -17,6 +17,18 @@ const worker = new Worker('painter', async job => paintCar(job), {
 const scheduler = new QueueScheduler('painter');
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+var worker = new Worker("painter", async (job, ct) => await PaintCar(job), new WorkerOptions
+{
+    Connection = connection,
+    Limiter = new RateLimiterOptions { Max = 10, Duration = 1000 },
+});
+```
+
 **Elixir**
 
 ```elixir
@@ -114,6 +126,35 @@ const worker = new Worker(
 );
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+Worker? worker = null;
+worker = new Worker(
+    "myQueue",
+    async (job, ct) =>
+    {
+        var (isRateLimited, duration) = await DoExternalCall();
+        if (isRateLimited)
+        {
+            await worker!.RateLimitAsync(duration);
+            // Do not forget to throw this special exception,
+            // since we must differentiate this case from a failure
+            // in order to move the job to wait again.
+            throw new RateLimitException();
+        }
+
+        return null;
+    },
+    new WorkerOptions
+    {
+        Connection = connection,
+        Limiter = new RateLimiterOptions { Max = 1, Duration = 500 },
+    });
+```
+
 **Elixir**
 
 ```elixir
@@ -189,6 +230,21 @@ if (ttl > 0) {
 }
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("myQueue", new QueueOptions { Connection = connection });
+
+var ttl = await queue.GetRateLimitTtlAsync();
+
+if (ttl > 0)
+{
+    Console.WriteLine("Queue is rate limited");
+}
+```
+
 **Elixir**
 
 ```elixir
@@ -229,6 +285,16 @@ import { Queue } from 'bullmq';
 const queue = new Queue('myQueue', { connection });
 
 await queue.removeRateLimitKey();
+```
+
+**.NET**
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("myQueue", new QueueOptions { Connection = connection });
+
+await queue.RemoveRateLimitKeyAsync();
 ```
 
 **Elixir**

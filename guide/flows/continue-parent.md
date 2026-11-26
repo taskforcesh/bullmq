@@ -90,6 +90,64 @@ const processor = async job => {
 };
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+var flow = new FlowProducer(new QueueBaseOptions { Connection = connection });
+
+// Define the flow
+var originalTree = await flow.AddAsync(new FlowJob
+{
+    Name = "root-job",
+    QueueName = "topQueueName",
+    Data = new { },
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = "child-job-1",
+            Data = new { idx = 0, foo = "bar" },
+            QueueName = "childrenQueueName",
+            // Parent processes if this child fails
+            Opts = new JobsOptions { ContinueParentOnFailure = true },
+        },
+        new FlowJob { Name = "child-job-2", Data = new { idx = 1, foo = "baz" }, QueueName = "childrenQueueName" },
+        new FlowJob { Name = "child-job-3", Data = new { idx = 2, foo = "qux" }, QueueName = "childrenQueueName" },
+    },
+});
+
+// Processor for the parent job
+Processor processor = async (job, cancellationToken) =>
+{
+    // Check if any children failed (child key -> failed reason)
+    var failedChildren = await job.GetIgnoredChildrenFailuresAsync();
+
+    if (failedChildren.Count > 0)
+    {
+        // Path 1: A child failed, triggering ContinueParentOnFailure
+        Console.WriteLine($"Parent job {job.Name} triggered by child failure(s): " +
+            string.Join(", ", failedChildren.Keys));
+
+        // Remove unprocessed children
+        await job.RemoveUnprocessedChildrenAsync();
+        Console.WriteLine("Unprocessed child jobs have been removed.");
+
+        // Additional cleanup or error handling can go here
+    }
+    else
+    {
+        // Path 2: All children completed successfully
+        Console.WriteLine($"Parent job {job.Name} processing after all children completed successfully.");
+
+        // Proceed with normal parent logic (e.g., aggregating results)
+    }
+
+    return null;
+};
+```
+
 **Rust**
 
 ```rust

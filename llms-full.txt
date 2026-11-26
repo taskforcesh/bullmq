@@ -2493,6 +2493,14 @@ from bullmq import Queue
 await queue.setGlobalConcurrency(4)
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+await queue.SetGlobalConcurrencyAsync(4);
+```
+
 **Elixir**
 
 ```elixir
@@ -2536,6 +2544,12 @@ global_concurrency = await queue.getGlobalConcurrency()
   BullMQ.Queue.get_global_concurrency("my-queue", connection: :my_redis)
 ```
 
+**.NET**
+
+```csharp
+int? globalConcurrency = await queue.GetGlobalConcurrencyAsync();
+```
+
 **Rust**
 
 ```rust
@@ -2567,6 +2581,12 @@ await queue.removeGlobalConcurrency();
 
 ```python
 await queue.removeGlobalConcurrency()
+```
+
+**.NET**
+
+```csharp
+await queue.RemoveGlobalConcurrencyAsync();
 ```
 
 **Elixir**
@@ -2621,6 +2641,15 @@ from bullmq import Queue
 await queue.setGlobalRateLimit(1, 1000)
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+// 1 job per second
+await queue.SetGlobalRateLimitAsync(1, 1000);
+```
+
 **Elixir**
 
 ```elixir
@@ -2666,6 +2695,14 @@ max_jobs, duration = rate_limit["max"], rate_limit["duration"]
 ```elixir
 {:ok, %{max: max, duration: duration}} =
   BullMQ.Queue.get_global_rate_limit("my-queue", connection: :my_redis)
+```
+
+**.NET**
+
+```csharp
+// Null when no global rate limit is set.
+RateLimiterOptions? rateLimit = await queue.GetGlobalRateLimitAsync();
+var (max, duration) = (rateLimit!.Max, rateLimit.Duration);
 ```
 
 **Rust**
@@ -2753,6 +2790,12 @@ await queue.removeGlobalRateLimit();
 
 ```python
 await queue.removeGlobalRateLimit()
+```
+
+**.NET**
+
+```csharp
+await queue.RemoveGlobalRateLimitAsync();
 ```
 
 **Elixir**
@@ -12551,6 +12594,48 @@ const tree = await flow.getFlow({
 const { children, job } = tree;
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+var flow = new FlowProducer(new QueueBaseOptions { Connection = connection });
+
+var originalTree = await flow.AddAsync(new FlowJob
+{
+    Name = "root-job",
+    QueueName = "topQueueName",
+    Data = new { },
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = name,
+            Data = new { idx = 0, foo = "bar" },
+            QueueName = "childrenQueueName",
+            Children = new[]
+            {
+                new FlowJob { Name = name, Data = new { idx = 4, foo = "baz" }, QueueName = "grandchildrenQueueName" },
+            },
+        },
+        new FlowJob { Name = name, Data = new { idx = 2, foo = "foo" }, QueueName = "childrenQueueName" },
+        new FlowJob { Name = name, Data = new { idx = 3, foo = "bis" }, QueueName = "childrenQueueName" },
+    },
+});
+
+var topJob = originalTree.Job;
+
+// Returns null when the job does not exist.
+FlowJobNode? tree = await flow.GetFlowAsync(new GetFlowOptions
+{
+    Id = topJob.Id!,
+    QueueName = "topQueueName",
+});
+
+var job = tree!.Job;
+var children = tree.Children;
+```
+
 **Elixir**
 
 ```elixir
@@ -12742,6 +12827,21 @@ const limitedTree = await flow.getFlow({
 });
 
 const { children, job } = limitedTree;
+```
+
+**.NET**
+
+```csharp
+var limitedTree = await flow.GetFlowAsync(new GetFlowOptions
+{
+    Id = topJob.Id!,
+    QueueName = "topQueueName",
+    Depth = 2, // the root job and its direct children (the root counts as 1)
+    MaxChildren = 2, // get only 2 children per node
+});
+
+var job = limitedTree!.Job;
+var children = limitedTree.Children;
 ```
 
 **Elixir**
@@ -12961,6 +13061,57 @@ originalTree = await flow.add({
   )
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+var flow = new FlowProducer(new QueueBaseOptions { Connection = connection });
+
+var originalTree = await flow.AddAsync(new FlowJob
+{
+    Name = "root-job",
+    QueueName = "topQueueName",
+    Data = new { },
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = "child-job",
+            Data = new { idx = 0, foo = "bar" },
+            QueueName = "childrenQueueName",
+            // This child will fail its parent if it fails
+            Opts = new JobsOptions { FailParentOnFailure = true },
+            Children = new[]
+            {
+                new FlowJob
+                {
+                    Name = name,
+                    Data = new { idx = 1, foo = "bah" },
+                    QueueName = "grandChildrenQueueName",
+                    // This grandchild will fail its parent if it fails
+                    Opts = new JobsOptions { FailParentOnFailure = true },
+                },
+                new FlowJob
+                {
+                    Name = name,
+                    Data = new { idx = 2, foo = "baz" },
+                    QueueName = "grandChildrenQueueName",
+                    // No FailParentOnFailure; its failure won't affect the parent
+                },
+            },
+        },
+        new FlowJob
+        {
+            Name = name,
+            Data = new { idx = 3, foo = "foo" },
+            QueueName = "childrenQueueName",
+            // No FailParentOnFailure; its failure won't affect the parent
+        },
+    },
+});
+```
+
 **Rust**
 
 ```rust
@@ -13157,6 +13308,64 @@ const processor = async job => {
 
     // Proceed with normal parent logic (e.g., aggregating results)
   }
+};
+```
+
+**.NET**
+
+```csharp
+using BullMQ;
+
+var flow = new FlowProducer(new QueueBaseOptions { Connection = connection });
+
+// Define the flow
+var originalTree = await flow.AddAsync(new FlowJob
+{
+    Name = "root-job",
+    QueueName = "topQueueName",
+    Data = new { },
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = "child-job-1",
+            Data = new { idx = 0, foo = "bar" },
+            QueueName = "childrenQueueName",
+            // Parent processes if this child fails
+            Opts = new JobsOptions { ContinueParentOnFailure = true },
+        },
+        new FlowJob { Name = "child-job-2", Data = new { idx = 1, foo = "baz" }, QueueName = "childrenQueueName" },
+        new FlowJob { Name = "child-job-3", Data = new { idx = 2, foo = "qux" }, QueueName = "childrenQueueName" },
+    },
+});
+
+// Processor for the parent job
+Processor processor = async (job, cancellationToken) =>
+{
+    // Check if any children failed (child key -> failed reason)
+    var failedChildren = await job.GetIgnoredChildrenFailuresAsync();
+
+    if (failedChildren.Count > 0)
+    {
+        // Path 1: A child failed, triggering ContinueParentOnFailure
+        Console.WriteLine($"Parent job {job.Name} triggered by child failure(s): " +
+            string.Join(", ", failedChildren.Keys));
+
+        // Remove unprocessed children
+        await job.RemoveUnprocessedChildrenAsync();
+        Console.WriteLine("Unprocessed child jobs have been removed.");
+
+        // Additional cleanup or error handling can go here
+    }
+    else
+    {
+        // Path 2: All children completed successfully
+        Console.WriteLine($"Parent job {job.Name} processing after all children completed successfully.");
+
+        // Proceed with normal parent logic (e.g., aggregating results)
+    }
+
+    return null;
 };
 ```
 
@@ -13423,6 +13632,37 @@ originalTree = await flow.add({
   )
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+var flow = new FlowProducer(new QueueBaseOptions { Connection = connection });
+
+var originalTree = await flow.AddAsync(new FlowJob
+{
+    Name = "root-job",
+    QueueName = "topQueueName",
+    Data = new { },
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = name,
+            Data = new { idx = 0, foo = "bar" },
+            QueueName = "childrenQueueName",
+            Opts = new JobsOptions { RemoveDependencyOnFailure = true },
+            Children = new[]
+            {
+                new FlowJob { Name = name, Data = new { idx = 1, foo = "bah" }, QueueName = "grandChildrenQueueName" },
+                new FlowJob { Name = name, Data = new { idx = 2, foo = "baz" }, QueueName = "grandChildrenQueueName" },
+            },
+        },
+        new FlowJob { Name = name, Data = new { idx = 3, foo = "foo" }, QueueName = "childrenQueueName" },
+    },
+});
+```
+
 **Rust**
 
 ```rust
@@ -13626,6 +13866,37 @@ originalTree = await flow.add({
   )
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+var flow = new FlowProducer(new QueueBaseOptions { Connection = connection });
+
+var originalTree = await flow.AddAsync(new FlowJob
+{
+    Name = "root-job",
+    QueueName = "topQueueName",
+    Data = new { },
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = name,
+            Data = new { idx = 0, foo = "bar" },
+            QueueName = "childrenQueueName",
+            Opts = new JobsOptions { IgnoreDependencyOnFailure = true },
+            Children = new[]
+            {
+                new FlowJob { Name = name, Data = new { idx = 1, foo = "bah" }, QueueName = "grandChildrenQueueName" },
+                new FlowJob { Name = name, Data = new { idx = 2, foo = "baz" }, QueueName = "grandChildrenQueueName" },
+            },
+        },
+        new FlowJob { Name = name, Data = new { idx = 3, foo = "foo" }, QueueName = "childrenQueueName" },
+    },
+});
+```
+
 **Rust**
 
 ```rust
@@ -13722,6 +13993,14 @@ ignored_children_failures = await originalTree["job"].getIgnoredChildrenFailures
 ```elixir
 {:ok, ignored_children_failures} =
   BullMQ.Job.get_ignored_children_failures(original_tree.job)
+```
+
+**.NET**
+
+```csharp
+// Child key -> failed reason
+Dictionary<string, string> ignoredChildrenFailures =
+    await originalTree.Job.GetIgnoredChildrenFailuresAsync();
 ```
 
 **Rust**
@@ -14072,6 +14351,18 @@ const worker = new Worker('painter', async job => paintCar(job), {
 const scheduler = new QueueScheduler('painter');
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+var worker = new Worker("painter", async (job, ct) => await PaintCar(job), new WorkerOptions
+{
+    Connection = connection,
+    Limiter = new RateLimiterOptions { Max = 10, Duration = 1000 },
+});
+```
+
 **Elixir**
 
 ```elixir
@@ -14169,6 +14460,35 @@ const worker = new Worker(
 );
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+Worker? worker = null;
+worker = new Worker(
+    "myQueue",
+    async (job, ct) =>
+    {
+        var (isRateLimited, duration) = await DoExternalCall();
+        if (isRateLimited)
+        {
+            await worker!.RateLimitAsync(duration);
+            // Do not forget to throw this special exception,
+            // since we must differentiate this case from a failure
+            // in order to move the job to wait again.
+            throw new RateLimitException();
+        }
+
+        return null;
+    },
+    new WorkerOptions
+    {
+        Connection = connection,
+        Limiter = new RateLimiterOptions { Max = 1, Duration = 500 },
+    });
+```
+
 **Elixir**
 
 ```elixir
@@ -14244,6 +14564,21 @@ if (ttl > 0) {
 }
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("myQueue", new QueueOptions { Connection = connection });
+
+var ttl = await queue.GetRateLimitTtlAsync();
+
+if (ttl > 0)
+{
+    Console.WriteLine("Queue is rate limited");
+}
+```
+
 **Elixir**
 
 ```elixir
@@ -14284,6 +14619,16 @@ import { Queue } from 'bullmq';
 const queue = new Queue('myQueue', { connection });
 
 await queue.removeRateLimitKey();
+```
+
+**.NET**
+
+```csharp
+using BullMQ;
+
+var queue = new Queue("myQueue", new QueueOptions { Connection = connection });
+
+await queue.RemoveRateLimitKeyAsync();
 ```
 
 **Elixir**

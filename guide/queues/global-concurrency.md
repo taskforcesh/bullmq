@@ -18,6 +18,14 @@ from bullmq import Queue
 await queue.setGlobalConcurrency(4)
 ```
 
+**.NET**
+
+```csharp
+using BullMQ;
+
+await queue.SetGlobalConcurrencyAsync(4);
+```
+
 **Elixir**
 
 ```elixir
@@ -61,6 +69,12 @@ global_concurrency = await queue.getGlobalConcurrency()
   BullMQ.Queue.get_global_concurrency("my-queue", connection: :my_redis)
 ```
 
+**.NET**
+
+```csharp
+int? globalConcurrency = await queue.GetGlobalConcurrencyAsync();
+```
+
 **Rust**
 
 ```rust
@@ -92,6 +106,12 @@ await queue.removeGlobalConcurrency();
 
 ```python
 await queue.removeGlobalConcurrency()
+```
+
+**.NET**
+
+```csharp
+await queue.RemoveGlobalConcurrencyAsync();
 ```
 
 **Elixir**
