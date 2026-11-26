@@ -1,4 +1,5 @@
 import { AbortController } from './abort-controller';
+import { toSandboxImportSpecifier } from './sandbox-specifier';
 import { ParentCommand } from '../enums';
 import {
   DependenciesOpts,
@@ -39,7 +40,9 @@ export class ChildProcessor {
   public async init(processorFile: string): Promise<void> {
     let processor;
     try {
-      const { default: processorFn } = await import(processorFile);
+      const { default: processorFn } = await import(
+        toSandboxImportSpecifier(processorFile)
+      );
       processor = processorFn;
 
       if (processor.default) {
