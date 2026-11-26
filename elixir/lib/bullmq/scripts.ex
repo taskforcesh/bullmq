@@ -1246,6 +1246,8 @@ defmodule BullMQ.Scripts do
   ## Returns
 
     * `{:ok, pttl}` - The rate limit TTL in milliseconds (0 if no rate limit)
+    * `{:error, code}` - The job was not moved: `-1` missing job, `-2` missing
+      lock, `-6` lock held by another token
   """
   @spec move_job_from_active_to_wait(atom(), queue_context(), String.t(), String.t()) ::
           script_result()
@@ -1282,6 +1284,7 @@ defmodule BullMQ.Scripts do
     ]
 
     case execute(conn, :move_job_from_active_to_wait, keys, args) do
+      {:ok, code} when is_integer(code) and code < 0 -> {:error, code}
       {:ok, pttl} when is_integer(pttl) -> {:ok, pttl}
       {:ok, _} -> {:ok, 0}
       error -> error

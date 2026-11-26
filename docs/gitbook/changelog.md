@@ -1,3 +1,10 @@
+## [6.7.10](https://github.com/taskforcesh/bullmq/compare/v6.7.9...v6.7.10) (2026-11-24)
+
+
+### Bug Fixes
+
+* **deps:** resolve minimatch vulnerability ([#5177](https://github.com/taskforcesh/bullmq/issues/5177)) ([7479e8d](https://github.com/taskforcesh/bullmq/commit/7479e8d73e1740dccd2d0da8053a44b0fb7ada9b))
+
 ## [6.7.8](https://github.com/taskforcesh/bullmq/compare/v6.7.7...v6.7.8) (2026-11-19)
 
 

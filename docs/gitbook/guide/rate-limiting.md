@@ -33,6 +33,25 @@ const scheduler = new QueueScheduler('painter');
 ```
 
 {% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Worker
+
+async def process(job, token):
+    return await paint_car(job)
+
+worker = Worker("painter", process, {
+    "connection": connection,
+    "limiter": {
+        "max": 10,
+        "duration": 1000,
+    },
+})
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="warning" %}
@@ -140,6 +159,35 @@ const worker = new Worker(
 ```
 
 {% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Worker
+
+async def process(job, token):
+    is_rate_limited, duration = await do_external_call()
+    if is_rate_limited:
+        await worker.rateLimit(duration)
+        # Do not forget to raise this special exception,
+        # since we must differentiate this case from a failure
+        # in order to move the job to wait again.
+        raise Worker.RateLimitError()
+
+worker = Worker("myQueue", process, {
+    "connection": connection,
+    "limiter": {
+        "max": 1,
+        "duration": 500,
+    },
+})
+```
+
+{% hint style="info" %}
+`RateLimitError` can also be imported directly: `from bullmq import RateLimitError`. The rate-limited job is moved back to wait without being marked as failed and without consuming an attempt.
+{% endhint %}
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="warning" %}
@@ -188,6 +236,21 @@ end
 ```
 
 {% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Queue
+
+queue = Queue("myQueue", {"connection": connection})
+
+ttl = await queue.getRateLimitTtl()
+
+if ttl > 0:
+    print("Queue is rate limited")
+```
+
+{% endtab %}
 {% endtabs %}
 
 ### Remove Rate Limit Key
@@ -213,6 +276,18 @@ await queue.removeRateLimitKey();
 
 ```elixir
 {:ok, _removed} = BullMQ.Queue.remove_rate_limit_key("myQueue", connection: :my_redis)
+```
+
+{% endtab %}
+
+{% tab title="Python (Redis only)" %}
+
+```python
+from bullmq import Queue
+
+queue = Queue("myQueue", {"connection": connection})
+
+await queue.removeRateLimitKey()
 ```
 
 {% endtab %}

@@ -483,6 +483,39 @@ defmodule BullMQ.ManualProcessingTest do
     end
   end
 
+  describe "Job.move_to_wait/2 lock check" do
+    @tag timeout: 10_000
+    test "returns an error and leaves the job active when the lock is not ours", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
+
+      {:ok, _} =
+        Queue.add(queue_name, "test-job", %{value: 1}, connection: conn, prefix: @test_prefix)
+
+      token = generate_token()
+      {:ok, job} = Worker.get_next_job(worker, token)
+
+      assert {:error, -6} = Job.move_to_wait(job, "not-the-owner")
+
+      {:ok, state} = Queue.get_job_state(queue_name, job.id, connection: conn, prefix: @test_prefix)
+      assert state == "active"
+
+      # The real owner can still move it.
+      assert {:ok, _pttl} = Job.move_to_wait(job, token)
+
+      Worker.close(worker)
+    end
+  end
+
   describe "start_stalled_check_timer/1" do
     @tag timeout: 10_000
     test "starts and stops the stalled check timer", %{conn: conn, queue_name: queue_name} do

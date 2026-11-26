@@ -144,6 +144,41 @@ let flow = flow_producer
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+import (
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+// A FlowProducer takes a Backend option,
+// here a local Redis instance.
+backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+flowProducer, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flowProducer.Close()
+
+flow, err := flowProducer.Add(ctx, bullmq.FlowJob{
+	Name:      "renovate-interior",
+	QueueName: "renovate",
+	Children: []bullmq.FlowJob{
+		{Name: "paint", Data: map[string]string{"place": "ceiling"}, QueueName: "steps"},
+		{Name: "paint", Data: map[string]string{"place": "walls"}, QueueName: "steps"},
+		{Name: "fix", Data: map[string]string{"place": "floor"}, QueueName: "steps"},
+	},
+}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 The above code will atomically add 4 jobs: one to the "renovate" queue, and 3 to the "steps" queue. When the 3 jobs in the "steps" queue are completed, the parent job in the "renovate" queue will be processed as a regular job.
@@ -264,6 +299,37 @@ let steps_worker = Worker::new("steps", |job: Job, _token: CancellationToken| as
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+)
+
+stepsWorker, err := bullmq.NewWorker("steps", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	if err := performStep(ctx, job.Data); err != nil {
+		return nil, err
+	}
+
+	switch job.Name {
+	case "paint":
+		return 2500, nil
+	case "fix":
+		return 1750, nil
+	}
+	return nil, nil
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+go stepsWorker.Run(ctx)
+```
+
+{% endtab %}
 {% endtabs %}
 
 We can implement a parent worker that sums the costs of the children's jobs using the `getChildrenValues` method. This method returns an object with _job keys_ as keys and the _result of that given job_ as a value:
@@ -362,6 +428,37 @@ let renovate_worker = Worker::new("renovate", |job: Job, _token: CancellationTok
     Ok(serde_json::Value::Null)
 })
 .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+)
+
+renovateWorker, err := bullmq.NewWorker("renovate", func(ctx context.Context, job *bullmq.Job) (any, error) {
+	var childrenValues map[string]float64
+	if err := job.DecodeChildrenValues(ctx, &childrenValues); err != nil {
+		return nil, err
+	}
+
+	totalCosts := 0.0
+	for _, cost := range childrenValues {
+		totalCosts += cost
+	}
+
+	return nil, sendInvoice(ctx, totalCosts)
+}, &bullmq.WorkerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+go renovateWorker.Run(ctx)
 ```
 
 {% endtab %}
@@ -499,6 +596,44 @@ let chain = flow_producer
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+import (
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+flowProducer, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flowProducer.Close()
+
+const queueName = "assembly-line"
+chain, err := flowProducer.Add(ctx, bullmq.FlowJob{
+	Name:      "car",
+	Data:      map[string]string{"step": "engine"},
+	QueueName: queueName,
+	Children: []bullmq.FlowJob{{
+		Name:      "car",
+		Data:      map[string]string{"step": "wheels"},
+		QueueName: queueName,
+		Children: []bullmq.FlowJob{
+			{Name: "car", Data: map[string]string{"step": "chassis"}, QueueName: queueName},
+		},
+	}},
+}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 In this case one job will be processed after the previous one has been completed.
@@ -578,6 +713,18 @@ let bullmq::DependenciesCount {
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+counts, err := job.DependenciesCount(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+failed, ignored, processed, unprocessed := counts.Failed, counts.Ignored, counts.Processed, counts.Unprocessed
+```
+
+{% endtab %}
 {% endtabs %}
 
 Or if you want to be specific:
@@ -641,6 +788,17 @@ let values = job.get_children_values().await?;
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+values, err := job.ChildrenValues(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 Also, a new property is available in the `Job` class, _**`parentKey`,**_ with a fully qualified key for the job parent.
@@ -689,6 +847,18 @@ var state = await job.GetStateAsync();
 ```rust
 let state = job.get_state().await?;
 // state will be JobState::WaitingChildren
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+state, err := job.State(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+// state will be bullmq.StateWaitingChildren
 ```
 
 {% endtab %}
@@ -792,6 +962,47 @@ let chain = flow_producer
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+import (
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+flowProducer, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flowProducer.Close()
+
+const queueName = "assembly-line"
+chain, err := flowProducer.Add(ctx, bullmq.FlowJob{
+	Name:      "car",
+	Data:      map[string]string{"step": "engine"},
+	QueueName: queueName,
+	Children: []bullmq.FlowJob{
+		{Name: "car", Data: map[string]string{"step": "wheels"}, QueueName: queueName},
+	},
+}, &bullmq.FlowOpts{
+	QueuesOptions: map[string]bullmq.FlowQueueOptions{
+		queueName: {
+			DefaultJobOptions: &bullmq.JobOptions{
+				RemoveOnComplete: bullmq.RemoveAll(),
+			},
+		},
+	},
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="warning" %}
@@ -805,7 +1016,7 @@ BullMQ also provides seamless removal functionality for jobs that are part of a 
 When removing a job that is part of the flow there are several important considerations:
 
 1. If a parent job is removed, all its children will also be removed.
-2. If a child job is removed, its parent dependency to said child is also removed, and if the child was the last child in the dependencies list, the parent job will be completed.
+2. If a child job is removed, its parent dependency to said child is also removed, and if the child was the last child in the dependencies list, the parent job will be moved to the wait list, so that a worker processes it.
 3. Since a job can be both a parent and a child in a large flow, both 1 and 2 will occur if removing such a job.
 4. If any of the jobs that would be removed happen to be locked, none of the jobs will be removed, and an exception will be thrown.
 
@@ -854,6 +1065,20 @@ await queue.RemoveAsync(job.Id!);
 
 ```rust
 queue.remove(job.id()).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+if err := job.Remove(ctx, true); err != nil {
+	log.Fatal(err)
+}
+// or
+if _, err := queue.Remove(ctx, job.ID, true); err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}

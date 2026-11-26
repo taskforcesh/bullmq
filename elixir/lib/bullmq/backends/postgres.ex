@@ -597,7 +597,12 @@ defmodule BullMQ.Backends.Postgres do
     %{"n" => n} =
       first_map(run(b, "move_active_to_wait", [b.queue_name, job_id, token || "0", now_ms()]))
 
-    {:ok, to_int(n)}
+    # Negative codes mean the job was not moved: -1 missing job, -2 missing
+    # (or expired) lock, -6 lock held by another token.
+    case to_int(n) do
+      code when code < 0 -> {:error, code}
+      pttl -> {:ok, pttl}
+    end
   end
 
   @impl true

@@ -94,6 +94,56 @@ top_job = original_tree.job
 
 {% endtab %}
 
+{% tab title="Python" %}
+
+```python
+from bullmq import FlowProducer
+
+flow = FlowProducer({"connection": connection})
+
+original_tree = await flow.add({
+    "name": "root-job",
+    "queueName": "topQueueName",
+    "data": {},
+    "children": [
+        {
+            "name": name,
+            "data": {"idx": 0, "foo": "bar"},
+            "queueName": "childrenQueueName",
+            "children": [
+                {
+                    "name": name,
+                    "data": {"idx": 4, "foo": "baz"},
+                    "queueName": "grandchildrenQueueName",
+                },
+            ],
+        },
+        {
+            "name": name,
+            "data": {"idx": 2, "foo": "foo"},
+            "queueName": "childrenQueueName",
+        },
+        {
+            "name": name,
+            "data": {"idx": 3, "foo": "bis"},
+            "queueName": "childrenQueueName",
+        },
+    ],
+})
+
+top_job = original_tree["job"]
+
+tree = await flow.getFlow({
+    "id": top_job.id,
+    "queueName": "topQueueName",
+})
+
+job = tree["job"]
+children = tree.get("children", [])
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
@@ -128,6 +178,63 @@ let JobNode { children, job } = tree;
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+flow, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flow.Close()
+
+originalTree, err := flow.Add(ctx, bullmq.FlowJob{
+	Name:      "root-job",
+	QueueName: "topQueueName",
+	Data:      map[string]any{},
+	Children: []bullmq.FlowJob{
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 0, "foo": "bar"},
+			QueueName: "childrenQueueName",
+			Children: []bullmq.FlowJob{
+				{
+					Name:      name,
+					Data:      map[string]any{"idx": 4, "foo": "baz"},
+					QueueName: "grandchildrenQueueName",
+				},
+			},
+		},
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 2, "foo": "foo"},
+			QueueName: "childrenQueueName",
+		},
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 3, "foo": "bis"},
+			QueueName: "childrenQueueName",
+		},
+	},
+}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+
+topJob := originalTree.Job
+
+tree, err := flow.GetFlow(ctx, bullmq.FlowGetOptions{
+	ID:        topJob.ID,
+	QueueName: "topQueueName",
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+children, job := tree.Children, tree.Job
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="info" %}
@@ -143,8 +250,8 @@ You may also need a way to limit that information if you have many children for 
 const limitedTree = await flow.getFlow({
   id: topJob.id,
   queueName: 'topQueueName',
-  depth: 1, // get only the first level of children
-  maxChildren: 2, // get only 2 children per node
+  depth: 2, // the root and its first level of children
+  maxChildren: 2, // about 2 children of each status per node
 });
 
 const { children, job } = limitedTree;
@@ -160,13 +267,29 @@ const { children, job } = limitedTree;
     %{
       id: top_job.id,
       queue_name: "topQueueName",
-      depth: 1,
-      max_children: 2 # get only 2 children per node
+      depth: 2, # the root and its direct children
+      max_children: 2 # about 2 children of each status per node
     },
     connection: :my_redis
   )
 
 %{job: job, children: children} = limited_tree
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+limited_tree = await flow.getFlow({
+    "id": top_job.id,
+    "queueName": "topQueueName",
+    "depth": 2,  # the root and its direct children
+    "maxChildren": 2,  # about 2 children of each status per node
+})
+
+job = limited_tree["job"]
+children = limited_tree.get("children", [])
 ```
 
 {% endtab %}
@@ -186,7 +309,31 @@ let JobNode { children, job } = limited_tree;
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+limitedTree, err := flow.GetFlow(ctx, bullmq.FlowGetOptions{
+	ID:          topJob.ID,
+	QueueName:   "topQueueName",
+	Depth:       2, // the root and its first level of children
+	MaxChildren: 2, // about 2 children of each status per node
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+children, job := limitedTree.Children, limitedTree.Job
+```
+
+{% endtab %}
 {% endtabs %}
+
+{% hint style="info" %}
+`depth` counts the levels of the tree, the root included: `depth: 1` returns only the root job. In Rust, `depth` counts the levels below the root, so `.depth(1)` returns the same tree as `depth: 2` above.
+
+`maxChildren` limits each group of children (processed, unprocessed, failed and ignored) separately. On Redis, for groups scanned with `SSCAN`/`HSCAN`, it is only a `COUNT` hint: small groups are returned whole, so a node may get more children than `maxChildren`. Rust caps the total number of children per node at `max_children`.
+{% endhint %}
 
 ## Read more:
 

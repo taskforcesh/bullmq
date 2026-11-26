@@ -40,6 +40,16 @@ queue.set_global_concurrency(4).await?;
 ```
 
 {% endtab %}
+
+{% tab title="Go" %}
+
+```go
+if err := queue.SetGlobalConcurrency(ctx, 4); err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
 {% endtabs %}
 
 And in order to get this value:
@@ -74,6 +84,17 @@ global_concurrency = await queue.getGlobalConcurrency()
 
 ```rust
 let global_concurrency = queue.get_global_concurrency().await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+globalConcurrency, err := queue.GlobalConcurrency(ctx)
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -116,6 +137,16 @@ await queue.removeGlobalConcurrency()
 
 ```rust
 queue.remove_global_concurrency().await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+if err := queue.RemoveGlobalConcurrency(ctx); err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}

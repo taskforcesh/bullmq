@@ -78,6 +78,39 @@ queue
 
 {% endtab %}
 
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("Paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	// Add a job that will be delayed by at least 5 seconds.
+	_, err = queue.Add(ctx, "house", map[string]string{"color": "white"}, &bullmq.JobOptions{Delay: bullmq.Int64(5000)})
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -159,6 +192,20 @@ queue
 
 {% endtab %}
 
+{% tab title="Go" %}
+
+```go
+targetTime := time.Date(2035, time.July, 3, 10, 30, 0, 0, time.Local)
+delay := time.Until(targetTime).Milliseconds()
+
+_, err := queue.Add(ctx, "house", map[string]string{"color": "white"}, &bullmq.JobOptions{Delay: bullmq.Int64(delay)})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -199,6 +246,22 @@ let job = queue
 
 // Reschedule the job to execute 4000ms (4 seconds) from now
 job.change_delay(4000).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+job, err := queue.Add(ctx, "test", map[string]string{"foo": "bar"}, &bullmq.JobOptions{Delay: bullmq.Int64(2000)})
+if err != nil {
+	log.Fatal(err)
+}
+
+// Reschedule the job to execute 4000ms (4 seconds) from now
+if err := job.ChangeDelay(ctx, 4*time.Second); err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}

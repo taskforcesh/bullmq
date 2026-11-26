@@ -5,7 +5,13 @@ from redis.exceptions import (
     ConnectionError as RedisConnectionError,
     TimeoutError as RedisTimeoutError,
 )
-from bullmq.custom_errors import DelayedError, UnrecoverableError, WaitingChildrenError
+from bullmq.custom_errors import (
+    DelayedError,
+    RATE_LIMIT_ERROR,
+    RateLimitError,
+    UnrecoverableError,
+    WaitingChildrenError,
+)
 from bullmq.backends import RedisBackend, create_backend
 from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
@@ -101,6 +107,7 @@ class Worker(EventEmitter):
             "maxStalledCount": 1,
             "stalledInterval": 30000,
             "runRetryDelay": 15000,
+            "maximumRateLimitDelay": 30000,
         }
         final_opts.update(opts or {})
         # Default lockRenewTime to lockDuration // 2 if not explicitly set.
@@ -138,6 +145,9 @@ class Worker(EventEmitter):
         self.waiting = None
         self.blockUntil = 0
         self.limitUntil = 0
+        # One event per getNextJob call sleeping because the queue is rate
+        # limited, so that close()/pause() can wake them up early.
+        self._rate_limit_wakeups: set[asyncio.Event] = set()
         self.drained = False
         self.qualifiedName = self.backend.qualifiedName
         self.workerName = opts.get("name")
@@ -247,7 +257,17 @@ class Worker(EventEmitter):
         """
         await self._ensure_client_names()
         job_instance = None
-        if not self.waiting and self.drained:
+        # Branch on any pending rate limit, even one that has already expired:
+        # the rate-limited fetch left `drained` set, and falling through to
+        # waitForJob() could then add a full drainDelay with no marker left.
+        # _waitForRateLimit() returns at once for an expired deadline and
+        # clears `drained`, so we retry activation immediately.
+        if self.limitUntil:
+            await self._waitForRateLimit()
+            if self.closing or self.paused:
+                return None
+            job_instance = await self.moveToActive(token)
+        elif not self.waiting and self.drained:
             self.waiting = asyncio.ensure_future(self.waitForJob())
 
             try:
@@ -269,6 +289,51 @@ class Worker(EventEmitter):
         if job_instance:
             self.emit("active", job_instance, "waiting")
             return job_instance
+
+    @staticmethod
+    def RateLimitError() -> RateLimitError:
+        """
+        Returns an error that can be raised from a processor to move the
+        job back to wait when the queue has been rate limited (see
+        `Worker.rateLimit`). Mirrors `Worker.RateLimitError` in Node.
+        """
+        return RateLimitError()
+
+    async def rateLimit(self, expire_time_ms: int) -> None:
+        """
+        Overrides the rate limit to be active for the next jobs.
+
+        @param expire_time_ms: expire time in ms of this rate limit.
+        """
+        await self.backend.setRateLimit(expire_time_ms)
+
+    def isRateLimited(self) -> bool:
+        # Kept for API parity with Node; getNextJob checks `limitUntil`
+        # directly so an already-expired limit still clears `drained`.
+        return self.limitUntil > int(time.time() * 1000)
+
+    async def _waitForRateLimit(self):
+        """Sleep until the rate limit window ends (capped to
+        `maximumRateLimitDelay`), or until close()/pause() wakes us up."""
+        delay = self.limitUntil - int(time.time() * 1000)
+        delay = min(delay, self.opts.get("maximumRateLimitDelay", 30000))
+        # close()/pause() may have sent its wakeup before this sleeper was
+        # registered, so check the flags before sleeping, not only after.
+        if delay > 0 and not (self.closing or self.paused):
+            wakeup = asyncio.Event()
+            self._rate_limit_wakeups.add(wakeup)
+            try:
+                await asyncio.wait_for(wakeup.wait(), delay / 1000)
+            except asyncio.TimeoutError:
+                pass
+            finally:
+                self._rate_limit_wakeups.discard(wakeup)
+        self.drained = False
+        self.limitUntil = 0
+
+    def _wakeUpRateLimitWait(self):
+        for wakeup in self._rate_limit_wakeups:
+            wakeup.set()
 
     async def moveToActive(self, token: str):
         result = await self.backend.moveToActive(token, self.opts)
@@ -297,7 +362,8 @@ class Worker(EventEmitter):
 
     async def nextJobFromJobData(self, job_data: dict | None = None, job_id: str | None = None, limit_until: int = 0,
         delay_until: int = 0, token: str | None = None) -> Job | None:
-        self.limitUntil = max(limit_until, 0) or 0
+        limit_delay = max(int(limit_until or 0), 0)
+        self.limitUntil = int(time.time() * 1000) + limit_delay if limit_delay > 0 else 0
 
         if not job_data:
             if not self.drained:
@@ -471,6 +537,19 @@ class Worker(EventEmitter):
         except (DelayedError, WaitingChildrenError):
             return
         except Exception as err:
+            if str(err) == RATE_LIMIT_ERROR:
+                # The job was manually rate limited: move it back to wait
+                # without consuming an attempt nor failing it.
+                try:
+                    if not self.forceClosing:
+                        rate_limit_ttl = await job.moveToWait(token)
+                        self.limitUntil = (
+                            int(time.time() * 1000) + rate_limit_ttl
+                            if rate_limit_ttl > 0 else 0
+                        )
+                except Exception as move_err:
+                    self.emit("error", move_err, job)
+                return
             try:
                 if not self.forceClosing:
                     next_job_data = await job.moveToFailed(
@@ -636,6 +715,7 @@ class Worker(EventEmitter):
         self.closing = True
         self.paused = False
         self.resume_event.set()
+        self._wakeUpRateLimitWait()
         if self.waiting:
             self.waiting.cancel()
 
@@ -685,6 +765,7 @@ class Worker(EventEmitter):
         if not self.paused:
             self.paused = True
             self.resume_event.clear()
+            self._wakeUpRateLimitWait()
             if self.waiting and not self.waiting.done():
                 self.waiting.cancel()
             if not do_not_wait_active and len(self.processing) > 0:
