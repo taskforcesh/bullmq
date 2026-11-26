@@ -131,6 +131,7 @@ end
 - **`BullMQ.Job.get_ignored_children_failures/1`** - Get failures from children that were ignored
 - **`BullMQ.Job.get_dependencies/1`** - Get list of pending child job keys
 - **`BullMQ.Job.get_dependencies_count/1`** - Get count of pending dependencies
+- **`BullMQ.Job.get_state/1`** - Get the current state of a job (e.g. `"waiting-children"`)
 
 ## Flow Options
 
@@ -308,8 +309,18 @@ BullMQ.FlowProducer.add(%{
 ### Failure Options
 
 - **`:attempts`** - Number of retry attempts before marking as failed
-- **`:fail_parent_on_failure`** - If `false`, parent continues even if child fails (default: `true`)
-- **`:ignore_dependency_on_failure`** - Ignore failed child and let parent continue
+- **`:fail_parent_on_failure`** - When the child fails, the parent fails too
+- **`:continue_parent_on_failure`** - When the child fails, the parent is processed
+  right away (even if other children are still pending)
+- **`:ignore_dependency_on_failure`** - Ignore the failed child and let the parent
+  continue once the other children finish. The failure is available with
+  `BullMQ.Job.get_ignored_children_failures/1`
+- **`:remove_dependency_on_failure`** - Remove the failed child from the parent's
+  dependencies and let the parent continue
+
+These options are stored with the same names Node.js uses (`fpof`, `cpof`,
+`idof`, `rdof`), so flows created in Elixir behave the same when their jobs are
+processed by workers in other languages.
 
 If a child exhausts all retries:
 
@@ -339,6 +350,33 @@ BullMQ.FlowProducer.add(%{
   children: children
 }, connection: :my_redis)
 ```
+
+## Getting a Flow Tree
+
+`BullMQ.FlowProducer.get_flow/2` reads a flow back from the datastore, starting
+from any job (Node.js `flowProducer.getFlow`):
+
+```elixir
+{:ok, tree} =
+  BullMQ.FlowProducer.get_flow(
+    %{id: parent_job_id, queue_name: "main"},
+    connection: :my_redis
+  )
+
+tree.job            # %BullMQ.Job{} of the root
+tree.children       # [%{job: %BullMQ.Job{}, children: [...]}, ...]
+```
+
+Node options:
+
+- **`:id`** / **`:queue_name`** - The root job (required)
+- **`:prefix`** - Root job prefix (defaults to the `:prefix` option)
+- **`:depth`** - How many levels to read (default `10`; `1` returns only the root)
+- **`:max_children`** - Children read per dependency type (processed, pending,
+  failed and ignored) on every node (default `20`)
+
+Children are returned processed first, then pending, failed and ignored ones.
+`{:ok, nil}` is returned when the root job does not exist.
 
 ## Node.js Compatibility
 

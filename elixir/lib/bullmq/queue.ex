@@ -343,7 +343,7 @@ defmodule BullMQ.Queue do
           Enum.map(standard_jobs, fn {name, data, job_opts} ->
             merged_opts = Keyword.merge(opts, job_opts)
             job = Job.new(queue, name, data, merged_opts)
-            encoded_opts = encode_job_opts(job.opts)
+            encoded_opts = Job.encode_add_opts(job.opts)
             {job, encoded_opts}
           end)
 
@@ -356,13 +356,13 @@ defmodule BullMQ.Queue do
               Enum.zip(jobs_list, results)
               |> Enum.map(fn
                 {job, {:ok, job_id}} when is_binary(job_id) or is_integer(job_id) ->
-                  {:ok, %{job | id: to_string(job_id)}}
+                  {:ok, %{job | id: to_string(job_id), connection: conn}}
 
                 {_job, {:error, _} = err} ->
                   err
 
                 {job, {:ok, other}} ->
-                  {:ok, %{job | id: to_string(other)}}
+                  {:ok, %{job | id: to_string(other), connection: conn}}
               end)
 
             {:ok, mapped_results}
@@ -1152,6 +1152,163 @@ defmodule BullMQ.Queue do
   end
 
   @doc """
+  Sets the global concurrency for the queue.
+
+  Limits the number of jobs processed in parallel across **all** workers of the
+  queue, independently of each worker's local `:concurrency`. Stored in the
+  queue meta hash (`concurrency` field) exactly as Node.js
+  `queue.setGlobalConcurrency`, so workers written in any BullMQ language
+  honour it.
+
+  ## Examples
+
+      :ok = BullMQ.Queue.set_global_concurrency("my_queue", 4, connection: :redis)
+  """
+  @spec set_global_concurrency(atom() | pid() | String.t(), pos_integer(), keyword()) ::
+          :ok | {:error, term()}
+  def set_global_concurrency(queue, concurrency, opts \\ [])
+
+  def set_global_concurrency(queue, concurrency, _opts)
+      when (is_atom(queue) or is_pid(queue)) and is_integer(concurrency) do
+    GenServer.call(queue, {:set_global_concurrency, concurrency})
+  end
+
+  def set_global_concurrency(queue, concurrency, opts)
+      when is_binary(queue) and is_integer(concurrency) and concurrency > 0 do
+    ok_or_error(
+      Backend.set_queue_meta(Backend.create(queue, opts), %{"concurrency" => concurrency})
+    )
+  end
+
+  @doc """
+  Removes the global concurrency limit of the queue.
+
+  ## Examples
+
+      :ok = BullMQ.Queue.remove_global_concurrency("my_queue", connection: :redis)
+  """
+  @spec remove_global_concurrency(atom() | pid() | String.t(), keyword()) :: :ok | {:error, term()}
+  def remove_global_concurrency(queue, opts \\ [])
+
+  def remove_global_concurrency(queue, _opts) when is_atom(queue) or is_pid(queue) do
+    GenServer.call(queue, :remove_global_concurrency)
+  end
+
+  def remove_global_concurrency(queue, opts) when is_binary(queue) do
+    ok_or_error(Backend.remove_queue_meta_fields(Backend.create(queue, opts), ["concurrency"]))
+  end
+
+  @doc """
+  Sets a global rate limit for the queue: at most `max` jobs every `duration`
+  milliseconds across all workers.
+
+  Stored in the queue meta hash (`max` and `duration` fields) exactly as
+  Node.js `queue.setGlobalRateLimit`. A global rate limit takes precedence over
+  the workers' own `:limiter` option.
+
+  ## Examples
+
+      # At most 10 jobs per second, for every worker of the queue
+      :ok = BullMQ.Queue.set_global_rate_limit("my_queue", 10, 1_000, connection: :redis)
+  """
+  @spec set_global_rate_limit(
+          atom() | pid() | String.t(),
+          pos_integer(),
+          pos_integer(),
+          keyword()
+        ) :: :ok | {:error, term()}
+  def set_global_rate_limit(queue, max, duration, opts \\ [])
+
+  def set_global_rate_limit(queue, max, duration, _opts)
+      when (is_atom(queue) or is_pid(queue)) and is_integer(max) and is_integer(duration) do
+    GenServer.call(queue, {:set_global_rate_limit, max, duration})
+  end
+
+  def set_global_rate_limit(queue, max, duration, opts)
+      when is_binary(queue) and is_integer(max) and max > 0 and is_integer(duration) and
+             duration > 0 do
+    ok_or_error(
+      Backend.set_queue_meta(Backend.create(queue, opts), %{"max" => max, "duration" => duration})
+    )
+  end
+
+  @doc """
+  Removes the global rate limit of the queue.
+
+  ## Examples
+
+      :ok = BullMQ.Queue.remove_global_rate_limit("my_queue", connection: :redis)
+  """
+  @spec remove_global_rate_limit(atom() | pid() | String.t(), keyword()) :: :ok | {:error, term()}
+  def remove_global_rate_limit(queue, opts \\ [])
+
+  def remove_global_rate_limit(queue, _opts) when is_atom(queue) or is_pid(queue) do
+    GenServer.call(queue, :remove_global_rate_limit)
+  end
+
+  def remove_global_rate_limit(queue, opts) when is_binary(queue) do
+    ok_or_error(Backend.remove_queue_meta_fields(Backend.create(queue, opts), ["max", "duration"]))
+  end
+
+  @doc """
+  Forces the queue rate limiter to be active for the next `expire_ms`
+  milliseconds (Node.js `queue.rateLimit`).
+
+  While active, workers with a rate limiter (their own `:limiter` option or a
+  global rate limit set with `set_global_rate_limit/4`) will not fetch new
+  jobs. This is the building block for *manual* rate limiting, typically when
+  an external API answers with "429 Too Many Requests":
+
+      def process(job) do
+        case call_external_api(job.data) do
+          {:error, {:rate_limited, retry_after_ms}} ->
+            :ok = BullMQ.Queue.rate_limit("my_queue", retry_after_ms, connection: :redis)
+            # Put the job back in wait without consuming an attempt
+            :rate_limited
+
+          {:ok, result} ->
+            {:ok, result}
+        end
+      end
+
+  See the `:rate_limited` and `{:rate_limit_queue, ms}` processor return
+  values in `BullMQ.Worker`.
+  """
+  @spec rate_limit(atom() | pid() | String.t(), pos_integer(), keyword()) ::
+          :ok | {:error, term()}
+  def rate_limit(queue, expire_ms, opts \\ [])
+
+  def rate_limit(queue, expire_ms, _opts)
+      when (is_atom(queue) or is_pid(queue)) and is_integer(expire_ms) do
+    GenServer.call(queue, {:rate_limit, expire_ms})
+  end
+
+  def rate_limit(queue, expire_ms, opts)
+      when is_binary(queue) and is_integer(expire_ms) and expire_ms > 0 do
+    ok_or_error(Backend.set_rate_limit(Backend.create(queue, opts), expire_ms))
+  end
+
+  @doc """
+  Removes the queue rate limiter key, ending any active rate limit window
+  (Node.js `queue.removeRateLimitKey`). Returns the number of keys removed.
+
+  ## Examples
+
+      {:ok, 1} = BullMQ.Queue.remove_rate_limit_key("my_queue", connection: :redis)
+  """
+  @spec remove_rate_limit_key(atom() | pid() | String.t(), keyword()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
+  def remove_rate_limit_key(queue, opts \\ [])
+
+  def remove_rate_limit_key(queue, _opts) when is_atom(queue) or is_pid(queue) do
+    GenServer.call(queue, :remove_rate_limit_key)
+  end
+
+  def remove_rate_limit_key(queue, opts) when is_binary(queue) do
+    Backend.remove_rate_limit_key(Backend.create(queue, opts))
+  end
+
+  @doc """
   Gets the job ID from a deduplication identifier.
 
   Returns the job ID that started the deduplicated state, or `nil` if not found.
@@ -1826,6 +1983,30 @@ defmodule BullMQ.Queue do
     {:reply, result, state}
   end
 
+  def handle_call({:set_global_concurrency, concurrency}, _from, state) do
+    {:reply, set_global_concurrency(state.name, concurrency, backend_opts(state)), state}
+  end
+
+  def handle_call(:remove_global_concurrency, _from, state) do
+    {:reply, remove_global_concurrency(state.name, backend_opts(state)), state}
+  end
+
+  def handle_call({:set_global_rate_limit, max, duration}, _from, state) do
+    {:reply, set_global_rate_limit(state.name, max, duration, backend_opts(state)), state}
+  end
+
+  def handle_call(:remove_global_rate_limit, _from, state) do
+    {:reply, remove_global_rate_limit(state.name, backend_opts(state)), state}
+  end
+
+  def handle_call({:rate_limit, expire_ms}, _from, state) do
+    {:reply, rate_limit(state.name, expire_ms, backend_opts(state)), state}
+  end
+
+  def handle_call(:remove_rate_limit_key, _from, state) do
+    {:reply, remove_rate_limit_key(state.name, backend_opts(state)), state}
+  end
+
   def handle_call({:get_deduplication_job_id, dedup_id}, _from, state) do
     result =
       get_deduplication_job_id(state.name, dedup_id, backend_opts(state))
@@ -1907,30 +2088,17 @@ defmodule BullMQ.Queue do
 
     case Backend.add_job(backend, job) do
       {:ok, job_id} ->
-        {:ok, %{job | id: to_string(job_id)}}
+        # With its connection, so that the returned job can be used directly
+        # (e.g. `Job.get_state/1`)
+        {:ok, %{job | id: to_string(job_id), connection: conn}}
 
       {:error, _} = error ->
         error
     end
   end
 
-  defp encode_job_opts(opts) do
-    opts
-    |> Map.take([
-      :attempts,
-      :backoff,
-      :lifo,
-      :timeout,
-      :remove_on_complete,
-      :remove_on_fail,
-      :repeat,
-      :deduplication,
-      :fail_parent_on_failure,
-      :ignore_dependency,
-      :remove_dependency
-    ])
-    |> Map.reject(fn {_k, v} -> is_nil(v) end)
-  end
+  defp ok_or_error({:ok, _}), do: :ok
+  defp ok_or_error({:error, _} = error), do: error
 
   defp parse_int_or_nil(nil), do: nil
 

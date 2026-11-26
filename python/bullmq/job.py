@@ -43,6 +43,7 @@ class Job:
         self.discarded = False
         self.opts = final_opts
         self.queue = queue
+        self.queueName = getattr(queue, "name", None)
         self.delay = opts.get("delay", 0)
         self.priority = opts.get("priority", 0)
         self.attempts = opts.get("attempts", 1)
@@ -298,9 +299,41 @@ class Job:
     async def moveToWaitingChildren(self, token, opts:dict) -> bool | None:
         return await self.backend.moveToWaitingChildren(self.id, token, opts)
 
+    async def moveToWait(self, token: str = "0") -> int:
+        """
+        Moves the job back to the wait state without consuming an attempt.
+        Used by the worker when a processor raises a RateLimitError.
+
+        @param token: token to check job is locked by current worker
+        @returns the ttl (ms) of the current rate limit, or 0.
+        """
+        return await self.backend.moveJobFromActiveToWait(self.id, token)
+
     async def getChildrenValues(self) -> dict[str, Any]:
         results = await self.backend.getProcessedChildrenValues(self.id)
         return parse_json_string_values(results)
+
+    async def getIgnoredChildrenFailures(self) -> dict[str, str]:
+        """
+        Get the failure reasons of the children of this job that failed
+        while using the `ignoreDependencyOnFailure` option.
+
+        @returns an object with the child job keys and their failed reasons.
+        """
+        return await self.backend.getIgnoredChildrenFailures(self.id)
+
+    async def getDependencies(self, opts: Optional[dict] = None) -> dict:
+        """
+        Get this job's children grouped by status: "processed" (key ->
+        return value), "unprocessed" (keys), "ignored" (key -> failed
+        reason) and "failed" (keys).
+
+        Pass any of those categories as `{"cursor": int, "count": int}` in
+        `opts` to fetch a single page of only those categories; the result
+        then also includes the cursor for the next page of each category
+        (e.g. "nextProcessedCursor", 0 when there are no more pages).
+        """
+        return await self.backend.getDependencies(self.id, opts)
 
     @staticmethod
     def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None) -> Job:

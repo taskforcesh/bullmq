@@ -162,6 +162,90 @@ end
 )
 ```
 
+## Global Rate Limit
+
+Instead of configuring `:limiter` on every worker, a rate limit can be stored
+in the queue itself. It applies to **all** workers of the queue (in any BullMQ
+language) and takes precedence over the workers' own `:limiter`:
+
+```elixir
+# At most 100 jobs per minute for the whole queue
+:ok = BullMQ.Queue.set_global_rate_limit("api-calls", 100, 60_000, connection: :my_redis)
+
+{:ok, %{max: 100, duration: 60_000}} =
+  BullMQ.Queue.get_global_rate_limit("api-calls", connection: :my_redis)
+
+:ok = BullMQ.Queue.remove_global_rate_limit("api-calls", connection: :my_redis)
+```
+
+The related `BullMQ.Queue.set_global_concurrency/3` caps how many jobs run in
+parallel across all workers:
+
+```elixir
+:ok = BullMQ.Queue.set_global_concurrency("api-calls", 4, connection: :my_redis)
+{:ok, 4} = BullMQ.Queue.get_global_concurrency("api-calls", connection: :my_redis)
+:ok = BullMQ.Queue.remove_global_concurrency("api-calls", connection: :my_redis)
+```
+
+Both are stored in the queue meta hash (`max`/`duration` and `concurrency`),
+exactly as Node.js `queue.setGlobalRateLimit` / `queue.setGlobalConcurrency`.
+
+## Manual Rate Limiting
+
+Sometimes the limit is only known at runtime, for example when an external API
+answers `429 Too Many Requests` with a `Retry-After` header. You can then rate
+limit the whole queue from inside the processor and put the job back in the
+wait list, without consuming an attempt:
+
+```elixir
+defmodule MyApp.ApiWorker do
+  def process(%BullMQ.Job{} = job) do
+    case MyApp.ExternalApi.call(job.data) do
+      {:ok, response} ->
+        {:ok, response}
+
+      {:error, {:too_many_requests, retry_after_ms}} ->
+        # Rate limit the queue for retry_after_ms and move the job back to wait
+        {:rate_limit_queue, retry_after_ms}
+    end
+  end
+end
+```
+
+`{:rate_limit_queue, ms}` is equivalent to the Node.js pattern:
+
+```typescript
+await queue.rateLimit(ms);
+throw Worker.RateLimitError();
+```
+
+and can also be written in two steps:
+
+```elixir
+:ok = BullMQ.Queue.rate_limit(job.queue_name, retry_after_ms, connection: :my_redis)
+:rate_limited
+```
+
+What happens:
+
+1. The queue limiter key is set for `ms` milliseconds (`BullMQ.Queue.rate_limit/3`)
+2. The job is moved back to **wait** (no attempt consumed, no `failed` event)
+3. The worker does not fetch new jobs until the limiter expires
+4. Other workers of the queue stop fetching too, as long as they have a
+   `:limiter` (or the queue has a global rate limit): the limiter is only
+   checked when a max is configured, as in Node.js
+
+The current window can be inspected with `BullMQ.Queue.get_rate_limit_ttl/2`
+and cleared early with `BullMQ.Queue.remove_rate_limit_key/2`.
+
+> #### `{:rate_limit, ms}` vs `{:rate_limit_queue, ms}` {: .warning}
+>
+> The older `{:rate_limit, ms}` return moves **only the current job** to the
+> delayed set for `ms` (like `{:delay, ms}`); the queue keeps processing other
+> jobs. It is kept unchanged for backwards compatibility. Use
+> `{:rate_limit_queue, ms}` / `:rate_limited` for Node.js-compatible manual
+> rate limiting.
+
 ## Monitoring Rate Limits
 
 Use worker callbacks to monitor when rate limiting occurs:

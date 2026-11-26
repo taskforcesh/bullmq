@@ -2,6 +2,9 @@
 
 BullMQ provides queue rate limiting. It is possible to configure workers so that they obey a given rate limiting option:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Worker, QueueScheduler } from 'bullmq';
 
@@ -14,6 +17,42 @@ const worker = new Worker('painter', async job => paintCar(job), {
 
 const scheduler = new QueueScheduler('painter');
 ```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+{:ok, worker} =
+  BullMQ.Worker.start_link(
+    queue: "painter",
+    connection: :my_redis,
+    processor: &paint_car/1,
+    limiter: %{max: 10, duration: 1000}
+  )
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Worker
+
+async def process(job, token):
+    return await paint_car(job)
+
+worker = Worker("painter", process, {
+    "connection": connection,
+    "limiter": {
+        "max": 10,
+        "duration": 1000,
+    },
+})
+```
+
+{% endtab %}
+{% endtabs %}
 
 {% hint style="warning" %}
 Jobs that get rate limited will actually stay in the waiting state.
@@ -64,6 +103,9 @@ Sometimes is useful to rate-limit a queue manually instead of based on some stat
 
 For this purpose, you can use the worker method **`rateLimit`** like this:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Worker } from 'bullmq';
 
@@ -89,8 +131,71 @@ const worker = new Worker(
 );
 ```
 
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+{:ok, worker} =
+  BullMQ.Worker.start_link(
+    queue: "myQueue",
+    connection: :my_redis,
+    limiter: %{max: 1, duration: 500},
+    processor: fn job ->
+      case do_external_call(job.data) do
+        {:rate_limited, duration} ->
+          # Sets the queue rate limit for `duration` ms and moves the job
+          # back to wait (no attempt consumed, no failed event).
+          # Equivalent to:
+          #   :ok = BullMQ.Queue.rate_limit("myQueue", duration, connection: :my_redis)
+          #   :rate_limited
+          {:rate_limit_queue, duration}
+
+        {:ok, result} ->
+          {:ok, result}
+      end
+    end
+  )
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Worker
+
+async def process(job, token):
+    is_rate_limited, duration = await do_external_call()
+    if is_rate_limited:
+        await worker.rateLimit(duration)
+        # Do not forget to raise this special exception,
+        # since we must differentiate this case from a failure
+        # in order to move the job to wait again.
+        raise Worker.RateLimitError()
+
+worker = Worker("myQueue", process, {
+    "connection": connection,
+    "limiter": {
+        "max": 1,
+        "duration": 500,
+    },
+})
+```
+
+{% hint style="info" %}
+`RateLimitError` can also be imported directly: `from bullmq import RateLimitError`. The rate-limited job is moved back to wait without being marked as failed and without consuming an attempt.
+{% endhint %}
+
+{% endtab %}
+{% endtabs %}
+
 {% hint style="warning" %}
 Don't forget to pass limiter options into your worker's options as _limiter.max_ is used to determine if we need to execute the rate limit validation.
+{% endhint %}
+
+{% hint style="info" %}
+In Elixir, the older `{:rate_limit, ms}` processor return only moves the current job to the delayed set (like `{:delay, ms}`) and does not rate limit the queue. Use `{:rate_limit_queue, ms}` or `BullMQ.Queue.rate_limit/3` + `:rate_limited` for the behaviour described here.
 {% endhint %}
 
 ### Get Queue Rate Limit Ttl
@@ -98,6 +203,9 @@ Don't forget to pass limiter options into your worker's options as _limiter.max_
 Sometimes is useful to know if our queue is rate limited.
 
 For this purpose, you can use the **`getRateLimitTtl`** method like this:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -112,11 +220,47 @@ if (ttl > 0) {
 }
 ```
 
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+max_jobs = 100
+
+{:ok, ttl} =
+  BullMQ.Queue.get_rate_limit_ttl("myQueue", connection: :my_redis, max_jobs: max_jobs)
+
+if ttl > 0 do
+  IO.puts("Queue is rate limited")
+end
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Queue
+
+queue = Queue("myQueue", {"connection": connection})
+
+ttl = await queue.getRateLimitTtl()
+
+if ttl > 0:
+    print("Queue is rate limited")
+```
+
+{% endtab %}
+{% endtabs %}
+
 ### Remove Rate Limit Key
 
 Sometimes is useful to stop a rate limit delay.
 
 For this purpose, you can use the **`removeRateLimitKey`** method like this:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -125,6 +269,29 @@ const queue = new Queue('myQueue', { connection });
 
 await queue.removeRateLimitKey();
 ```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+{:ok, _removed} = BullMQ.Queue.remove_rate_limit_key("myQueue", connection: :my_redis)
+```
+
+{% endtab %}
+
+{% tab title="Python (Redis only)" %}
+
+```python
+from bullmq import Queue
+
+queue = Queue("myQueue", {"connection": connection})
+
+await queue.removeRateLimitKey()
+```
+
+{% endtab %}
+{% endtabs %}
 
 By removing rate limit key, workers will be able to pick jobs again and your rate limit counter is reset to zero.
 
