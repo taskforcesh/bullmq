@@ -384,14 +384,17 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   }
 
   /**
-   * Smallest meaningful block timeout (seconds) given the blocking
-   * connection's capabilities.
+   * Smallest block timeout (seconds) sent to `BZPOPMIN`.
+   *
+   * Redis servers without redis/redis#11688 turn a 0.001s timeout into 0,
+   * which means "block forever". That fix shipped in Redis 7.0.8, but the
+   * reported server version cannot be trusted to tell whether it is present:
+   * AWS ElastiCache reports 7.1.0 and still blocks forever on 0.001 (#3516).
+   * 0.002s is safe on every server and costs at most 1ms of extra wait, so it
+   * is used unconditionally instead of relying on `canBlockFor1Ms`.
    */
   get minimumBlockTimeout(): number {
-    return (this.blockingConnection ?? this.connection).capabilities
-      .canBlockFor1Ms
-      ? 0.001
-      : 0.002;
+    return 0.002;
   }
 
   /**
