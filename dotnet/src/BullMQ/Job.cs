@@ -152,6 +152,13 @@ public class Job
                 $"The following options cannot be used together: {string.Join(", ", enabled)}");
         }
 
+        // Same rule as the Node.js client: ":" separates the queue and the
+        // id in job keys. Three parts are allowed for old repeatable jobs.
+        if (opts.JobId is { } jobId && jobId.Contains(':') && jobId.Split(':').Length != 3)
+        {
+            throw new ArgumentException("Custom Id cannot contain :");
+        }
+
         if (opts.Deduplication is not null && hasParent)
         {
             throw new ArgumentException("Deduplication and parent options cannot be used together");

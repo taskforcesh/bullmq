@@ -358,6 +358,26 @@ public abstract class ChildFailureOptionsTestsBase
 
             await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
                 flow.GetFlowAsync(new GetFlowOptions { Id = "any", QueueName = q, MaxChildren = 0 }));
+
+            // A flow root with a parent outside the flow cannot be deduplicated
+            await Assert.ThrowsAsync<ArgumentException>(() => flow.AddAsync(new FlowJob
+            {
+                Name = "root",
+                QueueName = q,
+                Opts = new JobsOptions { Parent = parent, Deduplication = new DeduplicationOptions { Id = "d" } },
+            }));
+
+            // ":" separates the queue and the id in job keys (as in Node.js)
+            var colon = await Assert.ThrowsAsync<ArgumentException>(() =>
+                queue.AddAsync("job", null, new JobsOptions { JobId = "part:42" }));
+            Assert.Contains("cannot contain :", colon.Message);
+            await Assert.ThrowsAsync<ArgumentException>(() => flow.AddAsync(new FlowJob
+            {
+                Name = "root",
+                QueueName = q,
+                Children = new[] { new FlowJob { Name = "child", QueueName = q, Opts = new JobsOptions { JobId = "a:b" } } },
+            }));
+            Assert.Equal(0, (await queue.GetJobCountsAsync()).Values.Sum());
         }
         finally
         {
@@ -420,6 +440,48 @@ public abstract class ChildFailureOptionsTestsBase
         {
             await queue.ObliterateAsync(force: true);
             await children.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task AddBulk_RegistersChildrenOnTheirParent()
+    {
+        var q = UniqueName();
+        await using var queue = new Queue(q, NewQueueOptions());
+        await using var flow = new FlowProducer(NewQueueOptions());
+
+        try
+        {
+            var tree = await flow.AddAsync(new FlowJob
+            {
+                Name = "root",
+                QueueName = q,
+                Children = new[] { new FlowJob { Name = "first", QueueName = q } },
+            });
+            var parentQueue = (await queue.GetBackendAsync()).QualifiedName;
+            var parent = new ParentOptions { Id = tree.Job.Id!, Queue = parentQueue };
+
+            await queue.AddBulkAsync(new[]
+            {
+                ("second", (object?)null, (JobsOptions?)new JobsOptions { Parent = parent }),
+                ("third", (object?)null, (JobsOptions?)new JobsOptions { Parent = parent }),
+            });
+
+            var node = await flow.GetFlowAsync(new GetFlowOptions { Id = tree.Job.Id!, QueueName = q });
+            Assert.Equal(
+                new[] { "first", "second", "third" },
+                node!.Children!.Select(c => c.Job.Name).OrderBy(n => n));
+
+            // A missing parent is an error, not a job id
+            var missing = new ParentOptions { Id = "missing", Queue = parentQueue };
+            await Assert.ThrowsAnyAsync<Exception>(() => queue.AddBulkAsync(new[]
+            {
+                ("orphan", (object?)null, (JobsOptions?)new JobsOptions { Parent = missing }),
+            }));
+        }
+        finally
+        {
+            await queue.ObliterateAsync(force: true);
         }
     }
 

@@ -94,7 +94,8 @@ public sealed class FlowProducer : IAsyncDisposable
     /// <summary>Adds a flow atomically and returns the created job tree.</summary>
     public async Task<FlowJobNode> AddAsync(FlowJob flow)
     {
-        ValidateDeduplication(flow, hasParent: false);
+        // The root can have a parent outside the flow (Opts.Parent)
+        ValidateDeduplication(flow, hasParent: flow.Opts?.Parent is not null);
         var backend = await _backend.Value.ConfigureAwait(false);
         await backend.WaitUntilReadyAsync().ConfigureAwait(false);
 

@@ -175,7 +175,9 @@ public sealed class PostgresBackend : IQueueBackend
         }
 
         var entries = jobs.Select(j => BatchEntry(j, Name, addToWaitingChildren: false)).ToList();
-        var result = jobs.Any(j => j.DeduplicationId is not null)
+        // add_jobs_bulk only inserts independent jobs: dedup and children
+        // (registered on their parent) go through add_flow
+        var result = jobs.Any(j => j.DeduplicationId is not null || j.ParentKey is not null)
             ? await RunAsync("add_flow", new object?[] { JsonUtil.Serialize(entries) }, op: "addJob")
                 .ConfigureAwait(false)
             : await RunAsync("add_jobs_bulk", new object?[] { Name, JsonUtil.Serialize(entries) })
@@ -184,6 +186,13 @@ public sealed class PostgresBackend : IQueueBackend
         var ids = result.Rows.Select(r => Str(r[0])!).ToArray();
         for (var i = 0; i < ids.Length && i < jobs.Count; i++)
         {
+            // add_flow returns error codes as negative ids (-5: missing
+            // parent, -7: failed parent): throw them as the Redis backend does
+            if (long.TryParse(ids[i], out var code) && code < 0)
+            {
+                throw FinishedErrors.Create((int)code, jobId: jobs[i].Id, parentKey: jobs[i].ParentKey, command: "addJob");
+            }
+
             jobs[i].Id = ids[i];
         }
 
