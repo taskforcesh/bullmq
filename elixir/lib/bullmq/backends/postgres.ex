@@ -358,7 +358,7 @@ defmodule BullMQ.Backends.Postgres do
       "id" => Map.get(job, :id) || "",
       "name" => Map.get(job, :name),
       "data" => Map.get(job, :data) || %{},
-      "opts" => Map.put(encoded_opts, :delay, delay),
+      "opts" => encoded_opts |> Map.delete(:defer_parent_release) |> Map.put("delay", delay),
       "priority" => opt(opts, :priority, 0),
       "delay" => delay,
       "timestamp" => Map.get(job, :timestamp) || now_ms(),
@@ -976,15 +976,15 @@ defmodule BullMQ.Backends.Postgres do
   # ============================================================
 
   @impl true
-  def set_queue_meta(%__MODULE__{pool: pool} = b, values) do
-    Enum.each(values, fn {field, value} ->
-      Postgrex.query!(
-        pool,
-        "INSERT INTO meta (queue, field, value) VALUES ($1, $2, $3) " <>
-          "ON CONFLICT (queue, field) DO UPDATE SET value = EXCLUDED.value",
-        [b.queue_name, to_string(field), to_string(value)]
-      )
-    end)
+  def set_queue_meta(%__MODULE__{} = b, values) do
+    # One statement for every field, so that concurrent calls (e.g. `max` and
+    # `duration` of a global rate limit) can't leave a mix of both
+    {fields, vals} =
+      values
+      |> Enum.map(fn {field, value} -> {to_string(field), to_string(value)} end)
+      |> Enum.unzip()
+
+    run(b, "set_queue_meta", [b.queue_name, fields, vals])
 
     {:ok, map_size_or_length(values)}
   end
@@ -1018,6 +1018,28 @@ defmodule BullMQ.Backends.Postgres do
   end
 
   @impl true
+  def remove_queue_meta_fields(%__MODULE__{}, []), do: {:ok, 0}
+
+  def remove_queue_meta_fields(%__MODULE__{} = b, fields) do
+    %Postgrex.Result{num_rows: n} =
+      run(b, "remove_queue_meta_fields", [b.queue_name, Enum.map(fields, &to_string/1)])
+
+    {:ok, n}
+  end
+
+  @impl true
+  def set_rate_limit(%__MODULE__{} = b, expire_ms) do
+    run(b, "set_rate_limit", [b.queue_name, expire_ms, now_ms()])
+    {:ok, "OK"}
+  end
+
+  @impl true
+  def remove_rate_limit_key(%__MODULE__{} = b) do
+    %{"n" => n} = first_map(run(b, "remove_rate_limit", [b.queue_name]))
+    {:ok, to_int(n)}
+  end
+
+  @impl true
   def has_queue_meta_field(%__MODULE__{} = b, field) do
     %{"exists" => exists} = first_map(run(b, "has_queue_meta_field", [b.queue_name, field]))
     {:ok, exists}
@@ -1047,6 +1069,22 @@ defmodule BullMQ.Backends.Postgres do
   def get_dependencies(%__MODULE__{} = b, job_id) do
     result = run(b, "get_dependencies", [b.queue_name, job_id])
     {:ok, Enum.map(maps(result), fn m -> m["child_key"] || m["id"] end)}
+  end
+
+  @impl true
+  def get_dependencies_page(%__MODULE__{} = b, job_id, count) do
+    # Limited in SQL: a parent with many children only reads `count` of each
+    by_status = fn status ->
+      maps(run(b, "get_dependencies_page", [b.queue_name, job_id, status, 0, count]))
+    end
+
+    {:ok,
+     %{
+       processed: Enum.map(by_status.("processed"), &{&1["child_key"], json(&1["value"])}),
+       unprocessed: Enum.map(by_status.("pending"), & &1["child_key"]),
+       failed: Enum.map(by_status.("failed"), & &1["child_key"]),
+       ignored: Enum.map(by_status.("ignored"), &{&1["child_key"], &1["value"]})
+     }}
   end
 
   @impl true

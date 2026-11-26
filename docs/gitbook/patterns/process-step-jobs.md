@@ -231,7 +231,7 @@ By saving the next step value every time we complete the previous step (here, sa
 
 There are situations when it is useful to delay a job when it is being processed.
 
-This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the TypeScript and Python `moveToDelayed` methods to work, we need to pass said token so that it can unlock without error. In .NET, `job.MoveToDelayedAsync` uses the job's token automatically when no token is provided, and in Rust `job.move_to_delayed` always uses it. Finally, we need to exit from the processor by throwing a special error (`DelayedError` in TypeScript and Python, `DelayedException` in .NET, or returning `Error::Delayed` in Rust) that will signal to the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
+This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the TypeScript and Python `moveToDelayed` methods to work, we need to pass said token so that it can unlock without error. In .NET, `job.MoveToDelayedAsync` uses the job's token automatically when no token is provided, and in Rust `job.move_to_delayed` always uses it, as does Elixir's `BullMQ.Job.move_to_delayed/3` by default. Finally, we need to exit from the processor by throwing a special error (`DelayedError` in TypeScript and Python, `DelayedException` in .NET, returning `Error::Delayed` in Rust, or returning `:delayed` in Elixir) that will signal to the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -361,6 +361,34 @@ var worker = new Worker(
   {
     Connection = connection,
   });
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+{:ok, worker} =
+  BullMQ.Worker.start_link(
+    queue: "queueName",
+    connection: :my_redis,
+    processor: fn job ->
+      case job.data["step"] do
+        "initial" ->
+          do_initial_step_stuff()
+          :ok = BullMQ.Worker.update_data(job, %{"step" => "second"})
+          # Absolute timestamp; the job's own lock token is used by default
+          :ok = BullMQ.Job.move_to_delayed(job, System.system_time(:millisecond) + 200)
+          # Tell the worker the job was already moved
+          :delayed
+
+        "second" ->
+          do_second_step_stuff()
+          :ok = BullMQ.Worker.update_data(job, %{"step" => "finish"})
+          {:ok, "finish"}
+      end
+    end
+  )
 ```
 
 {% endtab %}

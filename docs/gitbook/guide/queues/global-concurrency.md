@@ -23,6 +23,14 @@ await queue.setGlobalConcurrency(4)
 
 {% endtab %}
 
+{% tab title="Elixir" %}
+
+```elixir
+:ok = BullMQ.Queue.set_global_concurrency("my-queue", 4, connection: :my_redis)
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
@@ -113,6 +121,14 @@ await queue.removeGlobalConcurrency();
 
 ```python
 await queue.removeGlobalConcurrency()
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+:ok = BullMQ.Queue.remove_global_concurrency("my-queue", connection: :my_redis)
 ```
 
 {% endtab %}
