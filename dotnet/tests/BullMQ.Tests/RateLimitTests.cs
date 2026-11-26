@@ -189,6 +189,46 @@ public abstract class RateLimitTestsBase
     }
 
     [Fact]
+    public async Task MoveToWait_WithAnotherToken_IsRejected_AndLeavesTheJobActive()
+    {
+        var q = UniqueName();
+        await using var queue = new Queue(q, NewQueueOptions());
+        var outcome = new TaskCompletionSource<(Exception? Error, JobState State)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var worker = new Worker(q, async (job, _) =>
+        {
+            Exception? error = null;
+            try
+            {
+                await job.MoveToWaitAsync("wrong-token");
+            }
+            catch (Exception e)
+            {
+                error = e;
+            }
+
+            outcome.TrySetResult((error, await queue.GetJobStateAsync(job.Id!)));
+            return null;
+        }, NewWorkerOptions());
+
+        try
+        {
+            await queue.AddAsync("job", null);
+            _ = worker.RunAsync();
+
+            var (error, state) = await outcome.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.NotNull(error);
+            Assert.Equal(JobState.Active, state);
+        }
+        finally
+        {
+            await worker.CloseAsync();
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
     public async Task GlobalConcurrencyAndRateLimit_AreStoredInQueueMeta()
     {
         var q = UniqueName();
@@ -208,6 +248,10 @@ public abstract class RateLimitTestsBase
             Assert.Equal(1000, limit.Duration);
             Assert.Equal(2, await queue.RemoveGlobalRateLimitAsync());
             Assert.Null(await queue.GetGlobalRateLimitAsync());
+
+            // Counts what this call removed: nothing is left
+            Assert.Equal(0, await queue.RemoveGlobalRateLimitAsync());
+            Assert.Equal(0, await queue.RemoveGlobalConcurrencyAsync());
         }
         finally
         {

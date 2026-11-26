@@ -313,6 +313,59 @@ public abstract class ChildFailureOptionsTestsBase
     }
 
     [Fact]
+    public async Task ConflictingOptions_AreRejectedBeforeAdding()
+    {
+        var q = UniqueName();
+        var defaults = NewQueueOptions();
+        defaults.DefaultJobOptions = new JobsOptions { FailParentOnFailure = true };
+        await using var queue = new Queue(q, defaults);
+        await using var flow = new FlowProducer(NewQueueOptions());
+
+        try
+        {
+            var parent = new ParentOptions { Id = "parent-1", Queue = $"bull:{q}" };
+
+            // A per-job policy conflicts with the queue's default one
+            var conflict = await Assert.ThrowsAsync<ArgumentException>(() => queue.AddAsync(
+                "child", null, new JobsOptions { Parent = parent, IgnoreDependencyOnFailure = true }));
+            Assert.Contains("failParentOnFailure, ignoreDependencyOnFailure", conflict.Message);
+
+            await Assert.ThrowsAsync<ArgumentException>(() => queue.AddAsync(
+                "child", null, new JobsOptions { Parent = parent, Deduplication = new DeduplicationOptions { Id = "d" } }));
+
+            // Bulk: nothing is added when any job is invalid
+            await Assert.ThrowsAsync<ArgumentException>(() => queue.AddBulkAsync(new[]
+            {
+                ("ok", (object?)null, (JobsOptions?)null),
+                ("bad", (object?)null, (JobsOptions?)new JobsOptions { ContinueParentOnFailure = true }),
+            }));
+            Assert.Equal(0, (await queue.GetJobCountsAsync()).Values.Sum());
+
+            await Assert.ThrowsAsync<ArgumentException>(() => flow.AddAsync(new FlowJob
+            {
+                Name = "root",
+                QueueName = q,
+                Children = new[]
+                {
+                    new FlowJob
+                    {
+                        Name = "child",
+                        QueueName = q,
+                        Opts = new JobsOptions { FailParentOnFailure = true, RemoveDependencyOnFailure = true },
+                    },
+                },
+            }));
+
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+                flow.GetFlowAsync(new GetFlowOptions { Id = "any", QueueName = q, MaxChildren = 0 }));
+        }
+        finally
+        {
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
     public async Task GetFlow_ReturnsTheJobTree()
     {
         var q = UniqueName();

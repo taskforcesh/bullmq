@@ -132,10 +132,37 @@ public class Job
         return parent;
     }
 
+    /// <summary>
+    /// Rejects option combinations the scripts can't honour, like the reference
+    /// <c>Job.validateOptions</c>: more than one child failure policy, and
+    /// deduplication on a child (an existing winner would be returned without
+    /// the dependency, or a replaced child would keep its old parent's).
+    /// Validates the options after merging the queue's defaults.
+    /// </summary>
+    internal static void ValidateOptions(JobsOptions opts, bool hasParent)
+    {
+        var enabled = new List<string>();
+        if (opts.RemoveDependencyOnFailure == true) enabled.Add("removeDependencyOnFailure");
+        if (opts.FailParentOnFailure == true) enabled.Add("failParentOnFailure");
+        if (opts.ContinueParentOnFailure == true) enabled.Add("continueParentOnFailure");
+        if (opts.IgnoreDependencyOnFailure == true) enabled.Add("ignoreDependencyOnFailure");
+        if (enabled.Count > 1)
+        {
+            throw new ArgumentException(
+                $"The following options cannot be used together: {string.Join(", ", enabled)}");
+        }
+
+        if (opts.Deduplication is not null && hasParent)
+        {
+            throw new ArgumentException("Deduplication and parent options cannot be used together");
+        }
+    }
+
     /// <summary>Creates a job and adds it to the queue via the backend.</summary>
     public static async Task<Job> CreateAsync(
         IQueueBackend backend, string queueName, string name, object? data, JobsOptions opts)
     {
+        ValidateOptions(opts, hasParent: opts.Parent is not null);
         var job = new Job(backend, queueName, name, data, opts);
         var id = await backend.AddJobAsync(job).ConfigureAwait(false);
         job.Id = id;

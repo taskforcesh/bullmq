@@ -713,18 +713,12 @@ public sealed class PostgresBackend : IQueueBackend
             return 0;
         }
 
-        // The shared statement reports no rows, so count the fields that exist first.
-        long removed = 0;
-        foreach (var field in fields.Distinct(StringComparer.Ordinal))
-        {
-            if (await HasQueueMetaFieldAsync(field).ConfigureAwait(false))
-            {
-                removed++;
-            }
-        }
-
-        await RunAsync("remove_queue_meta_fields", new object?[] { Name, fields.ToArray() }).ConfigureAwait(false);
-        return removed;
+        // The DELETE's own count (like HDEL), so concurrent callers can't both
+        // report the same removal
+        var result = await RunAsync(
+            "remove_queue_meta_fields",
+            new object?[] { Name, fields.Distinct(StringComparer.Ordinal).ToArray() }).ConfigureAwait(false);
+        return Math.Max(result.RecordsAffected, 0);
     }
 
     public async Task<string?> GetQueueMetaFieldAsync(string field)

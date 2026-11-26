@@ -136,8 +136,14 @@ public sealed class Queue : IAsyncDisposable
         IEnumerable<(string name, object? data, JobsOptions? opts)> jobs)
     {
         var backend = await _backend.Value.ConfigureAwait(false);
+        // Every job is validated before any is added
         var list = jobs
-            .Select(j => new Job(backend, Name, j.name, j.data, MergeOpts(j.opts)))
+            .Select(j =>
+            {
+                var merged = MergeOpts(j.opts);
+                Job.ValidateOptions(merged, hasParent: merged.Parent is not null);
+                return new Job(backend, Name, j.name, j.data, merged);
+            })
             .ToList();
         await backend.AddJobsAsync(list).ConfigureAwait(false);
         return list;

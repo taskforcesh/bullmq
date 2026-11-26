@@ -106,6 +106,13 @@ public sealed class FlowProducer : IAsyncDisposable
 
     private static void ValidateDeduplication(FlowJob node, bool hasParent)
     {
+        if (node.Opts is { } opts)
+        {
+            // Child failure policies; deduplication is checked below, with
+            // the flow-specific messages
+            Job.ValidateOptions(opts, hasParent: false);
+        }
+
         if (node.Opts?.Deduplication is { } dedup)
         {
             if (node.Children is { Count: > 0 })
@@ -177,6 +184,8 @@ public sealed class FlowProducer : IAsyncDisposable
     public async Task<FlowJobNode?> GetFlowAsync(GetFlowOptions opts)
     {
         ArgumentNullException.ThrowIfNull(opts);
+        // Redis rejects a scan COUNT of 0 or less: read at least one child
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(opts.MaxChildren, nameof(opts.MaxChildren));
         var backend = await _backend.Value.ConfigureAwait(false);
         await backend.WaitUntilReadyAsync().ConfigureAwait(false);
         return await GetNodeAsync(
