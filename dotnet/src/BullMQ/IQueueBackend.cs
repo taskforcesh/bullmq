@@ -114,6 +114,13 @@ public interface IQueueBackend : IAsyncDisposable
         string? failedReason = null,
         string? stackTraceJson = null);
 
+    /// <summary>
+    /// Moves an active job back to wait (e.g. after a manual rate limit),
+    /// without consuming an attempt. Returns the remaining rate-limit ttl in ms
+    /// (0 when the queue is not rate limited).
+    /// </summary>
+    Task<long> MoveJobFromActiveToWaitAsync(string jobId, string token = "0");
+
     /// <summary>Moves a parent job to the waiting-children state. Returns true if moved.</summary>
     Task<bool> MoveToWaitingChildrenAsync(string jobId, string token, string? childKey = null);
 
@@ -155,6 +162,12 @@ public interface IQueueBackend : IAsyncDisposable
 
     /// <summary>Irreversibly destroys the queue and its contents; returns a cursor (0 = done).</summary>
     Task<long> ObliterateAsync(bool force, int count);
+
+    /// <summary>
+    /// Removes the children of a parent job that have not started processing
+    /// yet (waiting, delayed, ...), recursively.
+    /// </summary>
+    Task RemoveUnprocessedChildrenAsync(string jobId);
 
     /// <summary>Removes a job and (optionally) its children. Returns 1 if removed, 0 otherwise.</summary>
     Task<long> RemoveAsync(string jobId, bool removeChildren);
@@ -214,6 +227,15 @@ public interface IQueueBackend : IAsyncDisposable
     /// <summary>Returns the ttl (ms) of the current rate-limit window.</summary>
     Task<long> GetRateLimitTtlAsync();
 
+    /// <summary>
+    /// Forces the queue's rate-limit window to stay closed for
+    /// <paramref name="expireTimeMs"/> ms (a manual rate limit).
+    /// </summary>
+    Task SetRateLimitAsync(long expireTimeMs);
+
+    /// <summary>Removes the current rate-limit window. Returns the number of removed keys/rows.</summary>
+    Task<long> RemoveRateLimitKeyAsync();
+
     /// <summary>Returns the counts for the given job types, in order.</summary>
     Task<long[]> GetCountsAsync(params string[] types);
 
@@ -227,6 +249,25 @@ public interface IQueueBackend : IAsyncDisposable
     /// <summary>Returns the raw processed-children map (child key -> serialized value).</summary>
     Task<IReadOnlyDictionary<string, string>> GetProcessedChildrenValuesAsync(string jobId);
 
+    /// <summary>
+    /// Returns the failures of a parent's children that were ignored because of
+    /// <c>ignoreDependencyOnFailure</c> (child key -> failed reason).
+    /// </summary>
+    Task<IReadOnlyDictionary<string, string>> GetIgnoredChildrenFailuresAsync(string jobId);
+
+    /// <summary>
+    /// Returns the keys of a parent's children: up to <paramref name="count"/>
+    /// processed, unprocessed, failed and ignored children, in that order.
+    /// Each key can be split with <see cref="ParseNodeKey"/>.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetDependencyKeysAsync(string jobId, int count);
+
+    /// <summary>
+    /// Splits a child key (as returned by <see cref="GetDependencyKeysAsync"/>)
+    /// into its prefix (null when the backend has none), queue name and job id.
+    /// </summary>
+    (string? Prefix, string QueueName, string Id) ParseNodeKey(string key);
+
     /// <summary>Returns whether the queue is currently paused.</summary>
     Task<bool> IsPausedAsync();
 
@@ -239,6 +280,9 @@ public interface IQueueBackend : IAsyncDisposable
 
     /// <summary>Sets one or more queue metadata fields.</summary>
     Task SetQueueMetaAsync(IReadOnlyDictionary<string, object> values);
+
+    /// <summary>Removes queue metadata fields. Returns the number of removed fields.</summary>
+    Task<long> RemoveQueueMetaFieldsAsync(IReadOnlyList<string> fields);
 
     /// <summary>Reads a single queue metadata field.</summary>
     Task<string?> GetQueueMetaFieldAsync(string field);

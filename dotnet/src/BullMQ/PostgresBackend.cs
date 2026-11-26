@@ -30,6 +30,7 @@ public sealed class PostgresBackend : IQueueBackend
     private readonly string? _workerName;
     private readonly KeepJobs? _removeOnComplete;
     private readonly KeepJobs? _removeOnFail;
+    private readonly RateLimiterOptions? _limiter;
     private Task? _closing;
 
     // Armed by WaitForJobAsync and cancelled when this backend finishes a job
@@ -47,9 +48,11 @@ public sealed class PostgresBackend : IQueueBackend
         int lockDuration = 0,
         string? workerName = null,
         KeepJobs? removeOnComplete = null,
-        KeepJobs? removeOnFail = null)
+        KeepJobs? removeOnFail = null,
+        RateLimiterOptions? limiter = null)
     {
         Name = name;
+        _limiter = limiter;
         _connection = connection;
         _ownsConnection = ownsConnection;
         _lockDuration = lockDuration;
@@ -61,7 +64,7 @@ public sealed class PostgresBackend : IQueueBackend
     /// <summary>Creates a PostgreSQL backend from the given options.</summary>
     public static PostgresBackend Create(
         string name, PostgresOptions options, int lockDuration = 0, string? workerName = null) =>
-        Create(name, options, lockDuration, workerName, removeOnComplete: null, removeOnFail: null);
+        Create(name, options, lockDuration, workerName, removeOnComplete: null, removeOnFail: null, limiter: null);
 
     /// <summary>
     /// Creates a worker's PostgreSQL backend, with the worker's default
@@ -73,12 +76,17 @@ public sealed class PostgresBackend : IQueueBackend
         int lockDuration,
         string? workerName,
         KeepJobs? removeOnComplete,
-        KeepJobs? removeOnFail)
+        KeepJobs? removeOnFail,
+        RateLimiterOptions? limiter = null)
     {
         var connection = new PostgresConnection(options);
         return new PostgresBackend(
-            name, connection, ownsConnection: true, lockDuration, workerName, removeOnComplete, removeOnFail);
+            name, connection, ownsConnection: true, lockDuration, workerName, removeOnComplete, removeOnFail, limiter);
     }
+
+    private int? LimiterMax => _limiter?.Max;
+
+    private long? LimiterDuration => _limiter?.Duration;
 
     // ============================================================
     // Connection lifecycle
@@ -167,19 +175,45 @@ public sealed class PostgresBackend : IQueueBackend
         }
 
         var entries = jobs.Select(j => BatchEntry(j, Name, addToWaitingChildren: false)).ToList();
-        var result = jobs.Any(j => j.DeduplicationId is not null)
+        // add_jobs_bulk only inserts independent jobs: dedup and children
+        // (registered on their parent) go through add_flow
+        var viaFlow = jobs.Any(j => j.DeduplicationId is not null || j.ParentKey is not null);
+        var result = viaFlow
             ? await RunAsync("add_flow", new object?[] { JsonUtil.Serialize(entries) }, op: "addJob")
                 .ConfigureAwait(false)
             : await RunAsync("add_jobs_bulk", new object?[] { Name, JsonUtil.Serialize(entries) })
             .ConfigureAwait(false);
 
         var ids = result.Rows.Select(r => Str(r[0])!).ToArray();
+        if (viaFlow)
+        {
+            ThrowFlowErrors(ids, jobs);
+        }
+
         for (var i = 0; i < ids.Length && i < jobs.Count; i++)
         {
             jobs[i].Id = ids[i];
         }
 
         return ids;
+    }
+
+    /// <summary>
+    /// add_flow returns its error codes in place of ids: "-5" (missing parent)
+    /// and "-7" (failed parent). Throws them as the Redis backend does. Other
+    /// values are ids, custom ones included ("-42"). A job whose custom id is
+    /// "-5" or "-7" itself is read as added: the SQL reply can't tell them apart.
+    /// </summary>
+    private static void ThrowFlowErrors(IReadOnlyList<string> ids, IReadOnlyList<Job> jobs)
+    {
+        for (var i = 0; i < ids.Count && i < jobs.Count; i++)
+        {
+            if (ids[i] is "-5" or "-7" && ids[i] != jobs[i].Id)
+            {
+                throw FinishedErrors.Create(
+                    int.Parse(ids[i]), jobId: jobs[i].Id, parentKey: jobs[i].ParentKey, command: "addJob");
+            }
+        }
     }
 
     public async Task<IReadOnlyList<string>> AddFlowAsync(IReadOnlyList<FlowJobEntry> entries)
@@ -194,6 +228,7 @@ public sealed class PostgresBackend : IQueueBackend
             .ConfigureAwait(false);
 
         var ids = result.Rows.Select(r => Str(r[0])!).ToArray();
+        ThrowFlowErrors(ids, entries.Select(e => e.Job).ToList());
         for (var i = 0; i < ids.Length && i < entries.Count; i++)
         {
             entries[i].Job.Id = ids[i];
@@ -235,10 +270,10 @@ public sealed class PostgresBackend : IQueueBackend
         var now = NowMs();
         var result = await RunAsync(
             "move_to_active",
-            new object?[] { Name, token, _lockDuration > 0 ? _lockDuration : 30000, now, name ?? _workerName, null, null })
+            new object?[] { Name, token, _lockDuration > 0 ? _lockDuration : 30000, now, name ?? _workerName, LimiterMax, LimiterDuration })
             .ConfigureAwait(false);
 
-        return await NextJobResultAsync(result, null, now).ConfigureAwait(false);
+        return await NextJobResultAsync(result, LimiterMax, now).ConfigureAwait(false);
     }
 
     public Task<MoveToFinishedResult> MoveToCompletedAsync(
@@ -262,12 +297,12 @@ public sealed class PostgresBackend : IQueueBackend
             var now = NowMs();
             var command = completed ? "move_to_completed_fetch" : "move_to_failed_fetch";
             var parameters = completed
-                ? new object?[] { Name, job.Id, token, value, finishedOn, removeAll, keepAge, keepCount, _lockDuration > 0 ? _lockDuration : 30000, now, _workerName, null, null }
-                : new object?[] { Name, job.Id, token, value, stackTraceJson, finishedOn, removeAll, keepAge, keepCount, _lockDuration > 0 ? _lockDuration : 30000, now, _workerName, null, null };
+                ? new object?[] { Name, job.Id, token, value, finishedOn, removeAll, keepAge, keepCount, _lockDuration > 0 ? _lockDuration : 30000, now, _workerName, LimiterMax, LimiterDuration }
+                : new object?[] { Name, job.Id, token, value, stackTraceJson, finishedOn, removeAll, keepAge, keepCount, _lockDuration > 0 ? _lockDuration : 30000, now, _workerName, LimiterMax, LimiterDuration };
 
             var result = await RunAsync(command, parameters, op: "moveToFinished", jobId: job.Id, state: "active")
                 .ConfigureAwait(false);
-            var next = await NextJobResultAsync(result, null, now).ConfigureAwait(false);
+            var next = await NextJobResultAsync(result, LimiterMax, now).ConfigureAwait(false);
             if (next.Job is null)
             {
                 SignalSlotFreed();
@@ -310,6 +345,20 @@ public sealed class PostgresBackend : IQueueBackend
         }
 
         return null;
+    }
+
+    public async Task<long> MoveJobFromActiveToWaitAsync(string jobId, string token = "0")
+    {
+        var result = await RunAsync(
+            "move_active_to_wait",
+            new object?[] { Name, jobId, string.IsNullOrEmpty(token) ? "0" : token, NowMs() }).ConfigureAwait(false);
+        var n = ToInt(result.FirstMap()?.GetValueOrDefault("n"));
+        if (n < 0)
+        {
+            throw FinishedErrors.Create((int)n, jobId: jobId, command: "moveJobFromActiveToWait", state: "active");
+        }
+
+        return n;
     }
 
     public async Task<bool> MoveToWaitingChildrenAsync(string jobId, string token, string? childKey = null)
@@ -399,6 +448,9 @@ public sealed class PostgresBackend : IQueueBackend
 
         return cursor;
     }
+
+    public async Task RemoveUnprocessedChildrenAsync(string jobId) =>
+        await RunAsync("remove_unprocessed_children", new object?[] { Name, jobId }).ConfigureAwait(false);
 
     public async Task<long> RemoveAsync(string jobId, bool removeChildren)
     {
@@ -541,6 +593,15 @@ public sealed class PostgresBackend : IQueueBackend
         return ToInt(result.FirstMap()?.GetValueOrDefault("ttl"));
     }
 
+    public async Task SetRateLimitAsync(long expireTimeMs) =>
+        await RunAsync("set_rate_limit", new object?[] { Name, expireTimeMs, NowMs() }).ConfigureAwait(false);
+
+    public async Task<long> RemoveRateLimitKeyAsync()
+    {
+        var result = await RunAsync("remove_rate_limit", new object?[] { Name }).ConfigureAwait(false);
+        return ToInt(result.FirstMap()?.GetValueOrDefault("n"));
+    }
+
     public async Task<long[]> GetCountsAsync(params string[] types)
     {
         var lookup = await CountLookupAsync().ConfigureAwait(false);
@@ -612,6 +673,42 @@ public sealed class PostgresBackend : IQueueBackend
         return map;
     }
 
+    public async Task<IReadOnlyDictionary<string, string>> GetIgnoredChildrenFailuresAsync(string jobId)
+    {
+        var result = await RunAsync("get_ignored_children_failures", new object?[] { Name, jobId }).ConfigureAwait(false);
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var m in result.Maps())
+        {
+            if (Str(m.GetValueOrDefault("child_key")) is { } key)
+            {
+                map[key] = Str(m.GetValueOrDefault("reason")) ?? string.Empty;
+            }
+        }
+
+        return map;
+    }
+
+    public async Task<IReadOnlyList<string>> GetDependencyKeysAsync(string jobId, int count)
+    {
+        // One page per category, in the same order as the Redis backend.
+        var keys = new List<string>();
+        foreach (var status in new[] { "processed", "pending", "failed", "ignored" })
+        {
+            var result = await RunAsync(
+                "get_dependencies_page", new object?[] { Name, jobId, status, 0, count }).ConfigureAwait(false);
+            keys.AddRange(result.Maps().Select(m => Str(m.GetValueOrDefault("child_key"))).OfType<string>());
+        }
+
+        return keys;
+    }
+
+    public (string? Prefix, string QueueName, string Id) ParseNodeKey(string key)
+    {
+        // Child keys are "<queue>:<id>": the schema replaces the Redis prefix.
+        var idx = key.LastIndexOf(':');
+        return idx < 0 ? (null, key, string.Empty) : (null, key[..idx], key[(idx + 1)..]);
+    }
+
     public async Task<bool> IsPausedAsync()
     {
         var result = await RunAsync("get_queue_meta_field", new object?[] { Name, "paused" }).ConfigureAwait(false);
@@ -634,6 +731,21 @@ public sealed class PostgresBackend : IQueueBackend
         var fields = values.Keys.ToArray();
         var vals = values.Values.Select(v => v.ToString()).ToArray();
         await RunAsync("set_queue_meta", new object?[] { Name, fields, vals }).ConfigureAwait(false);
+    }
+
+    public async Task<long> RemoveQueueMetaFieldsAsync(IReadOnlyList<string> fields)
+    {
+        if (fields.Count == 0)
+        {
+            return 0;
+        }
+
+        // The DELETE's own count (like HDEL), so concurrent callers can't both
+        // report the same removal
+        var result = await RunAsync(
+            "remove_queue_meta_fields",
+            new object?[] { Name, fields.Distinct(StringComparer.Ordinal).ToArray() }).ConfigureAwait(false);
+        return Math.Max(result.RecordsAffected, 0);
     }
 
     public async Task<string?> GetQueueMetaFieldAsync(string field)

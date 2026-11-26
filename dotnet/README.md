@@ -236,6 +236,71 @@ runtimes (boolean, number or `{count, age, limit}` object) are honored the same
 way. `KeepJobs.Limit` caps how many aged jobs one eviction removes and only
 applies to Redis.
 
+## Flows: child failures and the job tree
+
+A child added with a `FlowProducer` (or with `JobsOptions.Parent` on
+`Queue.AddAsync`) can decide what happens to its parent when it fails
+permanently:
+
+- **`FailParentOnFailure`:** the parent fails too (when a worker picks it up).
+- **`ContinueParentOnFailure`:** the parent starts processing right away; it can
+  call `GetIgnoredChildrenFailuresAsync()` and `RemoveUnprocessedChildrenAsync()`.
+- **`IgnoreDependencyOnFailure`:** the parent completes as normal; the failure is
+  kept and returned by `GetIgnoredChildrenFailuresAsync()`.
+- **`RemoveDependencyOnFailure`:** the child is dropped from the parent's
+  dependencies.
+
+```csharp
+var tree = await flow.AddAsync(new FlowJob
+{
+    Name = "report",
+    QueueName = "reports",
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = "fetch",
+            QueueName = "fetchers",
+            Opts = new JobsOptions { IgnoreDependencyOnFailure = true },
+        },
+    },
+});
+
+// Later: child key -> failed reason
+var ignored = await tree.Job.GetIgnoredChildrenFailuresAsync();
+
+// The job and its children, recursively.
+var node = await flow.GetFlowAsync(new GetFlowOptions { Id = tree.Job.Id!, QueueName = "reports" });
+```
+
+`GetFlowOptions.Depth` (default 10, the root counts as one level) and
+`MaxChildren` (default 20 per category) bound the returned tree.
+
+## Rate limiting and global concurrency
+
+```csharp
+// At most 10 jobs per second across every worker of the queue.
+var worker = new Worker("painter", processor, new WorkerOptions
+{
+    Connection = connection,
+    Limiter = new RateLimiterOptions { Max = 10, Duration = 1000 },
+});
+
+// Or set a global rate limit / concurrency on the queue itself.
+await queue.SetGlobalRateLimitAsync(10, 1000);
+await queue.SetGlobalConcurrencyAsync(4);
+```
+
+To rate limit manually (e.g. after an HTTP 429), call `worker.RateLimitAsync(ms)`
+or `queue.RateLimitAsync(ms)` from the processor and throw
+`RateLimitException`. The job goes back to wait without consuming an attempt or
+raising `Failed`, and the worker sleeps until the limit lifts.
+
+Custom `IQueueBackend` implementations must also implement the operations these
+features add (rate-limit window, moving an active job back to wait, ignored
+children failures, dependency keys, removing unprocessed children and removing
+meta fields).
+
 ## Development
 
 The shared Lua scripts live at the repository root under `rawScripts/` and are

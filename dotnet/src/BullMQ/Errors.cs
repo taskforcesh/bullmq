@@ -33,6 +33,19 @@ public sealed class DelayedException : BullMQException
 }
 
 /// <summary>
+/// Thrown by a processor after rate limiting the queue manually (e.g. with
+/// <see cref="Worker.RateLimitAsync"/> or <see cref="Queue.RateLimitAsync"/>).
+/// The worker moves the job back to wait without consuming an attempt or
+/// raising <see cref="Worker.Failed"/>, and waits until the rate limit lifts.
+/// </summary>
+public sealed class RateLimitException : BullMQException
+{
+    public const string DefaultMessage = "bullmq:rateLimitExceeded";
+
+    public RateLimitException(string message = DefaultMessage) : base(message) { }
+}
+
+/// <summary>
 /// Thrown when the PostgreSQL schema requires a newer BullMQ major version than
 /// this client implements, i.e. it was migrated by a newer BullMQ release whose
 /// structures this client may not understand. Upgrade BullMQ; schema downgrades

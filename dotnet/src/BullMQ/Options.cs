@@ -127,6 +127,23 @@ public sealed class WorkerOptions : QueueBaseOptions
     /// failed jobs are kept. <c>Count = 0</c> keeps none.
     /// </summary>
     public KeepJobs? RemoveOnFail { get; set; }
+
+    /// <summary>
+    /// Rate limits the queue: at most <see cref="RateLimiterOptions.Max"/> jobs
+    /// are processed per <see cref="RateLimiterOptions.Duration"/> milliseconds,
+    /// across every worker of the queue that uses the same limiter.
+    /// </summary>
+    public RateLimiterOptions? Limiter { get; set; }
+}
+
+/// <summary>Rate limiter settings for a <see cref="Worker"/>.</summary>
+public sealed class RateLimiterOptions
+{
+    /// <summary>Maximum number of jobs processed per <see cref="Duration"/>.</summary>
+    public required int Max { get; set; }
+
+    /// <summary>Length of the rate-limit window in milliseconds.</summary>
+    public required long Duration { get; set; }
 }
 
 /// <summary>Options for a <see cref="QueueEvents"/> listener.</summary>
@@ -227,8 +244,53 @@ public sealed class JobsOptions
     /// <summary>Maximum number of log entries to keep for the job (0 = unlimited).</summary>
     public int? KeepLogs { get; set; }
 
+    /// <summary>
+    /// Makes this job a child of an existing parent job. The parent must exist
+    /// and is moved to waiting-children until this job completes.
+    /// </summary>
+    public ParentOptions? Parent { get; set; }
+
+    /// <summary>
+    /// When this child fails permanently, its parent fails too (the failure is
+    /// propagated up the flow).
+    /// </summary>
+    public bool? FailParentOnFailure { get; set; }
+
+    /// <summary>
+    /// When this child fails permanently, its parent starts processing right
+    /// away instead of waiting for its remaining children.
+    /// </summary>
+    public bool? ContinueParentOnFailure { get; set; }
+
+    /// <summary>
+    /// When this child fails permanently, the parent ignores the failure and
+    /// completes as normal. The failure reason can be read with
+    /// <see cref="Job.GetIgnoredChildrenFailuresAsync"/> on the parent.
+    /// </summary>
+    public bool? IgnoreDependencyOnFailure { get; set; }
+
+    /// <summary>
+    /// When this child fails permanently, it is removed from the parent's
+    /// dependencies so the parent can complete without it.
+    /// </summary>
+    public bool? RemoveDependencyOnFailure { get; set; }
+
     /// <summary>Creates a shallow copy of these options.</summary>
     public JobsOptions Clone() => (JobsOptions)MemberwiseClone();
+}
+
+/// <summary>Identifies the parent job of a child job.</summary>
+public sealed class ParentOptions
+{
+    /// <summary>The parent job id.</summary>
+    public required string Id { get; set; }
+
+    /// <summary>
+    /// The parent's fully-qualified queue name: <c>"&lt;prefix&gt;:&lt;queue&gt;"</c>
+    /// on Redis (e.g. <c>"bull:parents"</c>), or the plain queue name on
+    /// PostgreSQL. See <see cref="IQueueBackend.QualifiedName"/>.
+    /// </summary>
+    public required string Queue { get; set; }
 }
 
 /// <summary>Controls deduplication using the shared Redis and PostgreSQL scripts.</summary>
