@@ -782,11 +782,13 @@ func testJobRemoveUnprocessedChildren(t *testing.T, be testBackend) {
 	if job, err := parentQ.Job(ctx, tree.Job.ID); err != nil || job == nil {
 		t.Fatalf("the parent was removed (%v)", err)
 	}
-	// The pending dependencies left behind differ: Redis drops them (and
-	// releases the parent), the shared SQL keeps them, so only the processed
-	// child is checked, as in Node's tests.
+	// Nothing is pending anymore, so the parent moves to wait with the
+	// processed child's result.
+	if state, err := parentQ.JobState(ctx, tree.Job.ID); err != nil || state != bullmq.StateWaiting {
+		t.Fatalf("parent state = %q (%v)", state, err)
+	}
 	counts, err := tree.Job.DependenciesCount(ctx)
-	if err != nil || counts.Processed != 1 {
+	if err != nil || counts.Processed != 1 || counts.Unprocessed != 0 {
 		t.Fatalf("counts = %+v (%v)", counts, err)
 	}
 }
