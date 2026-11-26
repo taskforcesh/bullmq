@@ -863,51 +863,60 @@ describe('Telemetry', () => {
       await worker.close();
     });
 
-    it('should set job failed reason attribute on failure', async () => {
-      const errorMessage = 'Test processing error';
+    it('should record the original job exception before the failure event', async () => {
+      const error = new TypeError('Test processing error');
       const job = await queue.add('testJob', { foo: 'bar' });
 
       const worker = new Worker<any, any, string>(
         queueName,
         async () => {
-          throw new Error(errorMessage);
+          throw error;
         },
         {
           connection,
           telemetry: telemetryClient,
           name: 'testWorker',
           prefix,
+          autorun: false,
         },
       );
 
-      await worker.waitUntilReady();
-      const moveToFailedStub = sinon.stub(job, 'moveToFailed').resolves();
+      const sandbox = sinon.createSandbox();
+      try {
+        await worker.waitUntilReady();
+        sandbox.stub(job, 'moveToFailed').resolves();
+        const startSpanSpy = sandbox.spy(telemetryClient.tracer, 'startSpan');
+        const addEventSpy = sandbox.spy(MockSpan.prototype, 'addEvent');
+        const recordExceptionSpy = sandbox.spy(
+          MockSpan.prototype,
+          'recordException',
+        );
 
-      const startSpanSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
-      const addEventSpy = sinon.spy(MockSpan.prototype, 'addEvent');
+        await worker.processJob(job, 'some-token', () => false);
 
-      await worker.processJob(job, 'some-token', () => false);
+        const span = startSpanSpy.returnValues[0] as MockSpan;
+        expect(recordExceptionSpy.calledOnceWithExactly(error)).toBe(true);
+        expect(recordExceptionSpy.firstCall.thisValue).toBe(span);
+        expect(span.exception).toBe(error);
 
-      const span = startSpanSpy.returnValues[0] as MockSpan;
-
-      // handleFailed should add event with JobFailedReason
-      const failedEventCall = addEventSpy
-        .getCalls()
-        .find(call => call.args[0] === 'job failed');
-      expect(failedEventCall).toBeDefined();
-      expect(
-        failedEventCall?.args[1]?.[TelemetryAttributes.JobFailedReason],
-      ).toBe(errorMessage);
-
-      // handleFailed should set JobAttemptsMade
-      expect(
-        span.attributes[TelemetryAttributes.JobAttemptsMade],
-      ).toBeDefined();
-
-      addEventSpy.restore();
-      startSpanSpy.restore();
-      moveToFailedStub.restore();
-      await worker.close();
+        const failedEventCall = addEventSpy
+          .getCalls()
+          .find(call => call.args[0] === 'job failed');
+        expect(failedEventCall).toBeDefined();
+        expect(failedEventCall?.thisValue).toBe(span);
+        expect(recordExceptionSpy.firstCall.calledBefore(failedEventCall!)).toBe(
+          true,
+        );
+        expect(
+          failedEventCall?.args[1]?.[TelemetryAttributes.JobFailedReason],
+        ).toBe(error.message);
+        expect(
+          span.attributes[TelemetryAttributes.JobAttemptsMade],
+        ).toBeDefined();
+      } finally {
+        sandbox.restore();
+        await worker.close();
+      }
     });
   });
 

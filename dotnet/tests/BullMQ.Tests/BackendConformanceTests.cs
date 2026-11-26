@@ -471,6 +471,31 @@ public abstract class BackendConformanceTests
     }
 
     [Fact]
+    public async Task MoveToActive_WhenRateLimited_ReturnsRateLimitDelay()
+    {
+        var backend = await CreateBackendAsync();
+        try
+        {
+            // Queue-level limit stored as the reference queue.setGlobalRateLimit does.
+            await backend.SetQueueMetaAsync(new Dictionary<string, object> { ["max"] = 1, ["duration"] = 5000 });
+            var first = await AddAsync(backend);
+            await AddAsync(backend);
+
+            var claimed = await backend.MoveToActiveAsync(Token);
+            Assert.Equal(first.Id, claimed.JobId);
+            Assert.Equal(0, claimed.RateLimitDelay);
+
+            var limited = await backend.MoveToActiveAsync(Token);
+            Assert.False(limited.HasJob);
+            Assert.InRange(limited.RateLimitDelay, 1, 5000);
+        }
+        finally
+        {
+            await CleanupAsync(backend);
+        }
+    }
+
+    [Fact]
     public async Task QueueMeta_SetAndGet()
     {
         var backend = await CreateBackendAsync();

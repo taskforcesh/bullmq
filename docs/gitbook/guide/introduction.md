@@ -1,6 +1,15 @@
+---
+description: >-
+  What BullMQ is and how it works: an open source library for background jobs
+  and message queues on Redis or PostgreSQL, built around the Queue, Worker,
+  QueueEvents and FlowProducer classes.
+---
+
 # Introduction
 
-BullMQ is based in 4 classes that together can be used to resolve many different problems. These classes are [_**Queue**_](https://docs.bullmq.io/api/classes/v6.Queue.html), [_**Worker**_](https://docs.bullmq.io/api/classes/v6.Worker.html), [_**QueueEvents**_](https://docs.bullmq.io/api/classes/v6.QueueEvents.html) and [_**FlowProducer**_](https://docs.bullmq.io/api/classes/v6.FlowProducer.html).
+BullMQ is an open source library for running background jobs and message queues on top of Redis™ or PostgreSQL. One part of your application adds jobs to a queue, and workers, in the same process or in any number of other processes and machines, process them. BullMQ takes care of delivering every job, retrying the ones that fail, and of delays, priorities, rate limits and schedules.
+
+BullMQ is based on 4 classes that together can be used to resolve many different problems. These classes are [_**Queue**_](https://docs.bullmq.io/api/classes/v6.Queue.html), [_**Worker**_](https://docs.bullmq.io/api/classes/v6.Worker.html), [_**QueueEvents**_](https://docs.bullmq.io/api/classes/v6.QueueEvents.html) and [_**FlowProducer**_](https://docs.bullmq.io/api/classes/v6.FlowProducer.html).
 
 The first class you should know about is the _Queue_ class. This class represents a queue and can be used for adding _**jobs**_ to the queue as well as some other basic manipulation such as pausing, cleaning or getting data from the queue. It is also used to create [_**job schedulers**_](job-schedulers/README.md), which produce repeatable jobs according to a cron expression or a fixed interval.
 

@@ -1,3 +1,25 @@
+## [2.4.3](https://github.com/taskforcesh/bullmq/compare/vex2.4.2...vex2.4.3) (2026-11-24)
+
+
+### Bug Fixes
+
+* **postgres:** validate the lock token in move_active_to_wait (python) (elixir) (dotnet) ([#5215](https://github.com/taskforcesh/bullmq/issues/5215)) ([c105166](https://github.com/taskforcesh/bullmq/commit/c105166858ca2244d18130229befb920d1704927))
+
+## [2.4.2](https://github.com/taskforcesh/bullmq/compare/vex2.4.1...vex2.4.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* **postgres:** don't report a claimable job while the queue is maxed (python)(elixir)(dotnet) ([#5163](https://github.com/taskforcesh/bullmq/issues/5163)) ([42745d5](https://github.com/taskforcesh/bullmq/commit/42745d5e29fae50bf5f255bf2285cde903c2497a))
+
+## [2.4.1](https://github.com/taskforcesh/bullmq/compare/vex2.4.0...vex2.4.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **flow:** remove deduplication key that is associated with parent job that is removed (python) (elixir) (php) (rust) (dotnet) ([#5078](https://github.com/taskforcesh/bullmq/issues/5078)) ([2353552](https://github.com/taskforcesh/bullmq/commit/2353552f1e9f55db2bdfa5bdcf604e2cead7972a))
+* improve worker pause, job retention and cron scheduling ([#5114](https://github.com/taskforcesh/bullmq/issues/5114)) ([1349e2c](https://github.com/taskforcesh/bullmq/commit/1349e2c112d906a0dc4b9348513bc78628337151))
+
 # [2.4.0](https://github.com/taskforcesh/bullmq/compare/vex2.3.5...vex2.4.0) (2026-11-04)
 
 

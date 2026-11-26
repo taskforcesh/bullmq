@@ -1,3 +1,50 @@
+## [1.3.7](https://github.com/taskforcesh/bullmq/compare/vnet1.3.6...vnet1.3.7) (2026-11-19)
+
+### Bug Fixes
+
+* **postgres:** share the migration ledger with the other runtimes [dotnet] ([#5162](https://github.com/taskforcesh/bullmq/issues/5162)) ([04071ca](https://github.com/taskforcesh/bullmq/commit/04071cad240dc706e8fcb8d44e53dd8d835557ec))
+
+## [1.3.6](https://github.com/taskforcesh/bullmq/compare/vnet1.3.5...vnet1.3.6) (2026-11-19)
+
+### Bug Fixes
+
+* **worker:** retry failed jobs according to attempts and backoff [dotnet] ([#5161](https://github.com/taskforcesh/bullmq/issues/5161)) ([02c3725](https://github.com/taskforcesh/bullmq/commit/02c372557b585f5e179c6ad868b06a283593286b))
+
+## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vnet1.3.4...vnet1.3.5) (2026-11-19)
+
+### Performance Improvements
+
+* **worker:** fetch the next job when finishing the current one [dotnet] ([#5164](https://github.com/taskforcesh/bullmq/issues/5164)) ([b613f6a](https://github.com/taskforcesh/bullmq/commit/b613f6a259b874085475695887c2238fb57ac2d5))
+
+## [1.3.4](https://github.com/taskforcesh/bullmq/compare/vnet1.3.3...vnet1.3.4) (2026-11-19)
+
+### Bug Fixes
+
+* **worker:** honor removeOnComplete and removeOnFail [dotnet] ([#5159](https://github.com/taskforcesh/bullmq/issues/5159)) ([5a94286](https://github.com/taskforcesh/bullmq/commit/5a942867bc94d74dc3daeccdd1d216d0ed2c6b67))
+
+## [1.3.3](https://github.com/taskforcesh/bullmq/compare/vnet1.3.2...vnet1.3.3) (2026-11-19)
+
+
+### Performance Improvements
+
+* **postgres:** run queries on a connection pool [dotnet] ([#5165](https://github.com/taskforcesh/bullmq/issues/5165)) ([fe16c8c](https://github.com/taskforcesh/bullmq/commit/fe16c8cf662109ddffc978ea6c1771474457bef8))
+
+## [1.3.2](https://github.com/taskforcesh/bullmq/compare/vnet1.3.1...vnet1.3.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* **postgres:** don't report a claimable job while the queue is maxed (python)(elixir)(dotnet) ([#5163](https://github.com/taskforcesh/bullmq/issues/5163)) ([42745d5](https://github.com/taskforcesh/bullmq/commit/42745d5e29fae50bf5f255bf2285cde903c2497a))
+* **worker:** fail jobs with a deferred failure instead of processing them [dotnet] ([#5157](https://github.com/taskforcesh/bullmq/issues/5157)) ([1877758](https://github.com/taskforcesh/bullmq/commit/187775816ea03e8f7144049b313029a0472d4f1e))
+* **worker:** wait out the rate limit instead of polling for jobs [dotnet] ([#5158](https://github.com/taskforcesh/bullmq/issues/5158)) ([7f2ac2b](https://github.com/taskforcesh/bullmq/commit/7f2ac2b3b0b662c0aa91721c6e74fa965ce62ac2))
+
+## [1.3.1](https://github.com/taskforcesh/bullmq/compare/vnet1.3.0...vnet1.3.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **flow:** remove deduplication key that is associated with parent job that is removed (python) (elixir) (php) (rust) (dotnet) ([#5078](https://github.com/taskforcesh/bullmq/issues/5078)) ([2353552](https://github.com/taskforcesh/bullmq/commit/2353552f1e9f55db2bdfa5bdcf604e2cead7972a))
+
 # [1.3.0](https://github.com/taskforcesh/bullmq/compare/vnet1.2.3...vnet1.3.0) (2026-11-04)
 
 

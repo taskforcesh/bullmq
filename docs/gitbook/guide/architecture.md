@@ -7,6 +7,8 @@ description: >-
 
 # Architecture
 
+A BullMQ job moves through a fixed set of states. It starts in **wait**, **prioritized** or **delayed** (or **waiting-children** if it is the parent of a flow), becomes **active** when a worker picks it up, and ends as **completed** or **failed**. Every transition is atomic, whether the jobs are stored in Redis™ or in PostgreSQL.
+
 In order to use the full potential of BullMQ queues, it is important to understand the lifecycle of a job. From the moment a producer calls the [`add`](https://docs.bullmq.io/api/classes/v6.Queue.html#add) method on a `Queue` instance, a job enters a lifecycle where it will be in different states, until its completion or failure (although technically a failed job could be retried and get a new lifecycle).
 
 <figure><img src="../.gitbook/assets/simple-architecture.png" alt="Diagram showing the lifecycle of a job in a queue, including wait, prioritized, delayed, active, completed, and failed states"><figcaption><p>Lifecycle of a job - Queue</p></figcaption></figure>
@@ -39,4 +41,4 @@ The lifecycle described above is the same regardless of where the jobs are store
    - The **PostgreSQL backend** stores jobs in regular tables and implements every operation as a SQL function running in a transaction. Workers block on a dedicated `LISTEN` connection and are woken up by producers using `NOTIFY`. See [PostgreSQL backend](postgresql.md#how-it-works) for more details.
 3. **Datastore clients** handle the connections, such as ioredis, node-redis, Bun's Redis client or Valkey GLIDE for Redis, and node-postgres for PostgreSQL. See [Connections](connections.md).
 
-The Lua and SQL scripts are shared by all the BullMQ SDKs (TypeScript, Python, Elixir, Rust, .NET and PHP), which are thin layers on top of them. This is what guarantees identical semantics across languages, and what makes it possible to add jobs from one language and process them from another, as long as they use the same backend.
+The Lua and SQL scripts are shared by all the BullMQ SDKs (TypeScript, Python, Elixir, Rust, .NET, Go and PHP), which are thin layers on top of them. This is what guarantees identical semantics across languages, and what makes it possible to add jobs from one language and process them from another, as long as they use the same backend.

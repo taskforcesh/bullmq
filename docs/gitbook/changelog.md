@@ -1,3 +1,47 @@
+## [6.7.10](https://github.com/taskforcesh/bullmq/compare/v6.7.9...v6.7.10) (2026-11-24)
+
+
+### Bug Fixes
+
+* **deps:** resolve minimatch vulnerability ([#5177](https://github.com/taskforcesh/bullmq/issues/5177)) ([7479e8d](https://github.com/taskforcesh/bullmq/commit/7479e8d73e1740dccd2d0da8053a44b0fb7ada9b))
+
+## [6.7.8](https://github.com/taskforcesh/bullmq/compare/v6.7.7...v6.7.8) (2026-11-19)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cron-parser to v5.10.6 [security] ([#5150](https://github.com/taskforcesh/bullmq/issues/5150)) ([db233ed](https://github.com/taskforcesh/bullmq/commit/db233ed33c592d660d985f6a0fbb767a95d88a13))
+* **postgres:** don't report a claimable job while the queue is maxed (python)(elixir)(dotnet) ([#5163](https://github.com/taskforcesh/bullmq/issues/5163)) ([42745d5](https://github.com/taskforcesh/bullmq/commit/42745d5e29fae50bf5f255bf2285cde903c2497a))
+
+## [6.7.7](https://github.com/taskforcesh/bullmq/compare/v6.7.6...v6.7.7) (2026-11-17)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cron-parser to v5.10.5 [security] ([#5137](https://github.com/taskforcesh/bullmq/issues/5137)) ([2c0cb51](https://github.com/taskforcesh/bullmq/commit/2c0cb519d5a4cd631574dc07dffce3807a3c38c4))
+
+## [6.7.6](https://github.com/taskforcesh/bullmq/compare/v6.7.5...v6.7.6) (2026-11-12)
+
+
+### Bug Fixes
+
+* **flow:** remove deduplication key that is associated with parent job that is removed (python) (elixir) (php) (rust) (dotnet) ([#5078](https://github.com/taskforcesh/bullmq/issues/5078)) ([2353552](https://github.com/taskforcesh/bullmq/commit/2353552f1e9f55db2bdfa5bdcf604e2cead7972a))
+
+## [6.7.5](https://github.com/taskforcesh/bullmq/compare/v6.7.4...v6.7.5) (2026-11-11)
+
+
+### Bug Fixes
+
+* **schedulers:** remove unused count option property that must be internal ([#5109](https://github.com/taskforcesh/bullmq/issues/5109)) ([09b4832](https://github.com/taskforcesh/bullmq/commit/09b48329afc70adac2cf437adaf1c448ad5538ef))
+* **telemetry:** record original job errors on the processing span ([#4915](https://github.com/taskforcesh/bullmq/issues/4915)) ([cf91c88](https://github.com/taskforcesh/bullmq/commit/cf91c887f6a0a7d383c74345f78127764161157a))
+
+## [6.7.4](https://github.com/taskforcesh/bullmq/compare/v6.7.3...v6.7.4) (2026-11-11)
+
+
+### Bug Fixes
+
+* **postgres:** count waiting jobs while the queue is paused ([#5095](https://github.com/taskforcesh/bullmq/issues/5095)) fixes [#5083](https://github.com/taskforcesh/bullmq/issues/5083) ([5228077](https://github.com/taskforcesh/bullmq/commit/52280774cf3413d10a8c970fd7dc93be6a509fea))
+
 ## [6.7.3](https://github.com/taskforcesh/bullmq/compare/v6.7.2...v6.7.3) (2026-11-10)
 
 

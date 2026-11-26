@@ -563,52 +563,73 @@ describe('workers', () => {
   // (they spy on the blocking client's `bzpopmin`) and live in
   // `worker.redis.test.ts`.
 
-  it('does not process a job that is being processed when a new queue starts', async () => {
-    // TODO: Move timeout to test options: { timeout: 12000 }
-    let err;
-
-    const worker = new Worker(
-      queueName,
-      async job => {
-        expect(job.data.foo).toBe('bar');
-
-        if (addedJob.id !== job.id) {
-          err = new Error('Processed job id does not match that of added job');
-        }
-        await delay(500);
-      },
-      { connection, prefix },
-    );
-
-    await worker.waitUntilReady();
-
-    const addedJob = await queue.add('test', { foo: 'bar' });
-
-    const anotherWorker = new Worker(
-      queueName,
-      async () => {
-        err = new Error(
-          'The second queue should not have received a job to process',
-        );
-      },
-      { connection, prefix },
-    );
-
-    await anotherWorker.waitUntilReady();
-
-    await new Promise<void>(resolve => {
-      worker.on('completed', async () => {
-        resolve();
+  it(
+    'does not process a job that is being processed when a new queue starts',
+    { timeout: 12000 },
+    async () => {
+      let err;
+      let resolveProcessingStarted!: () => void;
+      let releaseProcessing!: () => void;
+      const processingStarted = new Promise<void>(resolve => {
+        resolveProcessingStarted = resolve;
       });
-    });
+      const processingGate = new Promise<void>(resolve => {
+        releaseProcessing = resolve;
+      });
+      const addedJob = await queue.add('test', { foo: 'bar' });
 
-    await worker.close();
-    await anotherWorker.close();
+      const worker = new Worker(
+        queueName,
+        async job => {
+          resolveProcessingStarted();
+          if (job.data.foo !== 'bar') {
+            err = new Error('Processed job data does not match');
+          }
 
-    if (err) {
-      throw err;
-    }
-  });
+          if (addedJob.id !== job.id) {
+            err = new Error(
+              'Processed job id does not match that of added job',
+            );
+          }
+          await processingGate;
+          await delay(500);
+        },
+        { connection, prefix },
+      );
+
+      let anotherWorker: Worker | undefined;
+      try {
+        await worker.waitUntilReady();
+        await processingStarted;
+
+        anotherWorker = new Worker(
+          queueName,
+          async () => {
+            err = new Error(
+              'The second queue should not have received a job to process',
+            );
+          },
+          { connection, prefix },
+        );
+
+        await anotherWorker.waitUntilReady();
+
+        const completed = new Promise<void>(resolve => {
+          worker.once('completed', () => resolve());
+        });
+        releaseProcessing();
+        await completed;
+
+        if (err) {
+          throw err;
+        }
+      } finally {
+        releaseProcessing();
+        await worker.close();
+        await anotherWorker?.close();
+      }
+    },
+  );
 
   it('process a job that throws an exception', async () => {
     const jobError = new Error('Job Failed');

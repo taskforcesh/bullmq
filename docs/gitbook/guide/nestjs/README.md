@@ -1,7 +1,25 @@
-There is a compatible module to be used in [NestJs](https://github.com/nestjs/nest).
+---
+description: >-
+  How to use BullMQ in a NestJS application with the @nestjs/bullmq module:
+  register queues, write processors (workers), add jobs from your services and
+  listen to queue events.
+---
+
+# BullMQ with NestJS
+
+BullMQ integrates with [NestJS](https://nestjs.com) through [`@nestjs/bullmq`](https://www.npmjs.com/package/@nestjs/bullmq), a module maintained by the NestJS team. Queues, flow producers, workers (called processors in NestJS) and queue event listeners are registered in your modules and injected like any other provider.
+
+This page covers the setup and the processors. See also:
+
+- [Producers](producers.md), to add jobs and flows from your services.
+- [Queue Events Listeners](queue-events-listeners.md), to react to the events of a queue.
+- [BullMQ Pro with NestJS](../../bullmq-pro/nestjs/README.md), if you use groups, batches or other BullMQ Pro features.
+- A [working example](https://github.com/taskforcesh/nestjs-bullmq-example) on GitHub.
+
+## Installation
 
 ```bash
-npm i @nestjs/bullmq
+npm i @nestjs/bullmq bullmq
 ```
 
 Once the installation process is complete, we can import the **`BullModule`** into the root **`AppModule`**.
@@ -39,7 +57,7 @@ BullModule.registerFlowProducer({
 });
 ```
 
-# Processor
+## Processors
 
 To register a processor, you may need to use the **`Processor`** decorator:
 
@@ -85,6 +103,6 @@ And then register it as a provider:
 export class AppModule {}
 ```
 
-## Read more:
+## Read more
 
 - 💡 [Queues Technique](https://docs.nestjs.com/techniques/queues)

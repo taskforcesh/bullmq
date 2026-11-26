@@ -1,4 +1,13 @@
+---
+description: >-
+  How to connect BullMQ to Redis, Valkey or Dragonfly: the connection option,
+  reusing connections, and using ioredis, node-redis, Bun's Redis client or
+  Valkey GLIDE.
+---
+
 # Connections
+
+To connect BullMQ to Redis™, pass a `connection` option with the host and port of your server, or an existing client, to every `Queue`, `Worker`, `QueueEvents` and `FlowProducer` you create. The default Redis endpoint is `localhost` on port 6379. A `Worker` requires a `connection` option, so pass `connection: {}` to use these defaults.
 
 In order to start working with a Queue, a connection to a datastore is necessary. By default BullMQ uses Redis™ (or a compatible server such as Valkey or Dragonfly), and this page describes how to configure those connections. If you are using PostgreSQL instead, see [PostgreSQL backend](postgresql.md#connection-options).
 
@@ -130,6 +139,55 @@ let my_worker = Worker::with_options(
     ),
 )
 .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	"github.com/redis/go-redis/v9"
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	// Create a new connection in every instance
+	backend := redisbackend.New(redisbackend.Options{Addr: "myredis.taskforce.run:32856"})
+
+	myQueue, err := bullmq.NewQueue("myqueue", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer myQueue.Close()
+
+	myWorker, err := bullmq.NewWorker("myqueue", func(ctx context.Context, job *bullmq.Job) (any, error) {
+		return nil, nil
+	}, &bullmq.WorkerOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer myWorker.Close()
+
+	// Or reuse your own go-redis client, which BullMQ never closes. Workers
+	// still open a dedicated connection for their blocking commands.
+	rdb := redis.NewClient(&redis.Options{Addr: "myredis.taskforce.run:32856"})
+	defer rdb.Close()
+
+	sharedQueue, err := bullmq.NewQueue("myqueue", &bullmq.QueueOptions{
+		Backend: redisbackend.New(redisbackend.Options{Client: rdb}),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer sharedQueue.Close()
+}
 ```
 
 {% endtab %}
