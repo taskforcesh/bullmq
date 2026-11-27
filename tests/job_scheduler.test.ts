@@ -2719,6 +2719,28 @@ describe('Job Scheduler', () => {
     expect(waiting[0].name).toEqual('myTestJob');
   });
 
+  it('should keep a waiting scheduler job and remove the other waiting jobs when using drain', async () => {
+    const date = new Date('2014-09-03 5:32:12');
+    clock.setSystemTime(date);
+
+    await queue.add('test', { n: 'a' }, { jobId: 'a' });
+    await queue.add('test', { n: 'b' }, { jobId: 'b' });
+    await queue.upsertJobScheduler('myTestJob', { every: 5000 });
+    await queue.add('test', { n: 'c' }, { jobId: 'c' });
+
+    expect(await queue.getWaitingCount()).toEqual(4);
+
+    await queue.drain();
+
+    const waiting = await queue.getWaiting();
+    expect(waiting.length).toEqual(1);
+    expect(waiting[0].name).toEqual('myTestJob');
+
+    for (const id of ['a', 'b', 'c']) {
+      expect(await queue.getJob(id)).toBeUndefined();
+    }
+  });
+
   it('should not remove delayed jobs if they belong to a repeatable job when using clean', async () => {
     const date = new Date('2012-08-05 2:32:12');
     clock.setSystemTime(date);
