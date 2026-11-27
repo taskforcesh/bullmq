@@ -6757,6 +6757,31 @@ describe('flows', () => {
     });
   });
 
+  describe('when a child node fails to be added', () => {
+    // https://github.com/taskforcesh/bullmq/issues/5147
+    it('should reject instead of resolving with the missing child', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+
+      await expect(
+        flow.add({
+          name: 'root',
+          queueName,
+          data: {},
+          children: [
+            {
+              name: 'child',
+              queueName,
+              data: {},
+              opts: { delay: Infinity },
+            },
+          ],
+        }),
+      ).rejects.toThrow(/NaN or Inf/);
+
+      await flow.close();
+    });
+  });
+
   describe('when child flow node has keepLastIfActive deduplication', () => {
     it('should reject the flow before adding a deferred child', async () => {
       const flow = new FlowProducer({ connection, prefix });
