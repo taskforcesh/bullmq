@@ -172,6 +172,31 @@ describe('queues', () => {
       });
     });
 
+    describe('when custom job id is too long', () => {
+      it('throws an error and does not add the job', async () => {
+        await expect(
+          queue.add('test', { foo: 1 }, { jobId: 'a'.repeat(32 * 1024 + 1) }),
+        ).rejects.toThrow('Custom Id cannot be longer than 32768 bytes');
+        await expect(
+          queue.addBulk([
+            {
+              name: 'test',
+              data: { foo: 1 },
+              opts: { jobId: 'a'.repeat(32 * 1024 + 1) },
+            },
+          ]),
+        ).rejects.toThrow('Custom Id cannot be longer than 32768 bytes');
+
+        expect(await queue.getWaitingCount()).toBe(0);
+      });
+
+      it('measures the id in bytes', async () => {
+        await expect(
+          queue.add('test', { foo: 1 }, { jobId: 'é'.repeat(16 * 1024 + 1) }),
+        ).rejects.toThrow('Custom Id cannot be longer than 32768 bytes');
+      });
+    });
+
     describe('when auto-generated job id counter reaches scientific notation threshold', () => {
       // Redis Lua serializes the number 300000000 as "3e+8" when passed
       // directly as a command argument, so we prime the counter just below it

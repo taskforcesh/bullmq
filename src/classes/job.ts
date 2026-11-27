@@ -42,6 +42,12 @@ const logger = debuglog('bull');
 
 export const PRIORITY_LIMIT = 2 ** 21 - 1;
 
+// Redis Enterprise and Redis Cloud reject key names over 64KB, but only when
+// the name is passed to a command or in KEYS, not when a script builds it. A
+// job with a longer key can be added, but never moved to completed or failed.
+// Half of that leaves room for the prefix, queue name and key suffixes.
+const MAX_CUSTOM_ID_BYTES = 32 * 1024;
+
 interface JobQueue extends Omit<
   MinimalQueue,
   'opts' | 'on' | 'removeListener'
@@ -1371,6 +1377,12 @@ export class Job<
         this.opts?.jobId?.split(':').length !== 3
       ) {
         throw new Error('Custom Id cannot contain :');
+      }
+
+      if (lengthInUtf8Bytes(this.opts.jobId) > MAX_CUSTOM_ID_BYTES) {
+        throw new Error(
+          `Custom Id cannot be longer than ${MAX_CUSTOM_ID_BYTES} bytes`,
+        );
       }
     }
 
