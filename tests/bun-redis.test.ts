@@ -15,6 +15,7 @@ import {
 } from 'bun:test';
 import { RedisClient } from 'bun';
 import {
+  ConnectionClosedError,
   createBunRedisClient,
   FlowProducer,
   Job,
@@ -275,6 +276,396 @@ describe('bun redis adapter', () => {
       expect(reconnectingClient.status).toBe('ready');
       expect(await reconnectingClient.info()).toContain('redis_version');
       await reconnectingClient.quit();
+    });
+  });
+
+  describe('recovering from a dropped connection', () => {
+    it('reports reconnecting, not end, so a Queue created meanwhile still works', async () => {
+      // Bun reconnects a killed client by itself without firing `onclose`;
+      // with its auto-reconnect off (as once its retries are spent, or when a
+      // connection fails while connecting) the adapter's own reconnect runs.
+      const raw = new RedisClient(`redis://${redisHost}:${redisPort}`, {
+        autoReconnect: false,
+      });
+      const dropped = createBunRedisClient(raw);
+      await dropped.connect();
+      // An unexpected close is also emitted as 'error'.
+      dropped.on('error', () => {});
+      const queueName = `test-bun-${randomUUID()}`;
+      let queue: Queue | undefined;
+      try {
+        const id = await raw.send('CLIENT', ['ID']);
+        const closed = new Promise(resolve => dropped.once('close', resolve));
+        await rawClient.send('CLIENT', ['KILL', 'ID', String(id)]);
+        await closed;
+
+        // The adapter reconnects on its own, so this is not the end of the
+        // client: `RedisConnection.waitUntilReady` treats 'end' as terminal.
+        expect(dropped.status).toBe('reconnecting');
+
+        queue = new Queue(queueName, { connection: dropped, prefix });
+        const job = await queue.add('after-drop', { foo: 'bar' });
+        expect(job.id).toBeDefined();
+        expect(dropped.status).toBe('ready');
+      } finally {
+        await queue?.close();
+        await cleanQueue(queueName);
+        await dropped.quit();
+      }
+    });
+  });
+
+  describe('outages', () => {
+    /**
+     * TCP proxy in front of Redis, so a test can make Redis unreachable and
+     * reachable again without restarting it.
+     */
+    function createProxy() {
+      const probe = Bun.listen({
+        hostname: '127.0.0.1',
+        port: 0,
+        socket: { data() {} },
+      });
+      const port = probe.port;
+      probe.stop(true);
+
+      type ProxyData = {
+        upstream?: Bun.Socket<undefined>;
+        pending: Buffer[];
+      };
+      let listener: ReturnType<typeof Bun.listen<ProxyData>> | undefined;
+      const upstreamSockets = new Set<Bun.Socket<undefined>>();
+      const openSockets = new Set<{ end(): void }>();
+      let rejectCount = 0;
+      const endSocket = (socket?: { end(): void }) => {
+        try {
+          socket?.end();
+        } catch {
+          // already ended
+        }
+      };
+
+      return {
+        url: `redis://127.0.0.1:${port}`,
+        rejectNext(count = 1) {
+          rejectCount += count;
+        },
+        start() {
+          if (listener) {
+            return;
+          }
+          listener = Bun.listen<ProxyData>({
+            hostname: '127.0.0.1',
+            port,
+            socket: {
+              open(client) {
+                openSockets.add(client);
+                client.data = { pending: [] };
+                if (rejectCount > 0) {
+                  rejectCount--;
+                  endSocket(client);
+                  return;
+                }
+                Bun.connect({
+                  hostname: redisHost,
+                  port: redisPort,
+                  socket: {
+                    open(upstream) {
+                      client.data.upstream = upstream;
+                      upstreamSockets.add(upstream);
+                      openSockets.add(upstream);
+                      for (const chunk of client.data.pending.splice(0)) {
+                        upstream.write(chunk);
+                      }
+                    },
+                    data(_upstream, chunk) {
+                      client.write(chunk);
+                    },
+                    close(upstream) {
+                      upstreamSockets.delete(upstream);
+                      endSocket(client);
+                    },
+                    error(upstream) {
+                      upstreamSockets.delete(upstream);
+                      endSocket(upstream);
+                      endSocket(client);
+                    },
+                  },
+                }).catch(() => endSocket(client));
+              },
+              data(client, chunk) {
+                const upstream = client.data.upstream;
+                if (upstream) {
+                  upstream.write(chunk);
+                } else {
+                  client.data.pending.push(Buffer.from(chunk));
+                }
+              },
+              close(client) {
+                openSockets.delete(client);
+                endSocket(client.data?.upstream);
+              },
+              error(client) {
+                openSockets.delete(client);
+                endSocket(client);
+                endSocket(client.data?.upstream);
+              },
+            },
+          });
+        },
+        stop() {
+          listener?.stop(true);
+          listener = undefined;
+          for (const socket of openSockets) {
+            endSocket(socket);
+          }
+          openSockets.clear();
+          upstreamSockets.clear();
+        },
+        upstreamCount: () => upstreamSockets.size,
+      };
+    }
+
+    it('a Queue and Worker created before the first connection work once Redis is up', async () => {
+      const proxy = createProxy();
+      const adapter = createBunRedisClient(
+        new RedisClient(proxy.url, { autoReconnect: false }),
+      );
+      const firstError = new Promise(resolve => adapter.once('error', resolve));
+      adapter.on('error', () => {});
+      const queueName = `test-bun-cold-${randomUUID()}`;
+      const processed: string[] = [];
+      let queue: Queue | undefined;
+      let worker: Worker | undefined;
+      try {
+        await firstError;
+        expect(['connecting', 'reconnecting']).toContain(adapter.status);
+        queue = new Queue(queueName, { connection: adapter, prefix });
+        worker = new Worker(
+          queueName,
+          async job => {
+            processed.push(job.name);
+          },
+          { connection: adapter, prefix },
+        );
+        worker.on('error', () => {});
+        queue.on('error', () => {});
+        proxy.start();
+        await Bun.sleep(200);
+        await queue.add('cold', {});
+        const deadline = Date.now() + 10000;
+        while (processed.length === 0 && Date.now() < deadline) {
+          await Bun.sleep(50);
+        }
+        expect(processed).toEqual(['cold']);
+      } finally {
+        await worker?.close();
+        await queue?.close();
+        await cleanQueue(queueName);
+        await adapter.quit();
+        proxy.stop();
+      }
+    });
+
+    it('connect() rejects with ConnectionClosedError while Redis is down', async () => {
+      const proxy = createProxy();
+      const adapter = createBunRedisClient(
+        new RedisClient(proxy.url, { autoReconnect: false }),
+        { lazyConnect: true },
+      );
+      adapter.on('error', () => {});
+      try {
+        await expect(adapter.connect()).rejects.toBeInstanceOf(
+          ConnectionClosedError,
+        );
+      } finally {
+        await adapter.quit();
+        proxy.stop();
+      }
+    });
+
+    it('an unexpected drop is emitted as a ConnectionClosedError', async () => {
+      const adapter = createBunRedisClient(
+        new RedisClient(`redis://${redisHost}:${redisPort}`, {
+          autoReconnect: false,
+        }),
+      );
+      try {
+        await adapter.connect();
+        const id = await adapter.sendCommand('CLIENT', ['ID']);
+        const emitted = new Promise<unknown>(resolve =>
+          adapter.once('error', resolve),
+        );
+        await rawClient.send('CLIENT', ['KILL', 'ID', String(id)]);
+        expect(await emitted).toBeInstanceOf(ConnectionClosedError);
+      } finally {
+        await adapter.quit();
+      }
+    });
+
+    it('a transaction on a dropped connection rejects with ConnectionClosedError', async () => {
+      // IRedisTransaction has no set(); this file has no other MULTI. hset is
+      // the write the transaction type actually exposes.
+      const url = `redis://${redisHost}:${redisPort}`;
+      const raw = new RedisClient(url, { autoReconnect: false });
+      const adapter = createBunRedisClient(raw);
+      adapter.on('error', () => {});
+      await adapter.connect();
+      try {
+        const id = await adapter.sendCommand('CLIENT', ['ID']);
+        const closed = new Promise(resolve => adapter.once('close', resolve));
+        await rawClient.send('CLIENT', ['KILL', 'ID', String(id)]);
+        await closed;
+        await expect(
+          adapter.multi().hset(`${prefix}:tx`, { field: 'v' }).exec(),
+        ).rejects.toBeInstanceOf(ConnectionClosedError);
+      } finally {
+        await adapter.quit();
+      }
+    });
+
+    it('a raw client Bun is still reconnecting is closed when the adapter replaces it', async () => {
+      const proxy = createProxy();
+      proxy.start();
+      const raw = new RedisClient(proxy.url);
+      const adapter = createBunRedisClient(raw);
+      adapter.on('error', () => {});
+      try {
+        await adapter.connect();
+        expect(proxy.upstreamCount()).toBe(1);
+        const oldId = await adapter.sendCommand('CLIENT', ['ID']);
+        proxy.stop();
+        const deadline = Date.now() + 5000;
+        while (raw.connected && Date.now() < deadline) {
+          await Bun.sleep(20);
+        }
+        expect(raw.connected).toBe(false);
+        adapter.disconnect(true);
+        proxy.start();
+        await Bun.sleep(4000);
+        expect(proxy.upstreamCount()).toBe(1);
+        expect(await adapter.sendCommand('CLIENT', ['ID'])).not.toEqual(oldId);
+        const list = String(await rawClient.send('CLIENT', ['LIST']));
+        expect(list.includes(`id=${oldId} `)).toBe(false);
+      } finally {
+        await adapter.quit();
+        proxy.stop();
+      }
+    });
+
+    it('a duplicate whose first connection is refused becomes ready', async () => {
+      const proxy = createProxy();
+      proxy.start();
+      const parent = createBunRedisClient(
+        new RedisClient(proxy.url, { autoReconnect: false }),
+      );
+      parent.on('error', () => {});
+      await parent.connect();
+      proxy.rejectNext(1);
+      const dup = parent.duplicate();
+      dup.on('error', () => {});
+      try {
+        const deadline = Date.now() + 10000;
+        while (dup.status !== 'ready' && Date.now() < deadline) {
+          await Bun.sleep(50);
+        }
+        expect(dup.status).toBe('ready');
+      } finally {
+        await dup.quit();
+        await parent.quit();
+        proxy.stop();
+      }
+    });
+
+    it('a refused replacement still lets a Queue add after reconnect', async () => {
+      const proxy = createProxy();
+      proxy.start();
+      const adapter = createBunRedisClient(
+        new RedisClient(proxy.url, { autoReconnect: false }),
+      );
+      adapter.on('error', () => {});
+      const queueName = `test-bun-reopen-refused-${randomUUID()}`;
+      let queue: Queue | undefined;
+      try {
+        await adapter.connect();
+        adapter.disconnect();
+        proxy.rejectNext(1);
+        // The test calls adapter.connect() without awaiting it, the way
+        // RedisConnection.reconnect() returns that promise to its caller.
+        adapter.connect().catch(() => {});
+        const deadline = Date.now() + 5000;
+        while (adapter.status === 'end' && Date.now() < deadline) {
+          await Bun.sleep(10);
+        }
+        expect(adapter.status).toBe('reconnecting');
+        queue = new Queue(queueName, { connection: adapter, prefix });
+        queue.on('error', () => {});
+        const job = await queue.add('retried', { foo: 'bar' });
+        const fetched = await Job.fromId(queue, job.id!);
+        expect(fetched).toBeDefined();
+        expect(fetched?.data).toEqual({ foo: 'bar' });
+      } finally {
+        await queue?.close();
+        await cleanQueue(queueName);
+        await adapter.quit();
+        proxy.stop();
+      }
+    });
+
+    it('quit() after an unexpected drop stops reconnecting', async () => {
+      const url = `redis://${redisHost}:${redisPort}`;
+      const raw = new RedisClient(url, { autoReconnect: false });
+      const parent = createBunRedisClient(raw);
+      const connectionName = `bun-quit-${randomUUID()}`;
+      // duplicate({ connectionName }) is what stores the name the adapter
+      // re-applies with CLIENT SETNAME after a reconnect.
+      const adapter = parent.duplicate({ connectionName });
+      adapter.on('error', () => {});
+      parent.on('error', () => {});
+      await adapter.connect();
+      try {
+        const id = await adapter.sendCommand('CLIENT', ['ID']);
+        const closed = new Promise(resolve => adapter.once('close', resolve));
+        await rawClient.send('CLIENT', ['KILL', 'ID', String(id)]);
+        await closed;
+        await adapter.quit();
+        await Bun.sleep(2500);
+        expect(adapter.status).toBe('end');
+        const list = String(await rawClient.send('CLIENT', ['LIST']));
+        expect(list.includes(`name=${connectionName}`)).toBe(false);
+      } finally {
+        await adapter.quit();
+        await parent.quit();
+      }
+    });
+
+    it('in-flight commands reject on an unexpected drop', async () => {
+      const raw = new RedisClient(`redis://${redisHost}:${redisPort}`, {
+        autoReconnect: false,
+      });
+      const adapter = createBunRedisClient(raw);
+      adapter.on('error', () => {});
+      await adapter.connect();
+      try {
+        const id = await raw.send('CLIENT', ['ID']);
+        const pending = [0, 1].map(() =>
+          adapter.sendCommand('BLPOP', [`${prefix}:never`, '0']).then(
+            value => ({ ok: true as const, value }),
+            (err: unknown) => ({ ok: false as const, err }),
+          ),
+        );
+        await Bun.sleep(100);
+        await rawClient.send('CLIENT', ['KILL', 'ID', String(id)]);
+        const settled = await Promise.all(pending);
+        for (const result of settled) {
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.err).toBeInstanceOf(ConnectionClosedError);
+          }
+        }
+      } finally {
+        await adapter.quit();
+      }
     });
   });
 
