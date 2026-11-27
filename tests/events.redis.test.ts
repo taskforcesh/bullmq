@@ -10,6 +10,7 @@
  * (which lifecycle events are emitted, and their payloads) run on both backends
  * in `events.test.ts`.
  */
+import * as sinon from 'sinon';
 import { getRedisClient } from './utils/get-redis-client';
 import { after } from './utils/lodash';
 import { EventEmitter } from 'node:events';
@@ -118,6 +119,37 @@ describe('events (redis-only)', () => {
       // The stuck (live) connection was torn down and re-established.
       expect(disconnected).toBe(true);
       expect(reconnectCalls).toBe(1);
+    });
+  });
+
+  describe('when a busy event loop delays reading the XREAD reply', () => {
+    it('keeps the connection', async () => {
+      const events = new QueueEvents(queueName, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await events.waitUntilReady();
+      const backend = events.getBackend() as RedisQueueBackend;
+      const disconnect = sinon.spy(backend.connection, 'disconnect');
+
+      // Same timing as the worker case: the reply lands at 0.5s, the watchdog
+      // is due at 1.5s, and the loop is stuck in an I/O callback until 2.5s.
+      const other = createTestConnection();
+      const read = backend.readEvents('$', 500);
+      await other.get('unused');
+      const start = Date.now();
+      while (Date.now() - start < 2500) {
+        // block the event loop
+      }
+
+      try {
+        expect(await read).toBe(null);
+        expect(disconnect.called).toBe(false);
+      } finally {
+        await events.close();
+        await other.quit();
+      }
     });
   });
 
