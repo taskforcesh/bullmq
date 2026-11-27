@@ -153,6 +153,20 @@ export interface WorkerOptions<ConnectionOptionsType = ConnectionOptions>
   runRetryDelay?: number;
 
   /**
+   * Maximum time in milliseconds that a graceful `close()` (i.e. not
+   * `close(true)`) will wait for the main loop to finish fetching/processing
+   * its current job before giving up and proceeding with shutdown anyway.
+   *
+   * This only matters when the Redis connection is unreachable: a command
+   * that was already in flight when `close()` was called (e.g. the initial
+   * job fetch on a connection that never became ready) may otherwise never
+   * resolve, which would leave `close()` pending forever.
+   *
+   * @defaultValue 30000
+   */
+  whenCurrentJobsFinishedTimeout?: number;
+
+  /**
    * More advanced options.
    */
   settings?: AdvancedOptions;
