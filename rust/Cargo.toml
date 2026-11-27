@@ -48,4 +48,4 @@ chrono-tz = "=0.10.4"
 tokio = { version = "=1.54.1", features = ["full", "test-util"] }
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
 rand = "=0.10.4"
-url = "=2.5.8"
+url = "=2.5.9"
