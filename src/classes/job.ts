@@ -425,11 +425,9 @@ export class Job<
   ): JobsOptions {
     const opts = JSON.parse(rawOpts || '{}');
 
-    const optionEntries = Object.entries(opts) as Array<[string, any]>;
-
     const options: Partial<Record<string, any>> = {};
-    for (const item of optionEntries) {
-      const [attributeName, value] = item;
+    for (const attributeName of Object.keys(opts)) {
+      const value = opts[attributeName];
       if ((optsDecode as Record<string, any>)[<string>attributeName]) {
         options[(optsDecode as Record<string, any>)[<string>attributeName]] =
           value;
