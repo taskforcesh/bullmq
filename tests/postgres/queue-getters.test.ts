@@ -83,4 +83,39 @@ describe('PostgreSQL queue getters', () => {
       await queue.close();
     }
   });
+
+  // Same order as ZRANGE/ZREVRANGE on Redis: the direction applies to the
+  // priority and to the insertion order within it.
+  it('orders prioritized jobs by priority in both directions', async () => {
+    const queue = new Queue(`prioritized-${randomUUID()}`, {
+      connection: {},
+    });
+
+    try {
+      const add = async (name: string, priority: number) =>
+        (await queue.add(name, {}, { priority })).id!;
+      const p3a = await add('p3a', 3);
+      const p1a = await add('p1a', 1);
+      const p2 = await add('p2', 2);
+      const p3b = await add('p3b', 3);
+      const p1b = await add('p1b', 1);
+
+      const ascending = [p1a, p1b, p2, p3a, p3b];
+      const descending = [...ascending].reverse();
+      const page = async (start: number, end: number, asc: boolean) =>
+        (await queue.getJobs(['prioritized'], start, end, asc)).map(
+          job => job.id,
+        );
+
+      expect(await page(0, -1, true)).toEqual(ascending);
+      expect(await page(0, -1, false)).toEqual(descending);
+      expect(await page(1, 2, true)).toEqual(ascending.slice(1, 3));
+      expect(await page(0, 1, false)).toEqual(descending.slice(0, 2));
+      expect((await queue.getPrioritized()).map(job => job.id)).toEqual(
+        ascending,
+      );
+    } finally {
+      await queue.close();
+    }
+  });
 });
