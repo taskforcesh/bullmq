@@ -249,8 +249,8 @@
   "resolutions": {
     "fast-uri": "3.1.9",
     "js-yaml": "5.5.0",
-    "minimatch": "11.0.8",
-    "tar": "7.5.22",
+    "minimatch": "11.0.9",
+    "tar": "7.5.23",
     "yaml": "2.9.1"
   }
 }
