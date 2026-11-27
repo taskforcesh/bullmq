@@ -63,6 +63,6 @@
   },
   "packageManager": "yarn@1.22.22",
   "resolutions": {
-    "minimatch": "11.0.5"
+    "minimatch": "11.0.9"
   }
 }
