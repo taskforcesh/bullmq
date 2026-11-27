@@ -772,6 +772,34 @@ describe('Job Scheduler', () => {
       });
     });
 
+    describe('when the scheduler is re-registered with the same definition', () => {
+      it('should keep the iteration already waiting in the queue', async () => {
+        const date = new Date('2017-02-07 9:24:00');
+        clock.setSystemTime(date);
+
+        const jobSchedulerId = 'test';
+        const unchangedPattern = '10 * * * * *';
+
+        await queue.upsertJobScheduler(jobSchedulerId, {
+          pattern: unchangedPattern,
+        });
+        const delayedJobs = await queue.getDelayed();
+        await delayedJobs[0].promote();
+
+        const waitingBefore = await queue.getWaiting();
+        expect(waitingBefore).toHaveLength(1);
+
+        await queue.upsertJobScheduler(jobSchedulerId, {
+          pattern: unchangedPattern,
+        });
+
+        const waitingAfter = await queue.getWaiting();
+        expect(waitingAfter.map(job => job.id)).toEqual(
+          waitingBefore.map(job => job.id),
+        );
+      });
+    });
+
     describe('when generated job is in paused state', () => {
       it('should upsert scheduler by removing paused job', async () => {
         const date = new Date('2017-02-07 9:24:00');
