@@ -45,7 +45,7 @@ jobs:
 
       - name: Run scanner on existing code with config
         if: ${{ steps.preserve-config.outputs.has_config == 'true' }}
-        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        uses: google/osv-scanner-action/osv-scanner-action@32d3cd482bdadfb38b186c0ad1b031902d55d932 # v2.7.1
         continue-on-error: true
         with:
           scan-args: |-
@@ -57,7 +57,7 @@ jobs:
 
       - name: Run scanner on existing code without config
         if: ${{ steps.preserve-config.outputs.has_config != 'true' }}
-        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        uses: google/osv-scanner-action/osv-scanner-action@32d3cd482bdadfb38b186c0ad1b031902d55d932 # v2.7.1
         continue-on-error: true
         with:
           scan-args: |-
@@ -73,7 +73,7 @@ jobs:
 
       - name: Run scanner on new code with config
         if: ${{ steps.preserve-config.outputs.has_config == 'true' }}
-        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        uses: google/osv-scanner-action/osv-scanner-action@32d3cd482bdadfb38b186c0ad1b031902d55d932 # v2.7.1
         continue-on-error: true
         with:
           scan-args: |-
@@ -85,7 +85,7 @@ jobs:
 
       - name: Run scanner on new code without config
         if: ${{ steps.preserve-config.outputs.has_config != 'true' }}
-        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        uses: google/osv-scanner-action/osv-scanner-action@32d3cd482bdadfb38b186c0ad1b031902d55d932 # v2.7.1
         continue-on-error: true
         with:
           scan-args: |-
@@ -96,7 +96,7 @@ jobs:
 
       - name: Run osv-scanner-reporter
         # Enable GitHub annotations so vulnerabilities are surfaced directly in the PR UI.
-        uses: google/osv-scanner-action/osv-reporter-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        uses: google/osv-scanner-action/osv-reporter-action@32d3cd482bdadfb38b186c0ad1b031902d55d932 # v2.7.1
         with:
           scan-args: |-
             --output=results.sarif
@@ -132,7 +132,7 @@ jobs:
       - name: Upload to code-scanning
         id: upload_sarif
         if: ${{ !cancelled() }}
-        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
           sarif_file: results.sarif
 
