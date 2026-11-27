@@ -153,6 +153,59 @@ originalTree = await flow.add({
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var flow = new FlowProducer(new QueueBaseOptions { Connection = connection });
+
+var originalTree = await flow.AddAsync(new FlowJob
+{
+    Name = "root-job",
+    QueueName = "topQueueName",
+    Data = new { },
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = "child-job",
+            Data = new { idx = 0, foo = "bar" },
+            QueueName = "childrenQueueName",
+            // This child will fail its parent if it fails
+            Opts = new JobsOptions { FailParentOnFailure = true },
+            Children = new[]
+            {
+                new FlowJob
+                {
+                    Name = name,
+                    Data = new { idx = 1, foo = "bah" },
+                    QueueName = "grandChildrenQueueName",
+                    // This grandchild will fail its parent if it fails
+                    Opts = new JobsOptions { FailParentOnFailure = true },
+                },
+                new FlowJob
+                {
+                    Name = name,
+                    Data = new { idx = 2, foo = "baz" },
+                    QueueName = "grandChildrenQueueName",
+                    // No FailParentOnFailure; its failure won't affect the parent
+                },
+            },
+        },
+        new FlowJob
+        {
+            Name = name,
+            Data = new { idx = 3, foo = "foo" },
+            QueueName = "childrenQueueName",
+            // No FailParentOnFailure; its failure won't affect the parent
+        },
+    },
+});
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust

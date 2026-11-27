@@ -12,10 +12,17 @@ public sealed class PgResult
     public IReadOnlyList<string> Columns { get; }
     public IReadOnlyList<object?[]> Rows { get; }
 
-    public PgResult(IReadOnlyList<string> columns, IReadOnlyList<object?[]> rows)
+    /// <summary>
+    /// Rows inserted, updated or deleted by the statement (-1 for statements
+    /// that don't report it, such as a plain SELECT).
+    /// </summary>
+    public int RecordsAffected { get; }
+
+    public PgResult(IReadOnlyList<string> columns, IReadOnlyList<object?[]> rows, int recordsAffected = -1)
     {
         Columns = columns;
         Rows = rows;
+        RecordsAffected = recordsAffected;
     }
 
     /// <summary>The first row as a column -&gt; value map, or null when empty.</summary>
@@ -562,7 +569,9 @@ public sealed class PostgresConnection : IAsyncDisposable
         await using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
         if (!reader.HasRows && reader.FieldCount == 0)
         {
-            return new PgResult(Array.Empty<string>(), Array.Empty<object?[]>());
+            // Final once the reader is closed
+            await reader.CloseAsync().ConfigureAwait(false);
+            return new PgResult(Array.Empty<string>(), Array.Empty<object?[]>(), reader.RecordsAffected);
         }
 
         var columns = new string[reader.FieldCount];
@@ -583,7 +592,8 @@ public sealed class PostgresConnection : IAsyncDisposable
             rows.Add(row);
         }
 
-        return new PgResult(columns, rows);
+        await reader.CloseAsync().ConfigureAwait(false);
+        return new PgResult(columns, rows, reader.RecordsAffected);
     }
 
     /// <summary>

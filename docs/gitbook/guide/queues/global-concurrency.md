@@ -23,6 +23,16 @@ await queue.setGlobalConcurrency(4)
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+await queue.SetGlobalConcurrencyAsync(4);
+```
+
+{% endtab %}
+
 {% tab title="Elixir" %}
 
 ```elixir
@@ -80,6 +90,14 @@ global_concurrency = await queue.getGlobalConcurrency()
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+int? globalConcurrency = await queue.GetGlobalConcurrencyAsync();
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
@@ -121,6 +139,14 @@ await queue.removeGlobalConcurrency();
 
 ```python
 await queue.removeGlobalConcurrency()
+```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+await queue.RemoveGlobalConcurrencyAsync();
 ```
 
 {% endtab %}
