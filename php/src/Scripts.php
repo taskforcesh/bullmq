@@ -481,10 +481,10 @@ class Scripts
      */
     public function moveJobsToWait(string $state, int $count, int $timestamp): int
     {
-        $keys = $this->getKeys(['', 'events', $state, 'wait', 'paused', 'meta', 'active', 'marker']);
+        $keys = $this->getKeys(['', 'events', $state, 'wait', 'paused', 'meta', 'active', 'marker', 'prioritized', 'pc']);
         $args = [$count, $timestamp, $state];
 
-        $result = $this->execScript('moveJobsToWait-8.lua', $keys, $args);
+        $result = $this->execScript('moveJobsToWait-10.lua', $keys, $args);
         
         return (int) $result;
     }
