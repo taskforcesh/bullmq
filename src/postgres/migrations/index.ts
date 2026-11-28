@@ -121,6 +121,16 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0013_get_range_ascending.sql'),
   },
+  {
+    version: 14,
+    name: '0014_remove_unprocessed_children_release_parent',
+    // Function-body fix only (CREATE OR REPLACE, identical signature). The
+    // parent is now released once its last pending child is removed, as on
+    // Redis, so clients from the same major keep working against it.
+    minClientVersion: 6,
+    load: () =>
+      loadMigrationSql('0014_remove_unprocessed_children_release_parent.sql'),
+  },
 ];
 
 /**

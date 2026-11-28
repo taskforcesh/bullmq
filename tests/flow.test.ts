@@ -5674,6 +5674,46 @@ describe('flows', () => {
       await parentWorker.close();
       await cleanupQueue(parentQueueName);
     });
+
+    it('should move the parent to wait once its last pending child is removed', async () => {
+      const parentQueueName = `parent-queue-${randomUUID()}`;
+      const name = 'child-job';
+
+      const flow = new FlowProducer({ connection, prefix });
+      const tree = await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        children: [
+          { name, data: { idx: 0 }, queueName },
+          {
+            name,
+            data: { idx: 1 },
+            queueName,
+            children: [{ name, data: { idx: 2 }, queueName }],
+          },
+        ],
+      });
+      const grandchild = tree.children![1].children![0].job;
+
+      try {
+        expect(await tree.job.getState()).toBe('waiting-children');
+
+        await tree.job.removeUnprocessedChildren();
+
+        expect(await tree.job.getState()).toBe('waiting');
+        expect(await tree.job.getDependenciesCount()).toMatchObject({
+          processed: 0,
+          unprocessed: 0,
+        });
+        for (const child of [...tree.children!.map(c => c.job), grandchild]) {
+          expect(await queue.getJob(child.id!)).toBeUndefined();
+        }
+      } finally {
+        await flow.close();
+        await cleanupQueue(parentQueueName);
+      }
+    });
   });
 
   describe('.remove', () => {
