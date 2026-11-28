@@ -121,6 +121,14 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0013_get_range_ascending.sql'),
   },
+  {
+    version: 14,
+    name: '0014_retry_jobs_parent_deps',
+    // Function-body fixes only (CREATE OR REPLACE, identical signatures, no DDL),
+    // so clients from the same major keep working against the updated schema.
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0014_retry_jobs_parent_deps.sql'),
+  },
 ];
 
 /**
