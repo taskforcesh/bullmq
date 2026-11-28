@@ -35,6 +35,7 @@ const clusterOriginalBzpopmin = Symbol('bullmqClusterOriginalBzpopmin');
 const clusterWrappedBzpopmin = Symbol('bullmqClusterWrappedBzpopmin');
 const clusterPatchRefCount = Symbol('bullmqClusterPatchRefCount');
 const clusterClosingRefCount = Symbol('bullmqClusterClosingRefCount');
+const clusterReconnectAborters = Symbol('bullmqClusterReconnectAborters');
 
 // Hard cap on a single cluster reconnect attempt. Without this, a hung
 // `client.connect()` (e.g. ioredis Cluster cannot recover and slot refresh
@@ -56,11 +57,13 @@ interface BlockingClusterClient {
   [clusterWrappedBzpopmin]?: BlockingClusterClient['bzpopmin'];
   [clusterPatchRefCount]?: number;
   [clusterClosingRefCount]?: number;
+  [clusterReconnectAborters]?: Set<() => void>;
   bzpopmin: (...args: any[]) => Promise<unknown>;
   connect: () => Promise<void>;
   disconnect: (reconnect?: boolean) => void;
   nodes?: () => unknown[];
   status?: string;
+  manuallyClosing?: boolean;
 }
 
 export interface RawCommand {
@@ -560,6 +563,17 @@ export class RedisConnection extends EventEmitter {
     }
   }
 
+  private static abortPendingClusterReconnects(
+    client: BlockingClusterClient,
+  ): void {
+    const aborters = client[clusterReconnectAborters];
+    if (aborters) {
+      for (const abort of Array.from(aborters)) {
+        abort();
+      }
+    }
+  }
+
   private disableBlockingClusterReconnect(): void {
     const client = this.patchedBlockingClusterClient;
     if (!client || this.disabledBlockingClusterReconnect) {
@@ -568,6 +582,10 @@ export class RedisConnection extends EventEmitter {
 
     client[clusterClosingRefCount] = (client[clusterClosingRefCount] || 0) + 1;
     this.disabledBlockingClusterReconnect = true;
+
+    if (RedisConnection.isClosingBlockingCluster(client)) {
+      RedisConnection.abortPendingClusterReconnects(client);
+    }
   }
 
   private releaseBlockingClusterClientPatch(): void {
@@ -602,6 +620,7 @@ export class RedisConnection extends EventEmitter {
 
     delete client[clusterPatchRefCount];
     delete client[clusterClosingRefCount];
+    delete client[clusterReconnectAborters];
     delete client[clusterOriginalBzpopmin];
     delete client[clusterWrappedBzpopmin];
     delete client[clusterPatchedForBlocking];
@@ -614,15 +633,20 @@ export class RedisConnection extends EventEmitter {
     return typeof client.nodes === 'function' && client.nodes().length === 0;
   }
 
-  private static isReconnectingDisabled(
+  private static isClosingBlockingCluster(
     client: BlockingClusterClient,
   ): boolean {
     const patchRefCount = client[clusterPatchRefCount] || 0;
     const closingRefCount = client[clusterClosingRefCount] || 0;
 
+    return patchRefCount === 0 || closingRefCount >= patchRefCount;
+  }
+
+  private static isReconnectingDisabled(
+    client: BlockingClusterClient,
+  ): boolean {
     return (
-      patchRefCount === 0 ||
-      closingRefCount >= patchRefCount ||
+      RedisConnection.isClosingBlockingCluster(client) ||
       client.status === 'end' ||
       client.status === 'closing'
     );
@@ -690,25 +714,141 @@ export class RedisConnection extends EventEmitter {
     client: BlockingClusterClient,
     timeoutMs: number,
   ): Promise<void> {
-    client.disconnect(false);
-
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        reject(
+          new ConnectionClosedError(
+            `BullMQ: cluster reconnect timed out after ${timeoutMs}ms`,
+          ),
+        );
+      }, timeoutMs);
+      // Don't keep the event loop alive solely for this timer.
+      timeoutHandle.unref?.();
+    });
+
+    let aborted = false;
+    let abortCallback: (() => void) | undefined;
+    const aborters =
+      client[clusterReconnectAborters] ||
+      (client[clusterReconnectAborters] = new Set());
+    const abortPromise = new Promise<never>((_, reject) => {
+      abortCallback = () => {
+        aborted = true;
+        reject(new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG));
+      };
+      if (RedisConnection.isClosingBlockingCluster(client)) {
+        abortCallback();
+        return;
+      }
+      aborters.add(abortCallback);
+    });
+    abortPromise.catch(() => {});
+
+    const raceWithGuards = <T>(promise: Promise<T>): Promise<T> =>
+      Promise.race([promise, timeoutPromise, abortPromise]);
+
     try {
-      await Promise.race([
-        client.connect(),
-        new Promise<never>((_, reject) => {
-          timeoutHandle = setTimeout(() => {
-            reject(
-              new ConnectionClosedError(
-                `BullMQ: cluster reconnect timed out after ${timeoutMs}ms`,
-              ),
+      // `ConnectionPool` drain sets status='close' synchronously while
+      // `emit('close')` + `handleCloseEvent()` run on `process.nextTick`.
+      // Let them settle so `connect()` does not race the stale close event.
+      if (client.status === 'close') {
+        await raceWithGuards(
+          new Promise<void>(resolve => setImmediate(resolve)),
+        );
+        if (aborted || RedisConnection.isReconnectingDisabled(client)) {
+          throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);
+        }
+      }
+
+      if (client.status === 'reconnecting' || client.status === 'connecting') {
+        // ioredis already has a connect attempt or retry timer scheduled.
+        // Calling connect() early would risk leaking the previous timer past
+        // close(); wait for ioredis' own attempt instead.
+        const emitter = client as unknown as RedisClient;
+        let handleReady: (() => void) | undefined;
+        let handleEnd: (() => void) | undefined;
+        let handleError: ((err: Error) => void) | undefined;
+        let lastError: Error | undefined;
+        try {
+          await raceWithGuards(
+            new Promise<void>((resolve, reject) => {
+              handleError = (err: Error) => {
+                lastError = err;
+              };
+              handleReady = () => resolve();
+              handleEnd = () => {
+                reject(
+                  lastError ||
+                    new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG),
+                );
+              };
+              increaseMaxListeners(emitter, 3);
+              emitter.once('ready', handleReady);
+              emitter.once('end', handleEnd);
+              emitter.on('error', handleError);
+            }),
+          );
+        } finally {
+          if (handleReady) {
+            emitter.removeListener('ready', handleReady);
+          }
+          if (handleEnd) {
+            emitter.removeListener('end', handleEnd);
+          }
+          if (handleError) {
+            emitter.removeListener('error', handleError);
+          }
+          decreaseMaxListeners(emitter, 3);
+        }
+        return;
+      }
+
+      if (client.status !== 'wait' && client.status !== 'close') {
+        const hadNodes = !RedisConnection.isClusterWithEmptyNodes(client);
+        const shouldWaitForEnd =
+          hadNodes ||
+          (client.status === 'disconnecting' && !client.manuallyClosing);
+        // Disconnect without auto-reconnect first so live or still-closing
+        // nodes consume the previous `close` handler without scheduling a
+        // duplicate retry timer before we call `connect()`.
+        client.disconnect(false);
+
+        if (shouldWaitForEnd && client.status === 'disconnecting') {
+          const emitter = client as unknown as RedisClient;
+          let handleEnd: (() => void) | undefined;
+          try {
+            await raceWithGuards(
+              new Promise<void>(resolve => {
+                handleEnd = () => resolve();
+                increaseMaxListeners(emitter, 1);
+                emitter.once('end', handleEnd);
+              }),
             );
-          }, timeoutMs);
-          // Don't keep the event loop alive solely for this timer.
-          timeoutHandle.unref?.();
-        }),
-      ]);
+          } finally {
+            if (handleEnd) {
+              emitter.removeListener('end', handleEnd);
+            }
+            decreaseMaxListeners(emitter, 1);
+          }
+        }
+      }
+
+      if (aborted || RedisConnection.isClosingBlockingCluster(client)) {
+        throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);
+      }
+
+      // Clear `manuallyClosing` so a failed `connect()` falls back to ioredis'
+      // `clusterRetryStrategy` instead of leaving the cluster in `end`.
+      if (client.manuallyClosing) {
+        client.manuallyClosing = false;
+      }
+
+      await raceWithGuards(client.connect());
     } finally {
+      if (abortCallback) {
+        aborters.delete(abortCallback);
+      }
       if (timeoutHandle) {
         clearTimeout(timeoutHandle);
       }
@@ -717,7 +857,28 @@ export class RedisConnection extends EventEmitter {
 
   async disconnect(wait = true): Promise<void> {
     const client = await this.client;
+    if (this.patchedBlockingClusterClient) {
+      RedisConnection.abortPendingClusterReconnects(
+        this.patchedBlockingClusterClient,
+      );
+    }
+
     if (client.status !== 'end') {
+      // ioredis Cluster (< 6.1.0) in `reconnecting` with an empty pool cancels
+      // its retry timer on `disconnect()` without emitting `end`, leaving it
+      // stuck in `disconnecting` (and hanging `disconnect(true)`).
+      if (
+        isRedisCluster(client) &&
+        client.status === 'reconnecting' &&
+        RedisConnection.isClusterWithEmptyNodes(
+          client as unknown as BlockingClusterClient,
+        )
+      ) {
+        client.disconnect();
+        client['status'] = 'end';
+        return;
+      }
+
       let _resolve, _reject;
 
       if (!wait) {
@@ -757,6 +918,15 @@ export class RedisConnection extends EventEmitter {
       }
 
       if (client.status === 'wait' || client.status === 'end') {
+        // ioredis Cluster#connect() only clears `manuallyClosing` after slots
+        // refresh succeeds, so clear it first to keep `clusterRetryStrategy`
+        // active if this reconnect attempt fails.
+        if (
+          isRedisCluster(client) &&
+          (client as unknown as BlockingClusterClient).manuallyClosing
+        ) {
+          (client as unknown as BlockingClusterClient).manuallyClosing = false;
+        }
         return client.connect();
       }
 
