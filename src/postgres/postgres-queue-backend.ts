@@ -76,6 +76,25 @@ function bigintOrUndefined(value: string | null): number | undefined {
 /** Max events fetched per readEvents round-trip. */
 const EVENT_READ_BATCH = 100;
 
+/**
+ * SQLSTATEs the server reports when it aborts a statement to resolve a
+ * conflict with a concurrent transaction: `serialization_failure` and
+ * `deadlock_detected`.
+ */
+const CONFLICT_SQLSTATES = new Set(['40001', '40P01']);
+
+/** How many times a statement aborted by such a conflict is run again. */
+const CONFLICT_RETRIES = 5;
+
+/**
+ * Delay before running a statement again after a conflict. It is random so
+ * that the transactions which collided do not collide again, and grows with
+ * each attempt.
+ */
+function conflictRetryDelay(attempt: number): number {
+  return Math.random() * 20 * 2 ** attempt;
+}
+
 /** Strips `undefined` properties so the JSON shape matches the Redis backend. */
 function removeUndefined<T extends Record<string, any>>(obj: T): T {
   for (const key of Object.keys(obj)) {
@@ -487,8 +506,35 @@ export class PostgresQueueBackend
    * (memoized) readiness so the schema/functions exist. This mirrors how the
    * ioredis client buffers commands until connected, letting callers (e.g. a
    * Worker's autorun loop) issue operations before `waitUntilReady` resolves.
+   *
+   * A statement the server aborts to resolve a deadlock or a serialization
+   * failure is run again, up to {@link CONFLICT_RETRIES} times. Every command
+   * is a single statement in its own transaction, so an aborted one applied
+   * nothing.
    */
   private async query<R = any>(
+    text: string,
+    params?: readonly unknown[],
+  ): Promise<PgQueryResult<R>> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.queryOnce<R>(text, params);
+      } catch (err: any) {
+        if (
+          attempt >= CONFLICT_RETRIES ||
+          !(err && CONFLICT_SQLSTATES.has(err.code))
+        ) {
+          throw err;
+        }
+        await new Promise(resolve =>
+          setTimeout(resolve, conflictRetryDelay(attempt)),
+        );
+      }
+    }
+  }
+
+  /** Runs a query once; see {@link query}. */
+  private async queryOnce<R>(
     text: string,
     params?: readonly unknown[],
   ): Promise<PgQueryResult<R>> {

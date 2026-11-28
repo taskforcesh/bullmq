@@ -1566,4 +1566,121 @@ describe('PostgreSQL backend operations', () => {
       }
     });
   });
+
+  describe('statements aborted to resolve a conflict', () => {
+    const conflict = (code: string) =>
+      Object.assign(new Error('aborted by the server'), { code });
+
+    it('completes a job when its finish statement is the victim of a deadlock', async () => {
+      const queue = `deadlock-${randomUUID()}`;
+      const backend = createPostgresBackend(queue, {
+        connection: { connectionString: url, schema, migrate: true },
+      });
+      const blocker = await pool.connect();
+      try {
+        await backend.waitUntilReady();
+        const token = randomUUID();
+        const id = await backend.addJob(
+          makeJob({
+            opts: { deduplication: { id: 'key' } },
+            deduplicationId: 'key',
+          } as Partial<JobJson>),
+          '',
+        );
+        await backend.moveToActive(token);
+
+        await blocker.query(`SET search_path TO "${schema}"`);
+        const { rows: blockerPid } = await blocker.query<{ pid: number }>(
+          'SELECT pg_backend_pid() AS pid',
+        );
+        await blocker.query('BEGIN');
+        // The finish statement locks the job row and then waits for this lock.
+        await blocker.query(
+          `SELECT pg_advisory_xact_lock(hashtext('bullmq:dedup:' || $1 || ':key'))`,
+          [queue],
+        );
+        const completing = backend
+          .moveToCompleted({ id } as any, 1, false, token, false)
+          .then(
+            (): undefined => undefined,
+            (error: Error) => error,
+          );
+        await vi.waitFor(async () => {
+          const { rows } = await pool.query(
+            'SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))',
+            [blockerPid[0].pid],
+          );
+          expect(rows).toHaveLength(1);
+        });
+        // Asking for the job row closes the cycle. The finish statement started
+        // waiting first, so the server aborts it, and only then is the row
+        // lock granted here.
+        await blocker.query(
+          'SELECT 1 FROM job WHERE queue = $1 AND id = $2 FOR UPDATE',
+          [queue, id],
+        );
+        await blocker.query('COMMIT');
+
+        expect(await completing).toBeUndefined();
+        expect(await backend.getState(id)).toBe('completed');
+      } finally {
+        await blocker.query('ROLLBACK').catch((): undefined => undefined);
+        blocker.release();
+        await backend.close();
+      }
+    });
+
+    it.each(['40001', '40P01'])(
+      'runs a statement again after SQLSTATE %s',
+      async code => {
+        const backend = newBackend();
+        try {
+          await backend.waitUntilReady();
+          const query = vi.spyOn((backend as any).connection.pool, 'query');
+          query.mockRejectedValueOnce(conflict(code));
+
+          const id = await backend.addJob(makeJob(), '');
+
+          expect(query.mock.calls[1]).toEqual(query.mock.calls[0]);
+          expect(await backend.getState(id)).toBe('waiting');
+        } finally {
+          await backend.close();
+        }
+      },
+    );
+
+    it('surfaces the error when the conflict persists', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const error = conflict('40P01');
+        const query = vi
+          .spyOn((backend as any).connection.pool, 'query')
+          .mockRejectedValue(error);
+
+        await expect(backend.addJob(makeJob(), '')).rejects.toBe(error);
+        // The first run and five more.
+        expect(query).toHaveBeenCalledTimes(6);
+        query.mockRestore();
+      } finally {
+        await backend.close();
+      }
+    });
+
+    it('does not run a statement again after another error', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const error = conflict('23505');
+        const query = vi
+          .spyOn((backend as any).connection.pool, 'query')
+          .mockRejectedValueOnce(error);
+
+        await expect(backend.addJob(makeJob(), '')).rejects.toBe(error);
+        expect(query).toHaveBeenCalledTimes(1);
+      } finally {
+        await backend.close();
+      }
+    });
+  });
 });
