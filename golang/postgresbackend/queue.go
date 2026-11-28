@@ -52,7 +52,7 @@ func (b *Backend) Obliterate(ctx context.Context, force bool, count int64) (int6
 // CleanJobsByState removes up to limit jobs of state older than timestamp
 // and returns their ids. A limit of 0 means no limit.
 func (b *Backend) CleanJobsByState(ctx context.Context, state bullmq.JobState, timestamp, limit int64) ([]string, error) {
-	return b.queryStrings(ctx, "clean", b.name, stateName(state), timestamp, clampInt32(limit))
+	return b.queryStrings(ctx, "clean", b.name, stateName(state), timestamp, clampInt32(limit), nowMillis())
 }
 
 // RetryFinishedJobs moves up to count completed or failed jobs that finished

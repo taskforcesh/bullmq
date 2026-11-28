@@ -261,6 +261,33 @@ same major: instances that haven't upgraded keep working normally and simply
 don't get the new features. A client older than the recorded major fails with
 `SchemaVersionMismatchError`.
 
+### Upgrading to schema 14
+
+Schema 14 protects active jobs from cleanup while their processing lock is live.
+Cleanup compares lock expiry with the client clock used for acquiring and renewing
+locks. Keep clocks synchronized across clients that share a queue. The job-age
+grace period is separate from lock expiry.
+
+Older clients can still call the four-argument cleanup function. Because those
+calls do not provide the current time, they conservatively retain active jobs
+with nonzero lock tokens, including expired locks, until stalled recovery handles
+them. Upgrade the client to clean expired locks directly. Jobs without a lock,
+including jobs fetched with token `"0"`, remain eligible for cleanup.
+
+{% hint style="warning" %}
+Elixir clients that only know schema 13 or earlier reject schema 14 on startup, even though
+its SQL functions remain backward compatible. For deployments using those clients:
+
+1. Stop all old Elixir instances sharing the schema, including automatic restarts.
+2. Apply schema 14 from one controlled migration step.
+3. Start only upgraded Elixir clients that include schema 14.
+
+Do not roll back to an older Elixir client after applying the migration. A
+rolling upgrade requires a separate Elixir compatibility release to be deployed
+everywhere **before** schema 14 is applied. Disabling migrations is not a
+substitute for that compatibility check.
+{% endhint %}
+
 {% hint style="danger" %}
 Schema downgrades are **not supported**.
 {% endhint %}
