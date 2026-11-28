@@ -77,15 +77,13 @@ func testQueueJobsInSeveralStates(t *testing.T, be testBackend) {
 	requireIDs("finished", 0, -1, false, []string{ok, bad}, bullmq.StateCompleted, bullmq.StateFailed)
 	requireIDs("pending", 0, -1, true, []string{w1, w2, d1, d2, p1, p2},
 		bullmq.StateWaiting, bullmq.StateDelayed, bullmq.StatePrioritized)
-	// The descending order of prioritized jobs differs on PostgreSQL, whose
-	// shared get_range orders them by ascending priority either way.
-	requireIDs("pending, newest first", 0, -1, false, []string{w2, w1, d2, d1},
-		bullmq.StateWaiting, bullmq.StateDelayed)
+	requireIDs("pending, newest first", 0, -1, false, []string{w2, w1, d2, d1, p2, p1},
+		bullmq.StateWaiting, bullmq.StateDelayed, bullmq.StatePrioritized)
 	// The range applies to each state.
 	requireIDs("the first of each state", 0, 0, true, []string{d1, p1},
 		bullmq.StateDelayed, bullmq.StatePrioritized)
-	requireIDs("the last of each state", 0, 0, false, []string{w2, d2},
-		bullmq.StateWaiting, bullmq.StateDelayed)
+	requireIDs("the last of each state", 0, 0, false, []string{w2, d2, p2},
+		bullmq.StateWaiting, bullmq.StateDelayed, bullmq.StatePrioritized)
 	requireIDs("a repeated state", 0, -1, true, []string{w1, w2}, bullmq.StateWaiting, bullmq.StateWaiting)
 
 	all, err := q.JobIDs(ctx, 0, -1, true)

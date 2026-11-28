@@ -121,6 +121,12 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0013_get_range_ascending.sql'),
   },
+  {
+    version: 14,
+    name: '0014_get_range_prioritized_order',
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0014_get_range_prioritized_order.sql'),
+  },
 ];
 
 /**

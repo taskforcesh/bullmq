@@ -32,6 +32,10 @@ defmodule BullMQ.Backends.Postgres do
   @minimum_block_timeout 0.001
   @event_read_batch 100
 
+  # get_ranges matches the Redis backend: list states newest first (LRANGE),
+  # sorted-set states in ascending score order (ZRANGE).
+  @list_range_types ~w(wait waiting active paused)
+
   @typedoc "A Postgres backend instance."
   @type t :: %__MODULE__{
           connection: atom(),
@@ -880,7 +884,9 @@ defmodule BullMQ.Backends.Postgres do
     ids =
       List.wrap(types)
       |> Enum.flat_map(fn type ->
-        result = run(b, "get_range", [b.queue_name, normalize_type(type), start, stop, false])
+        type = normalize_type(type)
+        asc = type not in @list_range_types
+        result = run(b, "get_range", [b.queue_name, type, start, stop, asc])
         Enum.map(maps(result), & &1["id"])
       end)
       |> Enum.uniq()

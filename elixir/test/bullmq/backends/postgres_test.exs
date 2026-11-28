@@ -155,6 +155,28 @@ defmodule BullMQ.Backends.PostgresTest do
     assert id in ids
   end
 
+  test "get_ranges orders prioritized, delayed and waiting as on Redis", %{backend: b, queue: q} do
+    add = fn name, opts ->
+      {:ok, id} = Backend.add_job(b, Job.new(q, name, %{}, opts))
+      id
+    end
+
+    p3a = add.("p3a", priority: 3)
+    p1a = add.("p1a", priority: 1)
+    p2 = add.("p2", priority: 2)
+    p3b = add.("p3b", priority: 3)
+    p1b = add.("p1b", priority: 1)
+    d60 = add.("d60", delay: 60_000)
+    d30 = add.("d30", delay: 30_000)
+    w1 = add.("w1", [])
+    w2 = add.("w2", [])
+
+    assert Backend.get_ranges(b, [:prioritized], 0, -1) == {:ok, [p1a, p1b, p2, p3a, p3b]}
+    assert Backend.get_ranges(b, [:prioritized], 1, 2) == {:ok, [p1b, p2]}
+    assert Backend.get_ranges(b, [:delayed], 0, -1) == {:ok, [d30, d60]}
+    assert Backend.get_ranges(b, [:waiting], 0, -1) == {:ok, [w2, w1]}
+  end
+
   test "for_queue targets a different queue on the shared connection", %{backend: b} do
     sibling = Backend.for_queue(b, "other-queue")
     assert sibling.queue_name == "other-queue"
