@@ -375,6 +375,9 @@ class PostgresBackend(Backend):
             result = await self._run("add_flow", [_jsonb(entries)], op="addJob")
         ids = [str(row[0]) for row in result.rows]
         for index, job_id in enumerate(ids):
+            # Python allows integer custom ids, so only a negative id we did not send is an error code (e.g. -5).
+            if job_id != entries[index]["id"] and job_id.startswith("-") and job_id[1:].isdigit():
+                raise _bm_error(int(job_id), "addJob", jobs[index].id, entries[index]["parentKey"])
             jobs[index].id = job_id
         return ids
 
