@@ -349,6 +349,29 @@ defmodule BullMQ.Backend do
   @doc "Returns the count of pending child dependencies."
   @callback get_dependencies_count(t, job_id) :: {:ok, non_neg_integer()} | {:error, term()}
 
+  @doc """
+  Returns up to `count` children of a parent job per dependency category
+  (mirrors Node.js `getDependencies` with a `count` per type, as used by
+  `FlowProducer.getFlow`):
+
+    * `:processed` - `[{child_key, raw_return_value}]`
+    * `:unprocessed` - `[child_key]` (pending children)
+    * `:failed` - `[child_key]` (children that failed the parent)
+    * `:ignored` - `[{child_key, failed_reason}]` (ignored failures)
+
+  Like the Node.js version (HSCAN/SSCAN with `COUNT`), `count` is a hint: a
+  backend may return slightly more entries per category.
+  """
+  @callback get_dependencies_page(t, job_id, count :: pos_integer()) ::
+              {:ok,
+               %{
+                 processed: [{String.t(), term()}],
+                 unprocessed: [String.t()],
+                 failed: [String.t()],
+                 ignored: [{String.t(), term()}]
+               }}
+              | {:error, term()}
+
   @doc "Returns whether the queue has reached its concurrency limit."
   @callback is_maxed(t) :: {:ok, boolean()} | {:error, term()}
 
@@ -408,6 +431,22 @@ defmodule BullMQ.Backend do
   @doc "Returns whether a queue metadata field exists."
   @callback has_queue_meta_field(t, field :: String.t()) ::
               {:ok, boolean()} | {:error, term()}
+
+  @doc """
+  Removes one or more queue metadata fields (e.g. `concurrency`, `max`,
+  `duration`). Returns the number of fields removed.
+  """
+  @callback remove_queue_meta_fields(t, fields :: [String.t()]) ::
+              {:ok, non_neg_integer()} | {:error, term()}
+
+  @doc """
+  Forces the queue rate limiter to be active for `expire_ms` milliseconds
+  (mirrors Node.js `setRateLimit`: `SET limiter MAX_SAFE_INTEGER PX expire_ms`).
+  """
+  @callback set_rate_limit(t, expire_ms :: pos_integer()) :: {:ok, term()} | {:error, term()}
+
+  @doc "Removes the queue rate limiter key. Returns the number of keys removed."
+  @callback remove_rate_limit_key(t) :: {:ok, non_neg_integer()} | {:error, term()}
 
   # ============================================================
   # Event stream
@@ -742,6 +781,10 @@ defmodule BullMQ.Backend do
   @spec get_dependencies(t, job_id) :: {:ok, [String.t()]} | {:error, term()}
   def get_dependencies(b, job_id), do: dispatch(b, :get_dependencies, [job_id])
 
+  @spec get_dependencies_page(t, job_id, pos_integer()) :: {:ok, map()} | {:error, term()}
+  def get_dependencies_page(b, job_id, count),
+    do: dispatch(b, :get_dependencies_page, [job_id, count])
+
   @spec get_dependencies_count(t, job_id) :: {:ok, non_neg_integer()} | {:error, term()}
   def get_dependencies_count(b, job_id), do: dispatch(b, :get_dependencies_count, [job_id])
 
@@ -792,6 +835,15 @@ defmodule BullMQ.Backend do
 
   @spec has_queue_meta_field(t, String.t()) :: {:ok, boolean()} | {:error, term()}
   def has_queue_meta_field(b, field), do: dispatch(b, :has_queue_meta_field, [field])
+
+  @spec remove_queue_meta_fields(t, [String.t()]) :: {:ok, non_neg_integer()} | {:error, term()}
+  def remove_queue_meta_fields(b, fields), do: dispatch(b, :remove_queue_meta_fields, [fields])
+
+  @spec set_rate_limit(t, pos_integer()) :: {:ok, term()} | {:error, term()}
+  def set_rate_limit(b, expire_ms), do: dispatch(b, :set_rate_limit, [expire_ms])
+
+  @spec remove_rate_limit_key(t) :: {:ok, non_neg_integer()} | {:error, term()}
+  def remove_rate_limit_key(b), do: dispatch(b, :remove_rate_limit_key, [])
 
   # -- Event stream --
   @spec publish_event(t, map(), integer()) :: {:ok, String.t()} | {:error, term()}

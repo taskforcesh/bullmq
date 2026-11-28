@@ -1,3 +1,17 @@
+## [2.4.3](https://github.com/taskforcesh/bullmq/compare/vex2.4.2...vex2.4.3) (2026-11-24)
+
+
+### Bug Fixes
+
+* **postgres:** validate the lock token in move_active_to_wait (python) (elixir) (dotnet) ([#5215](https://github.com/taskforcesh/bullmq/issues/5215)) ([c105166](https://github.com/taskforcesh/bullmq/commit/c105166858ca2244d18130229befb920d1704927))
+
+## [2.4.2](https://github.com/taskforcesh/bullmq/compare/vex2.4.1...vex2.4.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* **postgres:** don't report a claimable job while the queue is maxed (python)(elixir)(dotnet) ([#5163](https://github.com/taskforcesh/bullmq/issues/5163)) ([42745d5](https://github.com/taskforcesh/bullmq/commit/42745d5e29fae50bf5f255bf2285cde903c2497a))
+
 ## [2.4.1](https://github.com/taskforcesh/bullmq/compare/vex2.4.0...vex2.4.1) (2026-11-12)
 
 

@@ -20,7 +20,10 @@ internal static class BackendBuilder
     {
         if (options.Postgres is not null)
         {
-            return PostgresBackend.Create(name, options.Postgres, lockDuration, workerName);
+            var worker = options as WorkerOptions;
+            return PostgresBackend.Create(
+                name, options.Postgres, lockDuration, workerName, worker?.RemoveOnComplete, worker?.RemoveOnFail,
+                worker?.Limiter);
         }
 
         return await RedisBackend

@@ -95,7 +95,7 @@ class Job
     /**
      * Parent job info.
      *
-     * @var array{id: string, queueKey: string}|null
+     * @var array{id: string, queueKey: string, fpof?: bool, cpof?: bool, idof?: bool, rdof?: bool}|null
      */
     public ?array $parent = null;
 
@@ -140,6 +140,21 @@ class Job
                 'id' => $parent['id'],
                 'queueKey' => $parent['queue'],
             ];
+
+            // Parent failure flags are read by the Lua scripts from the
+            // child's stored `parent` field (see moveChildFromDependenciesIfNeeded).
+            if ($this->opts->failParentOnFailure) {
+                $this->parent['fpof'] = true;
+            }
+            if ($this->opts->removeDependencyOnFailure) {
+                $this->parent['rdof'] = true;
+            }
+            if ($this->opts->ignoreDependencyOnFailure) {
+                $this->parent['idof'] = true;
+            }
+            if ($this->opts->continueParentOnFailure) {
+                $this->parent['cpof'] = true;
+            }
         }
     }
 

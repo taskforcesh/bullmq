@@ -1076,6 +1076,87 @@ describe('PostgreSQL backend operations', () => {
     }
   });
 
+  describe('moveJobFromActiveToWait lock check', () => {
+    it('moves an active job back to wait with the right token', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const id = await backend.addJob(makeJob(), '');
+        await backend.moveToActive('right-token');
+
+        await expect(
+          backend.moveJobFromActiveToWait(id, 'right-token'),
+        ).resolves.toBeGreaterThanOrEqual(0);
+        expect(await backend.getState(id)).toBe('waiting');
+      } finally {
+        await backend.close();
+      }
+    });
+
+    it('rejects a lock mismatch and leaves the job active', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const id = await backend.addJob(makeJob(), '');
+        await backend.moveToActive('right-token');
+
+        await expect(
+          backend.moveJobFromActiveToWait(id, 'wrong-token'),
+        ).rejects.toThrow(/Lock mismatch/);
+        expect(await backend.getState(id)).toBe('active');
+      } finally {
+        await backend.close();
+      }
+    });
+
+    it('treats an expired lock as missing, even for its owner', async () => {
+      const queueName = `ops-${randomUUID()}`;
+      const backend = createPostgresBackend(queueName, {
+        connection: { connectionString: url, schema, migrate: true },
+      });
+      try {
+        await backend.waitUntilReady();
+        const id = await backend.addJob(makeJob(), '');
+        await backend.moveToActive('right-token');
+        // Expire the lock without clearing lock_token, as happens before
+        // stalled recovery runs.
+        await pool.query(
+          `UPDATE "${schema}".job SET locked_until_ms = 1
+            WHERE queue = $1 AND id = $2`,
+          [queueName, id],
+        );
+
+        await expect(
+          backend.moveJobFromActiveToWait(id, 'right-token'),
+        ).rejects.toThrow(/Missing lock/);
+        await expect(
+          backend.moveJobFromActiveToWait(id, 'other-token'),
+        ).rejects.toThrow(/Missing lock/);
+        expect(await backend.getState(id)).toBe('active');
+      } finally {
+        await backend.close();
+      }
+    });
+
+    it('rejects a missing lock', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const id = await backend.addJob(makeJob(), '');
+        await backend.moveToActive('right-token');
+        // Token '0' bypasses the lock check and releases the lock.
+        await backend.moveJobFromActiveToWait(id, '0');
+
+        await expect(
+          backend.moveJobFromActiveToWait(id, 'right-token'),
+        ).rejects.toThrow(/Missing lock/);
+        expect(await backend.getState(id)).toBe('waiting');
+      } finally {
+        await backend.close();
+      }
+    });
+  });
+
   it('appends and reads job logs', async () => {
     const backend = newBackend();
     try {
@@ -1107,6 +1188,40 @@ describe('PostgreSQL backend operations', () => {
 
       await backend.removeQueueMetaFields(['paused']);
       expect(await backend.hasQueueMetaField('paused')).toBe(false);
+    } finally {
+      await backend.close();
+    }
+  });
+
+  it('waitForJob blocks while the queue is at its global concurrency limit', async () => {
+    const backend = newBackend();
+    try {
+      await backend.waitUntilReady();
+      await backend.setQueueMeta({ concurrency: 1 });
+      const token = randomUUID();
+      const first = await backend.addJob(makeJob({ name: 'first' }), '');
+      await backend.addJob(makeJob({ name: 'second' }), '');
+
+      const [claimed] = await backend.moveToActive(token);
+      expect((claimed as JobJson).id).toBe(first);
+      const [none] = await backend.moveToActive(token);
+      expect(none).toBeNull();
+
+      // A job is waiting but none can be claimed: no early wake-up.
+      const start = Date.now();
+      expect(await backend.waitForJob(0.5)).toBeNull();
+      expect(Date.now() - start).toBeGreaterThanOrEqual(450);
+
+      await backend.moveToCompleted(
+        { id: first } as any,
+        1,
+        false,
+        token,
+        false,
+      );
+
+      // A slot is free again, so the waiting job is reported right away.
+      expect(await backend.waitForJob(5)).toMatchObject({ score: 0 });
     } finally {
       await backend.close();
     }

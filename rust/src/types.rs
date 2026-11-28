@@ -87,7 +87,7 @@ impl Default for JobProgress {
 /// How many completed/failed jobs to keep.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeepJobs {
-    /// Maximum age in milliseconds.
+    /// Maximum age in seconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub age: Option<u64>,
     /// Maximum count.

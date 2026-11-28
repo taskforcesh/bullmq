@@ -87,12 +87,89 @@ public class Job
         Priority = opts.Priority ?? 0;
         Attempts = opts.Attempts ?? 0;
         DeduplicationId = opts.Deduplication?.Id;
+
+        if (opts.Parent is { } parent)
+        {
+            Parent = BuildParent(parent.Id, parent.Queue, opts);
+            ParentKey = $"{parent.Queue}:{parent.Id}";
+        }
+    }
+
+    /// <summary>
+    /// Builds the stored <c>parent</c> object of a child job: <c>{id, queueKey}</c>
+    /// plus the child failure flags (<c>fpof</c>, <c>cpof</c>, <c>idof</c>,
+    /// <c>rdof</c>) the scripts read when the child fails, matching the
+    /// reference Job.
+    /// </summary>
+    internal static Dictionary<string, object?> BuildParent(string id, string queueKey, JobsOptions opts)
+    {
+        var parent = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["id"] = id,
+            ["queueKey"] = queueKey,
+        };
+
+        if (opts.FailParentOnFailure == true)
+        {
+            parent["fpof"] = true;
+        }
+
+        if (opts.RemoveDependencyOnFailure == true)
+        {
+            parent["rdof"] = true;
+        }
+
+        if (opts.IgnoreDependencyOnFailure == true)
+        {
+            parent["idof"] = true;
+        }
+
+        if (opts.ContinueParentOnFailure == true)
+        {
+            parent["cpof"] = true;
+        }
+
+        return parent;
+    }
+
+    /// <summary>
+    /// Rejects option combinations the scripts can't honour, like the reference
+    /// <c>Job.validateOptions</c>: more than one child failure policy, and
+    /// deduplication on a child (an existing winner would be returned without
+    /// the dependency, or a replaced child would keep its old parent's).
+    /// Validates the options after merging the queue's defaults.
+    /// </summary>
+    internal static void ValidateOptions(JobsOptions opts, bool hasParent)
+    {
+        var enabled = new List<string>();
+        if (opts.RemoveDependencyOnFailure == true) enabled.Add("removeDependencyOnFailure");
+        if (opts.FailParentOnFailure == true) enabled.Add("failParentOnFailure");
+        if (opts.ContinueParentOnFailure == true) enabled.Add("continueParentOnFailure");
+        if (opts.IgnoreDependencyOnFailure == true) enabled.Add("ignoreDependencyOnFailure");
+        if (enabled.Count > 1)
+        {
+            throw new ArgumentException(
+                $"The following options cannot be used together: {string.Join(", ", enabled)}");
+        }
+
+        // Same rule as the Node.js client: ":" separates the queue and the
+        // id in job keys. Three parts are allowed for old repeatable jobs.
+        if (opts.JobId is { } jobId && jobId.Contains(':') && jobId.Split(':').Length != 3)
+        {
+            throw new ArgumentException("Custom Id cannot contain :");
+        }
+
+        if (opts.Deduplication is not null && hasParent)
+        {
+            throw new ArgumentException("Deduplication and parent options cannot be used together");
+        }
     }
 
     /// <summary>Creates a job and adds it to the queue via the backend.</summary>
     public static async Task<Job> CreateAsync(
         IQueueBackend backend, string queueName, string name, object? data, JobsOptions opts)
     {
+        ValidateOptions(opts, hasParent: opts.Parent is not null);
         var job = new Job(backend, queueName, name, data, opts);
         var id = await backend.AddJobAsync(job).ConfigureAwait(false);
         job.Id = id;
@@ -140,6 +217,7 @@ public class Job
         }
 
         job.Repeat = ParseRepeat(raw.Opts);
+        job.Parent = ParseParent(raw.Parent);
 
         return job;
     }
@@ -230,6 +308,32 @@ public class Job
         return result;
     }
 
+    /// <summary>
+    /// Returns the failures of this parent's children that were ignored because
+    /// they were added with <see cref="JobsOptions.IgnoreDependencyOnFailure"/>
+    /// (child key -&gt; failed reason).
+    /// </summary>
+    public async Task<Dictionary<string, string>> GetIgnoredChildrenFailuresAsync()
+    {
+        var raw = await _backend.GetIgnoredChildrenFailuresAsync(Id!).ConfigureAwait(false);
+        return new Dictionary<string, string>(raw, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Removes this parent's children that have not started processing yet
+    /// (e.g. after a child failed with <see cref="JobsOptions.ContinueParentOnFailure"/>).
+    /// Active, completed and failed children are kept.
+    /// </summary>
+    public Task RemoveUnprocessedChildrenAsync() => _backend.RemoveUnprocessedChildrenAsync(Id!);
+
+    /// <summary>
+    /// Moves this active job back to the wait list, e.g. after the processor
+    /// hit a manual rate limit. Does not consume an attempt. Returns the
+    /// remaining rate-limit ttl in ms (0 when the queue is not rate limited).
+    /// </summary>
+    public Task<long> MoveToWaitAsync(string? token = null) =>
+        _backend.MoveJobFromActiveToWaitAsync(Id!, token ?? Token ?? "0");
+
     /// <summary>Returns whether this job has completed.</summary>
     public async Task<bool> IsCompletedAsync() => await GetStateAsync().ConfigureAwait(false) == JobState.Completed;
 
@@ -273,28 +377,92 @@ public class Job
     }
 
     /// <summary>
-    /// Moves the job to the failed state, optionally fetching the next job to
-    /// process. Retries are handled by the shared scripts based on the job's
-    /// attempts/backoff configuration.
+    /// Moves the job to the failed state, or retries it when it has attempts
+    /// left: after its backoff delay (moving it to delayed) or immediately
+    /// (moving it back to wait). An <see cref="UnrecoverableException"/> is never
+    /// retried. The failed reason and stack trace are persisted in every case.
     /// </summary>
+    /// <param name="error">The error thrown by the processor.</param>
+    /// <param name="token">The worker token that holds the job's lock.</param>
+    /// <param name="fetchNext">When true, fetches the next job to process.</param>
+    /// <param name="backoffStrategy">Computes the delay for custom backoff types.</param>
+    /// <param name="maxStartedAttempts">
+    /// When positive, a job started at least this many times is not retried.
+    /// </param>
     public async Task<NextJobData?> MoveToFailedAsync(
-        Exception error, string token, bool fetchNext = true)
+        Exception error,
+        string token,
+        bool fetchNext = true,
+        BackoffStrategy? backoffStrategy = null,
+        int? maxStartedAttempts = null)
     {
         var message = error.Message;
         FailedReason = message;
-        StackTrace.Add(error.StackTrace ?? string.Empty);
 
-        var result = await _backend
-            .MoveToFailedAsync(this, message, Opts.RemoveOnFail, token, fetchNext)
+        var (shouldRetry, retryDelay) = await ShouldRetryJobAsync(error, backoffStrategy, maxStartedAttempts)
             .ConfigureAwait(false);
 
-        if (result.FinishedOn > 0)
+        StackTrace.Add(error.ToString());
+        var stackTraceJson = JsonUtil.Serialize(StackTrace);
+
+        NextJobData? next = null;
+        if (!shouldRetry)
         {
-            FinishedOn = result.FinishedOn;
+            var result = await _backend
+                .MoveToFailedAsync(this, message, Opts.RemoveOnFail, token, fetchNext, stackTraceJson)
+                .ConfigureAwait(false);
+
+            if (result.FinishedOn > 0)
+            {
+                FinishedOn = result.FinishedOn;
+            }
+
+            next = result.Next;
+        }
+        else if (retryDelay > 0)
+        {
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            // Saturated or custom delays (e.g. long.MaxValue) must not overflow the
+            // backend's `timestamp + delay` and wrap into an already-due deadline.
+            retryDelay = Math.Min(retryDelay, long.MaxValue - now);
+            next = await _backend
+                .MoveToDelayedAsync(
+                    Id!,
+                    now,
+                    retryDelay,
+                    token,
+                    fetchNext,
+                    skipAttempt: false,
+                    failedReason: message,
+                    stackTraceJson: stackTraceJson)
+                .ConfigureAwait(false);
+            Delay = retryDelay;
+        }
+        else
+        {
+            await _backend
+                .RetryJobAsync(Id!, Opts.Lifo ?? false, token, message, stackTraceJson)
+                .ConfigureAwait(false);
         }
 
         AttemptsMade += 1;
-        return result.Next;
+        return next;
+    }
+
+    private async Task<(bool Retry, long Delay)> ShouldRetryJobAsync(
+        Exception error, BackoffStrategy? backoffStrategy, int? maxStartedAttempts)
+    {
+        var reachedMaxStartedAttempts = maxStartedAttempts is > 0 && maxStartedAttempts <= AttemptsStarted;
+        if (AttemptsMade + 1 >= Attempts || error is UnrecoverableException || reachedMaxStartedAttempts)
+        {
+            return (false, 0);
+        }
+
+        var delay = await Backoffs
+            .CalculateAsync(Opts.Backoff, AttemptsMade + 1, error, this, backoffStrategy)
+            .ConfigureAwait(false);
+
+        return delay == -1 ? (false, 0) : (true, delay ?? 0);
     }
 
     // -- Internal serialization helpers used by the backend --
@@ -371,6 +539,12 @@ public class Job
                 bo.Delay = bdv;
             }
 
+            if (backoff.TryGetProperty("jitter", out var bj) && bj.TryGetDouble(out var bjv) &&
+                bjv >= 0 && bjv <= 1)
+            {
+                bo.Jitter = bjv;
+            }
+
             opts.Backoff = bo;
         }
 
@@ -385,8 +559,130 @@ public class Job
             opts.KeepLogs = klv;
         }
 
+        opts.FailParentOnFailure = ReadFlag(root, "fpof", "failParentOnFailure");
+        opts.ContinueParentOnFailure = ReadFlag(root, "cpof", "continueParentOnFailure");
+        opts.IgnoreDependencyOnFailure = ReadFlag(root, "idof", "ignoreDependencyOnFailure");
+        opts.RemoveDependencyOnFailure = ReadFlag(root, "rdof", "removeDependencyOnFailure");
+
+        if (root.TryGetProperty("removeOnComplete", out var roc))
+        {
+            opts.RemoveOnComplete = ParseRemoveOn(roc);
+        }
+
+        if (root.TryGetProperty("removeOnFail", out var rof))
+        {
+            opts.RemoveOnFail = ParseRemoveOn(rof);
+        }
+
         return opts;
     }
+
+    // Reads a boolean option stored under its short (Redis) or long (PostgreSQL) name.
+    private static bool? ReadFlag(JsonElement root, string shortName, string longName)
+    {
+        if ((root.TryGetProperty(shortName, out var value) || root.TryGetProperty(longName, out value)) &&
+            value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            return value.GetBoolean();
+        }
+
+        return null;
+    }
+
+    // Parses the stored `parent` JSON object ({id, queueKey, fpof?, ...}).
+    private static Dictionary<string, object?>? ParseParent(string? parentJson)
+    {
+        if (string.IsNullOrEmpty(parentJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(parentJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            var parent = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                parent[prop.Name] = prop.Value.ValueKind switch
+                {
+                    JsonValueKind.String => prop.Value.GetString(),
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    JsonValueKind.Null => null,
+                    _ => prop.Value.GetRawText(),
+                };
+            }
+
+            return parent;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Reads a stored <c>removeOnComplete</c>/<c>removeOnFail</c> value in any
+    /// of the forms the BullMQ runtimes write: a boolean, a number (keep the
+    /// last N) or a <c>{count, age, limit}</c> object. Returns null for an
+    /// unrecognized value so the worker default (or keep-all) applies.
+    /// </summary>
+    private static object? ParseRemoveOn(JsonElement value)
+    {
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.True:
+                return true;
+            case JsonValueKind.False:
+                return false;
+            case JsonValueKind.Number:
+                return ReadCount(value);
+            case JsonValueKind.Object:
+                return new KeepJobs
+                {
+                    Count = value.TryGetProperty("count", out var count) ? ReadCount(count) : null,
+                    Age = value.TryGetProperty("age", out var age) ? ReadAge(age) : null,
+                    Limit = value.TryGetProperty("limit", out var limit) ? ReadCount(limit) : null,
+                };
+            default:
+                return null;
+        }
+    }
+
+    // Fractions round away from zero so a value never crosses into a different
+    // meaning: a positive count stays >= 1 (0 means remove) and a negative count
+    // (keep all) stays negative, e.g. 0.5 -> 1 and -0.5 -> -1.
+    private static int? ReadCount(JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Number)
+        {
+            return null;
+        }
+
+        if (value.TryGetInt32(out var i))
+        {
+            return i;
+        }
+
+        if (!value.TryGetDouble(out var d) || !double.IsFinite(d))
+        {
+            return null;
+        }
+
+        var rounded = d < 0 ? Math.Floor(d) : Math.Ceiling(d);
+        return (int)Math.Clamp(rounded, int.MinValue, int.MaxValue);
+    }
+
+    // Fractional ages round up (a longer window keeps more). A negative age is
+    // ignored, as the PostgreSQL backend does; on Redis it would evict every
+    // finished job, including the current one.
+    private static int? ReadAge(JsonElement value) =>
+        ReadCount(value) is { } age && age >= 0 ? age : null;
 
     private static RepeatOptions? ParseRepeat(string optsJson)
     {

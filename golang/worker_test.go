@@ -1,0 +1,1223 @@
+package bullmq_test
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+)
+
+func TestWorkerProcessesJobs(t *testing.T) {
+	forEachBackend(t, testWorkerProcessesJobs)
+}
+
+func testWorkerProcessesJobs(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	processed := make(chan string, 1)
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
+		var payload map[string]string
+		if err := job.DecodeData(&payload); err != nil {
+			return nil, err
+		}
+		processed <- payload["msg"]
+		return map[string]bool{"ok": true}, nil
+	}, nil)
+	runWorker(t, w)
+
+	job, err := q.Add(ctx, "hello", map[string]string{"msg": "hi"}, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	select {
+	case msg := <-processed:
+		if msg != "hi" {
+			t.Fatalf("payload = %q, want %q", msg, "hi")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the job was never processed")
+	}
+
+	waitFor(t, 10*time.Second, "the job to be completed", func() bool {
+		state, err := q.JobState(ctx, job.ID)
+		return err == nil && state == bullmq.StateCompleted
+	})
+
+	stored, err := q.Job(ctx, job.ID)
+	if err != nil {
+		t.Fatalf("Job: %v", err)
+	}
+	var rv map[string]bool
+	if err := stored.DecodeReturnValue(&rv); err != nil {
+		t.Fatalf("DecodeReturnValue: %v", err)
+	}
+	if !rv["ok"] {
+		t.Fatalf("return value = %v", rv)
+	}
+	if stored.ProcessedOn == 0 || stored.FinishedOn == 0 {
+		t.Errorf("timestamps were not recorded: processedOn=%d finishedOn=%d",
+			stored.ProcessedOn, stored.FinishedOn)
+	}
+}
+
+func TestWorkerCollectsCompletedMetrics(t *testing.T) {
+	forEachBackend(t, testWorkerCollectsCompletedMetrics)
+}
+
+func testWorkerCollectsCompletedMetrics(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		return nil, nil
+	}, &bullmq.WorkerOptions{Metrics: &bullmq.MetricsOptions{MaxDataPoints: 10}})
+	runWorker(t, w)
+
+	job, err := q.Add(ctx, "hello", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	waitFor(t, 10*time.Second, "the job to be completed", func() bool {
+		state, err := q.JobState(ctx, job.ID)
+		return err == nil && state == bullmq.StateCompleted
+	})
+
+	// The data list only gains a point once a one-minute boundary has passed
+	// since the first recorded job, so with a single job in the same minute
+	// only Count (and the initialized PrevTS) are observable here. On
+	// PostgreSQL, as in Node, metrics are a separate statement after the
+	// finish commits, so the count may lag the completed state briefly.
+	var metrics *bullmq.Metrics
+	waitFor(t, 5*time.Second, "the completed metrics to be counted", func() bool {
+		m, err := q.Metrics(ctx, bullmq.StateCompleted, 0, -1)
+		if err != nil {
+			t.Fatalf("Metrics: %v", err)
+		}
+		metrics = m
+		return m.Count >= 1
+	})
+	if metrics.Count != 1 {
+		t.Errorf("Count = %d, want 1", metrics.Count)
+	}
+	if metrics.NumPoints != int64(len(metrics.Data)) {
+		t.Errorf("NumPoints = %d, want %d", metrics.NumPoints, len(metrics.Data))
+	}
+}
+
+func TestWorkerProcessesJobsInOrder(t *testing.T) {
+	forEachBackend(t, testWorkerProcessesJobsInOrder)
+}
+
+func testWorkerProcessesJobsInOrder(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	const total = 10
+	var mu sync.Mutex
+	seen := make([]string, 0, total)
+	done := make(chan struct{})
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, job *bullmq.Job) (any, error) {
+		mu.Lock()
+		seen = append(seen, job.Name)
+		if len(seen) == total {
+			close(done)
+		}
+		mu.Unlock()
+		return nil, nil
+	}, nil)
+	runWorker(t, w)
+
+	for i := range total {
+		if _, err := q.Add(ctx, string(rune('a'+i)), nil, nil); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+	}
+
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		t.Fatalf("only %d of %d jobs were processed", len(seen), total)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	for i, name := range seen {
+		if want := string(rune('a' + i)); name != want {
+			t.Fatalf("job %d = %q, want %q (FIFO order)", i, name, want)
+		}
+	}
+}
+
+func TestWorkerRespectsConcurrency(t *testing.T) {
+	forEachBackend(t, testWorkerRespectsConcurrency)
+}
+
+func testWorkerRespectsConcurrency(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	var inFlight, peak atomic.Int64
+	done := make(chan struct{})
+	var processed atomic.Int64
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		current := inFlight.Add(1)
+		for {
+			old := peak.Load()
+			if current <= old || peak.CompareAndSwap(old, current) {
+				break
+			}
+		}
+		time.Sleep(80 * time.Millisecond)
+		inFlight.Add(-1)
+		if processed.Add(1) == 8 {
+			close(done)
+		}
+		return nil, nil
+	}, &bullmq.WorkerOptions{Concurrency: 4})
+	runWorker(t, w)
+
+	for range 8 {
+		if _, err := q.Add(ctx, "concurrent", nil, nil); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+	}
+
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		t.Fatal("the jobs were never processed")
+	}
+
+	if got := peak.Load(); got > 4 {
+		t.Fatalf("peak concurrency = %d, want at most 4", got)
+	}
+	if got := peak.Load(); got < 2 {
+		t.Fatalf("peak concurrency = %d, the jobs did not run in parallel", got)
+	}
+}
+
+func TestWorkerFailedEventReportsAttemptsMadeOnRetry(t *testing.T) {
+	forEachBackend(t, testWorkerFailedEventReportsAttemptsMadeOnRetry)
+}
+
+func testWorkerFailedEventReportsAttemptsMadeOnRetry(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		return nil, errors.New("nope")
+	}, nil)
+	counts := make(chan int64, 4)
+	go func() {
+		for ev := range w.Events() {
+			if ev.Type == bullmq.EventFailed && ev.Job != nil {
+				counts <- ev.Job.AttemptsMade
+			}
+		}
+	}()
+	runWorker(t, w)
+
+	// The first two failures are retried through moveToDelayed (backoff), and
+	// the third is terminal.
+	if _, err := q.Add(ctx, "doomed", nil, &bullmq.JobOptions{
+		Attempts: bullmq.Int64(3),
+		Backoff:  &bullmq.Backoff{Type: bullmq.BackoffFixed, Delay: 10},
+	}); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	for want := int64(1); want <= 3; want++ {
+		select {
+		case got := <-counts:
+			if got != want {
+				t.Fatalf("failed event %d: AttemptsMade = %d, want %d", want, got, want)
+			}
+		case <-time.After(20 * time.Second):
+			t.Fatalf("timed out waiting for failed event %d", want)
+		}
+	}
+}
+
+func TestWorkerRetriesFailedJobs(t *testing.T) {
+	forEachBackend(t, testWorkerRetriesFailedJobs)
+}
+
+func testWorkerRetriesFailedJobs(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	var attempts atomic.Int64
+	succeeded := make(chan struct{})
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		if attempts.Add(1) < 3 {
+			return nil, errors.New("transient")
+		}
+		close(succeeded)
+		return nil, nil
+	}, nil)
+	runWorker(t, w)
+
+	job, err := q.Add(ctx, "flaky", nil, &bullmq.JobOptions{
+		Attempts: bullmq.Int64(3),
+		Backoff:  &bullmq.Backoff{Type: bullmq.BackoffFixed, Delay: 10},
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	select {
+	case <-succeeded:
+	case <-time.After(20 * time.Second):
+		t.Fatalf("the job was retried %d times but never succeeded", attempts.Load())
+	}
+
+	waitFor(t, 10*time.Second, "the job to be completed", func() bool {
+		state, err := q.JobState(ctx, job.ID)
+		return err == nil && state == bullmq.StateCompleted
+	})
+
+	stored, err := q.Job(ctx, job.ID)
+	if err != nil {
+		t.Fatalf("Job: %v", err)
+	}
+	if stored.AttemptsMade != 3 {
+		t.Errorf("AttemptsMade = %d, want 3", stored.AttemptsMade)
+	}
+	if stored.FailedReason != "transient" {
+		t.Errorf("FailedReason = %q, want %q", stored.FailedReason, "transient")
+	}
+	if len(stored.Stacktrace) != 2 || stored.Stacktrace[0] != "transient" || stored.Stacktrace[1] != "transient" {
+		t.Errorf("Stacktrace = %v, want two transient failures", stored.Stacktrace)
+	}
+}
+
+func TestWorkerFailsAfterExhaustingAttempts(t *testing.T) {
+	forEachBackend(t, testWorkerFailsAfterExhaustingAttempts)
+}
+
+func testWorkerFailsAfterExhaustingAttempts(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	var attempts atomic.Int64
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		attempts.Add(1)
+		return nil, errors.New("always fails")
+	}, nil)
+	runWorker(t, w)
+
+	job, err := q.Add(ctx, "doomed", nil, &bullmq.JobOptions{Attempts: bullmq.Int64(2)})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	waitFor(t, 20*time.Second, "the job to fail permanently", func() bool {
+		state, err := q.JobState(ctx, job.ID)
+		return err == nil && state == bullmq.StateFailed
+	})
+
+	if got := attempts.Load(); got != 2 {
+		t.Errorf("the processor ran %d times, want 2", got)
+	}
+	stored, err := q.Job(ctx, job.ID)
+	if err != nil {
+		t.Fatalf("Job: %v", err)
+	}
+	if stored.FailedReason != "always fails" {
+		t.Errorf("FailedReason = %q", stored.FailedReason)
+	}
+	if len(stored.Stacktrace) != 2 || stored.Stacktrace[0] != "always fails" || stored.Stacktrace[1] != "always fails" {
+		t.Errorf("Stacktrace = %v, want two failures", stored.Stacktrace)
+	}
+}
+
+func TestWorkerDoesNotUpdateFailureMetadataAfterLosingLock(t *testing.T) {
+	forEachBackend(t, testWorkerDoesNotUpdateFailureMetadataAfterLosingLock)
+}
+
+func testWorkerDoesNotUpdateFailureMetadataAfterLosingLock(t *testing.T, be testBackend) {
+
+	tests := []struct {
+		name string
+		opts *bullmq.JobOptions
+	}{
+		{name: "immediate retry", opts: &bullmq.JobOptions{Attempts: bullmq.Int64(2)}},
+		{name: "delayed retry", opts: &bullmq.JobOptions{
+			Attempts: bullmq.Int64(2),
+			Backoff:  &bullmq.Backoff{Type: bullmq.BackoffFixed, Delay: 60_000},
+		}},
+		{name: "terminal failure", opts: &bullmq.JobOptions{Attempts: bullmq.Int64(1)}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := testContext(t)
+			q := newTestQueue(t, be, nil)
+			started := make(chan struct{})
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			releaseProcessor := func() { releaseOnce.Do(func() { close(release) }) }
+			t.Cleanup(releaseProcessor)
+
+			w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+				close(started)
+				<-release
+				return nil, errors.New("stale failure")
+			}, &bullmq.WorkerOptions{
+				SkipLockRenewal:  true,
+				SkipStalledCheck: true,
+			})
+			runWorker(t, w)
+
+			job, err := q.Add(ctx, "lose-lock", nil, tt.opts)
+			if err != nil {
+				t.Fatalf("Add: %v", err)
+			}
+			select {
+			case <-started:
+			case <-time.After(10 * time.Second):
+				t.Fatal("the processor did not start")
+			}
+
+			if err := be.Fixture.DeleteLock(ctx, q.Backend(), job.ID); err != nil {
+				t.Fatalf("delete lock: %v", err)
+			}
+			if err := be.Fixture.SetFailure(ctx, q.Backend(), job.ID, "new owner", []string{"new owner"}); err != nil {
+				t.Fatalf("set failure metadata: %v", err)
+			}
+			releaseProcessor()
+
+			deadline := time.After(10 * time.Second)
+			for {
+				select {
+				case event := <-w.Events():
+					if event.Type == bullmq.EventError {
+						stored, err := q.Job(ctx, job.ID)
+						if err != nil {
+							t.Fatalf("Job: %v", err)
+						}
+						if stored.FailedReason != "new owner" {
+							t.Errorf("FailedReason = %q, want %q", stored.FailedReason, "new owner")
+						}
+						if len(stored.Stacktrace) != 1 || stored.Stacktrace[0] != "new owner" {
+							t.Errorf("Stacktrace = %v, want [new owner]", stored.Stacktrace)
+						}
+						return
+					}
+				case <-deadline:
+					t.Fatal("worker did not report the lost lock")
+				}
+			}
+		})
+	}
+}
+
+func TestWorkerDoesNotRetryUnrecoverableErrors(t *testing.T) {
+	forEachBackend(t, testWorkerDoesNotRetryUnrecoverableErrors)
+}
+
+func testWorkerDoesNotRetryUnrecoverableErrors(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	var attempts atomic.Int64
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		attempts.Add(1)
+		return nil, bullmq.NewUnrecoverableError("bad input")
+	}, nil)
+	runWorker(t, w)
+
+	job, err := q.Add(ctx, "unrecoverable", nil, &bullmq.JobOptions{Attempts: bullmq.Int64(5)})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	waitFor(t, 20*time.Second, "the job to fail", func() bool {
+		state, err := q.JobState(ctx, job.ID)
+		return err == nil && state == bullmq.StateFailed
+	})
+	time.Sleep(300 * time.Millisecond)
+
+	if got := attempts.Load(); got != 1 {
+		t.Errorf("the processor ran %d times, want 1", got)
+	}
+}
+
+func TestWorkerRecoversFromAPanic(t *testing.T) {
+	forEachBackend(t, testWorkerRecoversFromAPanic)
+}
+
+func testWorkerRecoversFromAPanic(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		panic("boom")
+	}, nil)
+	runWorker(t, w)
+
+	job, err := q.Add(ctx, "panics", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	waitFor(t, 20*time.Second, "the panicking job to fail", func() bool {
+		state, err := q.JobState(ctx, job.ID)
+		return err == nil && state == bullmq.StateFailed
+	})
+}
+
+func TestWorkerEmitsEvents(t *testing.T) {
+	forEachBackend(t, testWorkerEmitsEvents)
+}
+
+func testWorkerEmitsEvents(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		return "done", nil
+	}, nil)
+
+	var mu sync.Mutex
+	seen := map[bullmq.EventType]int{}
+	go func() {
+		for ev := range w.Events() {
+			mu.Lock()
+			seen[ev.Type]++
+			mu.Unlock()
+		}
+	}()
+	runWorker(t, w)
+
+	if _, err := q.Add(ctx, "evented", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	waitFor(t, 10*time.Second, "the active and completed events", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return seen[bullmq.EventActive] > 0 && seen[bullmq.EventCompleted] > 0
+	})
+}
+
+func TestWorkerEmitsProgressEvent(t *testing.T) {
+	forEachBackend(t, testWorkerEmitsProgressEvent)
+}
+
+func testWorkerEmitsProgressEvent(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
+		progress, err := bullmq.NumberProgress(42)
+		if err != nil {
+			return nil, err
+		}
+		if err := job.UpdateProgress(ctx, progress); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}, nil)
+
+	var mu sync.Mutex
+	var progress []any
+	go func() {
+		for ev := range w.Events() {
+			if ev.Type == bullmq.EventProgress {
+				mu.Lock()
+				progress = append(progress, ev.Result)
+				mu.Unlock()
+			}
+		}
+	}()
+	runWorker(t, w)
+
+	if _, err := q.Add(ctx, "progressed", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	waitFor(t, 10*time.Second, "the progress event", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(progress) > 0
+	})
+
+	mu.Lock()
+	defer mu.Unlock()
+	prog, ok := progress[0].(bullmq.Progress)
+	if !ok {
+		t.Fatalf("Result = %T, want bullmq.Progress", progress[0])
+	}
+	n, ok := prog.Number()
+	if !ok || n != 42 {
+		t.Errorf("Progress = %v, %v, want 42, true", n, ok)
+	}
+}
+
+func TestWorkerRemoveOnComplete(t *testing.T) {
+	forEachBackend(t, testWorkerRemoveOnComplete)
+}
+
+func testWorkerRemoveOnComplete(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	done := make(chan struct{}, 1)
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		done <- struct{}{}
+		return nil, nil
+	}, nil)
+	runWorker(t, w)
+
+	job, err := q.Add(ctx, "ephemeral", nil, &bullmq.JobOptions{
+		RemoveOnComplete: bullmq.RemoveAll(),
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	<-done
+
+	waitFor(t, 10*time.Second, "the job to be removed", func() bool {
+		stored, err := q.Job(ctx, job.ID)
+		return err == nil && stored == nil
+	})
+}
+
+func TestWorkerPauseAndResume(t *testing.T) {
+	forEachBackend(t, testWorkerPauseAndResume)
+}
+
+func testWorkerPauseAndResume(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	var processed atomic.Int64
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		processed.Add(1)
+		return nil, nil
+	}, nil)
+	runWorker(t, w)
+
+	if err := w.Pause(ctx, false); err != nil {
+		t.Fatalf("Pause: %v", err)
+	}
+	if !w.IsPaused() {
+		t.Fatal("the worker should be paused")
+	}
+	if _, err := q.Add(ctx, "while-paused", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	time.Sleep(700 * time.Millisecond)
+	if got := processed.Load(); got != 0 {
+		t.Fatalf("the paused worker processed %d jobs", got)
+	}
+
+	w.Resume()
+	waitFor(t, 10*time.Second, "the job to be processed after resuming", func() bool {
+		return processed.Load() == 1
+	})
+}
+
+func TestWorkerHonoursTheRateLimiter(t *testing.T) {
+	forEachBackend(t, testWorkerHonoursTheRateLimiter)
+}
+
+func testWorkerHonoursTheRateLimiter(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	var processed atomic.Int64
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		processed.Add(1)
+		return nil, nil
+	}, &bullmq.WorkerOptions{
+		Limiter: &bullmq.RateLimiter{Max: 2, Duration: 5 * time.Second},
+	})
+	runWorker(t, w)
+
+	for range 5 {
+		if _, err := q.Add(ctx, "limited", nil, nil); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+	}
+
+	waitFor(t, 10*time.Second, "the first batch to be processed", func() bool {
+		return processed.Load() >= 2
+	})
+	time.Sleep(700 * time.Millisecond)
+	if got := processed.Load(); got > 2 {
+		t.Fatalf("the rate limiter allowed %d jobs in the first window, want 2", got)
+	}
+}
+
+func TestWorkerProcessesDelayedJobs(t *testing.T) {
+	forEachBackend(t, testWorkerProcessesDelayedJobs)
+}
+
+func testWorkerProcessesDelayedJobs(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	processed := make(chan time.Time, 1)
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		processed <- time.Now()
+		return nil, nil
+	}, nil)
+	runWorker(t, w)
+
+	start := time.Now()
+	if _, err := q.Add(ctx, "later", nil, &bullmq.JobOptions{Delay: bullmq.Int64(400)}); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	select {
+	case at := <-processed:
+		if elapsed := at.Sub(start); elapsed < 300*time.Millisecond {
+			t.Fatalf("the delayed job ran after %s, too early", elapsed)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("the delayed job was never processed")
+	}
+}
+
+func TestWorkerMoveToDelayedFromTheProcessor(t *testing.T) {
+	forEachBackend(t, testWorkerMoveToDelayedFromTheProcessor)
+}
+
+func testWorkerMoveToDelayedFromTheProcessor(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	var runs atomic.Int64
+	completed := make(chan struct{})
+	w := newTestWorker(t, be, q.Name(), func(ctx context.Context, job *bullmq.Job) (any, error) {
+		if runs.Add(1) == 1 {
+			if err := job.MoveToDelayed(ctx, 200*time.Millisecond); err != nil {
+				return nil, err
+			}
+			return nil, bullmq.ErrDelayed
+		}
+		close(completed)
+		return nil, nil
+	}, nil)
+	runWorker(t, w)
+
+	if _, err := q.Add(ctx, "reschedules", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	select {
+	case <-completed:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the rescheduled job was never processed again")
+	}
+}
+
+func TestWorkerRecoversStalledJobs(t *testing.T) {
+	forEachBackend(t, testWorkerRecoversStalledJobs)
+}
+
+func testWorkerRecoversStalledJobs(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	// The first worker takes the job and then hangs forever without renewing
+	// its lock, so the job ends up stalled in the active list.
+	stuck := make(chan struct{})
+	hang := make(chan struct{})
+
+	stalling := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		close(stuck)
+		<-hang
+		return nil, nil
+	}, &bullmq.WorkerOptions{
+		LockDuration:     1 * time.Second,
+		SkipLockRenewal:  true,
+		SkipStalledCheck: true,
+	})
+	stallingCtx, cancelStalling := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		// close(hang) must run before stalling.Close(), since Close waits for
+		// the in-flight processor (blocked on <-hang) to return. Cleanups run
+		// LIFO, so both steps are combined into this single cleanup rather
+		// than registered separately, where the order would be reversed.
+		close(hang)
+		cancelStalling()
+		_ = stalling.Close()
+	})
+	go func() { _ = stalling.Run(stallingCtx) }()
+
+	if _, err := q.Add(ctx, "stalls", nil, &bullmq.JobOptions{Attempts: bullmq.Int64(3)}); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	select {
+	case <-stuck:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the first worker never picked up the job")
+	}
+
+	// A second worker with a fast stalled check recovers it.
+	recovered := make(chan struct{})
+	rescuer := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		close(recovered)
+		return nil, nil
+	}, &bullmq.WorkerOptions{
+		LockDuration:    1 * time.Second,
+		StalledInterval: 500 * time.Millisecond,
+	})
+	runWorker(t, rescuer)
+
+	select {
+	case <-recovered:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the stalled job was never recovered")
+	}
+}
+
+func TestWorkerCloseKeepsRenewingLocksOfInFlightJobs(t *testing.T) {
+	forEachBackend(t, testWorkerCloseKeepsRenewingLocksOfInFlightJobs)
+}
+
+func testWorkerCloseKeepsRenewingLocksOfInFlightJobs(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	// The processor sleeps well past LockDuration; if lock renewal stops as
+	// soon as Close is called (rather than once the job actually finishes),
+	// the lock expires and a stalled-check could hand the job to another
+	// worker while this processor is still running.
+	started := make(chan struct{})
+	var invocations atomic.Int64
+	release := make(chan struct{})
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		invocations.Add(1)
+		close(started)
+		<-release
+		return nil, nil
+	}, &bullmq.WorkerOptions{
+		LockDuration:    500 * time.Millisecond,
+		LockRenewTime:   150 * time.Millisecond,
+		StalledInterval: 200 * time.Millisecond,
+	})
+
+	runCtx, cancelRun := context.WithCancel(context.Background())
+	defer cancelRun()
+	go func() { _ = w.Run(runCtx) }()
+
+	job, err := q.Add(ctx, "long-running", nil, nil)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the job was never picked up")
+	}
+
+	// Close stops this worker's own stalled checker, so a separate rescuer
+	// with a fast stalled check is what would reclaim the job if its lock
+	// expired. It stays idle as long as the lock keeps being renewed.
+	rescuer := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		invocations.Add(1)
+		return nil, nil
+	}, &bullmq.WorkerOptions{
+		LockDuration:    500 * time.Millisecond,
+		LockRenewTime:   150 * time.Millisecond,
+		StalledInterval: 100 * time.Millisecond,
+	})
+	runWorker(t, rescuer)
+
+	closeDone := make(chan error, 1)
+	go func() { closeDone <- w.Close() }()
+
+	// Give lock renewal and the rescuer's stalled checks several
+	// opportunities to run while the processor is still sleeping, well
+	// beyond LockDuration.
+	time.Sleep(2 * time.Second)
+
+	// The lock must still be present, i.e. it was renewed after Close.
+	if held, err := be.Fixture.LockExists(ctx, q.Backend(), job.ID); err != nil || !held {
+		t.Errorf("lock of job %s held = %v (err %v), want true: renewal stopped during Close", job.ID, held, err)
+	}
+	close(release)
+
+	select {
+	case err := <-closeDone:
+		if err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Close did not return")
+	}
+
+	if got := invocations.Load(); got != 1 {
+		t.Errorf("the processor ran %d times, want 1 (the job must not have been picked up again)", got)
+	}
+}
+
+func TestWorkerRenewsLocksOfAllActiveJobsInOneBatch(t *testing.T) {
+	forEachBackend(t, testWorkerRenewsLocksOfAllActiveJobsInOneBatch)
+}
+
+func testWorkerRenewsLocksOfAllActiveJobsInOneBatch(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	const total = 5
+	var invocations atomic.Int64
+	release := make(chan struct{})
+
+	// The jobs outlive LockDuration several times over and the stalled check
+	// runs more often than the lock TTL, so any job whose lock is not renewed
+	// in time would be picked up (and processed) a second time.
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		invocations.Add(1)
+		<-release
+		return nil, nil
+	}, &bullmq.WorkerOptions{
+		Concurrency:     total,
+		LockDuration:    300 * time.Millisecond,
+		LockRenewTime:   50 * time.Millisecond,
+		StalledInterval: 100 * time.Millisecond,
+	})
+	runWorker(t, w)
+	// Registered after runWorker so it runs first: the processors block on
+	// release, and the worker cannot stop until they return.
+	var releaseOnce sync.Once
+	t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
+
+	for range total {
+		if _, err := q.Add(ctx, "held", nil, nil); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+	}
+
+	waitFor(t, 10*time.Second, "all jobs to become active", func() bool {
+		return w.ActiveCount() == total
+	})
+	time.Sleep(1500 * time.Millisecond)
+
+	if got := invocations.Load(); got != total {
+		t.Fatalf("the processor ran %d times, want %d (a lock expired and a job was re-run)", got, total)
+	}
+	if got := w.ActiveCount(); got != total {
+		t.Fatalf("ActiveCount = %d, want %d", got, total)
+	}
+	releaseOnce.Do(func() { close(release) })
+}
+
+func TestWorkerCancelsOnlyTheJobWhoseLockWasLost(t *testing.T) {
+	forEachBackend(t, testWorkerCancelsOnlyTheJobWhoseLockWasLost)
+}
+
+func testWorkerCancelsOnlyTheJobWhoseLockWasLost(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	const total = 3
+	var mu sync.Mutex
+	ctxs := map[string]context.Context{}
+	release := make(chan struct{})
+
+	w := newTestWorker(t, be, q.Name(), func(jobCtx context.Context, job *bullmq.Job) (any, error) {
+		mu.Lock()
+		ctxs[job.ID] = jobCtx
+		mu.Unlock()
+		<-release
+		return nil, nil
+	}, &bullmq.WorkerOptions{
+		Concurrency:      total,
+		LockDuration:     1 * time.Second,
+		LockRenewTime:    50 * time.Millisecond,
+		SkipStalledCheck: true,
+	})
+
+	lockFailures := make(chan []string, total)
+	var stalledEvents atomic.Int64
+	go func() {
+		for ev := range w.Events() {
+			switch ev.Type {
+			case bullmq.EventLockRenewalFailed:
+				lockFailures <- ev.JobIDs
+			case bullmq.EventStalled:
+				stalledEvents.Add(1)
+			}
+		}
+	}()
+	runWorker(t, w)
+	var releaseOnce sync.Once
+	t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
+
+	for range total {
+		if _, err := q.Add(ctx, "held", nil, nil); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+	}
+	waitFor(t, 10*time.Second, "all jobs to become active", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(ctxs) == total
+	})
+
+	// Drop one job's lock, simulating another worker taking it over.
+	var lostID string
+	mu.Lock()
+	for id := range ctxs {
+		lostID = id
+		break
+	}
+	mu.Unlock()
+	if err := be.Fixture.DeleteLock(ctx, q.Backend(), lostID); err != nil {
+		t.Fatalf("DeleteLock: %v", err)
+	}
+
+	select {
+	case ids := <-lockFailures:
+		if len(ids) != 1 || ids[0] != lostID {
+			t.Fatalf("EventLockRenewalFailed for jobs %v, want [%s]", ids, lostID)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("no EventLockRenewalFailed for the job whose lock was lost")
+	}
+	// EventStalled is reserved for the stalled check.
+	if n := stalledEvents.Load(); n != 0 {
+		t.Errorf("EventStalled emitted %d times for a lost lock", n)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	select {
+	case <-ctxs[lostID].Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("the job whose lock was lost was not cancelled")
+	}
+	for id, c := range ctxs {
+		if id != lostID && c.Err() != nil {
+			t.Fatalf("job %s was cancelled although its lock is intact", id)
+		}
+	}
+}
+
+func TestWorkerCloseIsIdempotent(t *testing.T) {
+	forEachBackend(t, testWorkerCloseIsIdempotent)
+}
+
+func testWorkerCloseIsIdempotent(t *testing.T, be testBackend) {
+	q := newTestQueue(t, be, nil)
+
+	w := newTestWorker(t, be, q.Name(), func(_ context.Context, _ *bullmq.Job) (any, error) {
+		return nil, nil
+	}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { _ = w.Run(ctx) }()
+	time.Sleep(200 * time.Millisecond)
+	cancel()
+
+	for range 3 {
+		if err := w.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	}
+}
+
+// waitDrained waits until w reports that the queue is drained, which tells
+// that Run is running.
+func waitDrained(t *testing.T, w *bullmq.Worker) {
+	t.Helper()
+	timeout := time.After(10 * time.Second)
+	for {
+		select {
+		case ev := <-w.Events():
+			if ev.Type == bullmq.EventDrained {
+				return
+			}
+		case <-timeout:
+			t.Fatal("the worker never reported the queue as drained")
+		}
+	}
+}
+
+// Run returns nil after Close, ctx's error when ctx is done, and
+// ErrWorkerClosed when it was already called or the worker is closed.
+func TestWorkerRunReturnValues(t *testing.T) {
+	forEachBackend(t, testWorkerRunReturnValues)
+}
+
+func testWorkerRunReturnValues(t *testing.T, be testBackend) {
+	q := newTestQueue(t, be, nil)
+	noop := func(context.Context, *bullmq.Job) (any, error) { return nil, nil }
+	waitRun := func(t *testing.T, runDone <-chan error) error {
+		t.Helper()
+		select {
+		case err := <-runDone:
+			return err
+		case <-time.After(10 * time.Second):
+			t.Fatal("Run did not return")
+			return nil
+		}
+	}
+
+	t.Run("Close", func(t *testing.T) {
+		w := newTestWorker(t, be, q.Name(), noop, nil)
+		runDone := make(chan error, 1)
+		go func() { runDone <- w.Run(context.Background()) }()
+		waitDrained(t, w)
+		if err := w.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := waitRun(t, runDone); err != nil {
+			t.Fatalf("Run after Close = %v, want nil", err)
+		}
+		if err := w.Run(context.Background()); !errors.Is(err, bullmq.ErrWorkerClosed) {
+			t.Fatalf("second Run = %v, want ErrWorkerClosed", err)
+		}
+	})
+
+	t.Run("ctx", func(t *testing.T) {
+		w := newTestWorker(t, be, q.Name(), noop, nil)
+		t.Cleanup(func() { _ = w.Close() })
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		runDone := make(chan error, 1)
+		go func() { runDone <- w.Run(ctx) }()
+		waitDrained(t, w)
+		cancel()
+		if err := waitRun(t, runDone); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Run after cancelling ctx = %v, want context.Canceled", err)
+		}
+		if err := w.Run(context.Background()); !errors.Is(err, bullmq.ErrWorkerClosed) {
+			t.Fatalf("second Run = %v, want ErrWorkerClosed", err)
+		}
+	})
+
+	t.Run("deadline", func(t *testing.T) {
+		w := newTestWorker(t, be, q.Name(), noop, nil)
+		t.Cleanup(func() { _ = w.Close() })
+		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+		defer cancel()
+		if err := w.Run(ctx); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Run past its deadline = %v, want context.DeadlineExceeded", err)
+		}
+	})
+
+	t.Run("closed before Run", func(t *testing.T) {
+		w := newTestWorker(t, be, q.Name(), noop, nil)
+		if err := w.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := w.Run(context.Background()); !errors.Is(err, bullmq.ErrWorkerClosed) {
+			t.Fatalf("Run after Close = %v, want ErrWorkerClosed", err)
+		}
+	})
+
+	t.Run("concurrent Run", func(t *testing.T) {
+		w := newTestWorker(t, be, q.Name(), noop, nil)
+		runDone := make(chan error, 1)
+		go func() { runDone <- w.Run(context.Background()) }()
+		waitDrained(t, w)
+		second := make(chan error, 1)
+		go func() { second <- w.Run(context.Background()) }()
+		select {
+		case err := <-second:
+			if !errors.Is(err, bullmq.ErrWorkerClosed) {
+				t.Errorf("second Run = %v, want ErrWorkerClosed", err)
+			}
+		case <-time.After(time.Second):
+			t.Error("a second Run blocks while the first one runs")
+			defer func() { _ = waitRun(t, second) }()
+		}
+		if err := w.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := waitRun(t, runDone); err != nil {
+			t.Fatalf("Run after Close = %v, want nil", err)
+		}
+	})
+}
+
+// Pause waits for the jobs in flight unless told not to, as in Node.js, and
+// a paused worker fetches nothing until it is resumed.
+func TestWorkerPauseWaitsForActiveJobs(t *testing.T) {
+	forEachBackend(t, testWorkerPauseWaitsForActiveJobs)
+}
+
+func testWorkerPauseWaitsForActiveJobs(t *testing.T, be testBackend) {
+	ctx := testContext(t)
+	q := newTestQueue(t, be, nil)
+
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseJob := func() { releaseOnce.Do(func() { close(release) }) }
+	started := make(chan struct{}, 2)
+	var processed atomic.Int64
+	w := newTestWorker(t, be, q.Name(), func(context.Context, *bullmq.Job) (any, error) {
+		started <- struct{}{}
+		<-release
+		processed.Add(1)
+		return nil, nil
+	}, &bullmq.WorkerOptions{Concurrency: 2})
+	runWorker(t, w)
+	t.Cleanup(releaseJob)
+
+	if _, err := q.Add(ctx, "held", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the job did not start")
+	}
+
+	// doNotWaitActive returns at once.
+	if err := w.Pause(ctx, true); err != nil {
+		t.Fatalf("Pause(doNotWaitActive): %v", err)
+	}
+	// A bounded wait gives up while the job runs.
+	short, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	if err := w.Pause(short, false); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Pause with a job in flight and an expiring context = %v, want DeadlineExceeded", err)
+	}
+
+	paused := make(chan error, 1)
+	go func() { paused <- w.Pause(ctx, false) }()
+	select {
+	case err := <-paused:
+		t.Fatalf("Pause returned (%v) while a job was still running", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+	releaseJob()
+	select {
+	case err := <-paused:
+		if err != nil {
+			t.Fatalf("Pause: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Pause did not return once the active job finished")
+	}
+	if got := processed.Load(); got != 1 {
+		t.Fatalf("Pause returned before the active job finished (%d processed)", got)
+	}
+
+	if _, err := q.Add(ctx, "while-paused", nil, nil); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if w.ActiveCount() != 0 {
+		t.Fatal("the paused worker fetched a job")
+	}
+	w.Resume()
+	waitFor(t, 5*time.Second, "the job to run after resuming", func() bool { return processed.Load() == 2 })
+}

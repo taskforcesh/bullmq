@@ -124,6 +124,39 @@ originalTree = await flow.add({
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+var flow = new FlowProducer(new QueueBaseOptions { Connection = connection });
+
+var originalTree = await flow.AddAsync(new FlowJob
+{
+    Name = "root-job",
+    QueueName = "topQueueName",
+    Data = new { },
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = name,
+            Data = new { idx = 0, foo = "bar" },
+            QueueName = "childrenQueueName",
+            Opts = new JobsOptions { RemoveDependencyOnFailure = true },
+            Children = new[]
+            {
+                new FlowJob { Name = name, Data = new { idx = 1, foo = "bah" }, QueueName = "grandChildrenQueueName" },
+                new FlowJob { Name = name, Data = new { idx = 2, foo = "baz" }, QueueName = "grandChildrenQueueName" },
+            },
+        },
+        new FlowJob { Name = name, Data = new { idx = 3, foo = "foo" }, QueueName = "childrenQueueName" },
+    },
+});
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
@@ -152,6 +185,52 @@ let original_tree = flow
             .add_child(FlowJob::new(name, "childrenQueueName", json!({ "idx": 3, "foo": "foo" }))?),
     )
     .await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+flow, err := bullmq.NewFlowProducer(&bullmq.FlowProducerOptions{Backend: backend})
+if err != nil {
+	log.Fatal(err)
+}
+defer flow.Close()
+
+originalTree, err := flow.Add(ctx, bullmq.FlowJob{
+	Name:      "root-job",
+	QueueName: "topQueueName",
+	Data:      map[string]any{},
+	Children: []bullmq.FlowJob{
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 0, "foo": "bar"},
+			QueueName: "childrenQueueName",
+			Opts:      &bullmq.JobOptions{RemoveDependencyOnFailure: bullmq.Bool(true)},
+			Children: []bullmq.FlowJob{
+				{
+					Name:      name,
+					Data:      map[string]any{"idx": 1, "foo": "bah"},
+					QueueName: "grandChildrenQueueName",
+				},
+				{
+					Name:      name,
+					Data:      map[string]any{"idx": 2, "foo": "baz"},
+					QueueName: "grandChildrenQueueName",
+				},
+			},
+		},
+		{
+			Name:      name,
+			Data:      map[string]any{"idx": 3, "foo": "foo"},
+			QueueName: "childrenQueueName",
+		},
+	},
+}, nil)
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}

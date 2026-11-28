@@ -23,12 +23,40 @@ await queue.setGlobalConcurrency(4)
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+await queue.SetGlobalConcurrencyAsync(4);
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+:ok = BullMQ.Queue.set_global_concurrency("my-queue", 4, connection: :my_redis)
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
 use bullmq::Queue;
 
 queue.set_global_concurrency(4).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+if err := queue.SetGlobalConcurrency(ctx, 4); err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -62,10 +90,29 @@ global_concurrency = await queue.getGlobalConcurrency()
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+int? globalConcurrency = await queue.GetGlobalConcurrencyAsync();
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
 let global_concurrency = queue.get_global_concurrency().await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+globalConcurrency, err := queue.GlobalConcurrency(ctx)
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -96,10 +143,36 @@ await queue.removeGlobalConcurrency()
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+await queue.RemoveGlobalConcurrencyAsync();
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+:ok = BullMQ.Queue.remove_global_concurrency("my-queue", connection: :my_redis)
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
 queue.remove_global_concurrency().await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+if err := queue.RemoveGlobalConcurrency(ctx); err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}

@@ -7,6 +7,7 @@ from bullmq.types.promote_jobs_options import PromoteJobsOptions
 from bullmq.types.queue_events_options import QueueEventsOptions, QueueEventsProducerOptions
 from bullmq.types.queue_options import QueueBaseOptions
 from bullmq.types.worker_options import WorkerOptions
+from bullmq.types.rate_limiter_options import RateLimiterOptions
 from bullmq.types.retry_jobs_options import RetryJobsOptions
 from bullmq.types.repeat_options import (
     RepeatOptions,

@@ -73,6 +73,12 @@ public sealed class WorkerOptions : QueueBaseOptions
     /// <summary>Seconds the worker blocks waiting for a job before looping. Defaults to 5.</summary>
     public int DrainDelay { get; set; } = 5;
 
+    /// <summary>
+    /// Maximum time (ms) the worker sleeps while the queue is rate limited before
+    /// fetching again, so delayed jobs keep being promoted. Defaults to 30000.
+    /// </summary>
+    public int MaximumRateLimitDelay { get; set; } = 30000;
+
     /// <summary>Optional human-readable worker name (used for observability).</summary>
     public string? Name { get; set; }
 
@@ -90,6 +96,54 @@ public sealed class WorkerOptions : QueueBaseOptions
 
     /// <summary>Disable periodic lock renewal.</summary>
     public bool SkipLockRenewal { get; set; }
+
+    /// <summary>
+    /// Computes the retry delay for jobs whose <see cref="BackoffOptions.Type"/>
+    /// is not a built-in strategy. A job with an unknown backoff type cannot be
+    /// retried unless this is set.
+    /// </summary>
+    public BackoffStrategy? BackoffStrategy { get; set; }
+
+    /// <summary>
+    /// Maximum number of times a job can be started (picked up by a worker),
+    /// whether it then completes, fails or stalls. A job started more times is
+    /// failed with an <see cref="UnrecoverableException"/>, and a failed job that
+    /// has reached this limit is not retried. <c>null</c> or <c>0</c> disables it.
+    /// </summary>
+    public int? MaxStartedAttempts { get; set; }
+
+    /// <summary>
+    /// Default retention policy for jobs this worker completes. Applies only to
+    /// jobs that do not set <see cref="JobsOptions.RemoveOnComplete"/>; the
+    /// job's own setting (including <c>false</c>) always wins. When neither is
+    /// set, completed jobs are kept. <c>Count = 0</c> keeps none.
+    /// </summary>
+    public KeepJobs? RemoveOnComplete { get; set; }
+
+    /// <summary>
+    /// Default retention policy for jobs this worker fails. Applies only to
+    /// jobs that do not set <see cref="JobsOptions.RemoveOnFail"/>; the job's
+    /// own setting (including <c>false</c>) always wins. When neither is set,
+    /// failed jobs are kept. <c>Count = 0</c> keeps none.
+    /// </summary>
+    public KeepJobs? RemoveOnFail { get; set; }
+
+    /// <summary>
+    /// Rate limits the queue: at most <see cref="RateLimiterOptions.Max"/> jobs
+    /// are processed per <see cref="RateLimiterOptions.Duration"/> milliseconds,
+    /// across every worker of the queue that uses the same limiter.
+    /// </summary>
+    public RateLimiterOptions? Limiter { get; set; }
+}
+
+/// <summary>Rate limiter settings for a <see cref="Worker"/>.</summary>
+public sealed class RateLimiterOptions
+{
+    /// <summary>Maximum number of jobs processed per <see cref="Duration"/>.</summary>
+    public required int Max { get; set; }
+
+    /// <summary>Length of the rate-limit window in milliseconds.</summary>
+    public required long Duration { get; set; }
 }
 
 /// <summary>Options for a <see cref="QueueEvents"/> listener.</summary>
@@ -111,11 +165,34 @@ public sealed class QueueEventsOptions : QueueBaseOptions
 /// <summary>Backoff configuration for retrying failed jobs.</summary>
 public sealed class BackoffOptions
 {
-    /// <summary>Strategy type (e.g. <c>"fixed"</c>, <c>"exponential"</c>).</summary>
+    private double? _jitter;
+
+    /// <summary>
+    /// Strategy type: <c>"fixed"</c>, <c>"exponential"</c>, or a custom type
+    /// handled by <see cref="WorkerOptions.BackoffStrategy"/>.
+    /// </summary>
     public string Type { get; set; } = "fixed";
 
     /// <summary>Base delay in milliseconds.</summary>
     public long Delay { get; set; }
+
+    /// <summary>
+    /// Fraction (0 to 1) of the computed delay to randomize, so the actual delay
+    /// is between <c>delay * (1 - jitter)</c> and <c>delay</c>. Defaults to 0.
+    /// </summary>
+    public double? Jitter
+    {
+        get => _jitter;
+        set
+        {
+            if (value is { } v && !(v >= 0 && v <= 1))
+            {
+                throw new ArgumentOutOfRangeException(nameof(Jitter), value, "Jitter should be between 0 and 1");
+            }
+
+            _jitter = value;
+        }
+    }
 }
 
 /// <summary>Options that control how a single job is added and processed.</summary>
@@ -133,10 +210,16 @@ public sealed class JobsOptions
     /// <summary>Job priority (1 = highest). 0 (or null) means no priority.</summary>
     public int? Priority { get; set; }
 
-    /// <summary>Number of total attempts to run the job until it completes.</summary>
+    /// <summary>
+    /// Number of total attempts to run the job until it completes. A failed job
+    /// is retried by the worker until it has been attempted this many times.
+    /// </summary>
     public int? Attempts { get; set; }
 
-    /// <summary>Backoff setting for automatic retries.</summary>
+    /// <summary>
+    /// Backoff setting for automatic retries. Without a backoff, failed jobs are
+    /// retried immediately.
+    /// </summary>
     public BackoffOptions? Backoff { get; set; }
 
     /// <summary>When true the job is added to the right of the wait list (LIFO).</summary>
@@ -146,19 +229,68 @@ public sealed class JobsOptions
     public long? Timestamp { get; set; }
 
     /// <summary>
-    /// Remove the job when it completes: <c>true</c> to remove, a number to keep
-    /// that many, or a <see cref="KeepJobs"/> policy.
+    /// Remove the job when it completes: <c>true</c> to remove, <c>false</c> to
+    /// keep, a number to keep that many, or a <see cref="KeepJobs"/> policy.
+    /// Overrides <see cref="WorkerOptions.RemoveOnComplete"/>.
     /// </summary>
     public object? RemoveOnComplete { get; set; }
 
-    /// <summary>Remove the job when it fails. Same shape as <see cref="RemoveOnComplete"/>.</summary>
+    /// <summary>
+    /// Remove the job when it fails. Same shape as <see cref="RemoveOnComplete"/>.
+    /// Overrides <see cref="WorkerOptions.RemoveOnFail"/>.
+    /// </summary>
     public object? RemoveOnFail { get; set; }
 
     /// <summary>Maximum number of log entries to keep for the job (0 = unlimited).</summary>
     public int? KeepLogs { get; set; }
 
+    /// <summary>
+    /// Makes this job a child of an existing parent job. The parent must exist
+    /// and is moved to waiting-children until this job completes.
+    /// </summary>
+    public ParentOptions? Parent { get; set; }
+
+    /// <summary>
+    /// When this child fails permanently, its parent fails too (the failure is
+    /// propagated up the flow).
+    /// </summary>
+    public bool? FailParentOnFailure { get; set; }
+
+    /// <summary>
+    /// When this child fails permanently, its parent starts processing right
+    /// away instead of waiting for its remaining children.
+    /// </summary>
+    public bool? ContinueParentOnFailure { get; set; }
+
+    /// <summary>
+    /// When this child fails permanently, the parent ignores the failure and
+    /// completes as normal. The failure reason can be read with
+    /// <see cref="Job.GetIgnoredChildrenFailuresAsync"/> on the parent.
+    /// </summary>
+    public bool? IgnoreDependencyOnFailure { get; set; }
+
+    /// <summary>
+    /// When this child fails permanently, it is removed from the parent's
+    /// dependencies so the parent can complete without it.
+    /// </summary>
+    public bool? RemoveDependencyOnFailure { get; set; }
+
     /// <summary>Creates a shallow copy of these options.</summary>
     public JobsOptions Clone() => (JobsOptions)MemberwiseClone();
+}
+
+/// <summary>Identifies the parent job of a child job.</summary>
+public sealed class ParentOptions
+{
+    /// <summary>The parent job id.</summary>
+    public required string Id { get; set; }
+
+    /// <summary>
+    /// The parent's fully-qualified queue name: <c>"&lt;prefix&gt;:&lt;queue&gt;"</c>
+    /// on Redis (e.g. <c>"bull:parents"</c>), or the plain queue name on
+    /// PostgreSQL. See <see cref="IQueueBackend.QualifiedName"/>.
+    /// </summary>
+    public required string Queue { get; set; }
 }
 
 /// <summary>Controls deduplication using the shared Redis and PostgreSQL scripts.</summary>
@@ -191,4 +323,10 @@ public sealed class KeepJobs
 
     /// <summary>Maximum age in seconds of jobs to keep.</summary>
     public int? Age { get; set; }
+
+    /// <summary>
+    /// Maximum number of aged jobs removed per finished job (Redis only;
+    /// defaults to 1000). Ignored by the PostgreSQL backend.
+    /// </summary>
+    public int? Limit { get; set; }
 }

@@ -72,6 +72,41 @@ let data = job.data(); // {"color": "red"}
 
 {% endtab %}
 
+{% tab title="Go" %}
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	bullmq "github.com/taskforcesh/bullmq-go"
+	"github.com/taskforcesh/bullmq-go/redisbackend"
+)
+
+func main() {
+	ctx := context.Background()
+
+	backend := redisbackend.New(redisbackend.Options{Addr: "localhost:6379"})
+	queue, err := bullmq.NewQueue("paint", &bullmq.QueueOptions{Backend: backend})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer queue.Close()
+
+	job, err := queue.Add(ctx, "wall", map[string]string{"color": "red"}, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(string(job.Data)) // {"color":"red"}
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -147,6 +182,23 @@ let mut job = queue.add("wall", serde_json::json!({ "color": "red" })).await?;
 job.update_data(serde_json::json!({ "color": "blue" })).await?;
 
 job.data(); // { "color": "blue" }
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+job, err := queue.Add(ctx, "wall", map[string]string{"color": "red"}, nil)
+if err != nil {
+	log.Fatal(err)
+}
+
+if err := job.UpdateData(ctx, map[string]string{"color": "blue"}); err != nil {
+	log.Fatal(err)
+}
+
+fmt.Println(string(job.Data)) // {"color":"blue"}
 ```
 
 {% endtab %}

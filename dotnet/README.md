@@ -84,6 +84,7 @@ var pg = new PostgresOptions
 {
     ConnectionString = "Host=localhost;Database=bullmq;Username=postgres;Password=postgres",
     // Schema = "bullmq", // optional, this is the default
+    // PoolSize = 20,     // optional, max pooled query connections
 };
 
 await using var queue = new Queue("emails", new QueueOptions { Postgres = pg });
@@ -92,6 +93,53 @@ await queue.AddAsync("welcome", new { to = "user@example.com" });
 await using var worker = new Worker("emails", async (job, ct) => "sent",
     new WorkerOptions { Postgres = pg, Concurrency = 5 });
 ```
+
+## Retrying failed jobs
+
+Set `Attempts` to retry a job whose processor throws, and optionally a `Backoff`
+to wait between attempts. Without `Backoff`, a failed job is retried
+immediately. Behaviour is the same on Redis and PostgreSQL.
+
+```csharp
+await queue.AddAsync("send", new { to = "user@example.com" }, new JobsOptions
+{
+    Attempts = 5,
+    // Waits 1s, 2s, 4s, 8s. Jitter (0 to 1) randomizes each delay down to
+    // delay * (1 - jitter).
+    Backoff = new BackoffOptions { Type = "exponential", Delay = 1000, Jitter = 0.5 },
+});
+```
+
+- **fixed:** waits `Delay` ms before every retry.
+- **exponential:** waits `2^(attemptsMade - 1) * Delay` ms.
+- **Custom types:** set `WorkerOptions.BackoffStrategy` to compute the delay for
+  any other `Type`. Return `0` to retry immediately or `-1` to fail the job
+  without further retries. An unknown type without a strategy is an error.
+
+```csharp
+var options = new WorkerOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+    BackoffStrategy = (attemptsMade, type, error, job) =>
+        Task.FromResult(type == "linear" ? attemptsMade * 1000L : -1L),
+};
+```
+
+Throw `UnrecoverableException` to fail a job immediately, skipping its
+remaining attempts. `WorkerOptions.MaxStartedAttempts` limits how many times a
+job can be started, which also counts starts that stalled. The worker raises
+`Failed` for every failed attempt, including attempts that are retried. Each
+failure updates the job's `FailedReason` and appends to its `StackTrace`.
+
+Custom `IQueueBackend` implementations must accept the optional `failedReason`
+and `stackTraceJson` parameters of `MoveToDelayedAsync` and `RetryJobAsync`,
+and persist them on the job when a retry is scheduled.
+
+Queries run on a connection pool shared by every queue, worker and `QueueEvents` in
+the process that uses the same connection string and schema. Size it with
+`PoolSize` (default 20) or `Maximum Pool Size` in the connection string; each
+worker and `QueueEvents` also keeps one dedicated `LISTEN` connection outside the
+pool, so size the server's `max_connections` accordingly.
 
 ## Deduplication
 
@@ -155,6 +203,103 @@ existing behavior.
 Adding deduplication management extends `IQueueBackend` with winner lookup,
 unconditional deletion and conditional owner deletion; custom backend
 implementations must supply these operations.
+
+## Removing finished jobs
+
+By default completed and failed jobs are kept. Set `JobsOptions.RemoveOnComplete`
+/ `RemoveOnFail` to `true` (remove), `false` (keep), a number (keep the latest
+N) or a `KeepJobs` policy (`Age` in seconds and/or `Count`):
+
+```csharp
+await queue.AddAsync("report", data, new JobsOptions
+{
+    RemoveOnComplete = true,
+    RemoveOnFail = new KeepJobs { Age = 24 * 3600, Count = 5000 },
+});
+```
+
+A worker can set defaults for jobs that don't define their own. The job's
+setting, including `false`, always takes precedence over the worker's:
+
+```csharp
+await using var worker = new Worker("reports", processor, new WorkerOptions
+{
+    Connection = ConnectionOptions.FromString("localhost:6379"),
+    RemoveOnComplete = new KeepJobs { Count = 1000 },
+    RemoveOnFail = new KeepJobs { Age = 7 * 24 * 3600 },
+});
+```
+
+Retention is applied when a job finishes, so aged jobs are only evicted when a
+later job of the same kind finishes. Options written by the other BullMQ
+runtimes (boolean, number or `{count, age, limit}` object) are honored the same
+way. `KeepJobs.Limit` caps how many aged jobs one eviction removes and only
+applies to Redis.
+
+## Flows: child failures and the job tree
+
+A child added with a `FlowProducer` (or with `JobsOptions.Parent` on
+`Queue.AddAsync`) can decide what happens to its parent when it fails
+permanently:
+
+- **`FailParentOnFailure`:** the parent fails too (when a worker picks it up).
+- **`ContinueParentOnFailure`:** the parent starts processing right away; it can
+  call `GetIgnoredChildrenFailuresAsync()` and `RemoveUnprocessedChildrenAsync()`.
+- **`IgnoreDependencyOnFailure`:** the parent completes as normal; the failure is
+  kept and returned by `GetIgnoredChildrenFailuresAsync()`.
+- **`RemoveDependencyOnFailure`:** the child is dropped from the parent's
+  dependencies.
+
+```csharp
+var tree = await flow.AddAsync(new FlowJob
+{
+    Name = "report",
+    QueueName = "reports",
+    Children = new[]
+    {
+        new FlowJob
+        {
+            Name = "fetch",
+            QueueName = "fetchers",
+            Opts = new JobsOptions { IgnoreDependencyOnFailure = true },
+        },
+    },
+});
+
+// Later: child key -> failed reason
+var ignored = await tree.Job.GetIgnoredChildrenFailuresAsync();
+
+// The job and its children, recursively.
+var node = await flow.GetFlowAsync(new GetFlowOptions { Id = tree.Job.Id!, QueueName = "reports" });
+```
+
+`GetFlowOptions.Depth` (default 10, the root counts as one level) and
+`MaxChildren` (default 20 per category) bound the returned tree.
+
+## Rate limiting and global concurrency
+
+```csharp
+// At most 10 jobs per second across every worker of the queue.
+var worker = new Worker("painter", processor, new WorkerOptions
+{
+    Connection = connection,
+    Limiter = new RateLimiterOptions { Max = 10, Duration = 1000 },
+});
+
+// Or set a global rate limit / concurrency on the queue itself.
+await queue.SetGlobalRateLimitAsync(10, 1000);
+await queue.SetGlobalConcurrencyAsync(4);
+```
+
+To rate limit manually (e.g. after an HTTP 429), call `worker.RateLimitAsync(ms)`
+or `queue.RateLimitAsync(ms)` from the processor and throw
+`RateLimitException`. The job goes back to wait without consuming an attempt or
+raising `Failed`, and the worker sleeps until the limit lifts.
+
+Custom `IQueueBackend` implementations must also implement the operations these
+features add (rate-limit window, moving an active job back to wait, ignored
+children failures, dependency keys, removing unprocessed children and removing
+meta fields).
 
 ## Development
 

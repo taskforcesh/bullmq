@@ -14,17 +14,14 @@ const SITE_ORIGIN = 'https://docs.bullmq.io';
 const REPOSITORY_FILES =
   'https://raw.githubusercontent.com/taskforcesh/bullmq/master/docs/gitbook';
 
-const SUMMARY = `> BullMQ is an open source background job and message queue. It is \
-available natively for TypeScript/JavaScript (Node.js and Bun), Python, \
-Elixir, Rust, .NET and PHP, and runs on Redis (or compatible datastores such \
-as Valkey and Dragonfly) and on PostgreSQL. All SDKs share the same data \
-model, so producers and workers written in different languages can work on \
-the same queues.
-
-This is the index of the BullMQ documentation. Every page is also available \
-as Markdown by appending \`.md\` to its URL, and \
-[llms-full.txt](${SITE_ORIGIN}/llms-full.txt) contains all the pages except \
-the changelogs in a single file.`;
+const SUMMARY =
+  '> BullMQ is an open source background job and message queue. It is available natively for ' +
+  'TypeScript/JavaScript (Node.js and Bun), Python, Elixir, Rust, .NET, Go and PHP, and runs on Redis (or compatible ' +
+  'datastores such as Valkey and Dragonfly) and on PostgreSQL. All SDKs share the same data model, so producers and ' +
+  'workers written in different languages can work on the same queues.\n\n' +
+  `This is the index of the BullMQ documentation. Every page is also available as Markdown by appending \`.md\` to ` +
+  `its URL, and [llms-full.txt](${SITE_ORIGIN}/llms-full.txt) contains all the pages except the changelogs in a ` +
+  'single file.';
 
 const RELATED = `## Related
 

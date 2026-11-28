@@ -25,6 +25,26 @@ await queue.setGlobalRateLimit(1, 1000)
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using BullMQ;
+
+// 1 job per second
+await queue.SetGlobalRateLimitAsync(1, 1000);
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+# 1 job per second
+:ok = BullMQ.Queue.set_global_rate_limit("my-queue", 1, 1000, connection: :my_redis)
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
@@ -32,6 +52,17 @@ use bullmq::Queue;
 
 // 1 job per second
 queue.set_global_rate_limit(1, 1000).await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+// 1 job per second
+if err := queue.SetGlobalRateLimit(ctx, 1, time.Second); err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}
@@ -66,11 +97,35 @@ max_jobs, duration = rate_limit["max"], rate_limit["duration"]
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+// Null when no global rate limit is set.
+RateLimiterOptions? rateLimit = await queue.GetGlobalRateLimitAsync();
+var (max, duration) = (rateLimit!.Max, rateLimit.Duration);
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
 if let Some((max, duration)) = queue.get_global_rate_limit().await? {
     println!("{max} jobs every {duration} ms");
+}
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+limit, err := queue.GlobalRateLimit(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+if limit != nil {
+	log.Printf("%d jobs every %v", limit.Max, limit.Duration)
 }
 ```
 
@@ -120,6 +175,17 @@ let ttl = queue.get_rate_limit_ttl(None).await?;
 
 {% endtab %}
 
+{% tab title="Go" %}
+
+```go
+ttl, err := queue.RateLimitTTL(ctx, 0)
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+{% endtab %}
+
 {% tab title="PHP" %}
 
 ```php
@@ -156,10 +222,36 @@ await queue.removeGlobalRateLimit()
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+await queue.RemoveGlobalRateLimitAsync();
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+:ok = BullMQ.Queue.remove_global_rate_limit("my-queue", connection: :my_redis)
+```
+
+{% endtab %}
+
 {% tab title="Rust" %}
 
 ```rust
 queue.remove_global_rate_limit().await?;
+```
+
+{% endtab %}
+
+{% tab title="Go" %}
+
+```go
+if err := queue.RemoveGlobalRateLimit(ctx); err != nil {
+	log.Fatal(err)
+}
 ```
 
 {% endtab %}

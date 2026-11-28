@@ -55,11 +55,17 @@ internal static class OptsCodec
 
         if (opts.Backoff is { } backoff)
         {
-            map["backoff"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            var backoffMap = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["type"] = backoff.Type,
                 ["delay"] = backoff.Delay,
             };
+            if (backoff.Jitter is { } jitter)
+            {
+                backoffMap["jitter"] = jitter;
+            }
+
+            map["backoff"] = backoffMap;
         }
 
         if (opts.Lifo is { } lifo && lifo)
@@ -80,6 +86,28 @@ internal static class OptsCodec
         if (opts.KeepLogs is { } keepLogs)
         {
             map["keepLogs"] = keepLogs;
+        }
+
+        // Child failure options: persisted (as fpof/cpof/idof/rdof on Redis)
+        // only when enabled, like the reference runtimes.
+        if (opts.FailParentOnFailure == true)
+        {
+            map["failParentOnFailure"] = true;
+        }
+
+        if (opts.ContinueParentOnFailure == true)
+        {
+            map["continueParentOnFailure"] = true;
+        }
+
+        if (opts.IgnoreDependencyOnFailure == true)
+        {
+            map["ignoreDependencyOnFailure"] = true;
+        }
+
+        if (opts.RemoveDependencyOnFailure == true)
+        {
+            map["removeDependencyOnFailure"] = true;
         }
 
         if (opts.Deduplication is { } dedup)
@@ -128,6 +156,11 @@ internal static class OptsCodec
         if (keep.Age is { } age)
         {
             map["age"] = age;
+        }
+
+        if (keep.Limit is { } limit)
+        {
+            map["limit"] = limit;
         }
 
         return map;

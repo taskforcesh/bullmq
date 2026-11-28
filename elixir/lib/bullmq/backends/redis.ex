@@ -130,12 +130,13 @@ defmodule BullMQ.Backends.Redis do
 
   @impl true
   def parse_node_key(%__MODULE__{}, key) do
-    # "<prefix>:<queueName>:<id>" -> prefix, queueName, id
+    # "<prefix>:<queueName>:<id>" -> prefix, queueName, id. Queue names can't
+    # contain ":" (nor can job ids), so the prefix is everything before the
+    # last two parts: it may contain ":" (e.g. "tenant:bull").
     case String.split(key, ":") do
       parts when length(parts) >= 3 ->
-        {id, rest} = List.pop_at(parts, -1)
-        [prefix | queue_parts] = rest
-        %{prefix: prefix, queue_name: Enum.join(queue_parts, ":"), id: id}
+        [id, queue_name | prefix_parts] = Enum.reverse(parts)
+        %{prefix: prefix_parts |> Enum.reverse() |> Enum.join(":"), queue_name: queue_name, id: id}
 
       _ ->
         %{prefix: "", queue_name: "", id: key}
@@ -261,27 +262,12 @@ defmodule BullMQ.Backends.Redis do
     do: Scripts.build_add_parent_job_command(ctx, job, opts)
 
   @doc """
-  Filters the job option keys that are encoded into the add scripts. Public so
-  callers building bulk entries can reuse the same encoding.
+  Selects the job options that are forwarded to the add scripts, keyed by the
+  Node.js option names (see `BullMQ.Job.encode_add_opts/1`). Public so callers
+  building bulk entries can reuse the same encoding.
   """
   @spec encode_job_opts(map()) :: map()
-  def encode_job_opts(opts) do
-    opts
-    |> Map.take([
-      :attempts,
-      :backoff,
-      :lifo,
-      :timeout,
-      :remove_on_complete,
-      :remove_on_fail,
-      :repeat,
-      :deduplication,
-      :fail_parent_on_failure,
-      :ignore_dependency,
-      :remove_dependency
-    ])
-    |> Map.reject(fn {_k, v} -> is_nil(v) end)
-  end
+  def encode_job_opts(opts), do: BullMQ.Job.encode_add_opts(opts)
 
   # ============================================================
   # Job state transitions
@@ -615,6 +601,40 @@ defmodule BullMQ.Backends.Redis do
     do: RedisConnection.command(conn, ["SCARD", Keys.job_dependencies(ctx, job_id)])
 
   @impl true
+  def get_dependencies_page(%__MODULE__{connection: conn, context: ctx}, job_id, count) do
+    # Same commands as the Node.js `getDependencies` with a `count` per type:
+    # HSCAN processed, SSCAN dependencies, HSCAN failed (ignored) and a ZRANGE
+    # over the unsuccessful set, all starting at cursor 0.
+    count_arg = to_string(count)
+
+    commands = [
+      ["HSCAN", Keys.job_processed(ctx, job_id), "0", "COUNT", count_arg],
+      ["SSCAN", Keys.job_dependencies(ctx, job_id), "0", "COUNT", count_arg],
+      ["HSCAN", Keys.job_failed(ctx, job_id), "0", "COUNT", count_arg],
+      ["ZRANGE", Keys.job_unsuccessful(ctx, job_id), "0", to_string(count - 1)]
+    ]
+
+    case RedisConnection.pipeline(conn, commands) do
+      {:ok, [[_, processed], [_, unprocessed], [_, ignored], failed]} ->
+        {:ok,
+         %{
+           processed: pairs(processed),
+           unprocessed: unprocessed,
+           failed: failed,
+           ignored: pairs(ignored)
+         }}
+
+      {:ok, other} ->
+        {:error, {:unexpected_result, other}}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp pairs(flat), do: flat |> Enum.chunk_every(2) |> Enum.map(fn [k, v] -> {k, v} end)
+
+  @impl true
   def get_rate_limit_ttl(%__MODULE__{connection: conn, context: ctx}, opts),
     do: Scripts.get_rate_limit_ttl(conn, ctx, opts)
 
@@ -766,6 +786,30 @@ defmodule BullMQ.Backends.Redis do
       |> Enum.flat_map(fn {k, v} -> [to_string(k), to_string(v)] end)
 
     RedisConnection.command(conn, ["HMSET", Keys.meta(ctx) | args])
+  end
+
+  @impl true
+  def remove_queue_meta_fields(%__MODULE__{}, []), do: {:ok, 0}
+
+  def remove_queue_meta_fields(%__MODULE__{connection: conn, context: ctx}, fields) do
+    RedisConnection.command(conn, ["HDEL", Keys.meta(ctx) | Enum.map(fields, &to_string/1)])
+  end
+
+  @impl true
+  def set_rate_limit(%__MODULE__{connection: conn, context: ctx}, expire_ms) do
+    # Number.MAX_SAFE_INTEGER, as in Node.js: any limiter `max` is exceeded.
+    RedisConnection.command(conn, [
+      "SET",
+      Keys.limiter(ctx),
+      "9007199254740991",
+      "PX",
+      to_string(expire_ms)
+    ])
+  end
+
+  @impl true
+  def remove_rate_limit_key(%__MODULE__{connection: conn, context: ctx}) do
+    RedisConnection.command(conn, ["DEL", Keys.limiter(ctx)])
   end
 
   @impl true
