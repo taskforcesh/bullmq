@@ -5,6 +5,7 @@ import {
 } from './utils/get-redis-client';
 import { default as IORedis, RedisOptions } from 'ioredis';
 import { EventEmitter } from 'node:events';
+import * as net from 'node:net';
 import {
   describe,
   beforeEach,
@@ -392,6 +393,313 @@ describe('RedisConnection', () => {
 
       await connection.close(true);
     });
+
+    async function createFakeClusterServer() {
+      let rejectSlots = false;
+      const sockets = new Set<net.Socket>();
+      const server = net.createServer(socket => {
+        sockets.add(socket);
+        socket.on('close', () => sockets.delete(socket));
+        let buf = '';
+        socket.on('data', data => {
+          buf += data.toString();
+          const parts = buf.split(/(?=\*\d+\r\n)/);
+          buf = '';
+          for (const cmd of parts) {
+            if (!cmd) {
+              continue;
+            }
+            if (/SLOTS/i.test(cmd)) {
+              if (rejectSlots) {
+                socket.destroy();
+                return;
+              }
+              const { port } = server.address() as net.AddressInfo;
+              const host = '127.0.0.1';
+              socket.write(
+                `*1\r\n*3\r\n:0\r\n:16383\r\n*2\r\n$${host.length}\r\n${host}\r\n:${port}\r\n`,
+              );
+            } else if (/CLUSTER[\s\S]*INFO/i.test(cmd)) {
+              const info = 'cluster_state:ok\r\n';
+              socket.write(`$${info.length}\r\n${info}\r\n`);
+            } else if (/INFO/i.test(cmd)) {
+              const info = 'loading:0\r\n';
+              socket.write(`$${info.length}\r\n${info}\r\n`);
+            } else {
+              socket.write('+OK\r\n');
+            }
+          }
+        });
+      });
+
+      await new Promise<void>(resolve =>
+        server.listen(0, '127.0.0.1', resolve),
+      );
+      const { port } = server.address() as net.AddressInfo;
+
+      return {
+        port,
+        setRejectSlots: (value: boolean) => {
+          rejectSlots = value;
+        },
+        close: async () => {
+          for (const s of sockets) {
+            s.destroy();
+          }
+          await new Promise<void>(resolve => server.close(() => resolve()));
+        },
+      };
+    }
+
+    it('keeps clusterRetryStrategy active after failed reconnect and recovers', async () => {
+      let retryStrategyCalls = 0;
+      const cluster = new IORedis.Cluster([{ host: '127.0.0.1', port: 1 }], {
+        lazyConnect: true,
+        slotsRefreshTimeout: 50,
+        clusterRetryStrategy: () => {
+          retryStrategyCalls++;
+          return 40;
+        },
+        redisOptions: { maxRetriesPerRequest: null, connectTimeout: 50 },
+      });
+      cluster.on('error', () => {});
+
+      const originalBzpopmin = sinon
+        .stub(cluster, 'bzpopmin')
+        .resolves(['marker', '0', '1'] as any);
+
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+        clusterReconnectTimeoutMs: 2000,
+      });
+      connection.on('error', () => {});
+
+      try {
+        const client = await connection.client;
+
+        await expect((client as any).bzpopmin('marker', 1)).rejects.toThrow(
+          /None of startup nodes is available/i,
+        );
+        await new Promise(resolve => setTimeout(resolve, 15));
+
+        expect(cluster.status).toBe('reconnecting');
+        expect((cluster as any).manuallyClosing).not.toBe(true);
+        expect(retryStrategyCalls).toBeGreaterThanOrEqual(1);
+
+        let connectCalls = 0;
+        sinon.stub(cluster, 'connect').callsFake(async () => {
+          connectCalls++;
+          (cluster as any).status = 'ready';
+          cluster.emit('ready');
+        });
+
+        const secondCall = (client as any).bzpopmin('marker', 1);
+        expect(connectCalls).toBe(0);
+
+        await expect(secondCall).resolves.toEqual(['marker', '0', '1']);
+        expect(connectCalls).toBe(1);
+        expect(originalBzpopmin.calledOnceWith('marker', 1)).toBe(true);
+      } finally {
+        await connection.close(true);
+      }
+    });
+
+    it('does not race with pending close nextTick when bzpopmin runs during status close', async () => {
+      const cluster = new IORedis.Cluster([{ host: '127.0.0.1', port: 1 }], {
+        lazyConnect: true,
+        slotsRefreshTimeout: 30,
+        clusterRetryStrategy: () => 40,
+        redisOptions: { maxRetriesPerRequest: null, connectTimeout: 30 },
+      });
+      cluster.on('error', () => {});
+
+      const originalBzpopmin = sinon
+        .stub(cluster, 'bzpopmin')
+        .resolves(['marker', '0', '1'] as any);
+
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+        clusterReconnectTimeoutMs: 2000,
+      });
+      connection.on('error', () => {});
+
+      try {
+        const client = await connection.client;
+        let raceCallPromise: Promise<unknown> | undefined;
+        let observedStatusAtDrain: string | undefined;
+
+        (cluster as any).connectionPool.once('drain', () => {
+          observedStatusAtDrain = cluster.status;
+          sinon.stub(cluster, 'connect').callsFake(async () => {
+            (cluster as any).status = 'ready';
+            cluster.emit('ready');
+          });
+          raceCallPromise = (client as any).bzpopmin('marker', 1);
+        });
+
+        await expect(cluster.connect()).rejects.toThrow(
+          /None of startup nodes is available/i,
+        );
+
+        expect(observedStatusAtDrain).toBe('close');
+        await expect(raceCallPromise).resolves.toEqual(['marker', '0', '1']);
+        expect(originalBzpopmin.calledOnceWith('marker', 1)).toBe(true);
+      } finally {
+        await connection.close(true);
+      }
+    });
+
+    it.each(['close', 'disconnect-wait', 'disconnect-nowait'] as const)(
+      'aborts pending reconnecting bzpopmin and ends cluster on %s',
+      async mode => {
+        const cluster = new IORedis.Cluster([{ host: '127.0.0.1', port: 1 }], {
+          lazyConnect: true,
+          slotsRefreshTimeout: 30,
+          clusterRetryStrategy: () => 250,
+          redisOptions: { maxRetriesPerRequest: null, connectTimeout: 30 },
+        });
+        cluster.on('error', () => {});
+
+        const connection = new RedisConnection(cluster as any, {
+          blocking: true,
+          skipVersionCheck: true,
+          skipWaitingForReady: true,
+          clusterReconnectTimeoutMs: 5000,
+        });
+        connection.on('error', () => {});
+
+        try {
+          const client = await connection.client;
+
+          await expect((client as any).bzpopmin('marker', 1)).rejects.toThrow(
+            /None of startup nodes is available/i,
+          );
+          await new Promise(resolve => setTimeout(resolve, 15));
+          expect(cluster.status).toBe('reconnecting');
+
+          const start = Date.now();
+          const pending = (client as any).bzpopmin('marker', 1);
+          await new Promise(resolve => setTimeout(resolve, 10));
+
+          if (mode === 'close') {
+            await connection.close(true);
+          } else {
+            await connection.disconnect(mode === 'disconnect-wait');
+          }
+
+          await expect(pending).rejects.toThrow(/Connection is closed/i);
+          expect(Date.now() - start).toBeLessThan(500);
+          expect(cluster.status).toBe('end');
+
+          const connectAfter = sinon.spy(cluster, 'connect');
+          await new Promise(resolve => setTimeout(resolve, 300));
+          expect(connectAfter.called).toBe(false);
+        } finally {
+          await connection.close(true);
+        }
+      },
+    );
+
+    it('waits for draining cluster before redialing and does not leak retry timers past close(true)', async () => {
+      const server = await createFakeClusterServer();
+      const cluster = new IORedis.Cluster(
+        [{ host: '127.0.0.1', port: server.port }],
+        {
+          slotsRefreshTimeout: 50,
+          clusterRetryStrategy: () => 40,
+          redisOptions: { maxRetriesPerRequest: null, connectTimeout: 50 },
+        },
+      );
+      cluster.on('error', () => {});
+
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+      });
+      connection.on('error', () => {});
+
+      try {
+        const client = await connection.client;
+        expect(cluster.status).toBe('ready');
+
+        // Trigger disconnect(true): pool empties synchronously while the old
+        // TCP node closes asynchronously.
+        server.setRejectSlots(true);
+        cluster.disconnect(true);
+        expect(cluster.status).toBe('disconnecting');
+        expect(cluster.nodes().length).toBe(0);
+
+        await expect((client as any).bzpopmin('marker', 1)).rejects.toThrow(
+          /None of startup nodes is available/i,
+        );
+
+        await connection.close(true);
+        expect(cluster.status).toBe('end');
+
+        server.setRejectSlots(false);
+        const connectAfterClose = sinon.spy(cluster, 'connect');
+        await new Promise(resolve => setTimeout(resolve, 160));
+
+        expect(connectAfterClose.called).toBe(false);
+        expect(cluster.status).toBe('end');
+      } finally {
+        await connection.close(true);
+        await server.close();
+      }
+    });
+
+    it('does not hang when stuck in disconnecting with manuallyClosing set', async () => {
+      const cluster = new IORedis.Cluster([{ host: '127.0.0.1', port: 1 }], {
+        lazyConnect: true,
+        slotsRefreshTimeout: 30,
+        clusterRetryStrategy: () => 5000,
+        redisOptions: { maxRetriesPerRequest: null, connectTimeout: 30 },
+      });
+      cluster.on('error', () => {});
+
+      const originalBzpopmin = sinon
+        .stub(cluster, 'bzpopmin')
+        .resolves(['marker', '0', '1'] as any);
+
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+        clusterReconnectTimeoutMs: 5000,
+      });
+      connection.on('error', () => {});
+
+      try {
+        const client = await connection.client;
+        await expect((client as any).bzpopmin('marker', 1)).rejects.toThrow(
+          /None of startup nodes is available/i,
+        );
+        await new Promise(resolve => setTimeout(resolve, 15));
+
+        cluster.disconnect(false);
+        if (cluster.status === 'disconnecting') {
+          sinon.stub(cluster, 'connect').callsFake(async () => {
+            (cluster as any).status = 'ready';
+            cluster.emit('ready');
+          });
+
+          const start = Date.now();
+          await expect((client as any).bzpopmin('marker', 1)).resolves.toEqual([
+            'marker',
+            '0',
+            '1',
+          ]);
+          expect(Date.now() - start).toBeLessThan(500);
+          expect(originalBzpopmin.calledOnceWith('marker', 1)).toBe(true);
+        }
+      } finally {
+        await connection.close(true);
+      }
+    });
   });
 
   describe('connect()', () => {
@@ -574,6 +882,45 @@ describe('RedisConnection', () => {
       await Promise.all([reconnecting, concurrentReconnect!]);
       expect(client.connect.calledOnce).toBe(true);
       waitUntilReady.restore();
+    });
+
+    it('clears manuallyClosing on Cluster so clusterRetryStrategy runs after disconnect(true)', async () => {
+      let retryStrategyCalls = 0;
+      const cluster = new IORedis.Cluster([{ host: '127.0.0.1', port: 1 }], {
+        lazyConnect: true,
+        slotsRefreshTimeout: 30,
+        clusterRetryStrategy: () => {
+          retryStrategyCalls++;
+          return 200;
+        },
+        redisOptions: { maxRetriesPerRequest: null, connectTimeout: 30 },
+      });
+      cluster.on('error', () => {});
+
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+      connection.on('error', () => {});
+
+      try {
+        await connection.client;
+        await connection.disconnect(true);
+        expect(cluster.status).toBe('end');
+        expect((cluster as any).manuallyClosing).toBe(true);
+
+        await expect(connection.reconnect()).rejects.toThrow(
+          /None of startup nodes is available/i,
+        );
+        await new Promise(resolve => setTimeout(resolve, 20));
+
+        expect(retryStrategyCalls).toBeGreaterThanOrEqual(1);
+        expect(cluster.status).toBe('reconnecting');
+        expect((cluster as any).manuallyClosing).toBe(false);
+      } finally {
+        await connection.close(true);
+      }
     });
   });
 
